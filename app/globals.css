@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Default to non-selectable everywhere. Individual `select-none` classes
+   *  sprinkled across pages kept missing spots (headings, labels, "Loading"
+   *  text, criterion rows) that then behaved "like a Word document" when
+   *  clicked repeatedly - this is a UI, not a document, so text should only
+   *  be selectable where it's explicitly re-enabled below (form fields, so
+   *  typing/editing still works normally). */
+  body {
+    @apply bg-surface text-ink-900 antialiased select-none;
+  }
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    @apply select-text;
+  }
+}
+
+@layer utilities {
+  /* Split-colour wordmark: "Pil" in ink, "tri" in amber. Used by <Logo />. */
+  .wordmark-split {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+
+  /* "Google Maps" link inside a Mapbox popup (see MapView.tsx popupHtml) -
+   *  a plain HTML string, not a React tree, so Tailwind's hover: variant
+   *  classes aren't available there; this reproduces the exact same look
+   *  as the place-name buttons in PinPanel (font-sans, text-piltri-amber,
+   *  hover:underline) via a real CSS rule instead. */
+  .piltri-popup-link {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+    font-size: 12px;
+    color: #BA7517;
+    text-decoration: none;
+  }
+  .piltri-popup-link:hover {
+    text-decoration: underline;
+  }
+}

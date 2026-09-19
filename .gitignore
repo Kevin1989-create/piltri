@@ -1,0 +1,10 @@
+node_modules
+.next
+.env
+.env.local
+.DS_Store
+*.tsbuildinfo
+
+# Unrelated files that ended up in this project folder - not part of Piltri,
+# never intended to be pushed to this repo.
+MPF-training-update*.zip
