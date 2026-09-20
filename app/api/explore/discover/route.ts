@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDiscoverCities, getDiscoverCountries } from "@/lib/discoverCities";
-import { citySlug, getCachedCityDataBatch, getOrAggregateCityData, getOrAggregatePinDataForCity } from "@/lib/aggregation/cache";
+import { citySlug, getCachedCityDataBatch, getOrAggregatePinDataForCity } from "@/lib/aggregation/cache";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { CRITERIA, aggregateForCountry, getCriterion, kindForScope, matchesFilter } from "@/lib/advancedSearch/criteria";
 import type {
@@ -11,6 +11,7 @@ import type {
   CityExploreData,
   CitySearchResult,
   CriterionValue,
+  DiscoverCity,
   PinnedLocationData,
 } from "@/lib/types";
 
@@ -44,15 +45,27 @@ function resolveFilters(filters: AdvancedSearchRequest["filters"]): ResolvedFilt
  * body: AdvancedSearchRequest — { scope: "city" | "country", filters: AdvancedSearchCriterionFilter[], weights? }
  *
  * Evaluates every requested filter against the full criteria registry (see
- * lib/advancedSearch/criteria.ts) for each candidate — real, live-aggregated
- * data, same pipeline as the single-city results page, not mocked. The
- * "Nearby & distance" criteria additionally need each candidate's centre-
- * point Pin-mode data (getOrAggregatePinDataForCity) — that lookup is only
- * made when at least one Nearby filter is actually active, so a search that
- * doesn't touch Beach/Subway/etc. stays exactly as fast as the old
- * min-score-only Discover search did.
+ * lib/advancedSearch/criteria.ts) for each candidate — **cached data only,
+ * never a live external-API aggregation mid-search.** This used to fall
+ * through to a full live aggregation for any candidate not already
+ * cached, which was fine at the old ~500-city hand-curated shortlist
+ * (mostly pre-warmed) but genuinely made an unfiltered "Search all"
+ * across the ~6,300-city shortlist take minutes, not the sub-second
+ * response a search should be — see HANDOFF.md's performance notes. A
+ * candidate that isn't cached yet is simply skipped (counted in
+ * `notYetCached`, not `failed`) rather than making every search wait on
+ * whichever candidate happens to be uncached; coverage grows on its own
+ * as the scheduled warm job (`/api/cron/warm-cache-tick`) works through
+ * the shortlist.
  *
- * Country scope reuses the identical per-city aggregation, then rolls each
+ * The "Nearby & distance" criteria additionally need each candidate's
+ * centre-point Pin-mode data (getOrAggregatePinDataForCity) — that lookup
+ * is only made when at least one Nearby filter is actually active, and is
+ * still a live (in-memory-cached, not Supabase-persisted) call, a known,
+ * disclosed gap (see HANDOFF.md) — a search using a Nearby filter is the
+ * one case that can still be slower than the cache-only path above.
+ *
+ * Country scope reuses the identical per-city cached data, then rolls each
  * requested criterion up across that country's tracked cities (mean for
  * numeric fields, OR for booleans/"found one anywhere" — see
  * aggregateForCountry) rather than hitting a separate country-level data
@@ -76,21 +89,45 @@ export async function POST(req: NextRequest) {
 
   async function scoreCity(
     city: CitySearchResult,
-    cachedData?: CityExploreData
+    cachedData: CityExploreData
   ): Promise<{ data: CityExploreData; pin: PinnedLocationData | null } | null> {
     try {
-      // cachedData, when present, comes from the batch Supabase read done
-      // up front (see getCachedCityDataBatch) - skips this city's own
-      // upsert+select round trip entirely, which is what makes a "warm"
-      // search (every candidate already cached) fast rather than merely
-      // "not doing live external API calls but still slow on DB latency".
-      const data = cachedData ?? (await getOrAggregateCityData(city));
       const pin = needsPinData ? await getOrAggregatePinDataForCity(city).catch(() => null) : null;
-      return { data, pin };
+      return { data: cachedData, pin };
     } catch (err) {
       console.error(`Advanced search: failed to score ${city.cityName}:`, err);
       return null;
     }
+  }
+
+  /** Pure, synchronous filter-match + result-shape logic, shared by both
+   *  iteration strategies below - the only thing that differs between them
+   *  is how `pin` gets resolved (instantly `null` on the fast path, or a
+   *  real async lookup on the Nearby-filter path). */
+  function evaluateCityCandidate(
+    candidate: DiscoverCity,
+    data: CityExploreData,
+    pin: PinnedLocationData | null
+  ): AdvancedSearchCityResult | null {
+    const matchedValues: Record<string, CriterionValue> = {};
+    for (const { filter, def } of resolvedFilters) {
+      const value = def.getCityValue(data, pin);
+      const kind = kindForScope(def, "city");
+      matchedValues[def.key] = value;
+      if (!matchesFilter(value, filter, kind)) return null;
+    }
+    return {
+      cityId: candidate.cityId,
+      cityName: candidate.cityName,
+      region: candidate.region,
+      country: candidate.country,
+      countryCode: candidate.countryCode,
+      lat: candidate.lat,
+      lng: candidate.lng,
+      sectionScores: data.sectionScores,
+      piltriScore: computePiltriScore(data.sectionScores, weights),
+      matchedValues,
+    };
   }
 
   if (body.scope === "city") {
@@ -99,58 +136,60 @@ export async function POST(req: NextRequest) {
     const results: AdvancedSearchCityResult[] = [];
     let checked = 0;
     let failed = 0;
+    let notYetCached = 0;
 
-    for (let i = 0; i < candidates.length; i += CONCURRENCY) {
-      const batch = candidates.slice(i, i + CONCURRENCY);
-      const batchResults = await Promise.all(
-        batch.map(async (candidate) => {
-          const city: CitySearchResult = {
-            cityId: candidate.cityId,
-            cityName: candidate.cityName,
-            region: candidate.region,
-            country: candidate.country,
-            countryCode: candidate.countryCode,
-            lat: candidate.lat,
-            lng: candidate.lng,
-          };
-          const scored = await scoreCity(city, cachedBatch.get(citySlug(city)));
-          return { candidate, scored };
-        })
-      );
-
-      for (const { candidate, scored } of batchResults) {
+    if (!needsPinData) {
+      // No Nearby filter active - every candidate's outcome only depends
+      // on already-cached data, so there's no real async I/O happening
+      // per candidate at all. A plain synchronous pass avoids the
+      // CONCURRENCY-batched loop's ~1,000 Promise.all rounds (needed only
+      // to rate-limit genuine live lookups, which don't happen here) -
+      // that overhead alone was measurable at the full shortlist size.
+      for (const candidate of candidates) {
         checked++;
-        if (!scored) {
-          failed++;
+        const slug = citySlug(candidate);
+        const cachedData = cachedBatch.get(slug);
+        if (!cachedData) {
+          notYetCached++;
           continue;
         }
-        const { data, pin } = scored;
+        const result = evaluateCityCandidate(candidate, cachedData, null);
+        if (result) results.push(result);
+      }
+    } else {
+      for (let i = 0; i < candidates.length; i += CONCURRENCY) {
+        const batch = candidates.slice(i, i + CONCURRENCY);
+        const batchResults = await Promise.all(
+          batch.map(async (candidate) => {
+            const city: CitySearchResult = {
+              cityId: candidate.cityId,
+              cityName: candidate.cityName,
+              region: candidate.region,
+              country: candidate.country,
+              countryCode: candidate.countryCode,
+              lat: candidate.lat,
+              lng: candidate.lng,
+            };
+            const cachedData = cachedBatch.get(citySlug(city));
+            if (!cachedData) return { candidate, scored: null, cached: false };
+            const scored = await scoreCity(city, cachedData);
+            return { candidate, scored, cached: true };
+          })
+        );
 
-        const matchedValues: Record<string, CriterionValue> = {};
-        let meetsAll = true;
-        for (const { filter, def } of resolvedFilters) {
-          const value = def.getCityValue(data, pin);
-          const kind = kindForScope(def, "city");
-          matchedValues[def.key] = value;
-          if (!matchesFilter(value, filter, kind)) {
-            meetsAll = false;
-            break;
+        for (const { candidate, scored, cached } of batchResults) {
+          checked++;
+          if (!cached) {
+            notYetCached++;
+            continue;
           }
+          if (!scored) {
+            failed++;
+            continue;
+          }
+          const result = evaluateCityCandidate(candidate, scored.data, scored.pin);
+          if (result) results.push(result);
         }
-        if (!meetsAll) continue;
-
-        results.push({
-          cityId: candidate.cityId,
-          cityName: candidate.cityName,
-          region: candidate.region,
-          country: candidate.country,
-          countryCode: candidate.countryCode,
-          lat: candidate.lat,
-          lng: candidate.lng,
-          sectionScores: data.sectionScores,
-          piltriScore: computePiltriScore(data.sectionScores, weights),
-          matchedValues,
-        });
       }
     }
 
@@ -161,6 +200,7 @@ export async function POST(req: NextRequest) {
       totalCandidates: candidates.length,
       checked,
       failed,
+      notYetCached,
       matchCount: results.length,
       cityResults: results.slice(0, MAX_RESULTS),
     };
@@ -183,6 +223,7 @@ export async function POST(req: NextRequest) {
   const validByCountryCode = new Map<string, { data: CityExploreData; pin: PinnedLocationData | null }[]>();
   let checked = 0;
   let failed = 0;
+  let notYetCached = 0;
 
   for (let i = 0; i < countries.length; i += CONCURRENCY) {
     const batch = countries.slice(i, i + CONCURRENCY);
@@ -199,7 +240,12 @@ export async function POST(req: NextRequest) {
               lat: candidate.lat,
               lng: candidate.lng,
             };
-            return scoreCity(city, cachedBatch.get(citySlug(city)));
+            const cachedData = cachedBatch.get(citySlug(city));
+            if (!cachedData) {
+              notYetCached++;
+              return null;
+            }
+            return scoreCity(city, cachedData);
           })
         );
         const valid = scoredCities.filter((s): s is { data: CityExploreData; pin: PinnedLocationData | null } => s != null);
@@ -280,6 +326,7 @@ export async function POST(req: NextRequest) {
     totalCandidates: countries.length,
     checked,
     failed,
+    notYetCached,
     matchCount: results.length,
     countryResults: finalResults,
   };

@@ -181,6 +181,13 @@ function DiscoverResultsContent() {
               <span className="font-medium text-ink-900">{response.matchCount}</span>{" "}
               {scope === "city" ? "cities" : "countries"} match, out of {response.checked} checked
               {response.failed > 0 ? ` (${response.failed} couldn't be scored and were skipped)` : ""}.
+              {response.notYetCached > 0 && (
+                <span className="block text-ink-500 mt-0.5">
+                  {response.notYetCached} more {scope === "city" ? "cities aren't" : "countries' cities aren't"} in the
+                  data cache yet — a scheduled job is filling it in gradually, so this list gets more complete over
+                  time.
+                </span>
+              )}
             </p>
           )}
         </div>

@@ -359,6 +359,13 @@ export interface AdvancedSearchResponse {
   totalCandidates: number;
   checked: number;
   failed: number;
+  /** Candidates skipped because they aren't in the Supabase cache yet —
+   *  Advanced search only ever reads cached data (never live-aggregates a
+   *  candidate mid-search), so a city/country the scheduled warm job
+   *  hasn't reached yet simply doesn't appear rather than making the
+   *  search wait on live external APIs. See HANDOFF.md's performance
+   *  notes for why. */
+  notYetCached: number;
   matchCount: number;
   cityResults?: AdvancedSearchCityResult[];
   countryResults?: AdvancedSearchCountryResult[];

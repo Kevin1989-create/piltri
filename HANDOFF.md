@@ -258,6 +258,60 @@ harmless metadata) — everything is re-derivable, nothing is a source of
 truth there. Both endpoints (and every other `/api/admin/*` route) require
 `ADMIN_PASSWORD` — see "Scheduled warming" above.
 
+## Sub-second responses (2026-09-20, later same session)
+
+The user's explicit bar: **every search/data view should appear in well
+under 1 second, or the structure needs more work.** Measured against the
+live site, it didn't — even a cache *hit* took ~950ms server time, and
+Advanced search's unfiltered "Search all" across the new ~6,300-city
+shortlist didn't finish in 60s at all. Root causes, all fixed:
+
+1. **`getOrAggregateCityData` unconditionally UPSERTed the `cities` table
+   on every single request** — a write, with real latency cost, even for
+   a city that was already fully cached. It now does ONE read (`city_scores`
+   joined to `cities`, filtered by slug via PostgREST's `!inner` embedded-resource
+   syntax) for the hit path, and only touches `cities` at all on a genuine
+   miss/stale read. Measured: ~950ms → ~150-300ms for a repeat lookup.
+2. **`getCachedCityDataBatch`'s chunked Supabase queries ran sequentially**
+   (a plain `for` loop with `await` inside) — at the ~6,300-city shortlist
+   size that's ~21 chunks one after another. Now `Promise.all`'d in
+   parallel, since each chunk is an independent query with nothing to wait
+   on the others for. Also merged into the same single-join-query
+   optimization as #1 (was two sequential lookup types, cities then
+   city_scores; now one).
+3. **Advanced search (`/api/explore/discover`) used to live-aggregate any
+   candidate not already cached** — fine when the shortlist was small and
+   mostly pre-warmed, but at ~6,300 cities with only a fraction warmed so
+   far, that meant "Search all" was waiting on hundreds/thousands of live
+   external-API calls. **It now reads cache only, never live-aggregates
+   mid-search** — an uncached candidate is skipped (counted in the
+   response's `notYetCached`, surfaced honestly in the UI, not hidden) and
+   simply appears once the scheduled warm job reaches it. This is a real,
+   deliberate trade-off (search results are only as complete as the cache
+   is warm) in exchange for search always being fast regardless of cache
+   coverage — the right trade given the explicit speed requirement, but
+   worth knowing about if "why isn't city X showing up" comes up again.
+4. **The city-scope match loop ran every one of ~6,300 candidates through
+   a `CONCURRENCY`-batched `Promise.all` structure** (~1,000 batches) even
+   though, once cache-only, scoring a candidate with no Nearby filter
+   involves zero real async I/O — that batching exists purely to rate-limit
+   genuine live lookups (Nearby/pin data), so it now only runs when a
+   Nearby filter is actually active; otherwise it's a plain synchronous
+   loop (see `evaluateCityCandidate` in
+   `app/api/explore/discover/route.ts`).
+
+**Net result, measured**: single cached city ~150-300ms; unfiltered
+"Search all" across the full city shortlist ~265-350ms (was 60s+
+timeout); country scope ~550-650ms (fewer candidates, already fine).
+**Single-city Explore search for a city that's never been aggregated
+before is the one path that's still inherently slow** (live external-API
+aggregation, several seconds) — that's unavoidable for "any city on
+Earth" search working at all, not a bug; it's also a one-time cost per
+city since the result gets cached. **Advanced search's Nearby-filter path
+is also still slower** than the cache-only default, for the same reason
+disclosed in "Known, disclosed gaps" below (pin data isn't
+Supabase-persisted).
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new
