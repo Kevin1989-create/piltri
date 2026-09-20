@@ -189,33 +189,54 @@ someone "simplifies" this back to one unchunked query.
 
 ### Scheduled warming — cron, not manual curl
 
-- `app/api/cron/warm-cache-tick/route.ts` — warms up to 80 stale cities per
-  call (`CHUNK_SIZE`), sized to comfortably finish inside a serverless
-  function's execution window (`maxDuration = 60`). Auth: Vercel
-  automatically sends `Authorization: Bearer <CRON_SECRET>` on every real
-  cron invocation.
+- **`warmCache()` (`lib/aggregation/warmCache.ts`) is bounded by wall-clock
+  deadline, not a fixed city count.** The first version used a fixed count
+  (80 cities/call) and genuinely hit Vercel's 60s function timeout in
+  production, returning nothing (a `FUNCTION_INVOCATION_TIMEOUT`) —
+  Overpass's real per-request latency varies too much (typical: under a
+  second; worst case, racing mirrors: ~12s) for a fixed count to be safe.
+  `warmCache({ deadlineMs })` checks the wall clock between batches and
+  stops issuing new ones once close to the deadline, so it always returns
+  real progress instead of risking total failure. **The deadline check only
+  happens *between* batches, not during one** — the real worst-case total
+  is `deadlineMs` + one batch's own worst case (~12s) + overhead, which is
+  why both routes below use 30s against a 60s ceiling, not something
+  closer to 60 (a real test at 45s measured ~56s total — too tight).
+- `app/api/cron/warm-cache-tick/route.ts` — calls `warmCache({ deadlineMs:
+  30000 })`, sized to comfortably finish inside a serverless function's
+  execution window (`maxDuration = 60`). Auth: Vercel automatically sends
+  `Authorization: Bearer <CRON_SECRET>` on every real cron invocation.
 - `vercel.json` — a `crons` entry firing this daily at 04:00 UTC (Vercel's
-  free-tier frequency floor is once/day; this is not literally
-  "quarterly," but at 80 cities/day the shortlist cycles roughly every
-  ~80 days once mostly warm, comfortably inside a quarterly freshness
-  target with margin for failed days).
-- `app/api/admin/warm-cache/route.ts` — the manual, unbounded (or
-  `?limit=N`) version for a deliberate full sweep. Both routes call the
-  same shared `lib/aggregation/warmCache.ts`.
+  free-tier frequency floor is once/day). How many cities that clears
+  depends entirely on how fast Overpass is responding that day — on a good
+  day, likely dozens to 100+; on a degraded day, as few as a handful. Not
+  literally "quarterly," but self-correcting: every tick just processes
+  whatever's still stale, so a slow day doesn't lose progress, just makes
+  less of it.
+- `app/api/admin/warm-cache/route.ts` — same deadline-bounded call,
+  manually triggered, optionally with `?limit=N` to also cap the candidate
+  count. **A single call can never sweep the whole ~6,300-city shortlist**
+  (same 60s ceiling applies no matter who's calling it) — a genuine full
+  sweep means calling this repeatedly until `remaining` reads 0.
 - `/admin` — password-gated (see below) back-office page: coverage stats
-  (fresh/stale/countries) plus buttons for "warm next 80" (same as the
-  cron tick), "warm everything stale" (full sweep), and "clear entire
-  cache". Auth: `POST /api/admin/login {password}` sets an httpOnly
-  cookie; every `/api/admin/*` route also accepts
+  (fresh/stale/countries) plus "warm one batch now" (one deadline-bounded
+  call, same as a cron tick), "warm everything stale" (loops the same
+  call client-side until `remaining` is 0, with a Stop button — this is
+  what actually delivers a full sweep, not a single long server request),
+  and "clear entire cache". Auth: `POST /api/admin/login {password}` sets
+  an httpOnly cookie; every `/api/admin/*` route also accepts
   `Authorization: Bearer <ADMIN_PASSWORD>` directly (for curl/scripts) —
   see `lib/adminAuth.ts`. **Every `/api/admin/*` and `/api/cron/*` route
   is now gated this way** — the earlier "no auth, add a check before this
   is ever public" TODOs are resolved.
-- **`CRON_SECRET` / `ADMIN_PASSWORD` were generated locally
-  (`.env.local`) but still need adding to Vercel's env vars** for any of
-  this to work in production — check `.env.local`'s current values (or
-  generate new ones) and add both to Vercel → Settings → Environment
-  Variables before relying on the scheduled job or the `/admin` page there.
+- **`CRON_SECRET` / `ADMIN_PASSWORD` were generated locally and have
+  already been added to Vercel's production env vars** (done together
+  with the user during the 2026-09-20 session) — both confirmed working
+  live (`/admin` login and `POST /api/admin/status` with a Bearer token
+  both verified against piltri.me). If you need the actual values, check
+  `.env.local` or Vercel's dashboard directly rather than assuming — don't
+  regenerate them without reason, since that would invalidate the ones
+  already configured in Vercel.
 
 ### After changing CityExploreData's shape — clear the cache
 
@@ -240,17 +261,21 @@ truth there. Both endpoints (and every other `/api/admin/*` route) require
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new
-~6,300-city one, the cache was cleared, and **only 1 city (Lisbon) is
-warmed** — Overpass's free public instances were rate-limiting this
-project's testing traffic by the end of the session (see "Scaling the data
-pipeline" above), so a full warm-cache run was deliberately not attempted
-then (it would have mostly failed and made the rate-limiting worse).
-**Before treating the live site's scores as real for anything beyond
-Lisbon**: either wait for the daily cron to work through the shortlist
-naturally (~80 cities/day, so meaningful coverage within days, full
-coverage within a couple of months), or once Overpass access is confirmed
-working again, trigger a manual full sweep from `/admin` or
-`POST /api/admin/warm-cache`. A city that hasn't been warmed yet still
+~6,300-city one, `CRON_SECRET`/`ADMIN_PASSWORD` are live in Vercel and
+confirmed working, and the cron/admin infra itself is verified end to end
+— but **actual data coverage is still tiny** (well under 100 cities warmed
+out of ~6,300) because of two things discovered *while verifying* the
+scheduled job in production: Overpass's free public instances were
+rate-limiting this project's testing traffic for a while, and the first
+version of the warm job used a fixed city count that hit Vercel's function
+timeout and returned nothing (fixed same session — see "Scheduled warming"
+above, now deadline-bounded and verified to complete in ~30s locally).
+**Before treating the live site's scores as real for anything beyond a
+literal handful of cities**: either wait for the daily cron to keep
+working through the shortlist (pace varies with how fast Overpass is
+responding that day — see "Scheduled warming"), or trigger a manual full
+sweep from `/admin` ("Warm everything stale") and watch it actually
+progress. A city that hasn't been warmed yet still
 works everywhere (both single-city Explore and Advanced search fall
 through to live aggregation on a cache miss, same as always) — the only
 cost of not being warmed is speed: that specific city pays the full live

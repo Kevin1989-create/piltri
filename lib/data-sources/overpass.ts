@@ -87,8 +87,19 @@ const SECTOR_RADIUS_M = 8000;
 // count query did - longer timeouts than the general-purpose ones above,
 // matching the beach search's (the previous widest single query in this
 // file).
-const BATCH_QUERY_TIMEOUT_S = 20;
-const BATCH_CLIENT_TIMEOUT_MS = 15000;
+// Kept tight on purpose: overpassPost's two-phase fallback (primary, then
+// race the mirrors if it fails) means the real worst case for ONE call is
+// roughly 2x this value - and getCityOverpassData's single combined query
+// is what runs once per city in the warm-cache batch loop, where several
+// cities' worst-case waits can stack across a scheduled cron tick's
+// bounded execution window (see CHUNK_SIZE in app/api/cron/warm-cache-tick).
+// A production run of the old 15s/20s values genuinely hit Vercel's 60s
+// function timeout after only a handful of batches — this is the fix,
+// not just a nice-to-have. A city that genuinely needs longer than this
+// just retries on the next scheduled tick (see warmCache.ts) rather than
+// blocking everything after it.
+const BATCH_QUERY_TIMEOUT_S = 6;
+const BATCH_CLIENT_TIMEOUT_MS = 6000;
 
 interface TagGroup {
   tags: string[];

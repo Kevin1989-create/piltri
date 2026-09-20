@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavBar } from "@/components/ui/NavBar";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -21,6 +21,7 @@ interface WarmResult {
   failed: number;
   failedCities: string[];
   remaining: number;
+  stoppedReason: "exhausted" | "limit" | "deadline";
 }
 
 /** Back-office status page: how much of the city shortlist currently has
@@ -35,8 +36,15 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
-  const [busy, setBusy] = useState<"warm" | "clear" | null>(null);
+  const [busy, setBusy] = useState<"warm" | "sweep" | "clear" | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [sweepProgress, setSweepProgress] = useState<{ warmed: number; failed: number } | null>(null);
+  // A plain ref, not state - flipping it doesn't need a re-render, it's
+  // only read at the top of runSweep's loop between calls to decide
+  // whether to keep going, same pattern as an AbortController but simpler
+  // for "let the current call finish, then stop" rather than truly
+  // cancelling an in-flight request.
+  const stopRequested = useRef(false);
 
   async function loadStatus() {
     const res = await fetch("/api/admin/status");
@@ -70,21 +78,61 @@ export default function AdminPage() {
     await loadStatus();
   }
 
-  async function triggerWarm(limit?: number) {
+  async function callWarmOnce(): Promise<WarmResult> {
+    const res = await fetch("/api/admin/warm-cache", { method: "POST" });
+    return res.json();
+  }
+
+  async function triggerWarmOnce() {
     setBusy("warm");
     setLastResult(null);
     try {
-      const qs = limit != null ? `?limit=${limit}` : "";
-      const res = await fetch(`/api/admin/warm-cache${qs}`, { method: "POST" });
-      const body: WarmResult = await res.json();
+      const body = await callWarmOnce();
       setLastResult(
-        `Warmed ${body.warmed}/${body.attempted} (${body.alreadyFresh} already fresh, ${body.failed} failed, ${body.remaining} still remaining).`
+        `Warmed ${body.warmed}/${body.attempted} (${body.alreadyFresh} already fresh, ${body.failed} failed, ${body.remaining} still remaining, stopped: ${body.stoppedReason}).`
       );
       await loadStatus();
     } catch {
       setLastResult("Request failed — see server logs.");
     } finally {
       setBusy(null);
+    }
+  }
+
+  /** "Warm everything stale" — a single server call can never safely run
+   *  long enough to sweep the whole ~6,300-city shortlist (Vercel kills any
+   *  serverless invocation well before that; see warmCache's doc comment),
+   *  so this drives the sweep from here instead: call the same
+   *  deadline-bounded endpoint repeatedly until it reports nothing left,
+   *  or until "Stop" is clicked. */
+  async function triggerFullSweep() {
+    setBusy("sweep");
+    setLastResult(null);
+    stopRequested.current = false;
+    let totalWarmed = 0;
+    let totalFailed = 0;
+    setSweepProgress({ warmed: 0, failed: 0 });
+
+    try {
+      while (!stopRequested.current) {
+        const body = await callWarmOnce();
+        totalWarmed += body.warmed;
+        totalFailed += body.failed;
+        setSweepProgress({ warmed: totalWarmed, failed: totalFailed });
+        await loadStatus();
+        if (body.remaining <= 0) {
+          setLastResult(`Full sweep complete — warmed ${totalWarmed}, ${totalFailed} failed.`);
+          break;
+        }
+      }
+      if (stopRequested.current) {
+        setLastResult(`Stopped — warmed ${totalWarmed} this run, ${totalFailed} failed. Resume any time.`);
+      }
+    } catch {
+      setLastResult(`Request failed after warming ${totalWarmed} this run — see server logs.`);
+    } finally {
+      setBusy(null);
+      setSweepProgress(null);
     }
   }
 
@@ -162,12 +210,24 @@ export default function AdminPage() {
               </Card>
 
               <div className="mt-4 flex flex-col gap-2.5">
-                <Button onClick={() => triggerWarm(80)} disabled={busy !== null} className="w-full">
-                  {busy === "warm" ? "Warming…" : "Warm next 80 (same as the daily cron tick)"}
+                <Button onClick={triggerWarmOnce} disabled={busy !== null} className="w-full">
+                  {busy === "warm" ? "Warming…" : "Warm one batch now (same as the daily cron tick)"}
                 </Button>
-                <Button variant="secondary" onClick={() => triggerWarm()} disabled={busy !== null} className="w-full">
-                  {busy === "warm" ? "Warming…" : "Warm everything stale (full sweep — can take a while)"}
-                </Button>
+                {busy === "sweep" ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      stopRequested.current = true;
+                    }}
+                    className="w-full"
+                  >
+                    Stop sweep{sweepProgress ? ` (${sweepProgress.warmed} warmed so far)` : ""}
+                  </Button>
+                ) : (
+                  <Button variant="secondary" onClick={triggerFullSweep} disabled={busy !== null} className="w-full">
+                    Warm everything stale (full sweep — runs several batches, can take a while)
+                  </Button>
+                )}
                 <Button variant="ghost" onClick={triggerClear} disabled={busy !== null} className="w-full">
                   {busy === "clear" ? "Clearing…" : "Clear entire cache"}
                 </Button>
@@ -176,8 +236,8 @@ export default function AdminPage() {
               {lastResult && <p className="mt-4 text-sm text-ink-700">{lastResult}</p>}
 
               <p className="mt-8 text-xs text-ink-300">
-                A scheduled job warms up to 80 cities automatically once a day (vercel.json) — this page is for checking
-                coverage and triggering a run manually, not something you need to visit regularly.
+                A scheduled job warms a batch automatically once a day (vercel.json) — this page is for checking coverage
+                and triggering a run manually, not something you need to visit regularly.
               </p>
             </>
           )}
