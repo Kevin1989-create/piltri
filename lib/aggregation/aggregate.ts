@@ -1,12 +1,22 @@
 import { getWorldBankIndicators } from "@/lib/data-sources/worldbank";
 import { getCountryLanguages } from "@/lib/data-sources/restcountries";
 import { getClimateAverages } from "@/lib/data-sources/openmeteo";
-import { getEconomySectorCounts, getOverpassCounts, getTransportPresence, pickMainEconomyType } from "@/lib/data-sources/overpass";
+import { getCityOverpassData, pickMainEconomyType } from "@/lib/data-sources/overpass";
 import { getHealthcareQualityScore } from "@/lib/data-sources/who";
 import { countNotableRestaurants, countRankedUniversities, getCityPopulationAndArea } from "@/lib/data-sources/wikidata";
 import { toIso3 } from "@/lib/data-sources/country-codes";
+import { memoize } from "./memoryCache";
 import { averageScores, computePiltriScore, normalise } from "./scoring";
 import type { CityExploreData, CitySearchResult } from "@/lib/types";
+
+// World Bank and WHO are both country-level, not city-level — many cities
+// in a batch (warm-cache scanning hundreds/thousands of candidates, or
+// Advanced search's country-scope rollup) share the same country, so
+// memoizing these by country code avoids repeating an identical API call
+// once per city. 24h is plenty (these values only ever change annually at
+// most) and keeps this simple - it's a same-process cache, so it also
+// naturally resets between deploys rather than needing its own TTL logic.
+const COUNTRY_LEVEL_TTL_MS = 24 * 60 * 60 * 1000;
 
 // Best-effort global reference ranges used to normalise raw metrics onto a
 // 0-100 scale. These are reasonable starting points, not scientific
@@ -46,21 +56,22 @@ const RANGES = {
 export async function aggregateCityData(city: CitySearchResult): Promise<CityExploreData> {
   const iso3 = toIso3(city.countryCode);
 
-  const [wb, languages, climate, overpass, healthcare, transportPresence, universityCount, restaurantCount, sectorCounts, cityDemo] =
-    await Promise.all([
-      safely(() => getWorldBankIndicators(city.countryCode), null),
-      safely(() => getCountryLanguages(city.countryCode), { officialLanguages: [], mostWidelySpokenLanguage: "Unknown" }),
-      safely(() => getClimateAverages(city.lat, city.lng), null),
-      safely(() => getOverpassCounts(city.lat, city.lng), null),
-      safely(() => getHealthcareQualityScore(iso3), null),
-      safely(() => getTransportPresence(city.lat, city.lng), { hasTrainStation: false, hasSubway: false, hasTramway: false, hasAirport: false }),
-      safely(() => countRankedUniversities(city.lat, city.lng), 0),
-      safely(() => countNotableRestaurants(city.lat, city.lng), 0),
-      safely(() => getEconomySectorCounts(city.lat, city.lng), null),
-      safely(() => getCityPopulationAndArea(city.lat, city.lng, city.cityName), { population: null, areaKm2: null }),
-    ]);
+  const [wb, languages, climate, overpassData, healthcare, universityCount, restaurantCount, cityDemo] = await Promise.all([
+    safely(() => memoize(`wb:${city.countryCode}`, COUNTRY_LEVEL_TTL_MS, () => getWorldBankIndicators(city.countryCode)), null),
+    safely(() => getCountryLanguages(city.countryCode), { officialLanguages: [], mostWidelySpokenLanguage: "Unknown" }),
+    safely(() => getClimateAverages(city.lat, city.lng), null),
+    // One Overpass request covering amenity density, transport presence,
+    // and economy-sector counts together - was 14 separate requests (see
+    // getCityOverpassData's doc comment).
+    safely(() => getCityOverpassData(city.lat, city.lng), null),
+    safely(() => memoize(`who:${iso3}`, COUNTRY_LEVEL_TTL_MS, () => getHealthcareQualityScore(iso3)), null),
+    safely(() => countRankedUniversities(city.lat, city.lng), 0),
+    safely(() => countNotableRestaurants(city.lat, city.lng), 0),
+    safely(() => getCityPopulationAndArea(city.lat, city.lng, city.cityName), { population: null, areaKm2: null }),
+  ]);
 
-  const mainEconomyType = sectorCounts ? pickMainEconomyType(sectorCounts) : null;
+  const transportPresence = overpassData?.transport ?? { hasTrainStation: false, hasSubway: false, hasTramway: false, hasAirport: false };
+  const mainEconomyType = overpassData ? pickMainEconomyType(overpassData.economySectors) : null;
 
   // Country-level population from World Bank - kept under its own name
   // (rather than reused for demographics.population below) because the
@@ -124,10 +135,12 @@ export async function aggregateCityData(city: CitySearchResult): Promise<CityExp
       avgAnnualSnowfallCm: climate?.avgAnnualSnowfallCm ?? 0,
     },
     liveability: {
-      restaurantsBarsDensityPer10k: overpass ? per10k(overpass.restaurantsBars) : 0,
-      greenSpacePctOfCityArea: overpass ? normalise(overpass.greenSpaceCount, RANGES.greenSpaceCount.min, RANGES.greenSpaceCount.max) / 5 : 10,
-      culturalVenuesDensityPer10k: overpass ? per10k(overpass.culturalVenues) : 0,
-      familyKidsActivitiesDensityPer10k: overpass ? per10k(overpass.familyKidsActivities) : 0,
+      restaurantsBarsDensityPer10k: overpassData ? per10k(overpassData.raw.restaurantsBars) : 0,
+      greenSpacePctOfCityArea: overpassData
+        ? normalise(overpassData.raw.greenSpaceCount, RANGES.greenSpaceCount.min, RANGES.greenSpaceCount.max) / 5
+        : 10,
+      culturalVenuesDensityPer10k: overpassData ? per10k(overpassData.raw.culturalVenues) : 0,
+      familyKidsActivitiesDensityPer10k: overpassData ? per10k(overpassData.raw.familyKidsActivities) : 0,
       healthcareQualityScore: healthcare ?? 55,
       hasTrainStation: transportPresence.hasTrainStation,
       hasSubway: transportPresence.hasSubway,

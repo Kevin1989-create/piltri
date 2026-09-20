@@ -16,13 +16,18 @@ part of the scored model** — see "Data model, and why it's 4 sections not
 Two ways to use it:
 - **Explore** (`/explore`): search one city, see its full score breakdown,
   drop a pin anywhere for point-specific distances (Beach, Mountain, Train
-  station, Airport), download a PDF-style report.
-- **Advanced search** (`/explore/discover`): filter across ~500 shortlisted
-  cities (or roll results up to country level) on any criterion, get a
+  station, Airport), download a PDF-style report. Not limited to the
+  shortlist below — this uses Mapbox geocoding, so any place on Earth works.
+- **Advanced search** (`/explore/discover`): filter across the ~6,300-city
+  shortlist (or roll results up to country level) on any criterion, get a
   photo-forward results grid with list/map toggle, sorting, and pagination
   (`/explore/discover/results`). Clicking a result opens a full report in a
   new tab (`/explore/report` for cities, `/explore/country-report` for
   countries).
+
+A `/admin` back-office page (password-gated, see "Scaling the data
+pipeline" below) shows city-data coverage and can trigger a manual cache
+refresh.
 
 ## Stack
 
@@ -44,9 +49,14 @@ Next.js 14 (App Router), TypeScript, Tailwind CSS, Mapbox GL JS, Supabase
   apex A record to `216.198.79.1`, `www` CNAME to Vercel's per-project
   target) and `https://piltri.vercel.app` (Vercel's own domain, also live).
 - **Vercel project**: `piltri` under the `piltri` team/account. Env vars
-  (Supabase URL/anon/service-role keys, Mapbox token, `CACHE_TTL_DAYS=30`)
-  are set in Vercel's dashboard under Settings → Environment Variables —
-  mirror `.env.local` if you need to check exact values.
+  (Supabase URL/anon/service-role keys, Mapbox token, `CACHE_TTL_DAYS=30`,
+  and as of 2026-09-20 also `CRON_SECRET` and `ADMIN_PASSWORD` — see
+  "Scaling the data pipeline" below) are set in Vercel's dashboard under
+  Settings → Environment Variables — mirror `.env.local` if you need to
+  check exact values. **`CRON_SECRET`/`ADMIN_PASSWORD` were generated
+  locally and added to `.env.local` but still need adding to Vercel's env
+  vars for the scheduled cron and `/admin` page to work in production** —
+  see that section for the actual values.
 - **Supabase**: project already provisioned, schema applied
   (`lib/supabase/schema.sql` — note the `pg_trgm` extension must be created
   *before* the trigram index, that ordering bug was already fixed once).
@@ -120,6 +130,93 @@ whole point of this simplification. If you can't find one, it's fine for a
 section to just not have that field; don't reach for a placeholder
 constant again.
 
+## Scaling the data pipeline (2026-09-20, same-day follow-up)
+
+The shortlist grew from ~500 hand-curated cities to **~6,300** (every
+GeoNames city with population ≥ 100,000 — free, public-domain dataset,
+`data/static/discover-cities.json`, built via a one-off script, not
+committed). This was only safe because of two other changes made
+alongside it:
+
+- **Overpass calls dropped from 14 per city to 1.** Every Overpass-sourced
+  field (amenity density, transport presence, economy-sector counts) used
+  to be a separate HTTP request; `getCityOverpassData` in
+  `lib/data-sources/overpass.ts` now combines all 14 into one query using
+  named result sets (`->.s0`, `.s0 out count;`, etc.) — Overpass returns
+  one count element per `out count`, in order. **This was verified correct
+  by testing directly against `overpass.kumi.systems`** (a mirror — see
+  below) after the primary instance blocked us mid-testing.
+- **World Bank / WHO calls are memoized per country** (`COUNTRY_LEVEL_TTL_MS`
+  in `lib/aggregation/aggregate.ts`) — these are country-level, not
+  city-level, so hundreds of cities sharing a country no longer repeat an
+  identical API call.
+
+**Real incident from this session, worth knowing about**: running the
+original 498-city warm-cache job (14 Overpass calls × 498 cities ≈ 7,000
+requests in a few minutes) got this project's own IP **temporarily blocked
+by Overpass's primary public instance** (`overpass-api.de` returned 406 on
+every request, including a plain status check, for over 30 minutes).
+Lessons applied:
+1. `lib/aggregation/warmCache.ts` paces itself: `CONCURRENCY = 4` cities at
+   once, a `600ms` pause between batches — deliberately gentle, not just
+   "as fast as possible".
+2. `lib/data-sources/overpass.ts` now tries a **second and third public
+   Overpass mirror** (`overpass.kumi.systems`, `overpass.openstreetmap.ru`)
+   if the primary fails — primary first (normal case: one request, no
+   extra load on the mirrors), racing the fallbacks in parallel only if
+   primary fails (so one slow mirror ahead of a healthy one can't compound
+   the wait). **By the end of this session, the kumi.systems mirror had
+   *also* started rate-limiting us (429) from repeated testing** — so even
+   with 3 mirrors, don't hammer this during development; a handful of test
+   requests is fine, hundreds in a short window is not.
+3. **The warm job is deliberately re-runnable with no persisted cursor** —
+   every call just asks Supabase "which shortlisted cities aren't fresh
+   right now" and processes up to `limit` of them. A cron tick that fails
+   or gets rate-limited mid-run costs nothing beyond that run; the next
+   scheduled tick just picks up wherever the "still stale" set currently
+   stands.
+
+**A real bug this surfaced and fixed**: `getCachedCityDataBatch` in
+`lib/aggregation/cache.ts` passed every candidate's slug/id to Supabase's
+`.in(...)` filter in one unchunked call. That was fine at ~500 candidates;
+at ~6,300 it silently failed (every candidate read back as "not cached"
+even for a city aggregated seconds earlier) — Postgrest's `.in()` is
+passed via the request URL, and thousands of values in one call risk
+exceeding practical size limits. Now chunked at 300 slugs/ids per call
+(`IN_CLAUSE_CHUNK_SIZE`). **If you ever see "every city always looks
+stale" again, check this first** — it's an easy trap to fall back into if
+someone "simplifies" this back to one unchunked query.
+
+### Scheduled warming — cron, not manual curl
+
+- `app/api/cron/warm-cache-tick/route.ts` — warms up to 80 stale cities per
+  call (`CHUNK_SIZE`), sized to comfortably finish inside a serverless
+  function's execution window (`maxDuration = 60`). Auth: Vercel
+  automatically sends `Authorization: Bearer <CRON_SECRET>` on every real
+  cron invocation.
+- `vercel.json` — a `crons` entry firing this daily at 04:00 UTC (Vercel's
+  free-tier frequency floor is once/day; this is not literally
+  "quarterly," but at 80 cities/day the shortlist cycles roughly every
+  ~80 days once mostly warm, comfortably inside a quarterly freshness
+  target with margin for failed days).
+- `app/api/admin/warm-cache/route.ts` — the manual, unbounded (or
+  `?limit=N`) version for a deliberate full sweep. Both routes call the
+  same shared `lib/aggregation/warmCache.ts`.
+- `/admin` — password-gated (see below) back-office page: coverage stats
+  (fresh/stale/countries) plus buttons for "warm next 80" (same as the
+  cron tick), "warm everything stale" (full sweep), and "clear entire
+  cache". Auth: `POST /api/admin/login {password}` sets an httpOnly
+  cookie; every `/api/admin/*` route also accepts
+  `Authorization: Bearer <ADMIN_PASSWORD>` directly (for curl/scripts) —
+  see `lib/adminAuth.ts`. **Every `/api/admin/*` and `/api/cron/*` route
+  is now gated this way** — the earlier "no auth, add a check before this
+  is ever public" TODOs are resolved.
+- **`CRON_SECRET` / `ADMIN_PASSWORD` were generated locally
+  (`.env.local`) but still need adding to Vercel's env vars** for any of
+  this to work in production — check `.env.local`'s current values (or
+  generate new ones) and add both to Vercel → Settings → Environment
+  Variables before relying on the scheduled job or the `/admin` page there.
+
 ### After changing CityExploreData's shape — clear the cache
 
 `lib/aggregation/cache.ts`'s freshness check is purely TTL-based (is this
@@ -130,28 +227,36 @@ field) until its TTL happens to expire naturally. Whenever you change a
 field name or the overall shape, run:
 
 ```bash
-curl -X POST https://piltri.me/api/admin/clear-cache   # or your preview URL
-curl -X POST https://piltri.me/api/admin/warm-cache     # repopulates with real data, several minutes on ~500 cities
+AUTH="Authorization: Bearer $ADMIN_PASSWORD"
+curl -X POST -H "$AUTH" https://piltri.me/api/admin/clear-cache
+curl -X POST -H "$AUTH" https://piltri.me/api/admin/warm-cache   # unbounded full sweep — can take a long time on ~6,300 cities; pass ?limit=N to bound it
 ```
 
 `clear-cache` only deletes `city_scores` rows (never `cities`, which is
 harmless metadata) — everything is re-derivable, nothing is a source of
-truth there. Both endpoints have no auth (same as the other `/api/admin/*`
-routes) — fine while this stays effectively private, add a shared-secret
-header check before they could be publicly discovered.
+truth there. Both endpoints (and every other `/api/admin/*` route) require
+`ADMIN_PASSWORD` — see "Scheduled warming" above.
 
 ## Current data state — read this before doing anything data-related
 
-The cache was cleared and partially re-warmed (Lisbon only, verified
-correct) at the end of the 2026-09-20 session — **run `warm-cache` again
-before treating the live site's scores as fully real**, since most of the
-~500-city shortlist still needs a fresh aggregation pass under the new
-data shape.
-
-Both `/api/admin/seed-random-data` and `/api/admin/warm-cache` (and the new
-`/api/admin/clear-cache`) have **no auth** — fine while this stays
-effectively private, but add a shared-secret header check before any could
-be publicly discovered and hit by someone else.
+As of the end of the 2026-09-20 session: the shortlist is the new
+~6,300-city one, the cache was cleared, and **only 1 city (Lisbon) is
+warmed** — Overpass's free public instances were rate-limiting this
+project's testing traffic by the end of the session (see "Scaling the data
+pipeline" above), so a full warm-cache run was deliberately not attempted
+then (it would have mostly failed and made the rate-limiting worse).
+**Before treating the live site's scores as real for anything beyond
+Lisbon**: either wait for the daily cron to work through the shortlist
+naturally (~80 cities/day, so meaningful coverage within days, full
+coverage within a couple of months), or once Overpass access is confirmed
+working again, trigger a manual full sweep from `/admin` or
+`POST /api/admin/warm-cache`. A city that hasn't been warmed yet still
+works everywhere (both single-city Explore and Advanced search fall
+through to live aggregation on a cache miss, same as always) — the only
+cost of not being warmed is speed: that specific city pays the full live
+aggregation cost instead of a fast cache read, which matters most for
+Advanced search's "Search all" scanning hundreds/thousands of candidates
+at once.
 
 ## Known, disclosed gaps (not bugs — already decided/accepted trade-offs)
 
@@ -168,6 +273,13 @@ be publicly discovered and hit by someone else.
 - Real Estate is entirely absent from the scored model — see "Data model"
   above. It's a disclosed, deliberate gap, not a bug, until a real per-city
   pricing source is wired in.
+- **The shortlist (6,300 cities) is still only ~1 city warmed** as of
+  2026-09-20 — see "Current data state" above. Not a bug, just not done
+  yet; the daily cron will get there on its own.
+- Overpass has no formal SLA and its free public mirrors can and did
+  rate-limit this project during real testing — see "Scaling the data
+  pipeline" above. The 3-mirror fallback and paced batch job are the
+  mitigation, not a guarantee it can never happen again.
 
 ## Workflow discipline this project has followed
 
@@ -186,19 +298,25 @@ Do this for every touched file before saying a change is complete — this
 caught real bugs earlier in the project's history (a `pg_trgm`
 extension-ordering bug in `schema.sql`, among others).
 
-## Recent major work (most recent session, 2026-09-20)
+## Recent major work (2026-09-20 — one long session, three parts)
 
-- **Made the whole site responsive** (mobile/tablet, was desktop-only).
-  The Explore results page's desktop absolute-overlay layout (map behind a
-  floating score panel + pin bar) now switches to a stacked mobile layout
-  below the `md` breakpoint via `lib/useMediaQuery.ts` — map on top at a
-  fixed height, score card and pin details in normal document flow below
-  it, section detail reusing `SectionColumn`'s existing inline accordion
-  instead of the desktop-only side panel. `NavBar` collapses to two rows.
-  `MapView` got a `compact` prop so its fitBounds padding doesn't waste
-  space accounting for a floating desktop panel that isn't there on mobile.
-- **Simplified the data model and pin mode to be fully honest** — see the
-  "Data model" section above. This was the bigger of the two changes.
+1. **Made the whole site responsive** (mobile/tablet, was desktop-only).
+   The Explore results page's desktop absolute-overlay layout (map behind a
+   floating score panel + pin bar) now switches to a stacked mobile layout
+   below the `md` breakpoint via `lib/useMediaQuery.ts` — map on top at a
+   fixed height, score card and pin details in normal document flow below
+   it, section detail reusing `SectionColumn`'s existing inline accordion
+   instead of the desktop-only side panel. `NavBar` collapses to two rows.
+   `MapView` got a `compact` prop so its fitBounds padding doesn't waste
+   space accounting for a floating desktop panel that isn't there on mobile.
+2. **Simplified the data model and pin mode to be fully honest** — see
+   "Data model, and why it's 4 sections not 5" above.
+3. **Scaled the data pipeline** to a ~6,300-city shortlist with a real
+   scheduled-warming architecture instead of manual curl commands — see
+   "Scaling the data pipeline" above. This is the part most likely to need
+   a first real follow-up (confirming Overpass access recovered, running
+   the first full warm sweep, adding `CRON_SECRET`/`ADMIN_PASSWORD` to
+   Vercel).
 
 ## Getting oriented fast
 

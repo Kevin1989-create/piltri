@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDiscoverCities } from "@/lib/discoverCities";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 import { CACHE_TTL_MS, citySlug } from "@/lib/aggregation/cache";
 import { seed as seedMemoryCache } from "@/lib/aggregation/memoryCache";
 import { randomCityData } from "@/lib/aggregation/randomSeed";
+import { isAdminRequest } from "@/lib/adminAuth";
 import type { CityExploreData, CitySearchResult } from "@/lib/types";
 
 // Pure writes (DB or in-memory), no external API to rate-limit against here
@@ -37,11 +38,12 @@ const CONCURRENCY = 20;
  * with genuine live-aggregated ones before this is shown to real users -
  * this endpoint should never be run against a production dataset.
  *
- * No auth here, same as warm-cache - fine for local/dev use, but add a
- * shared-secret header check before this is ever reachable on a public,
- * untrusted network.
+ * Gated by ADMIN_PASSWORD (see lib/adminAuth.ts), same as the other
+ * /api/admin/* endpoints.
  */
-export async function POST() {
+export async function POST(req: NextRequest) {
+  if (!isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   let supabase: ReturnType<typeof getSupabaseServiceClient> | null = null;
   try {
     supabase = getSupabaseServiceClient();

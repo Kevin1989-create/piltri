@@ -38,9 +38,9 @@ git push -u origin main
 2. Framework preset: Next.js (auto-detected).
 3. Add environment variables (Settings → Environment Variables) — copy every
    key from `.env.example`, using the real values from steps 1 and 2 above.
-   Leave the Phase 3.1 manual-source keys (`GLOBAL_PROPERTY_GUIDE_API_KEY`,
-   `UNDRR_API_KEY`, `NASA_CLIMATE_API_KEY`, `EXPATISTAN_API_KEY`) blank for
-   now if you haven't registered for them yet — the app runs fine without them.
+   Also set `CRON_SECRET` and `ADMIN_PASSWORD` (see HANDOFF.md's "Scheduled
+   warming" section — needed for the daily cache-warming cron job and the
+   `/admin` back-office page to work).
 4. Click **Deploy**. Vercel will build and give you a `*.vercel.app` URL —
    confirm the Home, Explore, and results pages all load before continuing.
 
@@ -57,12 +57,13 @@ git push -u origin main
 ## 6. Soft launch checklist (6.1, 6.5, 6.6)
 
 - Test Explore with 5–10 real cities across different continents — check
-  for API failures or odd scores (placeholder fields will show neutral
-  values until Phase 3.1 sources are wired up).
+  for API failures or odd scores.
 - Check the Mapbox usage dashboard after week 1 and week 2.
+- Confirm the daily cron (`/api/cron/warm-cache-tick`, see HANDOFF.md) is
+  actually running — Vercel's dashboard (Settings → Cron Jobs) shows recent
+  invocations and their status.
 - Share the piltri.me link with a small group before any public
-  announcement, and log feedback/bugs against `README.md`'s "Data sources
-  still to wire up" table plus general UX issues.
+  announcement, and log feedback/bugs against `KNOWN-ISSUES.md`.
 
 ## Rollback / fallback
 

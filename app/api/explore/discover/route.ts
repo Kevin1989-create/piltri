@@ -21,8 +21,8 @@ import type {
 // risks tripping the free-tier rate limits on those APIs.
 const CONCURRENCY = 6;
 
-const MAX_CITY_CANDIDATES = 500;
-const MAX_COUNTRY_CANDIDATES = 250; // shortlist only covers ~191 countries
+const MAX_CITY_CANDIDATES = 10000; // headroom above the ~6,300-city shortlist (data/static/discover-cities.json)
+const MAX_COUNTRY_CANDIDATES = 250; // shortlist covers ~171 countries
 const MAX_RESULTS = 50;
 
 interface ResolvedFilter {

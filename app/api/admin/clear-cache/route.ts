@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
+import { isAdminRequest } from "@/lib/adminAuth";
 
 /**
  * POST /api/admin/clear-cache
@@ -18,11 +19,12 @@ import { getSupabaseServiceClient } from "@/lib/supabase/server";
  * POST /api/admin/warm-cache afterwards (or just letting normal browsing
  * re-aggregate cities on demand) — nothing here is a source of truth.
  *
- * No auth here, same as the other /api/admin/* endpoints — fine while this
- * stays effectively private, but add a shared-secret header check before
- * any of these could be publicly discovered and hit by someone else.
+ * Gated by ADMIN_PASSWORD (see lib/adminAuth.ts) — call it via the /admin
+ * back-office page, or `curl -H "Authorization: Bearer $ADMIN_PASSWORD"`.
  */
-export async function POST() {
+export async function POST(req: NextRequest) {
+  if (!isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const supabase = getSupabaseServiceClient();
   // Supabase's delete requires a filter — `neq` on a column that's never
   // actually null (city_id is a not-null primary key) is the standard way

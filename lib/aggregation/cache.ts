@@ -109,6 +109,22 @@ export async function getOrAggregateCityData(city: CitySearchResult): Promise<Ci
  * part can't be sped up further without pre-computing it ahead of time
  * (see app/api/admin/warm-cache/route.ts).
  */
+// Postgrest's `.in(...)` filter is passed as a query-string value — with
+// the shortlist now ~6,300 cities (was ~500), a single unchunked `.in()`
+// call for every slug/id at once risks the request URL exceeding practical
+// size limits and failing outright (silently, since callers here treat any
+// error as "nothing cached" and fall through to the slow path - discovered
+// via real testing: after expanding the shortlist, every candidate read
+// as stale even for a city aggregated moments earlier). Chunking avoids
+// that regardless of the exact limit that would otherwise bite.
+const IN_CLAUSE_CHUNK_SIZE = 300;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 export async function getCachedCityDataBatch(cities: CitySearchResult[]): Promise<Map<string, CityExploreData>> {
   const result = new Map<string, CityExploreData>();
   if (cities.length === 0) return result;
@@ -125,25 +141,37 @@ export async function getCachedCityDataBatch(cities: CitySearchResult[]): Promis
 
   const slugs = Array.from(new Set(cities.map((c) => citySlug(c))));
 
-  const { data: cityRows, error: cityErr } = await supabase.from("cities").select("id, slug").in("slug", slugs);
-  if (cityErr || !cityRows || cityRows.length === 0) return result;
+  const cityRows: { id: string; slug: string }[] = [];
+  for (const slugChunk of chunk(slugs, IN_CLAUSE_CHUNK_SIZE)) {
+    const { data, error } = await supabase.from("cities").select("id, slug").in("slug", slugChunk);
+    if (error) {
+      console.error("getCachedCityDataBatch: cities lookup failed for a chunk:", error);
+      continue;
+    }
+    if (data) cityRows.push(...(data as { id: string; slug: string }[]));
+  }
+  if (cityRows.length === 0) return result;
 
-  const idToSlug = new Map<string, string>(cityRows.map((r) => [r.id as string, r.slug as string]));
+  const idToSlug = new Map<string, string>(cityRows.map((r) => [r.id, r.slug]));
   const ids = cityRows.map((r) => r.id);
 
-  const { data: scoreRows, error: scoreErr } = await supabase
-    .from("city_scores")
-    .select("city_id, data, last_updated")
-    .in("city_id", ids);
-  if (scoreErr || !scoreRows) return result;
+  const scoreRows: { city_id: string; data: CityExploreData; last_updated: string }[] = [];
+  for (const idChunk of chunk(ids, IN_CLAUSE_CHUNK_SIZE)) {
+    const { data, error } = await supabase.from("city_scores").select("city_id, data, last_updated").in("city_id", idChunk);
+    if (error) {
+      console.error("getCachedCityDataBatch: city_scores lookup failed for a chunk:", error);
+      continue;
+    }
+    if (data) scoreRows.push(...(data as { city_id: string; data: CityExploreData; last_updated: string }[]));
+  }
 
   const now = Date.now();
   for (const row of scoreRows) {
-    const slug = idToSlug.get(row.city_id as string);
+    const slug = idToSlug.get(row.city_id);
     if (!slug) continue;
-    const ageMs = now - new Date(row.last_updated as string).getTime();
+    const ageMs = now - new Date(row.last_updated).getTime();
     if (ageMs < CACHE_TTL_MS) {
-      result.set(slug, row.data as CityExploreData);
+      result.set(slug, row.data);
     }
   }
   return result;

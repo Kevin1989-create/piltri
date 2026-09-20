@@ -9,7 +9,63 @@
 
 import { fetchWithTimeout } from "./fetchWithTimeout";
 
-const OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
+// Several independent public Overpass instances, tried in order. Overpass
+// is a shared free service with no SLA — the primary instance in
+// particular temporarily blocked this project's own IP entirely (406 on
+// every request, including a plain status check) after a large batch job
+// briefly burst too many requests at it. A single point of failure there
+// was already flagged as a known limitation (KNOWN-ISSUES.md); mirror
+// fallback is the actual fix, not just a today-specific workaround - any
+// one instance being slow, down, or having temporarily rate-limited us no
+// longer takes every Overpass-backed field down with it.
+const OVERPASS_ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.openstreetmap.ru/api/interpreter",
+];
+
+async function overpassAttempt(endpoint: string, query: string, timeoutMs: number): Promise<Response> {
+  const res = await fetchWithTimeout(
+    endpoint,
+    {
+      method: "POST",
+      body: `data=${encodeURIComponent(query)}`,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    },
+    timeoutMs
+  );
+  // A real Overpass response, including a query-level error, is still a
+  // JSON body we can reason about - only a non-Overpass gateway/WAF
+  // response (no JSON content-type at all - a block page, a 5xx from the
+  // reverse proxy, etc.) is treated as "this endpoint didn't answer".
+  const contentType = res.headers.get("content-type") ?? "";
+  if (res.ok || contentType.includes("json")) return res;
+  throw new Error(`Overpass endpoint ${endpoint} returned ${res.status}`);
+}
+
+/** POSTs an Overpass QL query — the primary endpoint first (the normal
+ *  case: healthy, single request, no extra load on the other free public
+ *  mirrors), and only if that fails does it race the remaining mirrors in
+ *  parallel for whichever answers first. Two-phase rather than either
+ *  "always race everything" (triples load on shared free services on
+ *  every single call, most of it wasted) or "try each one after another"
+ *  (a slow-but-not-quite-dead mirror ahead of a healthy one would
+ *  compound this query's wait by however many mirrors come before it). */
+async function overpassPost(query: string, timeoutMs: number): Promise<Response> {
+  const [primary, ...fallbacks] = OVERPASS_ENDPOINTS;
+  try {
+    return await overpassAttempt(primary, query, timeoutMs);
+  } catch (primaryErr) {
+    if (fallbacks.length === 0) throw primaryErr;
+    try {
+      return await Promise.any(fallbacks.map((endpoint) => overpassAttempt(endpoint, query, timeoutMs)));
+    } catch (err) {
+      const first = err instanceof AggregateError ? err.errors[0] : err;
+      throw first instanceof Error ? first : primaryErr;
+    }
+  }
+}
+
 const RADIUS_M = 5000; // 5km search radius around the city centroid
 // Airports are routinely much further from a city centre than any other
 // amenity checked here (a "city's airport" is commonly 20-40km out) - a
@@ -22,28 +78,52 @@ const AIRPORT_RADIUS_M = 40000;
 // timeout below means a slow query fails fast into its fallback/default
 // rather than dragging out the whole Explore search or pin lookup.
 const OVERPASS_QUERY_TIMEOUT_S = 10;
-const CLIENT_TIMEOUT_MS = 7000;
+const CLIENT_TIMEOUT_MS = 9000;
 
-async function countTags(lat: number, lng: number, tagFilters: string[], radiusM: number = RADIUS_M): Promise<number> {
-  const clauses = tagFilters
-    .map((tag) => `node[${tag}](around:${radiusM},${lat},${lng});way[${tag}](around:${radiusM},${lat},${lng});`)
+// Wider than the 5km default: sector signals like an industrial estate or
+// out-of-town retail/office park are more spread out than restaurants/bars.
+const SECTOR_RADIUS_M = 8000;
+// A combined 14-group query does more work server-side than any single
+// count query did - longer timeouts than the general-purpose ones above,
+// matching the beach search's (the previous widest single query in this
+// file).
+const BATCH_QUERY_TIMEOUT_S = 20;
+const BATCH_CLIENT_TIMEOUT_MS = 15000;
+
+interface TagGroup {
+  tags: string[];
+  radiusM: number;
+}
+
+/** Counts several independent tag groups around one point in a SINGLE
+ *  Overpass HTTP request, via named result sets (`->.s0`, `->.s1`, ...)
+ *  each followed by its own `out count`- Overpass returns one count
+ *  element per `out count` statement, in the order they appear, which is
+ *  how the groups are matched back up to their counts below. This is what
+ *  lets getCityOverpassData combine what used to be 14 separate round
+ *  trips against a shared, rate-limited public instance into 1 - the
+ *  single biggest lever for scaling how many cities can realistically be
+ *  aggregated without hitting Overpass's limits. */
+async function countTagsBatch(lat: number, lng: number, groups: TagGroup[]): Promise<number[]> {
+  const sets = groups
+    .map((g, i) => {
+      const clauses = g.tags
+        .map((tag) => `node[${tag}](around:${g.radiusM},${lat},${lng});way[${tag}](around:${g.radiusM},${lat},${lng});`)
+        .join("");
+      return `(${clauses})->.s${i};`;
+    })
     .join("\n");
-  const query = `[out:json][timeout:${OVERPASS_QUERY_TIMEOUT_S}];(${clauses});out count;`;
+  const outs = groups.map((_, i) => `.s${i} out count;`).join("\n");
+  const query = `[out:json][timeout:${BATCH_QUERY_TIMEOUT_S}];\n${sets}\n${outs}`;
 
-  const res = await fetchWithTimeout(
-    OVERPASS_ENDPOINT,
-    {
-      method: "POST",
-      body: `data=${encodeURIComponent(query)}`,
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      next: { revalidate: 60 * 60 * 24 * 14 },
-    },
-    CLIENT_TIMEOUT_MS
-  );
+  const res = await overpassPost(query, BATCH_CLIENT_TIMEOUT_MS);
   if (!res.ok) throw new Error(`Overpass request failed: ${res.status}`);
   const json = await res.json();
-  const total = json?.elements?.[0]?.tags?.total;
-  return total ? Number(total) : 0;
+  const elements: any[] = json?.elements ?? [];
+  return groups.map((_, i) => {
+    const total = elements[i]?.tags?.total;
+    return total ? Number(total) : 0;
+  });
 }
 
 export interface OverpassRawCounts {
@@ -53,51 +133,12 @@ export interface OverpassRawCounts {
   greenSpaceCount: number; // proxy count; green space % is estimated from this
 }
 
-export async function getOverpassCounts(lat: number, lng: number): Promise<OverpassRawCounts> {
-  const [restaurantsBars, culturalVenues, familyKidsActivities, greenSpaceCount] = await Promise.all([
-    countTags(lat, lng, ['"amenity"="restaurant"', '"amenity"="bar"', '"amenity"="cafe"']),
-    countTags(lat, lng, ['"amenity"="theatre"', '"amenity"="cinema"', '"tourism"="museum"', '"amenity"="arts_centre"']),
-    countTags(lat, lng, ['"leisure"="playground"', '"amenity"="childcare"', '"leisure"="water_park"']),
-    countTags(lat, lng, ['"leisure"="park"', '"leisure"="garden"']),
-  ]);
-
-  return { restaurantsBars, culturalVenues, familyKidsActivities, greenSpaceCount };
-}
-
 export interface OverpassTransportPresence {
   hasTrainStation: boolean;
   hasSubway: boolean;
   hasTramway: boolean;
   hasAirport: boolean;
 }
-
-/** Simple yes/no presence flags for a city's transport infrastructure —
- *  same 5km radius as the other density fields, except airport (see
- *  AIRPORT_RADIUS_M). Tag choices favour the single most consistently-used
- *  OSM tag per mode rather than trying to enumerate every regional tagging
- *  variant: railway=station (heavy/mainline rail), station=subway (the
- *  standard sub-tag distinguishing a metro/subway stop from a mainline
- *  station) plus railway=subway_entrance as a second, very consistently
- *  tagged signal, railway=tram_stop, and aeroway=aerodrome. */
-export async function getTransportPresence(lat: number, lng: number): Promise<OverpassTransportPresence> {
-  const [trainCount, subwayCount, tramCount, airportCount] = await Promise.all([
-    countTags(lat, lng, ['"railway"="station"']),
-    countTags(lat, lng, ['"station"="subway"', '"railway"="subway_entrance"']),
-    countTags(lat, lng, ['"railway"="tram_stop"']),
-    countTags(lat, lng, ['"aeroway"="aerodrome"'], AIRPORT_RADIUS_M),
-  ]);
-
-  return {
-    hasTrainStation: trainCount > 0,
-    hasSubway: subwayCount > 0,
-    hasTramway: tramCount > 0,
-    hasAirport: airportCount > 0,
-  };
-}
-
-// Wider than the 5km default: sector signals like an industrial estate or
-// out-of-town retail/office park are more spread out than restaurants/bars.
-const SECTOR_RADIUS_M = 8000;
 
 export interface EconomySectorCounts {
   technologyAndInnovation: number;
@@ -108,58 +149,96 @@ export interface EconomySectorCounts {
   naturalResourcesAndAgriculture: number;
 }
 
-/** Raw OSM POI/land-use counts per economic-sector bucket, within
- *  SECTOR_RADIUS_M of the city centre - used to flag the city's likely
- *  dominant local sector (see pickMainEconomyType below), as a genuinely
- *  city-level supplement to the country-level economyTypeProfile estimate.
+export interface CityOverpassData {
+  raw: OverpassRawCounts;
+  transport: OverpassTransportPresence;
+  economySectors: EconomySectorCounts;
+}
+
+// Index of each of the 14 groups in the single batched query below - named
+// so the response-parsing code reads as labels, not magic numbers.
+const GROUP = {
+  restaurantsBars: 0,
+  culturalVenues: 1,
+  familyKidsActivities: 2,
+  greenSpaceCount: 3,
+  trainStation: 4,
+  subway: 5,
+  tramway: 6,
+  airport: 7,
+  techAndInnovation: 8,
+  tourismAndHospitality: 9,
+  financeAndServices: 10,
+  manufacturingAndIndustry: 11,
+  governmentAndPublicSector: 12,
+  naturalResourcesAndAgriculture: 13,
+} as const;
+
+/** Every Overpass-sourced field a city needs (amenity/cultural/family
+ *  density, green space, transport presence flags, and economy-sector POI
+ *  counts) in ONE HTTP request instead of the 14 separate ones this used
+ *  to take (see countTagsBatch above) - transport presence flags favour
+ *  the single most consistently-used OSM tag per mode rather than
+ *  enumerating every regional tagging variant: railway=station
+ *  (heavy/mainline rail), station=subway (the standard sub-tag
+ *  distinguishing a metro/subway stop from a mainline station) plus
+ *  railway=subway_entrance as a second, very consistently tagged signal,
+ *  railway=tram_stop, and aeroway=aerodrome.
  *
- *  HONEST CAVEAT: this is a point-of-interest density proxy, not real GDP
- *  or employment-share data - no free source for true city-level economic
- *  composition exists. Tag choices are a reasonable single-tag-per-concept
- *  mapping, not an exhaustive enumeration of every regional tagging
- *  variant, and OSM tagging density itself varies a lot by region (much
- *  richer in Western Europe/North America than elsewhere) - so a "no
- *  signal" result for smaller or less-mapped cities is expected and
- *  reported honestly (see pickMainEconomyType) rather than guessed at. */
-export async function getEconomySectorCounts(lat: number, lng: number): Promise<EconomySectorCounts> {
-  const [
-    technologyAndInnovation,
-    tourismAndHospitality,
-    financeAndServices,
-    manufacturingAndIndustry,
-    governmentAndPublicSector,
-    naturalResourcesAndAgriculture,
-  ] = await Promise.all([
-    countTags(lat, lng, ['"office"="it"', '"office"="coworking"', '"office"="research"'], SECTOR_RADIUS_M),
-    countTags(
-      lat,
-      lng,
-      ['"tourism"="hotel"', '"tourism"="attraction"', '"tourism"="museum"', '"tourism"="guest_house"'],
-      SECTOR_RADIUS_M
-    ),
-    countTags(
-      lat,
-      lng,
-      ['"amenity"="bank"', '"office"="insurance"', '"office"="financial"', '"office"="lawyer"', '"office"="accountant"'],
-      SECTOR_RADIUS_M
-    ),
-    countTags(lat, lng, ['"landuse"="industrial"', '"man_made"="works"'], SECTOR_RADIUS_M),
-    countTags(lat, lng, ['"office"="government"', '"amenity"="townhall"', '"amenity"="courthouse"'], SECTOR_RADIUS_M),
-    countTags(
-      lat,
-      lng,
-      ['"landuse"="farmland"', '"landuse"="orchard"', '"landuse"="vineyard"', '"landuse"="quarry"'],
-      SECTOR_RADIUS_M
-    ),
+ *  Economy-sector counts are a point-of-interest density proxy, not real
+ *  GDP or employment-share data - no free source for true city-level
+ *  economic composition exists. Tag choices are a reasonable
+ *  single-tag-per-concept mapping, not an exhaustive enumeration of every
+ *  regional tagging variant, and OSM tagging density itself varies a lot
+ *  by region (much richer in Western Europe/North America than
+ *  elsewhere) - so a "no signal" result for smaller or less-mapped cities
+ *  is expected and reported honestly (see pickMainEconomyType) rather
+ *  than guessed at. */
+export async function getCityOverpassData(lat: number, lng: number): Promise<CityOverpassData> {
+  const counts = await countTagsBatch(lat, lng, [
+    { tags: ['"amenity"="restaurant"', '"amenity"="bar"', '"amenity"="cafe"'], radiusM: RADIUS_M },
+    { tags: ['"amenity"="theatre"', '"amenity"="cinema"', '"tourism"="museum"', '"amenity"="arts_centre"'], radiusM: RADIUS_M },
+    { tags: ['"leisure"="playground"', '"amenity"="childcare"', '"leisure"="water_park"'], radiusM: RADIUS_M },
+    { tags: ['"leisure"="park"', '"leisure"="garden"'], radiusM: RADIUS_M },
+    { tags: ['"railway"="station"'], radiusM: RADIUS_M },
+    { tags: ['"station"="subway"', '"railway"="subway_entrance"'], radiusM: RADIUS_M },
+    { tags: ['"railway"="tram_stop"'], radiusM: RADIUS_M },
+    { tags: ['"aeroway"="aerodrome"'], radiusM: AIRPORT_RADIUS_M },
+    { tags: ['"office"="it"', '"office"="coworking"', '"office"="research"'], radiusM: SECTOR_RADIUS_M },
+    { tags: ['"tourism"="hotel"', '"tourism"="attraction"', '"tourism"="museum"', '"tourism"="guest_house"'], radiusM: SECTOR_RADIUS_M },
+    {
+      tags: ['"amenity"="bank"', '"office"="insurance"', '"office"="financial"', '"office"="lawyer"', '"office"="accountant"'],
+      radiusM: SECTOR_RADIUS_M,
+    },
+    { tags: ['"landuse"="industrial"', '"man_made"="works"'], radiusM: SECTOR_RADIUS_M },
+    { tags: ['"office"="government"', '"amenity"="townhall"', '"amenity"="courthouse"'], radiusM: SECTOR_RADIUS_M },
+    {
+      tags: ['"landuse"="farmland"', '"landuse"="orchard"', '"landuse"="vineyard"', '"landuse"="quarry"'],
+      radiusM: SECTOR_RADIUS_M,
+    },
   ]);
 
   return {
-    technologyAndInnovation,
-    tourismAndHospitality,
-    financeAndServices,
-    manufacturingAndIndustry,
-    governmentAndPublicSector,
-    naturalResourcesAndAgriculture,
+    raw: {
+      restaurantsBars: counts[GROUP.restaurantsBars],
+      culturalVenues: counts[GROUP.culturalVenues],
+      familyKidsActivities: counts[GROUP.familyKidsActivities],
+      greenSpaceCount: counts[GROUP.greenSpaceCount],
+    },
+    transport: {
+      hasTrainStation: counts[GROUP.trainStation] > 0,
+      hasSubway: counts[GROUP.subway] > 0,
+      hasTramway: counts[GROUP.tramway] > 0,
+      hasAirport: counts[GROUP.airport] > 0,
+    },
+    economySectors: {
+      technologyAndInnovation: counts[GROUP.techAndInnovation],
+      tourismAndHospitality: counts[GROUP.tourismAndHospitality],
+      financeAndServices: counts[GROUP.financeAndServices],
+      manufacturingAndIndustry: counts[GROUP.manufacturingAndIndustry],
+      governmentAndPublicSector: counts[GROUP.governmentAndPublicSector],
+      naturalResourcesAndAgriculture: counts[GROUP.naturalResourcesAndAgriculture],
+    },
   };
 }
 
@@ -216,15 +295,7 @@ export async function nearestFeatureWithDetails(
     .map((tag) => `node[${tag}](around:${radiusM},${lat},${lng});way[${tag}](around:${radiusM},${lat},${lng});`)
     .join("\n");
   const query = `[out:json][timeout:${OVERPASS_QUERY_TIMEOUT_S}];(${clauses});out center 1;`;
-  const res = await fetchWithTimeout(
-    OVERPASS_ENDPOINT,
-    {
-      method: "POST",
-      body: `data=${encodeURIComponent(query)}`,
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    },
-    CLIENT_TIMEOUT_MS
-  );
+  const res = await overpassPost(query, CLIENT_TIMEOUT_MS);
   if (!res.ok) return null;
   const json = await res.json();
   const el = json?.elements?.[0];
@@ -257,11 +328,7 @@ export async function isNearCoastOrLake(lat: number, lng: number): Promise<boole
     `(way["natural"="coastline"](around:${COASTAL_CHECK_RADIUS_M},${lat},${lng});` +
     `way["natural"="water"]["water"="lake"](around:${COASTAL_CHECK_RADIUS_M},${lat},${lng}););out count;`;
   try {
-    const res = await fetchWithTimeout(
-      OVERPASS_ENDPOINT,
-      { method: "POST", body: `data=${encodeURIComponent(query)}`, headers: { "Content-Type": "application/x-www-form-urlencoded" } },
-      CLIENT_TIMEOUT_MS
-    );
+    const res = await overpassPost(query, CLIENT_TIMEOUT_MS);
     if (!res.ok) return false;
     const json = await res.json();
     const total = json?.elements?.[0]?.tags?.total;
@@ -312,11 +379,7 @@ async function fetchBeachCandidates(lat: number, lng: number, radiusM: number): 
     `way["natural"="beach"](around:${radiusM},${lat},${lng});` +
     `way["natural"="coastline"](around:${radiusM},${lat},${lng}););` +
     `out center ${BEACH_CANDIDATE_POOL};`;
-  const res = await fetchWithTimeout(
-    OVERPASS_ENDPOINT,
-    { method: "POST", body: `data=${encodeURIComponent(query)}`, headers: { "Content-Type": "application/x-www-form-urlencoded" } },
-    BEACH_CLIENT_TIMEOUT_MS
-  );
+  const res = await overpassPost(query, BEACH_CLIENT_TIMEOUT_MS);
   if (!res.ok) return [];
   const json = await res.json();
   const elements: any[] = json?.elements ?? [];
