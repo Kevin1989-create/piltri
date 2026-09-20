@@ -13,6 +13,7 @@ import { SectionDetailPanel } from "@/components/explore/SectionDetailPanel";
 import { PinPanel } from "@/components/explore/PinPanel";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import type { CityExploreData, NearbyPlace, SectionKey, TravelTimes } from "@/lib/types";
 
 function ResultsContent() {
@@ -88,6 +89,14 @@ function ResultsContent() {
   // look at. Read-only here: editing lives on /explore/weights only, to
   // keep it clear this is a global setting, not a per-city control.
   const { weights } = useScoreWeights();
+  // Below `md`, the floating map-overlay layout (score column pinned over
+  // the map, pin details as a bar beside it, section detail as a side
+  // panel) gives way to a stacked one: map on top at a fixed height, then
+  // the score card and pin details in normal document flow below it, with
+  // section detail reusing SectionColumn's own built-in inline accordion
+  // instead of a separate floating panel. See the JSX below and
+  // MapView's `compact` prop for the other half of this.
+  const isDesktop = useMediaQuery("(min-width: 768px)");
 
   // Clears the dropped pin and everything that depends on it (destination
   // pin, computed route, "picking a second pin" mode) - used whenever the
@@ -218,19 +227,22 @@ function ResultsContent() {
     : 0;
 
   return (
-    <main className="h-screen flex flex-col">
+    <main className="flex flex-col md:h-screen">
       <NavBar
         logoSide="left"
         center={
           // Truly centred across the whole header now (see NavBar's 3-column
           // grid), at the same vertical level as the logo, rather than
-          // right-aligned in the space left over after it.
-          <div className="flex items-center gap-3">
+          // right-aligned in the space left over after it. Full-width row of
+          // its own below the logo on mobile (see NavBar) — the search bar
+          // itself shrinks to fill whatever's left after the "Advanced
+          // search" link instead of the desktop's fixed 300px.
+          <div className="flex items-center gap-2 md:gap-3 w-full max-w-md md:max-w-none md:w-auto">
             <SearchBar
               variant="compact"
               initialValue={`${cityName}${country ? `, ${country}` : ""}`}
               placeholder="Explore a place here"
-              className="w-[300px]"
+              className="flex-1 min-w-0 md:w-[300px] md:flex-none"
             />
             {/* Discover mode's entry point, relocated here from the Explore
              *  landing page and relabelled — makes more sense reachable
@@ -241,43 +253,61 @@ function ResultsContent() {
              *  /explore landing page. */}
             <Link
               href={discoverHref}
-              className="flex items-center gap-1.5 text-xs text-ink-500 hover:text-piltri-amber-dark whitespace-nowrap"
+              className="flex items-center gap-1.5 text-xs text-ink-500 hover:text-piltri-amber-dark whitespace-nowrap flex-shrink-0"
             >
               <DiscoverIcon className="w-3.5 h-3.5" />
-              Advanced search
+              <span className="hidden sm:inline">Advanced search</span>
             </Link>
           </div>
         }
         right={
           data && (
-            <p className="text-[11px] text-ink-300 whitespace-nowrap">
+            <p className="text-[11px] text-ink-300 whitespace-nowrap hidden md:block">
               Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })}
             </p>
           )
         }
       />
 
-      <div ref={mapAreaRef} className="flex-1 relative overflow-hidden">
-        <MapView
-          lat={lat}
-          lng={lng}
-          boundaryQuery={boundaryQuery}
-          onMapClick={handleMapClick}
-          pinnedCoords={pin}
-          destinationCoords={destination}
-          pickingDestination={pickingDestination}
-          onDestinationPick={handleDestinationPick}
-          onRouteInfo={setRouteInfo}
-          reservedBottomPx={pin ? pinPanelHeight : 0}
-        />
+      {/* Desktop: the map fills all remaining height, with the score column,
+       *  section detail, and pin panel floating on top of it via absolute
+       *  positioning (`md:absolute` below). Mobile: none of that floating
+       *  works on a phone-width screen, so this becomes a plain stacked
+       *  column instead — a fixed-height map, then the score card, then the
+       *  pin panel, each in normal flow, with the whole page scrolling
+       *  (`main` above drops `h-screen` below `md` for exactly this reason).
+       *  `relative` stays on unconditionally since it's still needed as the
+       *  positioning context for the `md:absolute` children. */}
+      <div ref={mapAreaRef} className="relative flex flex-col md:flex-1 md:overflow-hidden">
+        <div className="h-[45vh] md:h-full md:flex-1 relative">
+          <MapView
+            lat={lat}
+            lng={lng}
+            boundaryQuery={boundaryQuery}
+            onMapClick={handleMapClick}
+            pinnedCoords={pin}
+            destinationCoords={destination}
+            pickingDestination={pickingDestination}
+            onDestinationPick={handleDestinationPick}
+            onRouteInfo={setRouteInfo}
+            reservedBottomPx={isDesktop && pin ? pinPanelHeight : 0}
+            compact={!isDesktop}
+          />
+        </div>
 
-        {/* Floating left column — sits on top of the map rather than
-            resizing it. Fixed size at all times, whether or not a section is
-            expanded: expanding a section opens a separate SectionDetailPanel
-            to its right instead of this column growing, so nothing about
-            the score list itself ever moves. */}
-        <div className="absolute top-4 left-4 bottom-4 flex flex-col w-[320px]">
-          <div ref={leftColumnBoxRef} className="bg-surface/95 backdrop-blur rounded-card shadow-card overflow-y-auto flex-shrink">
+        {/* Score column — floats on top of the map on desktop (fixed size
+            at all times: expanding a section opens a separate
+            SectionDetailPanel beside it instead of this column growing, so
+            nothing about the score list itself ever moves there). On
+            mobile it's just the next block in the page, full width, and
+            expanding a section uses SectionColumn's own inline accordion
+            (`externalDetail={isDesktop}` below) since there's no room for a
+            side panel. */}
+        <div className="static md:absolute md:top-4 md:left-4 md:bottom-4 flex flex-col w-full md:w-[320px] px-4 md:px-0 mt-3 md:mt-0">
+          <div
+            ref={leftColumnBoxRef}
+            className="bg-surface md:bg-surface/95 md:backdrop-blur rounded-card shadow-card md:overflow-y-auto md:flex-shrink"
+          >
             {loading && <p className="px-4 py-6 text-sm text-ink-500">Loading Piltri score…</p>}
             {error && (
               <p className="px-4 py-6 text-sm text-score-weak">Couldn't load this city's score: {error}</p>
@@ -294,24 +324,24 @@ function ResultsContent() {
                   reportHref={reportHref}
                   weights={weights}
                 />
-                <SectionColumn data={data} externalDetail onOpenSectionChange={setOpenSectionKey} />
+                <SectionColumn data={data} externalDetail={isDesktop} onOpenSectionChange={setOpenSectionKey} />
               </>
             )}
           </div>
         </div>
 
-        {data && openSectionKey && <SectionDetailPanel section={openSectionKey} data={data} />}
+        {data && openSectionKey && isDesktop && <SectionDetailPanel section={openSectionKey} data={data} />}
 
         {/* Pin marker itself stays on the map (MapView); its details show
-            as a horizontal bar pinned to the bottom, to the right of the
-            main column. Fixed at 344px (16px column offset + 320px column
-            width + 8px gap) at all times now, on request — it no longer
-            shifts over when a section detail panel opens alongside it. */}
+            as a horizontal bar. On desktop that bar floats at the bottom,
+            to the right of the score column — fixed at 344px (16px column
+            offset + 320px column width + 8px gap) at all times, on request.
+            On mobile it's just the next stacked block after the score card. */}
         {pin && (
           <div
             ref={pinPanelWrapperRef}
-            className="absolute left-[344px] right-4 pointer-events-none"
-            style={{ bottom: pinPanelBottomPx }}
+            className="static md:absolute md:left-[344px] md:right-4 md:pointer-events-none px-4 md:px-0 mt-3 md:mt-0"
+            style={isDesktop ? { bottom: pinPanelBottomPx } : undefined}
           >
             <PinPanel
               coords={pin}

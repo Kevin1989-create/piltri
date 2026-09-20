@@ -96,16 +96,16 @@ function ReportContent() {
         </button>
       </div>
 
-      <div className="max-w-[720px] mx-auto px-8 py-10 print:px-0 print:py-0">
+      <div className="max-w-[720px] mx-auto px-4 sm:px-8 py-10 print:px-0 print:py-0">
         {loading && <p className="text-sm text-ink-500">Loading report…</p>}
         {error && <p className="text-sm text-score-weak">Couldn't load this city's data: {error}</p>}
 
         {data && (
           <>
-            <div className="flex items-baseline justify-between gap-4 pb-4 border-b border-surface-border">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 pb-4 border-b border-surface-border">
               <div>
                 <p className="text-xs uppercase tracking-wide text-ink-500">Piltri score report</p>
-                <h1 className="font-serif text-3xl text-ink-900 mt-1">{data.cityName}</h1>
+                <h1 className="font-serif text-2xl sm:text-3xl text-ink-900 mt-1">{data.cityName}</h1>
                 <p className="text-sm text-ink-500 mt-0.5">
                   {data.region ? `${data.region}, ` : ""}
                   {data.country}
@@ -113,7 +113,7 @@ function ReportContent() {
               </div>
               <div className="text-right flex-shrink-0">
                 <div className="flex items-baseline gap-1.5 justify-end">
-                  <span className="font-serif text-4xl text-piltri-amber tabular-nums">{Math.round(displayedScore)}</span>
+                  <span className="font-serif text-3xl sm:text-4xl text-piltri-amber tabular-nums">{Math.round(displayedScore)}</span>
                 </div>
                 <p className="text-[11px] text-ink-500">Piltri score{isCustomised ? " (custom weighting)" : ""}</p>
               </div>
@@ -129,7 +129,7 @@ function ReportContent() {
 
             <section className="mt-8">
               <h2 className="text-xs uppercase tracking-wide text-ink-500 mb-2">Demographics</h2>
-              <div className="grid grid-cols-3 gap-x-6 gap-y-3 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
                 <ReportStat label="Population" value={data.demographics.population.toLocaleString()} precision="city" />
                 <ReportStat
                   label="Population density"
@@ -170,7 +170,7 @@ function ReportContent() {
                       {Math.round(data.sectionScores[section])}
                     </span>
                   </div>
-                  <div className="mt-3 grid grid-cols-3 gap-x-6 gap-y-3 text-sm">
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
                     {rows.map((row) => (
                       <ReportStat
                         key={row.label}
@@ -208,7 +208,7 @@ function ReportSubBlock({ title, rows }: { title: string; rows: KpiRow[] | null 
   return (
     <div className="mt-4">
       <p className="text-[11px] uppercase tracking-wide text-ink-500 mb-2">{title}</p>
-      <div className="grid grid-cols-3 gap-x-6 gap-y-3 text-sm">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
         {rows.map((row) => (
           <ReportStat
             key={row.label}

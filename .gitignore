@@ -4,6 +4,7 @@ node_modules
 .env.local
 .DS_Store
 *.tsbuildinfo
+.claude/
 
 # Unrelated files that ended up in this project folder - not part of Piltri,
 # never intended to be pushed to this repo.

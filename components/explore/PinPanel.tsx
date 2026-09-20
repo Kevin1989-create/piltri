@@ -176,13 +176,19 @@ export function PinPanel({
        *
        *  No max-h / scroll anymore - on request, the bar just sizes itself
        *  to its content naturally instead of capping height and scrolling
-       *  internally. */}
-      <div className="flex w-full justify-between bg-surface rounded-card shadow-card items-stretch divide-x divide-surface-border overflow-hidden">
-        {/* The sections laid out side by side. Capped-but-shrinkable column
-         *  widths (SECTION_COLUMNS) plus dropping flex-shrink-0 here (each
-         *  section is now a normal shrinkable flex item, `min-w-0` so it's
-         *  actually allowed to shrink below its content size) mean the 4
-         *  sections share whatever space is really available and shrink
+       *  internally.
+       *
+       *  Below `md` (the results page's mobile layout, where this bar sits
+       *  in normal document flow under the score card rather than floating
+       *  beside it), the whole thing stacks into a single column instead of
+       *  a side-by-side bar - there's no room for 4 sections plus a control
+       *  column across a phone's width. */}
+      <div className="flex flex-col md:flex-row w-full md:justify-between bg-surface rounded-card shadow-card items-stretch divide-y md:divide-y-0 md:divide-x divide-surface-border overflow-hidden">
+        {/* The sections laid out side by side on desktop. Capped-but-shrinkable
+         *  column widths (SECTION_COLUMNS) plus dropping flex-shrink-0 here
+         *  (each section is now a normal shrinkable flex item, `min-w-0` so
+         *  it's actually allowed to shrink below its content size) mean the
+         *  4 sections share whatever space is really available and shrink
          *  together on a narrower window, rather than each demanding its
          *  full 112px regardless and having the excess either overlap the
          *  controls block or get silently clipped off (both tried, both
@@ -190,10 +196,11 @@ export function PinPanel({
          *  just sit empty between the last section and the controls block
          *  (now that the bar is full-width) on more breathing room between
          *  the 4 subsections themselves instead, rather than one big
-         *  leftover gap at the end. */}
-        <div className="flex flex-1 min-w-0 gap-x-10 px-5 py-2.5">
+         *  leftover gap at the end. Stacked vertically on mobile instead
+         *  (gap-y-4), each section full width. */}
+        <div className="flex flex-col md:flex-row flex-1 min-w-0 gap-y-4 md:gap-y-0 md:gap-x-10 px-4 md:px-5 py-3 md:py-2.5">
           {SECTIONS.map((section) => (
-            <div key={section.title} className="break-inside-avoid min-w-0">
+            <div key={section.title} className="w-full md:w-auto break-inside-avoid min-w-0">
               <p className="text-[11px] uppercase tracking-wide text-ink-500 mb-1">{section.title}</p>
               <div className={`grid ${SECTION_COLUMNS[section.title] ?? "grid-cols-2"} gap-x-4 gap-y-2`}>
                 {section.rows.map((row) => {
@@ -230,7 +237,7 @@ export function PinPanel({
                        *  this wrapping dd - text-overflow only produces a
                        *  clean "…" for the element whose own box is being
                        *  clipped. */}
-                      <dd className="text-xs font-normal leading-tight max-w-[112px] mt-0.5">
+                      <dd className="text-xs font-normal leading-tight max-w-[200px] md:max-w-[112px] mt-0.5">
                         {data == null ? (
                           // animate-pulse - a still, static "···" reads as
                           // "empty/broken" the longer a slow Overpass/Mapbox
@@ -264,12 +271,13 @@ export function PinPanel({
           ))}
         </div>
 
-        {/* Fixed width, not shrink-to-content - without it, this block's
-         *  own width varied with whatever it currently held (a short
+        {/* Fixed width on desktop, not shrink-to-content - without it, this
+         *  block's own width varied with whatever it currently held (a short
          *  "+2nd pin" trigger vs. a destination label + travel time + Clear
          *  button), which shifted the whole bar's total width/shape between
-         *  pins and even between states on the *same* pin. */}
-        <div className="w-[150px] flex-shrink-0 px-4 py-2 flex flex-col items-center gap-1.5">
+         *  pins and even between states on the *same* pin. Full width on
+         *  mobile, where it's its own stacked row rather than a side column. */}
+        <div className="w-full md:w-[150px] flex-shrink-0 px-4 py-3 md:py-2 flex flex-col items-center gap-1.5">
           <button onClick={onClose} aria-label="Close pin details" className="text-ink-500 hover:text-ink-900">
             <CloseIcon className="w-4 h-4" />
           </button>
@@ -285,7 +293,7 @@ export function PinPanel({
             {destination ? (
               <div className="flex flex-col items-center gap-0.5 w-full">
                 <p
-                  className="text-[9px] text-ink-500 text-center leading-tight max-w-[112px] truncate"
+                  className="text-[9px] text-ink-500 text-center leading-tight max-w-[200px] md:max-w-[112px] truncate"
                   title={destination.label ?? "Second pin"}
                 >
                   → {destination.label ?? "Second pin"}

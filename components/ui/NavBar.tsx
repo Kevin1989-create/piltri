@@ -26,24 +26,39 @@ interface NavBarProps {
  *  and optional centred content in between - a 3-column grid (not a flex
  *  row) so the centre column is genuinely centred across the whole header,
  *  not just centred within whatever space happens to be left after the
- *  logo's own width. */
+ *  logo's own width.
+ *
+ *  Below `md`, the 3-column grid collapses to two stacked rows instead: the
+ *  logo and corner content share a top row (`justify-between`, same as the
+ *  grid's outer two columns would read), and `center` — often a search bar
+ *  plus a link, too wide to squeeze into a third of a phone's width — gets
+ *  its own full-width row underneath. `md:contents` is what makes this work
+ *  with a single markup tree rather than two: at `md` and up it removes the
+ *  mobile row wrapper from layout entirely, so its two children rejoin
+ *  `center` as direct grid items (placed via `md:order-*`, not DOM order,
+ *  since the wrapper's children come first in the DOM either way). */
 export function NavBar({ center, right, logoSide = "left", border = true }: NavBarProps) {
   const logo = <Logo size="nav" />;
+  const leftSlot = logoSide === "left" ? logo : right;
+  const rightSlot = logoSide === "left" ? right : logo;
 
   return (
     <header
       className={cn(
-        "grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 py-3 bg-surface",
+        "flex flex-col gap-2 px-4 py-3 bg-surface",
+        "md:grid md:grid-cols-[1fr_auto_1fr] md:items-center md:gap-4 md:px-6",
         border && "border-b border-surface-border"
       )}
     >
-      <div className={cn("flex items-center min-w-0", logoSide === "left" ? "justify-start" : "justify-end")}>
-        {logoSide === "left" ? logo : right}
+      <div className="flex items-center justify-between gap-3 md:contents">
+        <div className={cn("flex items-center min-w-0 md:order-1", logoSide === "left" ? "justify-start" : "justify-end")}>
+          {leftSlot}
+        </div>
+        <div className={cn("flex items-center min-w-0 md:order-3", logoSide === "left" ? "justify-end" : "justify-start")}>
+          {rightSlot}
+        </div>
       </div>
-      <div className="flex items-center justify-center min-w-0">{center}</div>
-      <div className={cn("flex items-center min-w-0", logoSide === "left" ? "justify-end" : "justify-start")}>
-        {logoSide === "left" ? right : logo}
-      </div>
+      {center && <div className="flex items-center justify-center min-w-0 w-full md:order-2">{center}</div>}
     </header>
   );
 }

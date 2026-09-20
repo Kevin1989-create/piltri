@@ -55,6 +55,14 @@ interface MapViewProps {
    *  many place names got matched, etc.), so this is measured in the
    *  parent via ResizeObserver rather than guessed as a fixed constant. */
   reservedBottomPx?: number;
+  /** True on the results page's mobile layout, where the score column and
+   *  pin panel sit in normal document flow below the map instead of
+   *  floating on top of it — every padding/offset below tuned to dodge that
+   *  floating desktop column (fitBounds' 700px/380px left padding, the
+   *  camera's [-30,-50]/[325,0] offsets) would just waste space or push the
+   *  view off-centre on a map that has nothing floating over it. Compact
+   *  mode uses small, symmetric padding instead. */
+  compact?: boolean;
 }
 
 const AREA_SOURCE_ID = "piltri-research-area";
@@ -196,6 +204,7 @@ export function MapView({
   onDestinationPick,
   onRouteInfo,
   reservedBottomPx = 0,
+  compact = false,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -440,8 +449,9 @@ export function MapView({
       // collapsed width, so opening a section never has to re-centre the
       // map underneath it — the researched area already sits clear of
       // where the panel will grow into. Nudged a little further right still
-      // on top of that, on request.
-      map.flyTo({ center: [lng, lat], zoom, offset: [325, 0] });
+      // on top of that, on request. Compact mode has no floating column to
+      // dodge (it's below the map, not over it), so it centres normally.
+      map.flyTo({ center: [lng, lat], zoom, offset: compact ? [0, 0] : [325, 0] });
     }
 
     async function applyBoundary() {
@@ -470,8 +480,12 @@ export function MapView({
           // under it. Sized to the column's *expanded* width (620px + 16px
           // inset + a little breathing room), not just its 320px collapsed
           // width, so expanding a section never needs its own re-centre.
-          // Nudged a little further still on request.
-          { padding: { top: 60, bottom: 60, left: 700, right: 60 }, duration: 800 }
+          // Nudged a little further still on request. Compact mode has no
+          // floating column (it's below the map on mobile), so it uses
+          // small, symmetric padding instead.
+          compact
+            ? { padding: 40, duration: 800 }
+            : { padding: { top: 60, bottom: 60, left: 700, right: 60 }, duration: 800 }
         );
       } catch {
         applyFallbackCircle();
@@ -487,7 +501,7 @@ export function MapView({
     return () => {
       cancelled = true;
     };
-  }, [lat, lng, zoom, boundaryQuery]);
+  }, [lat, lng, zoom, boundaryQuery, compact]);
 
   // Show/hide the dropped pin marker — persists correctly now that MapView
   // is never remounted when pin mode toggles. Also zooms in on the pinned
@@ -526,14 +540,15 @@ export function MapView({
       }
       // Offset shifts the pinned point away from centre on screen: nudged
       // past zero now (was 160, 90, 40, 10) — pulls it slightly left of
-      // dead centre rather than just barely right of it.
-      map.flyTo({ center: [pinnedCoords.lng, pinnedCoords.lat], zoom: 13, offset: [-30, -50], duration: 900 });
+      // dead centre rather than just barely right of it. Compact mode has
+      // no floating column to dodge, so it centres the pin normally.
+      map.flyTo({ center: [pinnedCoords.lng, pinnedCoords.lat], zoom: 13, offset: compact ? [0, 0] : [-30, -50], duration: 900 });
     } else if (preDropCameraRef.current) {
       const { center, zoom: prevZoom } = preDropCameraRef.current;
       map.flyTo({ center, zoom: prevZoom, duration: 900 });
       preDropCameraRef.current = null;
     }
-  }, [pinnedCoords]);
+  }, [pinnedCoords, compact]);
 
   // Show/hide the destination (second) pin marker, and keep the driving
   // route between it and the main pin up to date on our own map - this
@@ -585,7 +600,7 @@ export function MapView({
         // existed) - otherwise this would fight with the pin-focus flyTo
         // the marker effect above already does on first drop.
         if (pinnedCoords && hadRouteRef.current) {
-          map.flyTo({ center: [pinnedCoords.lng, pinnedCoords.lat], zoom: 13, offset: [-30, -50], duration: 900 });
+          map.flyTo({ center: [pinnedCoords.lng, pinnedCoords.lat], zoom: 13, offset: compact ? [0, 0] : [-30, -50], duration: 900 });
         }
         hadRouteRef.current = false;
         return;
@@ -637,11 +652,10 @@ export function MapView({
       // guessed constant. Math.max floors it in case reservedBottomPx
       // hasn't been measured yet (e.g. right on the first click, before the
       // ResizeObserver has reported back).
-      map.fitBounds(bounds, {
-        padding: { top: 100, bottom: Math.max(180, 60 + reservedBottomPx), left: 380, right: 80 },
-        duration: 800,
-        maxZoom: 15,
-      });
+      map.fitBounds(bounds, compact
+        ? { padding: { top: 40, bottom: Math.max(40, 40 + reservedBottomPx), left: 40, right: 40 }, duration: 800, maxZoom: 15 }
+        : { padding: { top: 100, bottom: Math.max(180, 60 + reservedBottomPx), left: 380, right: 80 }, duration: 800, maxZoom: 15 }
+      );
     }
 
     if (mapLoadedRef.current) {
@@ -654,7 +668,7 @@ export function MapView({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pinnedCoords, destinationCoords, reservedBottomPx]);
+  }, [pinnedCoords, destinationCoords, reservedBottomPx, compact]);
 
   return (
     <div className="relative w-full h-full">

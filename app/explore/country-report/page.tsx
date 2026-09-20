@@ -73,15 +73,15 @@ function CountryReportContent() {
         </button>
       </div>
 
-      <div className="max-w-[720px] mx-auto px-8 py-10 print:px-0 print:py-0">
-        <div className="flex items-baseline justify-between gap-4 pb-4 border-b border-surface-border">
+      <div className="max-w-[720px] mx-auto px-4 sm:px-8 py-10 print:px-0 print:py-0">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 pb-4 border-b border-surface-border">
           <div>
             <p className="text-xs uppercase tracking-wide text-ink-500">Piltri score report — country</p>
-            <h1 className="font-serif text-3xl text-ink-900 mt-1">{country}</h1>
+            <h1 className="font-serif text-2xl sm:text-3xl text-ink-900 mt-1">{country}</h1>
             <p className="text-sm text-ink-500 mt-0.5">{countryCode}</p>
           </div>
           <div className="text-right flex-shrink-0">
-            <span className="font-serif text-4xl text-piltri-amber tabular-nums">{Math.round(piltriScore)}</span>
+            <span className="font-serif text-3xl sm:text-4xl text-piltri-amber tabular-nums">{Math.round(piltriScore)}</span>
             <p className="text-[11px] text-ink-500">Piltri score</p>
           </div>
         </div>
@@ -94,7 +94,7 @@ function CountryReportContent() {
 
         <section className="mt-8">
           <h2 className="text-xs uppercase tracking-wide text-ink-500 mb-2">Section scores</h2>
-          <div className="grid grid-cols-3 gap-x-6 gap-y-4 text-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-4 text-sm">
             {ORDER.map((section) => (
               <div key={section} className="min-w-0">
                 <p className="font-serif text-2xl text-piltri-amber tabular-nums">{Math.round(sectionScores[section])}</p>
@@ -115,7 +115,7 @@ function CountryReportContent() {
           return (
             <section key={category} className="mt-8 break-inside-avoid">
               <h2 className="text-xs uppercase tracking-wide text-ink-500 mb-2">{CATEGORY_LABELS[category]}</h2>
-              <div className="grid grid-cols-3 gap-x-6 gap-y-3 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
                 {rows.map((def) => (
                   <div key={def.key} className="min-w-0">
                     <p className="font-medium text-ink-900 leading-snug">{formatCriterionValue(def, allValues[def.key])}</p>

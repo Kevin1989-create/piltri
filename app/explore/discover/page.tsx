@@ -149,14 +149,16 @@ function DiscoverContent() {
         <h1 className="font-serif text-2xl text-ink-900 mt-1 select-none">Advanced search</h1>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
         {/* Scope + actions rail - narrow, on the left, on request. Criteria
          *  used to live in this column too; they've moved into the wider
          *  middle/right area so each card has real room to breathe instead
-         *  of a cramped 400px-wide stack. */}
-        <div className="w-[260px] flex-shrink-0 overflow-y-auto px-5 py-6">
+         *  of a cramped 400px-wide stack. Below `md` there's no room for a
+         *  side rail next to the criteria columns, so it becomes its own
+         *  full-width block stacked above them instead. */}
+        <div className="w-full md:w-[260px] flex-shrink-0 md:overflow-y-auto px-5 py-6 border-b md:border-b-0 border-surface-border">
           <h2 className="text-xs uppercase tracking-wide text-ink-500 mb-3">Scope</h2>
-          <div className="flex flex-col gap-2.5 mb-6">
+          <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 mb-6">
             {(["city", "country"] as const).map((s) => {
               const Icon = s === "city" ? PrecisionCityIcon : PrecisionCountryIcon;
               const selected = scope === s;
@@ -166,7 +168,7 @@ function DiscoverContent() {
                   type="button"
                   onClick={() => handleScopeChange(s)}
                   className={cn(
-                    "rounded-card border-2 px-4 py-3 text-left transition-colors",
+                    "flex-1 rounded-card border-2 px-4 py-3 text-left transition-colors",
                     selected ? "border-piltri-amber bg-piltri-amber/5" : "border-surface-border hover:border-ink-300"
                   )}
                 >
@@ -195,7 +197,7 @@ function DiscoverContent() {
         {/* Criteria (middle/right, wide) - results open on their own page
          *  (see discover/results/page.tsx) once "Search" is clicked, rather
          *  than rendering inline here. */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 md:overflow-y-auto px-6 py-6">
           {!scope ? (
             <p className="text-sm text-ink-500">First choose between Cities or Countries</p>
           ) : (
