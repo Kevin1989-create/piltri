@@ -1,22 +1,45 @@
 # Known issues — pre-production
 
-Logged 2026-07-27. To revisit before launch.
+Logged 2026-07-27. Updated 2026-09-20 after the data-model simplification
+(see HANDOFF.md) — several items below were resolved as a side effect of
+that work, not independently fixed.
 
-## 1. Loading performance (highest priority)
-Left section and Pin panel take too long to appear/load. Root causes likely:
-- Pin mode fires ~13 parallel lookups per pin (`lib/aggregation/pin.ts`), several hitting Mapbox category search + Overpass, with Overpass fallback chains (Beach now searches up to 4 radius tiers sequentially).
-- No caching layer on repeated Overpass/Mapbox queries for the same area.
-- Overpass public API itself is often slow/rate-limited server-side, outside our control.
+## 1. Loading performance — largely resolved for Pin mode
+Pin mode used to fire ~13 parallel lookups per pin (schools, subway, high
+street, hospitals, etc.), several hitting Mapbox category search + Overpass
+with multi-tier fallback chains — the main source of slow/inconsistent pin
+loads. Pin mode (`lib/aggregation/pin.ts`) now resolves just 4 fields (Beach,
+Mountain, Train station, Airport), cutting the per-pin lookup count by ~70%.
+Not yet addressed: no caching layer on repeated Overpass/Mapbox queries for
+the same area, and Overpass's public API itself is still often slow/rate-
+limited server-side, outside our control — a real fix (short-TTL response
+caching per lat/lng bucket, tighter timeouts) is still worth doing if pin
+loads are still felt to be slow in practice.
 
-Not yet scoped or started. Candidate next steps: add response caching (even short-TTL) per lat/lng bucket, tighten fetch timeouts, run more lookups in parallel where currently sequential, consider a loading skeleton so perceived latency drops even if actual latency doesn't.
+Advanced search's "Nearby & distance" filter category is trimmed the same
+way (4 fields: Beach, Mountain, Train station, Airport — was 13), so the
+same "~13 extra live lookups per candidate" cost described here previously
+no longer applies at anywhere near that scale.
 
-Update (Advanced search, /explore/discover): the new "Nearby & distance" filter category (Beach, Subway, School, etc., evaluated at each candidate's city centre) adds ~13 more live lookups per candidate whenever at least one Nearby filter is active — on top of the existing per-city aggregation. It's only triggered when actually used, and results are cached in-memory per server process, but a cold-cache Advanced search using a Nearby filter across the full city shortlist will be noticeably slower than one that doesn't. Same root fix as above (real caching, tighter timeouts) applies here too.
-
-## 2. Beach and Subway fields sometimes empty
-Reported empty for London across multiple rounds despite three rounds of fixes (widened radius, tiered search, added coastline fallback, added Overground/light-rail/subway_entrance tags). Root cause never conclusively identified — sandbox used for this work has no network access to Mapbox/Overpass, so all fixes were static-analysis-only, never runtime-verified. Needs a real browser session: check Network tab response for `/api/explore/pin` to see what the aggregation actually returns for a known-bad pin, which would give ground truth instead of guessing.
+## 2. Beach field sometimes empty
+Reported empty for London across multiple rounds despite several fixes
+(widened radius, tiered search, coastline fallback). Root cause never
+conclusively identified in earlier sessions (no network access to verify
+at the time). Subway is no longer part of Pin mode at all (dropped in the
+September 2026 simplification — see HANDOFF.md), so that half of the
+original issue title is moot. Beach itself uses the same verification logic
+as before (`isNearCoastOrLake` / `nearestVerifiedBeach` in
+`lib/data-sources/overpass.ts`) and was runtime-verified working correctly
+for at least one pin during this session (correctly reported "Not found
+nearby" for a pin with no real beach in range) — but London specifically
+hasn't been re-tested. Worth a specific check before calling this resolved.
 
 ## 3. Can't pin a specific map-flagged place (main or second pin)
-Clicking a labelled feature on the map (a shop, station, neighbourhood name) is meant to snap the pin to it and show its name. Implemented via two-step resolution (rendered-feature query, then reverse-geocode fallback) for both the main and second pin, but never runtime-verified for the same sandbox-network reason as #2. Needs browser testing to confirm the click hit-test and popup actually behave as intended.
-
----
-Common thread on #2 and #3: both were "fixed" repeatedly via code review and static typing only. Before production, they need an actual test pass in a browser with real Mapbox/Overpass traffic, not just another round of static changes.
+Clicking a labelled feature on the map (a shop, station, neighbourhood name)
+is meant to snap the pin to it and show its name. Implemented via two-step
+resolution (rendered-feature query, then reverse-geocode fallback) for both
+the main and second pin. Still not specifically runtime-verified — pins
+dropped during this session's testing landed on arbitrary map points, not
+deliberately on a labelled POI, so this hasn't actually been exercised yet.
+Needs a deliberate test: click directly on a labelled shop/station icon and
+confirm the pin snaps to it with the correct name in the popup.

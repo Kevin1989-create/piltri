@@ -1,19 +1,16 @@
 import { normalise } from "@/lib/aggregation/scoring";
 import { formatCurrency, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
-import type { CityExploreData, CriminalityTrend, SectionKey } from "@/lib/types";
+import type { CityExploreData, EconomyTypeProfile, SectionKey, TrendDirection } from "@/lib/types";
 
 /** How precisely a KPI's value is actually known, given its real current
- *  source — not aspirational, what's true today. "country" covers both
- *  genuine country-level APIs (World Bank, WHO, REST Countries) and the
- *  manual placeholders in lib/data-sources/manual-sources.ts (those are a
- *  single constant today, which is itself best represented as "country"
- *  rather than implying city precision that doesn't exist yet). "pinned"
- *  is for the handful of fields already computed from an exact
- *  coordinate (Open-Meteo climate, Overpass local amenity density and
- *  transport presence, Wikidata nearby-entity lookups) — genuinely finer
- *  than city, not coarser. Nothing currently qualifies as "city" — that
- *  tier is reserved for once a real per-city source (e.g. Numbeo) is
- *  wired in; until then no KPI should claim it. */
+ *  source — not aspirational, what's true today. "country" covers genuine
+ *  country-level APIs (World Bank, WHO, REST Countries). "pinned" is for
+ *  the handful of fields already computed from an exact coordinate
+ *  (Open-Meteo climate, Overpass local amenity density and transport
+ *  presence, Wikidata nearby-entity lookups) — genuinely finer than city,
+ *  not coarser. Nothing currently qualifies as "city" — that tier is
+ *  reserved for once a real per-city source (e.g. Numbeo for Real Estate)
+ *  is wired in; until then no KPI should claim it. */
 export type PrecisionTier = "country" | "city" | "pinned";
 
 export interface KpiRow {
@@ -24,12 +21,11 @@ export interface KpiRow {
    *  to the value only where a metric has a clear, non-subjective "better
    *  vs worse" direction (see tierColorClass/colorable helpers below).
    *  Left undefined for purely descriptive values (a language name, a
-   *  sector-mix percentage, a category label) — forcing green/red onto
-   *  something with no real good/bad direction would be misleading, not
-   *  informative. */
+   *  category label) — forcing green/red onto something with no real
+   *  good/bad direction would be misleading, not informative. */
   colorClass?: string;
   /** Optional hover definition shown on the label, for a metric whose name
-   *  alone doesn't make clear what it measures (e.g. ND-GAIN). */
+   *  alone doesn't make clear what it measures. */
   hint?: string;
 }
 
@@ -57,54 +53,18 @@ function yesNoColorClass(isYes: boolean): string {
   return isYes ? "text-score-strong" : "text-score-weak";
 }
 
-function trendColorClass(trend: CriminalityTrend): string {
+function trendColorClass(trend: TrendDirection): string {
   if (trend === "Improving") return "text-score-strong";
   if (trend === "Worsening") return "text-score-weak";
   return "text-score-moderate";
-}
-
-export const ECONOMY_TYPE_LABELS: Record<keyof CityExploreData["economy"]["economyTypeProfile"], string> = {
-  technologyAndInnovation: "Technology & Innovation",
-  tourismAndHospitality: "Tourism & Hospitality",
-  financeAndServices: "Finance & Services",
-  manufacturingAndIndustry: "Manufacturing & Industry",
-  governmentAndPublicSector: "Government & Public Sector",
-  naturalResourcesAndAgriculture: "Natural Resources & Agriculture",
-};
-
-/** The country-level sector-mix breakdown (currently an equal-weighted
- *  placeholder, see aggregate.ts) — shown under a "Country Economy Type"
- *  heading to distinguish it from the genuinely city-level signal below.
- *  Left uncoloured - a sector-mix percentage is descriptive, not a
- *  good/bad value (no sector is inherently "better" than another). */
-export function buildEconomyTypeRows(profile: CityExploreData["economy"]["economyTypeProfile"]): KpiRow[] {
-  return (Object.keys(profile) as (keyof typeof profile)[])
-    .sort((a, b) => profile[b] - profile[a])
-    .map((k) => ({ label: ECONOMY_TYPE_LABELS[k], value: `${profile[k]}%`, precision: "country" as const }));
-}
-
-/** The single-flag, genuinely city-level counterpart to the country-level
- *  breakdown above — shown under a "City Economy Type" heading. See
- *  lib/data-sources/overpass.ts getEconomySectorCounts / pickMainEconomyType
- *  for the OSM POI-density methodology and its honest limits. Left
- *  uncoloured - a category label, not a good/bad value. */
-export function buildCityEconomyTypeRows(data: CityExploreData): KpiRow[] {
-  const e = data.economy;
-  return [
-    {
-      label: "Main economy type",
-      value: e.mainEconomyType ? ECONOMY_TYPE_LABELS[e.mainEconomyType] : "Not enough local data",
-      precision: "pinned",
-    },
-  ];
 }
 
 // Reference ranges used only for KPI-row colour coding - kept in sync by
 // hand with the equivalent ranges in lib/aggregation/aggregate.ts (which
 // feed the actual section scores). Where a field is already stored as a
 // 0-100 "goodness" score elsewhere (e.g. purchasingPowerIndex,
-// criminalityScore), this file colours it directly instead of re-deriving
-// a range for it.
+// politicalStabilityScore), this file colours it directly instead of
+// re-deriving a range for it.
 const COLOR_RANGES = {
   gdpGrowth: { min: -5, max: 8 },
   // averageSalaryGbp is gniPerCapitaUsd * 0.79 (see aggregate.ts) - range
@@ -113,9 +73,6 @@ const COLOR_RANGES = {
   // the converted GBP one.
   salaryGbp: { min: 1580, max: 71100 },
   unemployment: { min: 0, max: 25 },
-  realEstatePriceGbp: { min: 500, max: 12000 },
-  realEstateRentGbp: { min: 200, max: 3000 },
-  realEstateTrend: { min: -10, max: 20 },
   temperatureDistanceFrom20C: { min: 0, max: 20 },
   restaurantsBarsPer10k: { min: 0, max: 40 },
   greenSpacePct: { min: 0, max: 20 }, // see aggregate.ts - already divided down from a 0-100 normalise() call
@@ -129,7 +86,10 @@ const COLOR_RANGES = {
   // (too dry or too wet both read as less favourable, same "distance from
   // an ideal" shape as temperature above); sunshine treats more hours as
   // better; snowfall treats less as better. Reasonable people can disagree
-  // with any of these three - happy to flip a direction on request.
+  // with any of these three - happy to flip a direction on request. These
+  // 3 ranges match aggregate.ts's RANGES exactly, since (unlike the old
+  // version of this file) rainfall/sunshine/snowfall now feed the actual
+  // Climate score too, not just this display.
   rainfallDistanceFromIdeal: { min: 0, max: 1000 }, // ideal centre: 1000mm/yr
   sunshineHrs: { min: 1200, max: 3800 },
   snowfallCm: { min: 0, max: 300 },
@@ -139,12 +99,37 @@ const COLOR_RANGES = {
   notableCount: { min: 0, max: 5 },
 };
 
+export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
+  technologyAndInnovation: "Technology & Innovation",
+  tourismAndHospitality: "Tourism & Hospitality",
+  financeAndServices: "Finance & Services",
+  manufacturingAndIndustry: "Manufacturing & Industry",
+  governmentAndPublicSector: "Government & Public Sector",
+  naturalResourcesAndAgriculture: "Natural Resources & Agriculture",
+};
+
+/** The city's likely dominant local sector — genuinely computed from OSM
+ *  POI/land-use density within range of its exact coordinates (see
+ *  lib/data-sources/overpass.ts getEconomySectorCounts / pickMainEconomyType),
+ *  not a placeholder. Left uncoloured - a category label, not a good/bad
+ *  value. */
+export function buildCityEconomyTypeRows(data: CityExploreData): KpiRow[] {
+  const e = data.economy;
+  return [
+    {
+      label: "Main economy type",
+      value: e.mainEconomyType ? ECONOMY_TYPE_LABELS[e.mainEconomyType] : "Not enough local data",
+      precision: "pinned",
+    },
+  ];
+}
+
 /** Shared source of truth for each section's KPI list — used by the results
  *  page's SectionDetail panel and by the printable report page, so the two
  *  never drift out of sync with each other. Precision tags reflect the
  *  actual data source wired in today (see lib/aggregation/aggregate.ts) —
  *  update the relevant row here the day a field's real source changes,
- *  e.g. when Numbeo replaces a manual-sources.ts placeholder. */
+ *  e.g. when Numbeo brings Real Estate back into the scored model. */
 export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: UnitPreferences): KpiRow[] {
   switch (section) {
     case "economy": {
@@ -173,6 +158,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           value: `${e.costOfLivingIndex}`,
           precision: "country",
           colorClass: tierColorClass(100 - e.costOfLivingIndex), // lower cost = better
+          hint: "World Bank price level index — how expensive this country is relative to a global baseline",
         },
         {
           label: "Purchasing power index",
@@ -182,53 +168,24 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         },
       ];
     }
-    case "realEstate": {
-      const r = data.realEstate;
-      // Tagged "city" ahead of the actual data change - confirmed with the
-      // product owner that Numbeo (once wired in, replacing the
-      // manual-sources.ts placeholders these 3 fields still use today) will
-      // provide genuine per-city figures. This is the one deliberate
-      // exception to "tag what's true today, not the plan" elsewhere in
-      // this file - update the TODOs in manual-sources.ts / aggregate.ts
-      // and this comment once Numbeo is actually wired in.
-      return [
-        {
-          label: "Purchase price per m²",
-          value: formatCurrency(r.pricePerM2BuyGbp, prefs),
-          precision: "city",
-          colorClass: tierColorClass(
-            normalise(r.pricePerM2BuyGbp, COLOR_RANGES.realEstatePriceGbp.min, COLOR_RANGES.realEstatePriceGbp.max, true)
-          ),
-        },
-        {
-          label: "Avg. monthly rent for 1 bed",
-          value: formatCurrency(r.avgMonthlyRent1BedGbp, prefs),
-          precision: "city",
-          colorClass: tierColorClass(
-            normalise(r.avgMonthlyRent1BedGbp, COLOR_RANGES.realEstateRentGbp.min, COLOR_RANGES.realEstateRentGbp.max, true)
-          ),
-        },
-        {
-          label: "Real estate trend (3yr)",
-          value: `${r.realEstateTrend3yrPct > 0 ? "+" : ""}${r.realEstateTrend3yrPct}%`,
-          precision: "city",
-          colorClass: tierColorClass(
-            normalise(r.realEstateTrend3yrPct, COLOR_RANGES.realEstateTrend.min, COLOR_RANGES.realEstateTrend.max)
-          ),
-        },
-      ];
-    }
     case "safetyStability": {
       const s = data.safetyStability;
       return [
-        { label: "Criminality score", value: `${s.criminalityScore}`, precision: "country", colorClass: tierColorClass(s.criminalityScore) },
-        { label: "Criminality trend", value: s.criminalityTrend, precision: "country", colorClass: trendColorClass(s.criminalityTrend) },
         {
-          label: "Geopolitical tension score",
-          value: `${s.geopoliticalTensionScore}`,
+          label: "Political stability score",
+          value: `${s.politicalStabilityScore}`,
           precision: "country",
-          colorClass: tierColorClass(100 - s.geopoliticalTensionScore), // higher tension = worse
+          colorClass: tierColorClass(s.politicalStabilityScore),
+          hint: "World Bank Worldwide Governance Indicators",
         },
+        {
+          label: "Rule of law score",
+          value: `${s.ruleOfLawScore}`,
+          precision: "country",
+          colorClass: tierColorClass(s.ruleOfLawScore),
+          hint: "World Bank Worldwide Governance Indicators",
+        },
+        { label: "Safety trend", value: s.safetyTrend, precision: "country", colorClass: trendColorClass(s.safetyTrend) },
       ];
     }
     case "climate": {
@@ -272,42 +229,11 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           precision: "pinned",
           colorClass: tierColorClass(normalise(c.avgAnnualSnowfallCm, COLOR_RANGES.snowfallCm.min, COLOR_RANGES.snowfallCm.max, true)),
         },
-        {
-          label: "Natural disaster risk",
-          value: `${c.naturalDisasterRiskScore}`,
-          precision: "country",
-          colorClass: tierColorClass(100 - c.naturalDisasterRiskScore),
-        },
-        {
-          label: "Sea level rise exposure",
-          value: `${c.seaLevelRiseExposure}`,
-          precision: "country",
-          colorClass: tierColorClass(100 - c.seaLevelRiseExposure),
-        },
-        {
-          label: "Extreme weather risk",
-          value: `${c.extremeWeatherRisk}`,
-          precision: "country",
-          colorClass: tierColorClass(100 - c.extremeWeatherRisk),
-        },
-        {
-          label: "ND-GAIN country index",
-          value: `${c.ndGainScore}`,
-          precision: "country",
-          colorClass: tierColorClass(c.ndGainScore),
-          hint: "Adaptation to climate change",
-        },
       ];
     }
     case "liveability": {
       const l = data.liveability;
       return [
-        {
-          label: "Public transport score",
-          value: `${l.publicTransportScore}`,
-          precision: "country",
-          colorClass: tierColorClass(l.publicTransportScore),
-        },
         {
           label: "Restaurants & bars density",
           value: `${l.restaurantsBarsDensityPer10k} / 10k`,
@@ -331,12 +257,6 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           ),
         },
         {
-          label: "School quality score",
-          value: `${l.schoolQualityScore}`,
-          precision: "country",
-          colorClass: tierColorClass(l.schoolQualityScore),
-        },
-        {
           label: "Family & kids activities density",
           value: `${l.familyKidsActivitiesDensityPer10k} / 10k`,
           precision: "pinned",
@@ -357,8 +277,8 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
 
 /** The 4 Overpass-sourced transport presence flags, split out of the main
  *  Liveability row list into their own "Transport Access" sub-block -
- *  keeping the main grid to 7 core stats instead of a flat 13-row wall.
- *  Coloured Yes=green/No=red as a simple presence-is-positive read. */
+ *  keeping the main grid tighter than one flat wall of rows. Coloured
+ *  Yes=green/No=red as a simple presence-is-positive read. */
 export function buildLiveabilityTransportRows(data: CityExploreData): KpiRow[] {
   const l = data.liveability;
   return [

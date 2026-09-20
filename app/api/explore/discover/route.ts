@@ -216,7 +216,6 @@ export async function POST(req: NextRequest) {
 
       const meanSectionScores = {
         economy: mean(valid.map((v) => v.data.sectionScores.economy)),
-        realEstate: mean(valid.map((v) => v.data.sectionScores.realEstate)),
         safetyStability: mean(valid.map((v) => v.data.sectionScores.safetyStability)),
         climate: mean(valid.map((v) => v.data.sectionScores.climate)),
         liveability: mean(valid.map((v) => v.data.sectionScores.liveability)),

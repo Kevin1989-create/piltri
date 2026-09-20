@@ -16,14 +16,14 @@ export function normalise(value: number, min: number, max: number, invert = fals
   return invert ? 100 - clamped : clamped;
 }
 
-/** Weighted Piltri score from the 5 scored sections (Demographics is
- *  supplementary info, not part of this). Uses the locked default
- *  weighting unless custom weights are passed (Discover mode filters, or
- *  the score-weights settings page). */
+/** Weighted Piltri score from the 4 scored sections (Demographics is
+ *  supplementary info, and Real Estate is "Coming soon" — see
+ *  lib/types.ts SectionKey — neither is part of this). Uses the locked
+ *  default weighting unless custom weights are passed (Discover mode
+ *  filters, or the score-weights settings page). */
 export function computePiltriScore(sections: SectionScores, weights: SectionScores = SECTION_WEIGHTS): number {
   const total =
     sections.economy * weights.economy +
-    sections.realEstate * weights.realEstate +
     sections.safetyStability * weights.safetyStability +
     sections.climate * weights.climate +
     sections.liveability * weights.liveability;
@@ -36,11 +36,10 @@ export function computePiltriScore(sections: SectionScores, weights: SectionScor
  *  without the resulting score being under/over-scaled. */
 export function normaliseWeights(weights: Partial<SectionScores> | undefined): SectionScores {
   const filled: SectionScores = { ...SECTION_WEIGHTS, ...weights };
-  const sum = filled.economy + filled.realEstate + filled.safetyStability + filled.climate + filled.liveability;
+  const sum = filled.economy + filled.safetyStability + filled.climate + filled.liveability;
   if (!sum || sum <= 0) return SECTION_WEIGHTS;
   return {
     economy: filled.economy / sum,
-    realEstate: filled.realEstate / sum,
     safetyStability: filled.safetyStability / sum,
     climate: filled.climate / sum,
     liveability: filled.liveability / sum,

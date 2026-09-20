@@ -147,12 +147,6 @@ export function CityHeader({
           colorClass: tierColorClass(normalise(demographics.populationTrend5yrPct, -2, 5)),
           precision: "country",
         },
-        {
-          label: "English Proficiency",
-          value: `${demographics.englishProficiencyScore}`,
-          colorClass: tierColorClass(demographics.englishProficiencyScore),
-          precision: "country",
-        },
       ]
     : null;
 

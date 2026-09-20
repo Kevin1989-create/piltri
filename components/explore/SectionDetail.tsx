@@ -5,7 +5,6 @@ import { PrecisionCityIcon, PrecisionCountryIcon, PrecisionPinnedIcon } from "@/
 import {
   PRECISION_LABEL,
   buildCityEconomyTypeRows,
-  buildEconomyTypeRows,
   buildKpiRows,
   buildLiveabilityNotableRows,
   buildLiveabilityTransportRows,
@@ -91,7 +90,6 @@ export function SectionDetail({
 }) {
   const { prefs } = useUnitPreferences();
   const rows = buildKpiRows(section, data, prefs);
-  const economyTypeRows = section === "economy" ? buildEconomyTypeRows(data.economy.economyTypeProfile) : null;
   const cityEconomyTypeRows = section === "economy" ? buildCityEconomyTypeRows(data) : null;
   // Transport Access + Notable Institutions merged into one "Local
   // Signals" sub-block (was 2 separate labeled blocks) - one less header
@@ -99,7 +97,7 @@ export function SectionDetail({
   // to share vertical space with a pinned location's info bar below it.
   const localSignalRows =
     section === "liveability" ? [...buildLiveabilityTransportRows(data), ...buildLiveabilityNotableRows(data)] : null;
-  const totalItems = rows.length + (economyTypeRows?.length ?? 0) + (cityEconomyTypeRows?.length ?? 0) + (localSignalRows?.length ?? 0);
+  const totalItems = rows.length + (cityEconomyTypeRows?.length ?? 0) + (localSignalRows?.length ?? 0);
   const cols = totalItems > 6 ? 3 : 2;
 
   return (
@@ -110,8 +108,7 @@ export function SectionDetail({
         ))}
       </div>
 
-      {economyTypeRows && <SubBlock title="Country Economy Type" rows={economyTypeRows} cols={cols} />}
-      {cityEconomyTypeRows && <SubBlock title="City Economy Type" rows={cityEconomyTypeRows} cols={cols} />}
+      {cityEconomyTypeRows && <SubBlock title="Economy Type" rows={cityEconomyTypeRows} cols={cols} />}
       {localSignalRows && <SubBlock title="Local Signals" rows={localSignalRows} cols={cols} />}
     </div>
   );

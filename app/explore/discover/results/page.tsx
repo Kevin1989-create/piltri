@@ -18,7 +18,6 @@ const SORT_LABELS: Record<SortKey, string> = {
   piltri: "Piltri Score",
   alpha: "Alphabetical",
   economy: "Economy score",
-  realEstate: "Real Estate score",
   safetyStability: "Safety & Stability score",
   climate: "Climate score",
   liveability: "Liveability score",

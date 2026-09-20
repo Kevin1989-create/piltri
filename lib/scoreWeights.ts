@@ -81,7 +81,6 @@ export function isCustomWeights(weights: Record<SectionKey, number>): boolean {
 export function weightPercentagesToScores(weights: Record<SectionKey, number>): SectionScores {
   return {
     economy: weights.economy ?? DEFAULT_WEIGHT_PERCENTAGES.economy,
-    realEstate: weights.realEstate ?? DEFAULT_WEIGHT_PERCENTAGES.realEstate,
     safetyStability: weights.safetyStability ?? DEFAULT_WEIGHT_PERCENTAGES.safetyStability,
     climate: weights.climate ?? DEFAULT_WEIGHT_PERCENTAGES.climate,
     liveability: weights.liveability ?? DEFAULT_WEIGHT_PERCENTAGES.liveability,

@@ -17,7 +17,6 @@ import { cn } from "@/lib/cn";
 const CATEGORY_ICONS: Record<CategoryKey, (props: SVGProps<SVGSVGElement>) => JSX.Element> = {
   overall: CompassIcon,
   economy: SECTION_ICONS.economy,
-  realEstate: SECTION_ICONS.realEstate,
   safetyStability: SECTION_ICONS.safetyStability,
   climate: SECTION_ICONS.climate,
   liveability: SECTION_ICONS.liveability,

@@ -5,22 +5,31 @@ import { getEconomySectorCounts, getOverpassCounts, getTransportPresence, pickMa
 import { getHealthcareQualityScore } from "@/lib/data-sources/who";
 import { countNotableRestaurants, countRankedUniversities, getCityPopulationAndArea } from "@/lib/data-sources/wikidata";
 import { toIso3 } from "@/lib/data-sources/country-codes";
-import * as manual from "@/lib/data-sources/manual-sources";
 import { averageScores, computePiltriScore, normalise } from "./scoring";
 import type { CityExploreData, CitySearchResult } from "@/lib/types";
 
 // Best-effort global reference ranges used to normalise raw metrics onto a
 // 0-100 scale. These are reasonable starting points, not scientific
-// constants — tune as real data volume grows post-launch.
+// constants — tune as real data volume grows post-launch. Rainfall/
+// sunshine/snowfall match the identical ranges kpiRows.ts colours those same
+// stats with, so the KPI display and the actual score always agree on
+// what counts as "good" for a given city.
 const RANGES = {
   gdpGrowth: { min: -5, max: 8 },
   unemployment: { min: 0, max: 25 },
   salary: { min: 2000, max: 90000 }, // GNI per capita, USD
   ppp: { min: 2000, max: 120000 },
+  // World Bank's Price Level Index (PA.NUS.PRVT.PLI) — verified real-world
+  // spread runs from ~India (23) to ~Switzerland (128).
+  priceLevel: { min: 15, max: 130 },
   restaurantsBarsPer10k: { min: 0, max: 40 },
   culturalVenuesPer10k: { min: 0, max: 10 },
   familyActivitiesPer10k: { min: 0, max: 15 },
   greenSpaceCount: { min: 0, max: 60 },
+  temperatureDistanceFrom20C: { min: 0, max: 20 },
+  rainfallDistanceFromIdeal: { min: 0, max: 1000 }, // ideal centre: 1000mm/yr
+  sunshineHrs: { min: 1200, max: 3800 },
+  snowfallCm: { min: 0, max: 300 },
 };
 
 /**
@@ -31,7 +40,8 @@ const RANGES = {
  * Demographics is fetched and returned like every other section, but is
  * NOT part of sectionScores/piltriScore — it's supplementary info shown
  * next to the city name on the results page rather than a scored section
- * (a population count doesn't really have a "good/bad" score).
+ * (a population count doesn't really have a "good/bad" score). Real Estate
+ * has no field here at all — see lib/types.ts's file header comment for why.
  */
 export async function aggregateCityData(city: CitySearchResult): Promise<CityExploreData> {
   const iso3 = toIso3(city.countryCode);
@@ -71,20 +81,11 @@ export async function aggregateCityData(city: CitySearchResult): Promise<CityExp
       ? Number((cityDemo.population / cityDemo.areaKm2).toFixed(1))
       : wb?.populationDensityPerKm2 ?? 0;
 
-  const criminality = manual.getCriminalityScore();
-  const criminalityTrend = manual.getCriminalityTrend();
-  const geoTension = manual.getGeopoliticalTensionScore();
-  const realEstatePrice = manual.getRealEstatePricePerM2();
-  const rent = manual.getAvgMonthlyRent1Bed();
-  const reTrend = manual.getRealEstateTrend3yr();
-  const costOfLiving = manual.getCostOfLivingIndex();
-  const disasterRisk = manual.getNaturalDisasterRiskScore();
-  const seaLevel = manual.getSeaLevelRiseExposure();
-  const extremeWeather = manual.getExtremeWeatherRisk();
-  const ndGain = manual.getNdGainScore();
-  const schoolQuality = manual.getSchoolQualityScore();
-  const englishProficiency = manual.getEnglishProficiencyScore();
-  const publicTransport = manual.getPublicTransportScore();
+  // Cost of living: World Bank's real Price Level Index, normalised onto
+  // the same 0-100 "index" scale the UI has always shown (see
+  // RANGES.priceLevel). Falls back to a neutral 50 only when the country
+  // genuinely has no published figure.
+  const costOfLivingIndex = wb?.priceLevelIndex != null ? normalise(wb.priceLevelIndex, RANGES.priceLevel.min, RANGES.priceLevel.max) : 50;
 
   const data: CityExploreData = {
     cityId: city.cityId,
@@ -101,52 +102,31 @@ export async function aggregateCityData(city: CitySearchResult): Promise<CityExp
       populationTrend5yrPct: wb?.populationTrend5yrPct ?? 0,
       averageAge: wb?.medianAgeProxy ?? 38, // world median-ish default until sourced
       mostWidelySpokenLanguage: languages.mostWidelySpokenLanguage,
-      englishProficiencyScore: englishProficiency.value,
       areaKm2: cityDemo.areaKm2,
     },
     economy: {
       economicGrowth5yrGdpPct: wb?.gdpGrowth5yrPct ?? 0,
       averageSalaryGbp: Math.round((wb?.gniPerCapitaUsd ?? 0) * 0.79), // rough USD->GBP
       unemploymentRatePct: wb?.unemploymentRatePct ?? 0,
-      economyTypeProfile: {
-        // TODO: source real sector-mix data; equal-weighted placeholder for now.
-        technologyAndInnovation: 17,
-        tourismAndHospitality: 17,
-        financeAndServices: 17,
-        manufacturingAndIndustry: 17,
-        governmentAndPublicSector: 16,
-        naturalResourcesAndAgriculture: 16,
-      },
       mainEconomyType,
-      costOfLivingIndex: costOfLiving.value,
+      costOfLivingIndex,
       purchasingPowerIndex: normalise(wb?.purchasingPowerParityGdpPerCapita ?? 0, RANGES.ppp.min, RANGES.ppp.max),
     },
-    realEstate: {
-      pricePerM2BuyGbp: realEstatePrice.value,
-      avgMonthlyRent1BedGbp: rent.value,
-      realEstateTrend3yrPct: reTrend.value,
-    },
     safetyStability: {
-      criminalityScore: criminality.value,
-      criminalityTrend: criminalityTrend.value,
-      geopoliticalTensionScore: geoTension.value,
+      politicalStabilityScore: wb?.politicalStabilityScore != null ? Math.round(wb.politicalStabilityScore) : 50,
+      ruleOfLawScore: wb?.ruleOfLawScore != null ? Math.round(wb.ruleOfLawScore) : 50,
+      safetyTrend: wb?.politicalStabilityTrend ?? "Stable",
     },
     climate: {
       avgAnnualTemperatureC: climate?.avgAnnualTemperatureC ?? 15,
       avgAnnualRainfallMm: climate?.avgAnnualRainfallMm ?? 700,
       avgAnnualSunshineHrs: climate?.avgAnnualSunshineHrs ?? 1800,
       avgAnnualSnowfallCm: climate?.avgAnnualSnowfallCm ?? 0,
-      naturalDisasterRiskScore: disasterRisk.value,
-      seaLevelRiseExposure: seaLevel.value,
-      extremeWeatherRisk: extremeWeather.value,
-      ndGainScore: ndGain.value,
     },
     liveability: {
-      publicTransportScore: publicTransport.value,
       restaurantsBarsDensityPer10k: overpass ? per10k(overpass.restaurantsBars) : 0,
       greenSpacePctOfCityArea: overpass ? normalise(overpass.greenSpaceCount, RANGES.greenSpaceCount.min, RANGES.greenSpaceCount.max) / 5 : 10,
       culturalVenuesDensityPer10k: overpass ? per10k(overpass.culturalVenues) : 0,
-      schoolQualityScore: schoolQuality.value,
       familyKidsActivitiesDensityPer10k: overpass ? per10k(overpass.familyKidsActivities) : 0,
       healthcareQualityScore: healthcare ?? 55,
       hasTrainStation: transportPresence.hasTrainStation,
@@ -158,7 +138,6 @@ export async function aggregateCityData(city: CitySearchResult): Promise<CityExp
     },
     sectionScores: {
       economy: 0,
-      realEstate: 0,
       safetyStability: 0,
       climate: 0,
       liveability: 0,
@@ -171,31 +150,26 @@ export async function aggregateCityData(city: CitySearchResult): Promise<CityExp
     economy: averageScores([
       normalise(data.economy.economicGrowth5yrGdpPct, RANGES.gdpGrowth.min, RANGES.gdpGrowth.max),
       normalise(data.economy.unemploymentRatePct, RANGES.unemployment.min, RANGES.unemployment.max, true),
-      normalise((wb?.gniPerCapitaUsd ?? 0), RANGES.salary.min, RANGES.salary.max),
+      normalise(wb?.gniPerCapitaUsd ?? 0, RANGES.salary.min, RANGES.salary.max),
       100 - data.economy.costOfLivingIndex, // lower cost of living = better score
       data.economy.purchasingPowerIndex,
     ]),
-    realEstate: averageScores([
-      normalise(data.realEstate.pricePerM2BuyGbp, 500, 12000, true),
-      normalise(data.realEstate.avgMonthlyRent1BedGbp, 200, 3000, true),
-      normalise(data.realEstate.realEstateTrend3yrPct, -10, 20),
-    ]),
-    safetyStability: averageScores([
-      data.safetyStability.criminalityScore,
-      100 - data.safetyStability.geopoliticalTensionScore,
-    ]),
+    safetyStability: averageScores([data.safetyStability.politicalStabilityScore, data.safetyStability.ruleOfLawScore]),
     climate: averageScores([
-      normalise(Math.abs(data.climate.avgAnnualTemperatureC - 20), 0, 20, true), // closer to 20C scores higher
-      100 - data.climate.naturalDisasterRiskScore,
-      100 - data.climate.seaLevelRiseExposure,
-      100 - data.climate.extremeWeatherRisk,
+      normalise(Math.abs(data.climate.avgAnnualTemperatureC - 20), RANGES.temperatureDistanceFrom20C.min, RANGES.temperatureDistanceFrom20C.max, true), // closer to 20C scores higher
+      normalise(
+        Math.abs(data.climate.avgAnnualRainfallMm - 1000),
+        RANGES.rainfallDistanceFromIdeal.min,
+        RANGES.rainfallDistanceFromIdeal.max,
+        true
+      ),
+      normalise(data.climate.avgAnnualSunshineHrs, RANGES.sunshineHrs.min, RANGES.sunshineHrs.max),
+      normalise(data.climate.avgAnnualSnowfallCm, RANGES.snowfallCm.min, RANGES.snowfallCm.max, true),
     ]),
     liveability: averageScores([
-      data.liveability.publicTransportScore,
       normalise(data.liveability.restaurantsBarsDensityPer10k, RANGES.restaurantsBarsPer10k.min, RANGES.restaurantsBarsPer10k.max),
       data.liveability.greenSpacePctOfCityArea,
       normalise(data.liveability.culturalVenuesDensityPer10k, RANGES.culturalVenuesPer10k.min, RANGES.culturalVenuesPer10k.max),
-      data.liveability.schoolQualityScore,
       normalise(data.liveability.familyKidsActivitiesDensityPer10k, RANGES.familyActivitiesPer10k.min, RANGES.familyActivitiesPer10k.max),
       data.liveability.healthcareQualityScore,
     ]),

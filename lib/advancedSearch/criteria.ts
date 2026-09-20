@@ -5,41 +5,26 @@ import type { AdvancedSearchCriterionFilter, AdvancedSearchScope, CityExploreDat
  * "every existing criterion in the app" that the /explore/discover page
  * proposes as a filter. Each entry knows its own label/unit, how to read
  * its value off a city's aggregated data (CityExploreData, the exact same
- * object the single-city results page renders), and — for the 13 "nearest
+ * object the single-city results page renders), and — for the 4 "nearest
  * X" fields — off that city's centre-point Pin-mode data too.
  *
  * Keeping this in one place (rather than scattering field lookups across
  * the API route and the UI) means the UI's list of filters and the API's
  * filtering logic can never drift out of sync with each other.
+ *
+ * There is no "Real Estate" category — see lib/types.ts's file header
+ * comment for why (no reliable free global source exists today).
  */
 
 export type CriterionKind = "range" | "boolean" | "select";
 
-export type CategoryKey =
-  | "overall"
-  | "economy"
-  | "realEstate"
-  | "safetyStability"
-  | "climate"
-  | "liveability"
-  | "demographics"
-  | "nearby";
+export type CategoryKey = "overall" | "economy" | "safetyStability" | "climate" | "liveability" | "demographics" | "nearby";
 
-export const CATEGORY_ORDER: CategoryKey[] = [
-  "overall",
-  "economy",
-  "realEstate",
-  "safetyStability",
-  "climate",
-  "liveability",
-  "demographics",
-  "nearby",
-];
+export const CATEGORY_ORDER: CategoryKey[] = ["overall", "economy", "safetyStability", "climate", "liveability", "demographics", "nearby"];
 
 export const CATEGORY_LABELS: Record<CategoryKey, string> = {
   overall: "Overall",
   economy: "Economy",
-  realEstate: "Real Estate",
   safetyStability: "Safety & Stability",
   climate: "Climate",
   liveability: "Liveability",
@@ -56,7 +41,7 @@ export interface CriterionDef {
   unit?: string;
   /** Filter input type at city scope. */
   kind: CriterionKind;
-  /** Filter input type at country scope, if different — the 13 "nearest X"
+  /** Filter input type at country scope, if different — the 4 "nearest X"
    *  fields switch from a minutes range to a plain Yes/No, since "distance
    *  from a country's centre" isn't a meaningful question. */
   countryKind?: CriterionKind;
@@ -74,20 +59,16 @@ export interface CriterionDef {
    *  city-specific (e.g. "City land area"). Falls back to label when not
    *  set. */
   countryLabel?: string;
-  /** True when resolving this criterion needs the (expensive, ~13-call)
-   *  pin-at-centre lookup — lets the API route skip that call for every
-   *  candidate when no Nearby filter is actually active. */
+  /** True when resolving this criterion needs the pin-at-centre lookup —
+   *  lets the API route skip that call for every candidate when no Nearby
+   *  filter is actually active. */
   needsPinData?: boolean;
   /** Reads this criterion's raw value for one city. `pin` is null unless
    *  needsPinData is true and the caller actually fetched it. */
   getCityValue: (data: CityExploreData, pin: PinnedLocationData | null) => CriterionValue;
 }
 
-function nearby(
-  key: string,
-  label: string,
-  pick: (pin: PinnedLocationData) => number | null
-): CriterionDef {
+function nearby(key: string, label: string, pick: (pin: PinnedLocationData) => number | null): CriterionDef {
   return {
     key,
     category: "nearby",
@@ -169,43 +150,6 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.economy.purchasingPowerIndex,
   },
 
-  // ---- Real Estate --------------------------------------------------------
-  {
-    key: "realEstate.sectionScore",
-    category: "realEstate",
-    label: "Real Estate score",
-    kind: "range",
-    suggestedRange: [0, 100],
-    getCityValue: (d) => d.sectionScores.realEstate,
-  },
-  {
-    key: "realEstate.pricePerM2BuyGbp",
-    category: "realEstate",
-    label: "Purchase price per m²",
-    unit: "£",
-    kind: "range",
-    suggestedRange: [500, 20000],
-    getCityValue: (d) => d.realEstate.pricePerM2BuyGbp,
-  },
-  {
-    key: "realEstate.avgMonthlyRent1BedGbp",
-    category: "realEstate",
-    label: "Avg. monthly rent for 1 bed",
-    unit: "£",
-    kind: "range",
-    suggestedRange: [200, 5000],
-    getCityValue: (d) => d.realEstate.avgMonthlyRent1BedGbp,
-  },
-  {
-    key: "realEstate.realEstateTrend3yrPct",
-    category: "realEstate",
-    label: "3yr price trend",
-    unit: "%",
-    kind: "range",
-    suggestedRange: [-20, 40],
-    getCityValue: (d) => d.realEstate.realEstateTrend3yrPct,
-  },
-
   // ---- Safety & Stability ---------------------------------------------------
   {
     key: "safetyStability.sectionScore",
@@ -216,29 +160,28 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.sectionScores.safetyStability,
   },
   {
-    key: "safetyStability.criminalityScore",
+    key: "safetyStability.politicalStabilityScore",
     category: "safetyStability",
-    label: "Criminality score",
-    unit: "(higher = safer)",
+    label: "Political stability score",
     kind: "range",
     suggestedRange: [0, 100],
-    getCityValue: (d) => d.safetyStability.criminalityScore,
+    getCityValue: (d) => d.safetyStability.politicalStabilityScore,
   },
   {
-    key: "safetyStability.criminalityTrend",
+    key: "safetyStability.ruleOfLawScore",
     category: "safetyStability",
-    label: "Criminality trend",
+    label: "Rule of law score",
+    kind: "range",
+    suggestedRange: [0, 100],
+    getCityValue: (d) => d.safetyStability.ruleOfLawScore,
+  },
+  {
+    key: "safetyStability.safetyTrend",
+    category: "safetyStability",
+    label: "Safety trend",
     kind: "select",
     selectOptions: ["Improving", "Stable", "Worsening"],
-    getCityValue: (d) => d.safetyStability.criminalityTrend,
-  },
-  {
-    key: "safetyStability.geopoliticalTensionScore",
-    category: "safetyStability",
-    label: "Geopolitical tension",
-    kind: "range",
-    suggestedRange: [0, 100],
-    getCityValue: (d) => d.safetyStability.geopoliticalTensionScore,
+    getCityValue: (d) => d.safetyStability.safetyTrend,
   },
 
   // ---- Climate ------------------------------------------------------------
@@ -286,38 +229,6 @@ export const CRITERIA: CriterionDef[] = [
     suggestedRange: [0, 200],
     getCityValue: (d) => d.climate.avgAnnualSnowfallCm,
   },
-  {
-    key: "climate.naturalDisasterRiskScore",
-    category: "climate",
-    label: "Natural disaster risk",
-    kind: "range",
-    suggestedRange: [0, 100],
-    getCityValue: (d) => d.climate.naturalDisasterRiskScore,
-  },
-  {
-    key: "climate.seaLevelRiseExposure",
-    category: "climate",
-    label: "Sea level rise exposure",
-    kind: "range",
-    suggestedRange: [0, 100],
-    getCityValue: (d) => d.climate.seaLevelRiseExposure,
-  },
-  {
-    key: "climate.extremeWeatherRisk",
-    category: "climate",
-    label: "Extreme weather risk",
-    kind: "range",
-    suggestedRange: [0, 100],
-    getCityValue: (d) => d.climate.extremeWeatherRisk,
-  },
-  {
-    key: "climate.ndGainScore",
-    category: "climate",
-    label: "ND-GAIN (climate adaptation)",
-    kind: "range",
-    suggestedRange: [1, 191],
-    getCityValue: (d) => d.climate.ndGainScore,
-  },
 
   // ---- Liveability --------------------------------------------------------
   {
@@ -327,14 +238,6 @@ export const CRITERIA: CriterionDef[] = [
     kind: "range",
     suggestedRange: [0, 100],
     getCityValue: (d) => d.sectionScores.liveability,
-  },
-  {
-    key: "liveability.publicTransportScore",
-    category: "liveability",
-    label: "Public transport score",
-    kind: "range",
-    suggestedRange: [0, 100],
-    getCityValue: (d) => d.liveability.publicTransportScore,
   },
   {
     key: "liveability.restaurantsBarsDensityPer10k",
@@ -362,14 +265,6 @@ export const CRITERIA: CriterionDef[] = [
     kind: "range",
     suggestedRange: [0, 50],
     getCityValue: (d) => d.liveability.culturalVenuesDensityPer10k,
-  },
-  {
-    key: "liveability.schoolQualityScore",
-    category: "liveability",
-    label: "School quality score",
-    kind: "range",
-    suggestedRange: [0, 100],
-    getCityValue: (d) => d.liveability.schoolQualityScore,
   },
   {
     key: "liveability.familyKidsActivitiesDensityPer10k",
@@ -478,14 +373,6 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.demographics.averageAge,
   },
   {
-    key: "demographics.englishProficiencyScore",
-    category: "demographics",
-    label: "English proficiency",
-    kind: "range",
-    suggestedRange: [0, 100],
-    getCityValue: (d) => d.demographics.englishProficiencyScore,
-  },
-  {
     key: "demographics.areaKm2",
     category: "demographics",
     label: "City land area",
@@ -497,19 +384,10 @@ export const CRITERIA: CriterionDef[] = [
   },
 
   // ---- Nearby & distance from city centre (mirrors Pin mode) --------------
-  nearby("nearby.nursery", "Nursery", (p) => p.education.nearestNursery.minutes),
-  nearby("nearby.school", "School", (p) => p.education.nearestSchool.minutes),
-  nearby("nearby.university", "University", (p) => p.education.nearestUniversity.minutes),
-  nearby("nearby.trainStation", "Train station", (p) => p.transport.trainStation.minutes),
-  nearby("nearby.subway", "Subway", (p) => p.transport.subwayStation.minutes),
-  nearby("nearby.tramway", "Tramway", (p) => p.transport.tramway.minutes),
-  nearby("nearby.highStreet", "High street", (p) => p.transport.highStreet.minutes),
-  nearby("nearby.domesticAirport", "Domestic airport", (p) => p.transport.domesticAirport.minutes),
-  nearby("nearby.internationalAirport", "International airport", (p) => p.transport.internationalAirport.minutes),
-  nearby("nearby.beach", "Beach", (p) => p.natureAndHealth.beach.minutes),
-  nearby("nearby.greenSpace", "Green space", (p) => p.natureAndHealth.park.minutes),
-  nearby("nearby.hospital", "Hospital", (p) => p.natureAndHealth.hospital.minutes),
-  nearby("nearby.elderlyCare", "Elderly care", (p) => p.natureAndHealth.elderlyCare.minutes),
+  nearby("nearby.beach", "Beach", (p) => p.nearestBeach.minutes),
+  nearby("nearby.mountain", "Mountain", (p) => p.nearestMountain.minutes),
+  nearby("nearby.trainStation", "Train station", (p) => p.nearestTrainStation.minutes),
+  nearby("nearby.airport", "Airport", (p) => p.nearestAirport.minutes),
 ];
 
 const CRITERIA_BY_KEY = new Map(CRITERIA.map((c) => [c.key, c]));
@@ -568,7 +446,7 @@ export function matchesFilter(value: CriterionValue, filter: AdvancedSearchCrite
 
 /** Rolls up a set of per-city values for one criterion into a single
  *  country-level value. Numeric fields average; booleans OR; the one
- *  select field (criminality trend) takes the most common value. Nearby
+ *  select field (safety trend) takes the most common value. Nearby
  *  fields are numeric at city scope but boolean at country scope — for
  *  those, "Yes" means at least one tracked city actually found one
  *  (regardless of how far), not an average distance that wouldn't mean

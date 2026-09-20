@@ -1,10 +1,19 @@
 /**
- * Piltri — Explore data model (LOCKED)
- * 5 scored sections + Demographics as supplementary info (not scored) + Overall
- * Source: piltri-project-brief.md, "Explore — Final data model" (amended:
- * Demographics moved out of the scored sections — a population/language
- * snapshot doesn't really have a "good/bad" score, so it's shown as
- * reference info next to the city name instead of a section card).
+ * Piltri — Explore data model
+ *
+ * 4 scored sections (Economy, Safety & Stability, Climate, Liveability) +
+ * Demographics as supplementary info (not scored). Real Estate is
+ * deliberately NOT part of the scored model right now — every field it
+ * would need (purchase price, rent, price trend) has no free, reliable,
+ * globally-open data source; the only viable one found (Numbeo) is a paid
+ * API (~$99/mo). Rather than fabricate numbers, Real Estate is shown in the
+ * UI as "Coming soon" (see components/explore/SectionColumn.tsx) until a
+ * real source is wired in — RealEstateFields below is kept, unused, for
+ * exactly that day.
+ *
+ * Every field that DOES appear in the scored model is backed by a real, live
+ * (or at minimum genuinely computed) source today — see
+ * lib/aggregation/aggregate.ts for exactly which API feeds which field.
  */
 
 export type EconomyTypeProfile = {
@@ -16,20 +25,19 @@ export type EconomyTypeProfile = {
   naturalResourcesAndAgriculture: number; // %
 };
 
-export type CriminalityTrend = "Improving" | "Stable" | "Worsening";
+/** Direction of a metric's recent trend — shared by Safety's political
+ *  stability trend (see aggregate.ts, derived from World Bank's own
+ *  multi-year Political Stability series). */
+export type TrendDirection = "Improving" | "Stable" | "Worsening";
 
 /** Supplementary city info shown next to the name/region on the results
- *  page — not part of the scored sections (see SectionKey). No
- *  "officialLanguages" field — removed per product decision, since
- *  "most widely spoken language" already covers the useful case and a full
- *  official-languages list was more clutter than signal for most cities. */
+ *  page — not part of the scored sections (see SectionKey). */
 export interface DemographicsFields {
   population: number;
   populationDensityPerKm2: number;
   populationTrend5yrPct: number;
   averageAge: number;
   mostWidelySpokenLanguage: string;
-  englishProficiencyScore: number; // 0-100
   /** City land area (km²), from Wikidata (see
    *  lib/data-sources/wikidata.ts getCityPopulationAndArea). Null when no
    *  matching city entity/area statement was found - shown honestly as
@@ -45,54 +53,58 @@ export interface EconomyFields {
   economicGrowth5yrGdpPct: number;
   averageSalaryGbp: number;
   unemploymentRatePct: number;
-  economyTypeProfile: EconomyTypeProfile;
   /** The city's likely dominant local sector, from OSM POI/land-use
    *  density within range of its exact coordinates (see
-   *  lib/data-sources/overpass.ts getEconomySectorCounts / pickMainEconomyType) -
-   *  a genuinely city-level signal, unlike economyTypeProfile above which
-   *  remains a flat country-level placeholder today. Null when the city
-   *  has no local OSM signal at all (reported honestly, not guessed). */
+   *  lib/data-sources/overpass.ts getEconomySectorCounts / pickMainEconomyType).
+   *  Null when the city has no local OSM signal at all (reported honestly,
+   *  not guessed). */
   mainEconomyType: keyof EconomyTypeProfile | null;
-  costOfLivingIndex: number; // 0-100
+  /** World Bank's Price Level Index (households' final consumption
+   *  expenditure, PA.NUS.PRVT.PLI) — ~100 tracks roughly US price levels;
+   *  well above 100 reads as expensive, well below as cheap. A genuine,
+   *  free, globally-covered proxy for cost of living, not a placeholder. */
+  costOfLivingIndex: number; // 0-100+ (rarely exceeds ~150 for the most expensive countries)
   purchasingPowerIndex: number; // 0-100
 }
 
+/** Real-estate pricing fields — kept defined but NOT included in
+ *  CityExploreData / the scored model today (see the file header comment).
+ *  Reactivate by adding `realEstate: RealEstateFields` back to
+ *  CityExploreData once a real per-city source (e.g. Numbeo) is wired into
+ *  lib/aggregation/aggregate.ts. */
 export interface RealEstateFields {
   pricePerM2BuyGbp: number;
   avgMonthlyRent1BedGbp: number;
   realEstateTrend3yrPct: number;
 }
 
+/** Both fields are World Bank Worldwide Governance Indicators — Political
+ *  Stability (GOV_WGI_PV.SC) and Rule of Law (GOV_WGI_RL.SC), both already
+ *  published on a 0-100 "governance score" scale, free and keyless via the
+ *  same World Bank API already used for Economy/Demographics. `safetyTrend`
+ *  is derived from Political Stability's own multi-year trend (see
+ *  lib/data-sources/worldbank.ts), not a separate placeholder. */
 export interface SafetyStabilityFields {
-  criminalityScore: number; // 0-100 (higher = safer, normalised at aggregation time)
-  criminalityTrend: CriminalityTrend;
-  geopoliticalTensionScore: number; // 0-100
+  politicalStabilityScore: number; // 0-100
+  ruleOfLawScore: number; // 0-100
+  safetyTrend: TrendDirection;
 }
 
+/** All 4 fields are Open-Meteo climate normals for this city's exact
+ *  coordinates — genuinely live, not country-level averages. */
 export interface ClimateFields {
   avgAnnualTemperatureC: number;
   avgAnnualRainfallMm: number;
   avgAnnualSunshineHrs: number;
   avgAnnualSnowfallCm: number;
-  naturalDisasterRiskScore: number; // 0-100
-  seaLevelRiseExposure: number; // 0-100
-  extremeWeatherRisk: number; // 0-100
-  /** ND-GAIN Country Index (Notre Dame Global Adaptation Initiative) - a
-   *  free, official, annually-updated 0-100 measure of a country's climate
-   *  vulnerability and readiness to adapt. Additive alongside the 3 fields
-   *  above (which remain manual placeholders today) rather than replacing
-   *  them - see lib/data-sources/manual-sources.ts. */
-  ndGainScore: number; // 0-100
 }
 
 export interface LiveabilityFields {
-  publicTransportScore: number; // 0-100
   restaurantsBarsDensityPer10k: number;
   greenSpacePctOfCityArea: number;
   culturalVenuesDensityPer10k: number;
-  schoolQualityScore: number; // 0-100
   familyKidsActivitiesDensityPer10k: number;
-  healthcareQualityScore: number; // 0-100
+  healthcareQualityScore: number; // 0-100, WHO UHC Service Coverage Index
   // Presence flags (Overpass/OpenStreetMap-sourced, computed from this
   // city's exact coordinates - see lib/data-sources/overpass.ts).
   hasTrainStation: boolean;
@@ -116,30 +128,28 @@ export interface LiveabilityFields {
   notableRestaurantCount: number;
 }
 
-/** The 5 SCORED sections. Demographics is deliberately not here — it's
+/** The 4 SCORED sections. Demographics is deliberately not here — it's
  *  supplementary info on CityExploreData.demographics, not part of the
- *  Piltri Score. */
-export type SectionKey = "economy" | "realEstate" | "safetyStability" | "climate" | "liveability";
+ *  Piltri Score. Real Estate is deliberately not here either — see the
+ *  file header comment; it shows as "Coming soon" in the UI instead. */
+export type SectionKey = "economy" | "safetyStability" | "climate" | "liveability";
 
 export const SECTION_WEIGHTS: Record<SectionKey, number> = {
-  safetyStability: 0.25,
-  economy: 0.2,
-  realEstate: 0.2,
-  climate: 0.2,
-  liveability: 0.15,
+  safetyStability: 0.3,
+  economy: 0.25,
+  climate: 0.25,
+  liveability: 0.2,
 };
 
 export const SECTION_LABELS: Record<SectionKey, string> = {
   safetyStability: "Safety & Stability",
   economy: "Economy",
-  realEstate: "Real Estate",
   climate: "Climate",
   liveability: "Liveability",
 };
 
 export interface SectionScores {
   economy: number;
-  realEstate: number;
   safetyStability: number;
   climate: number;
   liveability: number;
@@ -157,7 +167,6 @@ export interface CityExploreData {
   /** Supplementary info, shown next to the city name — not scored. */
   demographics: DemographicsFields;
   economy: EconomyFields;
-  realEstate: RealEstateFields;
   safetyStability: SafetyStabilityFields;
   climate: ClimateFields;
   liveability: LiveabilityFields;
@@ -184,8 +193,7 @@ export interface TravelTimes {
 /** A single "nearest X" lookup in Pin mode — carries the matched place's
  *  name and coordinates alongside the travel time, not just a number, so
  *  the UI can show what was actually found and link out to directions.
- *  `minutes` is null when nothing was found within range at all (or, for
- *  optional amenities like a subway station, when none exists nearby);
+ *  `minutes` is null when nothing was found within range at all;
  *  `name`/`lat`/`lng` are null whenever nothing was matched. */
 export interface NearbyPlace {
   minutes: number | null;
@@ -194,36 +202,21 @@ export interface NearbyPlace {
   lng: number | null;
 }
 
-/** Pinned mode — point-specific fields (checklist "Pinned mode — final
- *  field list"). Real estate was removed from here (see
- *  lib/aggregation/pin.ts history) - it was never genuinely point-specific
- *  (a shared placeholder regardless of where the pin sat), and real estate
- *  now lives at city level via Numbeo instead. */
+/** Pinned mode — point-specific fields. Deliberately trimmed to the 4
+ *  things people actually asked to see for an arbitrary map point: distance
+ *  to the sea, to a mountain, to an airport, and to a train station. The
+ *  earlier 13-field version (schools, subway, high street, hospitals, etc.)
+ *  fired ~13 parallel lookups per pin and was the single biggest reliability
+ *  complaint (see KNOWN-ISSUES.md history) — this is simpler and faster,
+ *  not just shorter. */
 export interface PinnedLocationData {
   lat: number;
   lng: number;
   neighbourhoodName: string | null;
-  education: {
-    nearestSchool: NearbyPlace;
-    nearestNursery: NearbyPlace;
-    nearestUniversity: NearbyPlace;
-  };
-  transport: {
-    trainStation: NearbyPlace;
-    subwayStation: NearbyPlace;
-    /** Nearest tram stop (railway=tram_stop) - separate from subwayStation,
-     *  which now covers underground + overground/light-rail metro systems. */
-    tramway: NearbyPlace;
-    highStreet: NearbyPlace;
-    domesticAirport: NearbyPlace;
-    internationalAirport: NearbyPlace;
-  };
-  natureAndHealth: {
-    beach: NearbyPlace;
-    park: NearbyPlace;
-    hospital: NearbyPlace;
-    elderlyCare: NearbyPlace;
-  };
+  nearestBeach: NearbyPlace;
+  nearestMountain: NearbyPlace;
+  nearestTrainStation: NearbyPlace;
+  nearestAirport: NearbyPlace;
 }
 
 export interface CitySearchResult {
@@ -276,9 +269,9 @@ export interface DiscoverResult {
 /* ------------------------------------------------------------------------
  * Advanced search (the "Advanced search" link on the results page, at
  * /explore/discover) — proposes every existing criterion in the app as a
- * filter: the 5 scored sections' individual fields, demographics, and the
- * same "nearest X" distance fields Pin mode computes, run from each city's
- * own centre point rather than a manually dropped pin.
+ * filter: the 4 scored sections' individual fields, demographics, and the
+ * "nearest X" distance fields Pin mode computes, run from each city's own
+ * centre point rather than a manually dropped pin.
  *
  * Two scopes, confirmed with the user directly:
  *  - "city": results are individual cities from the shortlist.
@@ -296,7 +289,7 @@ export type AdvancedSearchScope = "city" | "country";
 /** One active filter on one criterion (see lib/advancedSearch/criteria.ts
  *  for the full registry of what `key` can be). Only the field matching the
  *  criterion's kind is set — `min`/`max` for "range", `bool` for "boolean",
- *  `select` for "select" (e.g. criminality trend). All optional so a
+ *  `select` for "select" (e.g. safety trend). All optional so a
  *  "range" filter can constrain just a floor, just a ceiling, or both. */
 export interface AdvancedSearchCriterionFilter {
   key: string;
@@ -356,7 +349,7 @@ export interface AdvancedSearchCountryResult {
    *  calls — so Nearby & distance criteria only appear here when the
    *  search itself already needed pin data (i.e. a Nearby filter was
    *  active); otherwise those specific fields are simply absent rather
-   *  than triggering an extra ~13-call-per-city fetch just to fill in the
+   *  than triggering an extra live-per-city fetch just to fill in the
    *  overview page. */
   allValues: Record<string, CriterionValue>;
 }
