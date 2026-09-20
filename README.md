@@ -16,8 +16,8 @@ section, per `piltri-project-brief.md` and `piltri-project-checklist.md`.
   is backed by one of them today. No placeholder/manual data sources
   remain — see HANDOFF.md's "Data model" section for what changed and why.
 - **Frontend** (`app/page.tsx`, `app/explore/*`) — Home, Explore landing,
-  Explore results (map + 4 section cards + a "Real Estate — Coming soon"
-  row), and Pin mode overlay, responsive from phone to desktop.
+  Explore results (map + 4 section cards), and Pin mode overlay, responsive
+  from phone to desktop.
 - **Database** (`lib/supabase/schema.sql`) — `cities`, `city_scores`,
   `saved_pins` tables with RLS.
 
@@ -30,15 +30,6 @@ npm run dev
 ```
 
 Open http://localhost:3000.
-
-## Real Estate — not part of the scored model
-
-Real Estate (purchase price, rent, price trend) has no reliable free,
-global pricing source — Global Property Guide has no public API, and the
-only real option (Numbeo) is paid (~$99/mo). Rather than fabricate numbers,
-it's shown in the UI as "Coming soon" and excluded from `SectionKey`/
-`SectionScores` entirely. `RealEstateFields` is kept, unused, in
-`lib/types.ts` for the day a real per-city source gets wired in.
 
 ## Project structure
 

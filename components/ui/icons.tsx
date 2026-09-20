@@ -173,15 +173,6 @@ export function IconEconomy(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function IconRealEstate(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} {...props}>
-      <path d="M3 11l9-7 9 7" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 10v10h14V10" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export function IconSafety(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} {...props}>
@@ -215,7 +206,6 @@ export function IconLiveability(props: SVGProps<SVGSVGElement>) {
 
 export const SECTION_ICONS = {
   economy: IconEconomy,
-  realEstate: IconRealEstate,
   safetyStability: IconSafety,
   climate: IconClimate,
   liveability: IconLiveability,

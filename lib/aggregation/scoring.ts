@@ -17,10 +17,9 @@ export function normalise(value: number, min: number, max: number, invert = fals
 }
 
 /** Weighted Piltri score from the 4 scored sections (Demographics is
- *  supplementary info, and Real Estate is "Coming soon" — see
- *  lib/types.ts SectionKey — neither is part of this). Uses the locked
- *  default weighting unless custom weights are passed (Discover mode
- *  filters, or the score-weights settings page). */
+ *  supplementary info, not part of this — see lib/types.ts SectionKey).
+ *  Uses the locked default weighting unless custom weights are passed
+ *  (Discover mode filters, or the score-weights settings page). */
 export function computePiltriScore(sections: SectionScores, weights: SectionScores = SECTION_WEIGHTS): number {
   const total =
     sections.economy * weights.economy +

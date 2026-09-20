@@ -9,9 +9,12 @@ without re-deriving it. Read this first, then check `README.md`,
 A Next.js app for comparing cities and countries on a weighted "Piltri
 Score" across 4 sections (Safety & Stability, Economy, Climate,
 Liveability), aggregated from live public data sources. Demographics is
-shown as supplementary info, not scored. **Real Estate is deliberately not
-part of the scored model** — see "Data model, and why it's 4 sections not
-5" below; it shows in the UI as "Coming soon".
+shown as supplementary info, not scored. **There is no Real Estate
+section anywhere in the app** — not scored, and (as of 2026-09-20, later
+same session as the rest of "Data model" below) no "Coming soon"
+placeholder either, on request: no reliable free pricing source exists,
+and a permanent placeholder wasn't earning its place. See "Data model,
+and why it's 4 sections not 5" below.
 
 Two ways to use it:
 - **Explore** (`/explore`): search one city, see its full score breakdown,
@@ -95,12 +98,15 @@ What changed:
 - **Real Estate** (purchase price, rent, price trend) has **no reliable
   free global source** — Global Property Guide has no API, Numbeo would
   cover it but is paid (~$99/mo). Rather than fabricate numbers, it's
-  removed from `SectionKey`/`SectionScores` entirely and shown as a static,
-  non-interactive "Coming soon" row (`components/explore/SectionColumn.tsx`)
-  — same visual treatment the home page already uses for Assess/Invest.
-  `RealEstateFields` is kept, unused, in `lib/types.ts` for exactly the day
-  a real per-city source gets wired in — see that file's header comment for
-  the reactivation steps.
+  removed from `SectionKey`/`SectionScores` entirely. It initially shipped
+  with a static, non-interactive "Coming soon" row instead
+  (`components/explore/SectionColumn.tsx`) and a matching `RealEstateFields`
+  type kept unused in `lib/types.ts` — **both were removed later the same
+  day** (user's call: not worth a permanent placeholder "until we have
+  more visibility"). There is currently no trace of Real Estate left in
+  the UI or types at all; re-add a `SectionKey`, its own `*Fields`
+  interface, and a real per-city price source in
+  `lib/aggregation/aggregate.ts` if a real source ever gets wired in.
 - **Climate** dropped 3 fake fields (natural disaster risk, sea level rise,
   extreme weather — all were fixed constants) and folded its 3 already-real
   Open-Meteo fields (rainfall, sunshine, snowfall) into the actual score
@@ -349,9 +355,9 @@ at once.
   the relevant cities are warm in Supabase. A brand-new city, or the very
   first search after cache entries expire (30-day TTL), pays full live
   aggregation cost.
-- Real Estate is entirely absent from the scored model — see "Data model"
-  above. It's a disclosed, deliberate gap, not a bug, until a real per-city
-  pricing source is wired in.
+- Real Estate is entirely absent from the app — not scored, no UI trace
+  at all (see "Data model" above). It's a disclosed, deliberate gap, not a
+  bug, until a real per-city pricing source is wired in.
 - **The shortlist (6,300 cities) is still only ~1 city warmed** as of
   2026-09-20 — see "Current data state" above. Not a bug, just not done
   yet; the daily cron will get there on its own.

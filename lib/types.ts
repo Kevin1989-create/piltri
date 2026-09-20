@@ -2,14 +2,13 @@
  * Piltri — Explore data model
  *
  * 4 scored sections (Economy, Safety & Stability, Climate, Liveability) +
- * Demographics as supplementary info (not scored). Real Estate is
- * deliberately NOT part of the scored model right now — every field it
- * would need (purchase price, rent, price trend) has no free, reliable,
- * globally-open data source; the only viable one found (Numbeo) is a paid
- * API (~$99/mo). Rather than fabricate numbers, Real Estate is shown in the
- * UI as "Coming soon" (see components/explore/SectionColumn.tsx) until a
- * real source is wired in — RealEstateFields below is kept, unused, for
- * exactly that day.
+ * Demographics as supplementary info (not scored). There is no Real Estate
+ * section — no free, reliable, globally-open pricing data source exists
+ * (the one viable option, Numbeo, is a paid API); rather than fabricate
+ * numbers or leave a permanent "Coming soon" placeholder, it's left out of
+ * the app entirely for now. Add it back (a new SectionKey, its own
+ * *Fields interface, a real per-city price source wired into
+ * lib/aggregation/aggregate.ts) if that changes.
  *
  * Every field that DOES appear in the scored model is backed by a real, live
  * (or at minimum genuinely computed) source today — see
@@ -67,17 +66,6 @@ export interface EconomyFields {
   purchasingPowerIndex: number; // 0-100
 }
 
-/** Real-estate pricing fields — kept defined but NOT included in
- *  CityExploreData / the scored model today (see the file header comment).
- *  Reactivate by adding `realEstate: RealEstateFields` back to
- *  CityExploreData once a real per-city source (e.g. Numbeo) is wired into
- *  lib/aggregation/aggregate.ts. */
-export interface RealEstateFields {
-  pricePerM2BuyGbp: number;
-  avgMonthlyRent1BedGbp: number;
-  realEstateTrend3yrPct: number;
-}
-
 /** Both fields are World Bank Worldwide Governance Indicators — Political
  *  Stability (GOV_WGI_PV.SC) and Rule of Law (GOV_WGI_RL.SC), both already
  *  published on a 0-100 "governance score" scale, free and keyless via the
@@ -130,8 +118,8 @@ export interface LiveabilityFields {
 
 /** The 4 SCORED sections. Demographics is deliberately not here — it's
  *  supplementary info on CityExploreData.demographics, not part of the
- *  Piltri Score. Real Estate is deliberately not here either — see the
- *  file header comment; it shows as "Coming soon" in the UI instead. */
+ *  Piltri Score. There's no Real Estate section — see the file header
+ *  comment. */
 export type SectionKey = "economy" | "safetyStability" | "climate" | "liveability";
 
 export const SECTION_WEIGHTS: Record<SectionKey, number> = {
