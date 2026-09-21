@@ -108,8 +108,6 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
       hasSubway: chance(0.35),
       hasTramway: chance(0.2),
       hasAirport: chance(0.4),
-      worldRankedUniversityCount: randInt(0, 8),
-      notableRestaurantCount: randInt(0, 15),
     },
     sectionScores: { economy: 0, safetyStability: 0, climate: 0, liveability: 0 },
     piltriScore: 0,

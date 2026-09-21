@@ -99,21 +99,6 @@ export interface LiveabilityFields {
   hasSubway: boolean;
   hasTramway: boolean;
   hasAirport: boolean;
-  // Counts sourced from Wikidata (see lib/data-sources/wikidata.ts).
-  // "Ranked universities nearby": count of institutions within range that
-  // carry at least one of the 3 major global ranking IDs Wikidata tracks
-  // as a dedicated external-ID property - QS World University ID (P5584),
-  // Times Higher Education World University ID (P5586), or ARWU/Shanghai
-  // Ranking university ID (P5242). Counts an institution once even if it
-  // has more than one of the three.
-  // "Notable restaurants nearby": count of restaurants within range that
-  // either carry a Michelin Restaurants ID (P4160 - reflects Michelin
-  // Guide inclusion generally, not confirmed star status specifically) or
-  // have received an award that is part of The World's 50 Best
-  // Restaurants (Q2918929). The 50-Best half of this query is genuinely
-  // unverified - see the header comment in wikidata.ts.
-  worldRankedUniversityCount: number;
-  notableRestaurantCount: number;
 }
 
 /** The 4 SCORED sections. Demographics is deliberately not here — it's

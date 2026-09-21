@@ -93,10 +93,6 @@ const COLOR_RANGES = {
   rainfallDistanceFromIdeal: { min: 0, max: 1000 }, // ideal centre: 1000mm/yr
   sunshineHrs: { min: 1200, max: 3800 },
   snowfallCm: { min: 0, max: 300 },
-  // Ranked universities/restaurants: no single "correct" ceiling exists,
-  // but 5+ of either is already an exceptional, world-class-hub-tier count
-  // (a handful of cities globally), so it anchors the top of the range.
-  notableCount: { min: 0, max: 5 },
 };
 
 export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
@@ -289,25 +285,3 @@ export function buildLiveabilityTransportRows(data: CityExploreData): KpiRow[] {
   ];
 }
 
-/** The 2 Wikidata-sourced notable-institution counts, in their own
- *  "Notable Institutions" sub-block alongside Transport Access above.
- *  Coloured against a 0-5 range so it reads as high/low vs. other cities -
- *  see COLOR_RANGES.notableCount for the reasoning (0 isn't a "failing",
- *  just the bottom of a wide, mostly-empty range most cities sit in). */
-export function buildLiveabilityNotableRows(data: CityExploreData): KpiRow[] {
-  const l = data.liveability;
-  return [
-    {
-      label: "Ranked universities",
-      value: String(l.worldRankedUniversityCount),
-      precision: "pinned",
-      colorClass: tierColorClass(normalise(l.worldRankedUniversityCount, COLOR_RANGES.notableCount.min, COLOR_RANGES.notableCount.max)),
-    },
-    {
-      label: "Ranked restaurants",
-      value: String(l.notableRestaurantCount),
-      precision: "pinned",
-      colorClass: tierColorClass(normalise(l.notableRestaurantCount, COLOR_RANGES.notableCount.min, COLOR_RANGES.notableCount.max)),
-    },
-  ];
-}

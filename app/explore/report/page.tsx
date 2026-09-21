@@ -8,7 +8,6 @@ import {
   PRECISION_LABEL,
   buildCityEconomyTypeRows,
   buildKpiRows,
-  buildLiveabilityNotableRows,
   buildLiveabilityTransportRows,
   type KpiRow,
   type PrecisionTier,
@@ -153,8 +152,7 @@ function ReportContent() {
             {ORDER.map((section) => {
               const rows = buildKpiRows(section, data, prefs);
               const cityEconomyTypeRows = section === "economy" ? buildCityEconomyTypeRows(data) : null;
-              const localSignalRows =
-                section === "liveability" ? [...buildLiveabilityTransportRows(data), ...buildLiveabilityNotableRows(data)] : null;
+              const localSignalRows = section === "liveability" ? buildLiveabilityTransportRows(data) : null;
               return (
                 <section key={section} className="mt-8 break-inside-avoid">
                   <div className="flex items-baseline justify-between border-b border-surface-border pb-1.5">

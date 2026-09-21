@@ -6,7 +6,6 @@ import {
   PRECISION_LABEL,
   buildCityEconomyTypeRows,
   buildKpiRows,
-  buildLiveabilityNotableRows,
   buildLiveabilityTransportRows,
   type KpiRow,
   type PrecisionTier,
@@ -95,8 +94,7 @@ export function SectionDetail({
   // Signals" sub-block (was 2 separate labeled blocks) - one less header
   // to squeeze the panel's overall height, since this floating panel has
   // to share vertical space with a pinned location's info bar below it.
-  const localSignalRows =
-    section === "liveability" ? [...buildLiveabilityTransportRows(data), ...buildLiveabilityNotableRows(data)] : null;
+  const localSignalRows = section === "liveability" ? buildLiveabilityTransportRows(data) : null;
   const totalItems = rows.length + (cityEconomyTypeRows?.length ?? 0) + (localSignalRows?.length ?? 0);
   const cols = totalItems > 6 ? 3 : 2;
 

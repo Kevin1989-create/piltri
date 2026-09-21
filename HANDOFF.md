@@ -389,30 +389,42 @@ fixed four separate, real bugs found while chasing this:
    underneath it. See `fetchWithTimeout.ts`'s header comment for the full
    writeup.
 
-Also: `aggregate.ts`'s 3 Wikidata calls (population/area,
-ranked-universities count, notable-restaurants count) used to fire
-concurrently in the outer `Promise.all`. Testing showed Wikidata queues
-concurrent requests from one client — the slow, still-unfixed
-universities/restaurants box queries (see below) could starve the fast
-population query's turn and time it out even though it runs in under a
-second alone. `getWikidataFields` now runs population/area first, ahead
-of the other two, so it's isolated from their slowness.
+`aggregate.ts`'s Wikidata call (population/area) used to run alongside
+two others — ranked-universities count and notable-restaurants count —
+in the outer `Promise.all`. Testing showed Wikidata queues concurrent
+requests from one client, and those two (both slow, both found to be
+returning the wrong answer) could starve the fast population query's
+turn and time it out even though it runs in under a second alone. That's
+what led to finding they were broken in the first place.
 
-**Known follow-up, found but not fixed (out of scope of the reported
-bug, flagged to the user)**: `countRankedUniversities` and
-`countNotableRestaurants` (`lib/data-sources/wikidata.ts`) have the same
-"`SERVICE wikibase:box` before filtering by the rare property" ordering
-bug as #1 above, and are both **wrong and slow** for a dense city -
-tested live for London: the current query took 20s and returned `0`
-(wrong; London has ~36 per a corrected query), a query restructured to
-filter by the rare ranking-ID property first before checking coordinates
-returned the correct `36` but still took 28s. Both numbers already
-silently degrade to `0` via `CLIENT_TIMEOUT_MS` + `safely()`, so this
-doesn't make anything worse than before — it just means "ranked
-universities/notable restaurants nearby" has likely been wrong (shown as
-0) for every densely-mapped city already. Worth a dedicated follow-up
-session; needs more query-design work than a quick tweak (the
-"rare-property-first" restructure got correctness right but not speed).
+**"Ranked universities nearby" and "notable restaurants nearby" have been
+removed entirely (2026-09-21, same-day follow-up), not fixed.** Both
+`countRankedUniversities` and `countNotableRestaurants`
+(`lib/data-sources/wikidata.ts`) had the same "`SERVICE wikibase:box`
+before filtering by the rare property" ordering bug as the population
+query above, and were confirmed both **wrong and slow** for a dense
+city — tested live for London: the original query took 20s and returned
+`0` (wrong; London has ~36 by a corrected query), a query restructured
+to filter by the rare ranking-ID property first before checking
+coordinates returned the correct `36` but still took 28s. Rather than
+ship a fixed-but-still-unreliable version of a secondary, display-only
+stat, the user's direction ("remove all gaps, simplify as much as
+possible, we'll build back up slowly") was to cut it. Removed
+completely, same discipline as the Real Estate removal — the two
+functions and their JSDoc from `wikidata.ts`, the `worldRankedUniversityCount`/
+`notableRestaurantCount` fields from `LiveabilityFields` (`lib/types.ts`),
+the assignment in `aggregate.ts` (which also let the now-pointless
+`getWikidataFields` sequencing wrapper collapse back into a single
+`safely(() => getCityPopulationAndArea(...))` call in the main
+`Promise.all`), the two Advanced Search criteria
+(`lib/advancedSearch/criteria.ts`), the `buildLiveabilityNotableRows` KPI
+row builder and its `COLOR_RANGES.notableCount` (`lib/kpiRows.ts`), the
+"Local Signals" merge in both `SectionDetail.tsx` and
+`app/explore/report/page.tsx` (Transport rows now render alone), and the
+mock fields in `randomSeed.ts`. Nothing scored was affected — these two
+counts were always display-only, never part of any section's
+`averageScores` input. Worth re-adding later with a properly
+redesigned query if wanted back.
 
 **Cache implication, worth knowing before assuming the live site is
 fixed**: this only changes what happens on the next aggregation for a
