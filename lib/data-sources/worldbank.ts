@@ -19,7 +19,7 @@ interface WBObservation {
 
 async function fetchIndicator(countryCode: string, indicator: string, years = 6): Promise<WBObservation[]> {
   const url = `${BASE}/country/${countryCode}/indicator/${indicator}?format=json&per_page=${years}&mrnev=${years}`;
-  const res = await fetchWithTimeout(url, { next: { revalidate: 60 * 60 * 24 } });
+  const res = await fetchWithTimeout(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`World Bank request failed: ${res.status}`);
   const json = await res.json();
   const rows: WBObservation[] = json?.[1] ?? [];

@@ -11,10 +11,11 @@ section, per `piltri-project-brief.md` and `piltri-project-checklist.md`.
 - **Backend** (`app/api/explore/*`, `lib/aggregation/*`,
   `lib/data-sources/*`) — search, score aggregation, and pin-mode endpoints;
   a Supabase caching layer; adapters for World Bank (including governance
-  and price-level indicators), REST Countries, Open-Meteo, Overpass/OSM,
-  Mapbox, and WHO — all free/keyless, and every field in the scored model
-  is backed by one of them today. No placeholder/manual data sources
-  remain — see HANDOFF.md's "Data model" section for what changed and why.
+  and price-level indicators), GeoNames (country languages, city
+  population/area), Open-Meteo, Overpass/OSM, Wikidata, Mapbox, and WHO —
+  all free/keyless, and every field in the scored model is backed by one
+  of them today. No placeholder/manual data sources remain — see
+  HANDOFF.md's "Data model" section for what changed and why.
 - **Frontend** (`app/page.tsx`, `app/explore/*`) — Home, Explore landing,
   Explore results (map + 4 section cards), and Pin mode overlay, responsive
   from phone to desktop.

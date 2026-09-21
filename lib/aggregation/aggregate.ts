@@ -1,5 +1,5 @@
 import { getWorldBankIndicators } from "@/lib/data-sources/worldbank";
-import { getCountryLanguages } from "@/lib/data-sources/restcountries";
+import { getCountryLanguages } from "@/lib/data-sources/languages";
 import { getClimateAverages } from "@/lib/data-sources/openmeteo";
 import { getCityOverpassData, pickMainEconomyType } from "@/lib/data-sources/overpass";
 import { getHealthcareQualityScore } from "@/lib/data-sources/who";
@@ -56,7 +56,7 @@ const RANGES = {
 export async function aggregateCityData(city: CitySearchResult): Promise<CityExploreData> {
   const iso3 = toIso3(city.countryCode);
 
-  const [wb, languages, climate, overpassData, healthcare, universityCount, restaurantCount, cityDemo] = await Promise.all([
+  const [wb, languages, climate, overpassData, healthcare, wikidataFields] = await Promise.all([
     safely(() => memoize(`wb:${city.countryCode}`, COUNTRY_LEVEL_TTL_MS, () => getWorldBankIndicators(city.countryCode)), null),
     safely(() => getCountryLanguages(city.countryCode), { officialLanguages: [], mostWidelySpokenLanguage: "Unknown" }),
     safely(() => getClimateAverages(city.lat, city.lng), null),
@@ -65,10 +65,9 @@ export async function aggregateCityData(city: CitySearchResult): Promise<CityExp
     // getCityOverpassData's doc comment).
     safely(() => getCityOverpassData(city.lat, city.lng), null),
     safely(() => memoize(`who:${iso3}`, COUNTRY_LEVEL_TTL_MS, () => getHealthcareQualityScore(iso3)), null),
-    safely(() => countRankedUniversities(city.lat, city.lng), 0),
-    safely(() => countNotableRestaurants(city.lat, city.lng), 0),
-    safely(() => getCityPopulationAndArea(city.lat, city.lng, city.cityName), { population: null, areaKm2: null }),
+    getWikidataFields(city.lat, city.lng, city.cityName),
   ]);
+  const { cityDemo, universityCount, restaurantCount } = wikidataFields;
 
   const transportPresence = overpassData?.transport ?? { hasTrainStation: false, hasSubway: false, hasTramway: false, hasAirport: false };
   const mainEconomyType = overpassData ? pickMainEconomyType(overpassData.economySectors) : null;
@@ -200,4 +199,24 @@ async function safely<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
     console.error("Data source failed, using fallback:", err);
     return fallback;
   }
+}
+
+/** Runs this city's 3 Wikidata calls (population/area, ranked-universities
+ *  count, notable-restaurants count) with population/area resolved first,
+ *  ahead of the other two - all three otherwise share the same live
+ *  Wikidata SPARQL endpoint, and testing this against production showed
+ *  Wikidata queues concurrent requests from one client: firing all 3 via
+ *  the outer Promise.all let the (still slow, unfixed) ranked-universities/
+ *  notable-restaurants box queries starve the genuinely fast population
+ *  query's turn, timing it out and silently falling back to the World
+ *  Bank country-level figure even though the query itself runs in well
+ *  under a second in isolation. Sequencing this way keeps population/area
+ *  fast and reliable regardless of how slow the other two end up being. */
+async function getWikidataFields(lat: number, lng: number, cityName: string) {
+  const cityDemo = await safely(() => getCityPopulationAndArea(lat, lng, cityName), { population: null, areaKm2: null });
+  const [universityCount, restaurantCount] = await Promise.all([
+    safely(() => countRankedUniversities(lat, lng), 0),
+    safely(() => countNotableRestaurants(lat, lng), 0),
+  ]);
+  return { cityDemo, universityCount, restaurantCount };
 }

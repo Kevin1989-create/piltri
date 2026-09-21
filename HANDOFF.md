@@ -318,6 +318,121 @@ is also still slower** than the cache-only default, for the same reason
 disclosed in "Known, disclosed gaps" below (pin data isn't
 Supabase-persisted).
 
+## City-level data reliability fixes (2026-09-21)
+
+User reported London's population showed "69 million" (the UK's national
+figure, not London's ~9M) and main language was empty. Root-caused and
+fixed four separate, real bugs found while chasing this:
+
+1. **`getCityPopulationAndArea`'s query design was unusably slow for any
+   densely-mapped city.** It used `SERVICE wikibase:around` (geo-radius
+   scan) first, then filtered by exact label match — which forces
+   Wikidata to materialise every coordinate-tagged entity within 15km
+   before it can filter by name. Tested live: London's version of that
+   query took 39+ seconds (never finished in one further test after 90s),
+   comfortably past the 8s client timeout, so it always fell back to
+   World Bank's country-level population. **Fixed by flipping the query
+   order** — exact label match first (`?item rdfs:label "cityName"@en`,
+   hits Wikidata's label index directly), then disambiguate same-named
+   places by computing real haversine distance in JS. Tested live:
+   London ~540ms, Paris ~20-750ms, Springfield (very common name, 248
+   candidate rows) ~2.1s — all comfortably fast. A per-statement P585
+   (point-in-time) qualifier was tried to properly pick the *most recent*
+   population figure but reintroduced the same slow cross-product pattern
+   (pushed London to a 502 from Wikidata's gateway) — reverted in favour
+   of the simpler "pick the largest value on file" heuristic.
+2. **A second Wikidata query-design bug, found while fixing #1: proximity
+   alone isn't a safe disambiguator.** Wikidata has other entities that
+   share a city's exact label and can sit *closer* to the search
+   coordinate than the city itself — e.g. `Q127430952`, "Mint of Paris"
+   (Monnaie de Paris), labelled "Paris" and pinned almost exactly at
+   central Paris's coordinate, closer than the actual city entity (`Q90`).
+   It has no population/area statement, so "nearest label match" latched
+   onto it and returned nothing, every time, for Paris specifically.
+   Fixed by only considering candidate rows that actually carry a
+   population or area value before picking nearest.
+3. **REST Countries' free API (v3.1, used for `mostWidelySpokenLanguage`)
+   is fully dead.** It now returns HTTP 200 with
+   `{"success":false,"data":null,"errors":[...]}` on every v1-v4 request
+   instead of an error status, so the old code's `!res.ok` check never
+   caught it — it silently parsed an empty `languages` object and
+   returned `"Unknown"` for every city, for what's presumably been a
+   while now. The replacement (v5) needs a paid-tier-adjacent account and
+   an API key, which breaks this project's "no keys anywhere" principle.
+   **Replaced entirely** — `lib/data-sources/restcountries.ts` is gone;
+   `lib/data-sources/languages.ts` now reads
+   `data/static/country-languages.json`, generated from GeoNames'
+   `countryInfo.txt` (same free, keyless, public-domain source already
+   used for the city shortlist) via a one-off script (not committed, same
+   pattern as `discover-cities.json`). Covers 249 countries; every
+   country's `mostWidelySpokenLanguage` is a real name, a handful of
+   secondary/tertiary languages deep in some countries' `officialLanguages`
+   array fall back to a raw ISO code since that array isn't rendered
+   anywhere in the UI today.
+4. **The real architectural finding: `fetchWithTimeout`'s `next: {
+   revalidate }` caching could permanently memorise a bad response.**
+   While debugging #1/#2, a fully-fixed, verified-fast query kept
+   returning `null` for Paris — traced to Next's Data Cache having cached
+   an earlier empty/degenerate response for that exact request (most
+   likely one that got aborted by this same timeout while contending with
+   other concurrent Wikidata calls) and serving it instantly (no network
+   call, confirmed via response timing) on every later run regardless of
+   code changes, for up to the revalidate window (1-30 days depending on
+   the file). This risk applied to every external data source using this
+   pattern, not just Wikidata's — **all of them can time out under load**
+   per `fetchWithTimeout`'s own header comment. Fixed by removing
+   `next: { revalidate }` from all 5 files that had it (`worldbank.ts`,
+   `openmeteo.ts`, `nominatim.ts`, `wikidata.ts`, `who.ts`) in favour of
+   `cache: "no-store"` — the cache that actually matters here is the
+   explicit, per-city, on-a-schedule Supabase `city_scores` table (see
+   "Sub-second responses" above), not an unmanaged fetch-level cache
+   underneath it. See `fetchWithTimeout.ts`'s header comment for the full
+   writeup.
+
+Also: `aggregate.ts`'s 3 Wikidata calls (population/area,
+ranked-universities count, notable-restaurants count) used to fire
+concurrently in the outer `Promise.all`. Testing showed Wikidata queues
+concurrent requests from one client — the slow, still-unfixed
+universities/restaurants box queries (see below) could starve the fast
+population query's turn and time it out even though it runs in under a
+second alone. `getWikidataFields` now runs population/area first, ahead
+of the other two, so it's isolated from their slowness.
+
+**Known follow-up, found but not fixed (out of scope of the reported
+bug, flagged to the user)**: `countRankedUniversities` and
+`countNotableRestaurants` (`lib/data-sources/wikidata.ts`) have the same
+"`SERVICE wikibase:box` before filtering by the rare property" ordering
+bug as #1 above, and are both **wrong and slow** for a dense city -
+tested live for London: the current query took 20s and returned `0`
+(wrong; London has ~36 per a corrected query), a query restructured to
+filter by the rare ranking-ID property first before checking coordinates
+returned the correct `36` but still took 28s. Both numbers already
+silently degrade to `0` via `CLIENT_TIMEOUT_MS` + `safely()`, so this
+doesn't make anything worse than before — it just means "ranked
+universities/notable restaurants nearby" has likely been wrong (shown as
+0) for every densely-mapped city already. Worth a dedicated follow-up
+session; needs more query-design work than a quick tweak (the
+"rare-property-first" restructure got correctness right but not speed).
+
+**Cache implication, worth knowing before assuming the live site is
+fixed**: this only changes what happens on the next aggregation for a
+given city. Already-cached cities (including London, from before this
+fix) keep serving their old, wrong `city_scores` row until re-aggregated
+— and per `CACHE_TTL_DAYS=30`, they won't be considered "stale" and
+picked up by the daily cron on their own for up to 30 days. To get
+already-cached cities corrected sooner, use `/admin` → "Warm everything
+stale" only refreshes rows past the TTL — a full "Clear entire cache"
+followed by letting cron/admin warming rebuild is the way to force every
+city through the fixed code path.
+
+Also confirmed, not a bug: exact-label matching (#1/#2 above) means a
+city whose Mapbox-geocoded name doesn't match Wikidata's exact English
+label won't resolve to city-level data — e.g. "New York" (Mapbox) vs
+Wikidata's "New York City" (Q60; "New York" alone is Wikidata's label
+for the *state*, Q1384). Falls back to the World Bank country figure,
+same documented, intentional behaviour as any other label mismatch — see
+`getCityPopulationAndArea`'s doc comment.
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new

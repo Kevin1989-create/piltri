@@ -29,7 +29,7 @@ export async function getClimateAverages(lat: number, lng: number): Promise<Clim
     `&daily=temperature_2m_mean,precipitation_sum,sunshine_duration,snowfall_sum` +
     `&timezone=auto`;
 
-  const res = await fetchWithTimeout(url, { next: { revalidate: 60 * 60 * 24 * 7 } });
+  const res = await fetchWithTimeout(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`Open-Meteo request failed: ${res.status}`);
   const json = await res.json();
   const daily = json?.daily;

@@ -1,0 +1,1979 @@
+{
+  "AD": {
+    "officialLanguages": [
+      "Catalan"
+    ],
+    "mostWidelySpokenLanguage": "Catalan"
+  },
+  "AE": {
+    "officialLanguages": [
+      "Arabic",
+      "Persian",
+      "English",
+      "Hindi",
+      "Urdu"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "AF": {
+    "officialLanguages": [
+      "Persian",
+      "Pashto",
+      "Uzbek",
+      "Turkmen"
+    ],
+    "mostWidelySpokenLanguage": "Persian"
+  },
+  "AG": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "AI": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "AL": {
+    "officialLanguages": [
+      "Albanian",
+      "Greek"
+    ],
+    "mostWidelySpokenLanguage": "Albanian"
+  },
+  "AM": {
+    "officialLanguages": [
+      "Armenian"
+    ],
+    "mostWidelySpokenLanguage": "Armenian"
+  },
+  "AO": {
+    "officialLanguages": [
+      "Portuguese"
+    ],
+    "mostWidelySpokenLanguage": "Portuguese"
+  },
+  "AR": {
+    "officialLanguages": [
+      "Spanish",
+      "English",
+      "Italian",
+      "German",
+      "French",
+      "Guarani"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "AS": {
+    "officialLanguages": [
+      "English",
+      "Samoan",
+      "Tongan"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "AT": {
+    "officialLanguages": [
+      "German",
+      "Croatian",
+      "Hungarian",
+      "Slovenian"
+    ],
+    "mostWidelySpokenLanguage": "German"
+  },
+  "AU": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "AW": {
+    "officialLanguages": [
+      "Dutch",
+      "pap",
+      "Spanish",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Dutch"
+  },
+  "AX": {
+    "officialLanguages": [
+      "Swedish"
+    ],
+    "mostWidelySpokenLanguage": "Swedish"
+  },
+  "AZ": {
+    "officialLanguages": [
+      "Azerbaijani",
+      "Russian",
+      "Armenian"
+    ],
+    "mostWidelySpokenLanguage": "Azerbaijani"
+  },
+  "BA": {
+    "officialLanguages": [
+      "Bosnian",
+      "Croatian",
+      "Serbian"
+    ],
+    "mostWidelySpokenLanguage": "Bosnian"
+  },
+  "BB": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "BD": {
+    "officialLanguages": [
+      "Bengali",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Bengali"
+  },
+  "BE": {
+    "officialLanguages": [
+      "Dutch",
+      "French",
+      "German"
+    ],
+    "mostWidelySpokenLanguage": "Dutch"
+  },
+  "BF": {
+    "officialLanguages": [
+      "French",
+      "mos"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "BG": {
+    "officialLanguages": [
+      "Bulgarian",
+      "Turkish",
+      "rom"
+    ],
+    "mostWidelySpokenLanguage": "Bulgarian"
+  },
+  "BH": {
+    "officialLanguages": [
+      "Arabic",
+      "English",
+      "Persian",
+      "Urdu"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "BI": {
+    "officialLanguages": [
+      "French",
+      "Kirundi"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "BJ": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "BL": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "BM": {
+    "officialLanguages": [
+      "English",
+      "Portuguese"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "BN": {
+    "officialLanguages": [
+      "Malay",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Malay"
+  },
+  "BO": {
+    "officialLanguages": [
+      "Spanish",
+      "Quechua",
+      "Aymara"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "BQ": {
+    "officialLanguages": [
+      "Dutch",
+      "pap",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Dutch"
+  },
+  "BR": {
+    "officialLanguages": [
+      "Portuguese",
+      "Spanish",
+      "English",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "Portuguese"
+  },
+  "BS": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "BT": {
+    "officialLanguages": [
+      "Dzongkha"
+    ],
+    "mostWidelySpokenLanguage": "Dzongkha"
+  },
+  "BW": {
+    "officialLanguages": [
+      "English",
+      "Tswana"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "BY": {
+    "officialLanguages": [
+      "Belarusian",
+      "Russian"
+    ],
+    "mostWidelySpokenLanguage": "Belarusian"
+  },
+  "BZ": {
+    "officialLanguages": [
+      "English",
+      "Spanish"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "CA": {
+    "officialLanguages": [
+      "English",
+      "French",
+      "Inuktitut"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "CC": {
+    "officialLanguages": [
+      "Malay",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Malay"
+  },
+  "CD": {
+    "officialLanguages": [
+      "French",
+      "Lingala",
+      "ktu",
+      "Kongo",
+      "Swahili",
+      "lua"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "CF": {
+    "officialLanguages": [
+      "French",
+      "Sango",
+      "Lingala",
+      "Kongo"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "CG": {
+    "officialLanguages": [
+      "French",
+      "Kongo",
+      "Lingala"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "CH": {
+    "officialLanguages": [
+      "German",
+      "French",
+      "Italian",
+      "Romansh"
+    ],
+    "mostWidelySpokenLanguage": "German"
+  },
+  "CI": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "CK": {
+    "officialLanguages": [
+      "English",
+      "Maori"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "CL": {
+    "officialLanguages": [
+      "Spanish"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "CM": {
+    "officialLanguages": [
+      "English",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "CN": {
+    "officialLanguages": [
+      "Chinese",
+      "Cantonese",
+      "wuu",
+      "dta",
+      "Uyghur",
+      "Zhuang"
+    ],
+    "mostWidelySpokenLanguage": "Chinese"
+  },
+  "CO": {
+    "officialLanguages": [
+      "Spanish"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "CR": {
+    "officialLanguages": [
+      "Spanish",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "CU": {
+    "officialLanguages": [
+      "Spanish",
+      "pap"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "CV": {
+    "officialLanguages": [
+      "Portuguese"
+    ],
+    "mostWidelySpokenLanguage": "Portuguese"
+  },
+  "CW": {
+    "officialLanguages": [
+      "Dutch",
+      "pap"
+    ],
+    "mostWidelySpokenLanguage": "Dutch"
+  },
+  "CX": {
+    "officialLanguages": [
+      "English",
+      "Chinese",
+      "Malay"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "CY": {
+    "officialLanguages": [
+      "Greek",
+      "Turkish",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Greek"
+  },
+  "CZ": {
+    "officialLanguages": [
+      "Czech",
+      "Slovak"
+    ],
+    "mostWidelySpokenLanguage": "Czech"
+  },
+  "DE": {
+    "officialLanguages": [
+      "German"
+    ],
+    "mostWidelySpokenLanguage": "German"
+  },
+  "DJ": {
+    "officialLanguages": [
+      "French",
+      "Arabic",
+      "Somali",
+      "Afar"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "DK": {
+    "officialLanguages": [
+      "Danish",
+      "English",
+      "Faroese",
+      "German"
+    ],
+    "mostWidelySpokenLanguage": "Danish"
+  },
+  "DM": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "DO": {
+    "officialLanguages": [
+      "Spanish"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "DZ": {
+    "officialLanguages": [
+      "Arabic"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "EC": {
+    "officialLanguages": [
+      "Spanish"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "EE": {
+    "officialLanguages": [
+      "Estonian",
+      "Russian"
+    ],
+    "mostWidelySpokenLanguage": "Estonian"
+  },
+  "EG": {
+    "officialLanguages": [
+      "Arabic",
+      "English",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "EH": {
+    "officialLanguages": [
+      "Arabic",
+      "mey"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "ER": {
+    "officialLanguages": [
+      "Afar",
+      "Arabic",
+      "tig",
+      "kun",
+      "Tigrinya"
+    ],
+    "mostWidelySpokenLanguage": "Afar"
+  },
+  "ES": {
+    "officialLanguages": [
+      "Spanish",
+      "Catalan",
+      "Galician",
+      "Basque",
+      "Occitan"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "ET": {
+    "officialLanguages": [
+      "Amharic",
+      "English",
+      "Oromo",
+      "Tigrinya",
+      "Somali",
+      "sid"
+    ],
+    "mostWidelySpokenLanguage": "Amharic"
+  },
+  "FI": {
+    "officialLanguages": [
+      "Finnish",
+      "Swedish",
+      "smn"
+    ],
+    "mostWidelySpokenLanguage": "Finnish"
+  },
+  "FJ": {
+    "officialLanguages": [
+      "English",
+      "Fijian"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "FK": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "FM": {
+    "officialLanguages": [
+      "English",
+      "chk",
+      "pon",
+      "yap",
+      "kos",
+      "uli",
+      "woe",
+      "nkr",
+      "kpg"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "FO": {
+    "officialLanguages": [
+      "Faroese",
+      "Danish"
+    ],
+    "mostWidelySpokenLanguage": "Faroese"
+  },
+  "FR": {
+    "officialLanguages": [
+      "French",
+      "frp",
+      "Breton",
+      "Corsican",
+      "Catalan",
+      "Basque",
+      "Occitan"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "GA": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "GB": {
+    "officialLanguages": [
+      "English",
+      "Welsh",
+      "Scottish Gaelic"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "GD": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "GE": {
+    "officialLanguages": [
+      "Georgian",
+      "Russian",
+      "Armenian",
+      "Azerbaijani"
+    ],
+    "mostWidelySpokenLanguage": "Georgian"
+  },
+  "GF": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "GG": {
+    "officialLanguages": [
+      "English",
+      "nrf"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "GH": {
+    "officialLanguages": [
+      "English",
+      "Akan",
+      "Ewe",
+      "Twi"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "GI": {
+    "officialLanguages": [
+      "English",
+      "Spanish",
+      "Italian",
+      "Portuguese"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "GL": {
+    "officialLanguages": [
+      "Greenlandic",
+      "Danish",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Greenlandic"
+  },
+  "GM": {
+    "officialLanguages": [
+      "English",
+      "mnk",
+      "wof",
+      "Wolof",
+      "Fulah"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "GN": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "GP": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "GQ": {
+    "officialLanguages": [
+      "Spanish",
+      "French",
+      "Portuguese"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "GR": {
+    "officialLanguages": [
+      "Greek",
+      "English",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "Greek"
+  },
+  "GS": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "GT": {
+    "officialLanguages": [
+      "Spanish"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "GU": {
+    "officialLanguages": [
+      "English",
+      "Chamorro"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "GW": {
+    "officialLanguages": [
+      "Portuguese",
+      "pov"
+    ],
+    "mostWidelySpokenLanguage": "Portuguese"
+  },
+  "GY": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "HK": {
+    "officialLanguages": [
+      "Chinese",
+      "Cantonese",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Chinese"
+  },
+  "HN": {
+    "officialLanguages": [
+      "Spanish",
+      "cab",
+      "miq"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "HR": {
+    "officialLanguages": [
+      "Croatian",
+      "Serbian"
+    ],
+    "mostWidelySpokenLanguage": "Croatian"
+  },
+  "HT": {
+    "officialLanguages": [
+      "Haitian Creole",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "Haitian Creole"
+  },
+  "HU": {
+    "officialLanguages": [
+      "Hungarian"
+    ],
+    "mostWidelySpokenLanguage": "Hungarian"
+  },
+  "ID": {
+    "officialLanguages": [
+      "Indonesian",
+      "English",
+      "Dutch",
+      "Javanese"
+    ],
+    "mostWidelySpokenLanguage": "Indonesian"
+  },
+  "IE": {
+    "officialLanguages": [
+      "English",
+      "Irish"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "IL": {
+    "officialLanguages": [
+      "Hebrew",
+      "Arabic",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Hebrew"
+  },
+  "IM": {
+    "officialLanguages": [
+      "English",
+      "Manx"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "IN": {
+    "officialLanguages": [
+      "English",
+      "Hindi",
+      "Bengali",
+      "Telugu",
+      "Marathi",
+      "Tamil",
+      "Urdu",
+      "Gujarati",
+      "Kannada",
+      "Malayalam",
+      "Odia",
+      "Punjabi",
+      "Assamese",
+      "Bihari",
+      "sat",
+      "Kashmiri",
+      "Nepali",
+      "Sindhi",
+      "kok",
+      "doi",
+      "mni",
+      "sit",
+      "Sanskrit",
+      "French",
+      "lus",
+      "inc"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "IO": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "IQ": {
+    "officialLanguages": [
+      "Arabic",
+      "Kurdish",
+      "Armenian"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "IR": {
+    "officialLanguages": [
+      "Persian",
+      "Kurdish"
+    ],
+    "mostWidelySpokenLanguage": "Persian"
+  },
+  "IS": {
+    "officialLanguages": [
+      "Icelandic",
+      "English",
+      "German",
+      "Danish",
+      "Swedish",
+      "Norwegian"
+    ],
+    "mostWidelySpokenLanguage": "Icelandic"
+  },
+  "IT": {
+    "officialLanguages": [
+      "Italian",
+      "German",
+      "French",
+      "Sardinian",
+      "Catalan",
+      "Corsican",
+      "Slovenian"
+    ],
+    "mostWidelySpokenLanguage": "Italian"
+  },
+  "JE": {
+    "officialLanguages": [
+      "English",
+      "French",
+      "nrf"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "JM": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "JO": {
+    "officialLanguages": [
+      "Arabic",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "JP": {
+    "officialLanguages": [
+      "Japanese"
+    ],
+    "mostWidelySpokenLanguage": "Japanese"
+  },
+  "KE": {
+    "officialLanguages": [
+      "English",
+      "Swahili"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "KG": {
+    "officialLanguages": [
+      "Kyrgyz",
+      "Uzbek",
+      "Russian"
+    ],
+    "mostWidelySpokenLanguage": "Kyrgyz"
+  },
+  "KH": {
+    "officialLanguages": [
+      "Khmer",
+      "French",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Khmer"
+  },
+  "KI": {
+    "officialLanguages": [
+      "English",
+      "gil"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "KM": {
+    "officialLanguages": [
+      "Arabic",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "KN": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "KP": {
+    "officialLanguages": [
+      "Korean"
+    ],
+    "mostWidelySpokenLanguage": "Korean"
+  },
+  "KR": {
+    "officialLanguages": [
+      "Korean",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Korean"
+  },
+  "XK": {
+    "officialLanguages": [
+      "Albanian",
+      "Serbian"
+    ],
+    "mostWidelySpokenLanguage": "Albanian"
+  },
+  "KW": {
+    "officialLanguages": [
+      "Arabic",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "KY": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "KZ": {
+    "officialLanguages": [
+      "Kazakh",
+      "Russian"
+    ],
+    "mostWidelySpokenLanguage": "Kazakh"
+  },
+  "LA": {
+    "officialLanguages": [
+      "Lao",
+      "French",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Lao"
+  },
+  "LB": {
+    "officialLanguages": [
+      "Arabic",
+      "French",
+      "English",
+      "Armenian"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "LC": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "LI": {
+    "officialLanguages": [
+      "German"
+    ],
+    "mostWidelySpokenLanguage": "German"
+  },
+  "LK": {
+    "officialLanguages": [
+      "Sinhala",
+      "Tamil",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Sinhala"
+  },
+  "LR": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "LS": {
+    "officialLanguages": [
+      "English",
+      "Southern Sotho",
+      "Zulu",
+      "Xhosa"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "LT": {
+    "officialLanguages": [
+      "Lithuanian",
+      "Russian",
+      "Polish"
+    ],
+    "mostWidelySpokenLanguage": "Lithuanian"
+  },
+  "LU": {
+    "officialLanguages": [
+      "Luxembourgish",
+      "German",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "Luxembourgish"
+  },
+  "LV": {
+    "officialLanguages": [
+      "Latvian",
+      "Russian",
+      "Lithuanian"
+    ],
+    "mostWidelySpokenLanguage": "Latvian"
+  },
+  "LY": {
+    "officialLanguages": [
+      "Arabic",
+      "Italian",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "MA": {
+    "officialLanguages": [
+      "Arabic",
+      "ber",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "MC": {
+    "officialLanguages": [
+      "French",
+      "English",
+      "Italian"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "MD": {
+    "officialLanguages": [
+      "Romanian",
+      "Russian",
+      "gag",
+      "Turkish"
+    ],
+    "mostWidelySpokenLanguage": "Romanian"
+  },
+  "ME": {
+    "officialLanguages": [
+      "Serbian",
+      "Hungarian",
+      "Bosnian",
+      "Albanian",
+      "Croatian",
+      "rom"
+    ],
+    "mostWidelySpokenLanguage": "Serbian"
+  },
+  "MF": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "MG": {
+    "officialLanguages": [
+      "French",
+      "Malagasy"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "MH": {
+    "officialLanguages": [
+      "Marshallese",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Marshallese"
+  },
+  "MK": {
+    "officialLanguages": [
+      "Macedonian",
+      "Albanian",
+      "Turkish",
+      "rmm",
+      "Serbian"
+    ],
+    "mostWidelySpokenLanguage": "Macedonian"
+  },
+  "ML": {
+    "officialLanguages": [
+      "French",
+      "Bambara"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "MM": {
+    "officialLanguages": [
+      "Burmese"
+    ],
+    "mostWidelySpokenLanguage": "Burmese"
+  },
+  "MN": {
+    "officialLanguages": [
+      "Mongolian",
+      "Russian"
+    ],
+    "mostWidelySpokenLanguage": "Mongolian"
+  },
+  "MO": {
+    "officialLanguages": [
+      "Chinese",
+      "Portuguese"
+    ],
+    "mostWidelySpokenLanguage": "Chinese"
+  },
+  "MP": {
+    "officialLanguages": [
+      "Filipino",
+      "Tagalog",
+      "Chinese",
+      "Chamorro",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Filipino"
+  },
+  "MQ": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "MR": {
+    "officialLanguages": [
+      "Arabic",
+      "fuc",
+      "snk",
+      "French",
+      "mey",
+      "Wolof"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "MS": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "MT": {
+    "officialLanguages": [
+      "Maltese",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Maltese"
+  },
+  "MU": {
+    "officialLanguages": [
+      "English",
+      "bho",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "MV": {
+    "officialLanguages": [
+      "Dhivehi",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Dhivehi"
+  },
+  "MW": {
+    "officialLanguages": [
+      "Chichewa",
+      "yao",
+      "tum",
+      "swk"
+    ],
+    "mostWidelySpokenLanguage": "Chichewa"
+  },
+  "MX": {
+    "officialLanguages": [
+      "Spanish"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "MY": {
+    "officialLanguages": [
+      "Malay",
+      "English",
+      "Chinese",
+      "Tamil",
+      "Telugu",
+      "Malayalam",
+      "Punjabi",
+      "Thai"
+    ],
+    "mostWidelySpokenLanguage": "Malay"
+  },
+  "MZ": {
+    "officialLanguages": [
+      "Portuguese",
+      "vmw"
+    ],
+    "mostWidelySpokenLanguage": "Portuguese"
+  },
+  "NA": {
+    "officialLanguages": [
+      "English",
+      "Afrikaans",
+      "German",
+      "Herero",
+      "naq"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "NC": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "NE": {
+    "officialLanguages": [
+      "French",
+      "Hausa",
+      "Kanuri",
+      "dje"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "NF": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "NG": {
+    "officialLanguages": [
+      "English",
+      "Hausa",
+      "Yoruba",
+      "Igbo",
+      "Fulah"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "NI": {
+    "officialLanguages": [
+      "Spanish",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "NL": {
+    "officialLanguages": [
+      "Dutch",
+      "Western Frisian"
+    ],
+    "mostWidelySpokenLanguage": "Dutch"
+  },
+  "NO": {
+    "officialLanguages": [
+      "Norwegian",
+      "Norwegian Bokmal",
+      "Norwegian Nynorsk",
+      "Northern Sami",
+      "Finnish"
+    ],
+    "mostWidelySpokenLanguage": "Norwegian"
+  },
+  "NP": {
+    "officialLanguages": [
+      "Nepali",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Nepali"
+  },
+  "NR": {
+    "officialLanguages": [
+      "Nauruan",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Nauruan"
+  },
+  "NU": {
+    "officialLanguages": [
+      "Niuean",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Niuean"
+  },
+  "NZ": {
+    "officialLanguages": [
+      "English",
+      "Maori"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "OM": {
+    "officialLanguages": [
+      "Arabic",
+      "English",
+      "bal",
+      "Urdu"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "PA": {
+    "officialLanguages": [
+      "Spanish",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "PE": {
+    "officialLanguages": [
+      "Spanish",
+      "Quechua",
+      "Aymara"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "PF": {
+    "officialLanguages": [
+      "French",
+      "Tahitian"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "PG": {
+    "officialLanguages": [
+      "English",
+      "Hiri Motu",
+      "meu",
+      "tpi"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "PH": {
+    "officialLanguages": [
+      "Tagalog",
+      "English",
+      "Filipino",
+      "ceb",
+      "ilo",
+      "hil",
+      "war",
+      "pam",
+      "bik",
+      "bcl",
+      "pag",
+      "mrw",
+      "tsg",
+      "mdh",
+      "cbk",
+      "krj",
+      "sgd",
+      "msb",
+      "akl",
+      "ibg",
+      "yka",
+      "mta",
+      "abx"
+    ],
+    "mostWidelySpokenLanguage": "Tagalog"
+  },
+  "PK": {
+    "officialLanguages": [
+      "Urdu",
+      "English",
+      "Punjabi",
+      "Sindhi",
+      "Pashto",
+      "brh"
+    ],
+    "mostWidelySpokenLanguage": "Urdu"
+  },
+  "PL": {
+    "officialLanguages": [
+      "Polish"
+    ],
+    "mostWidelySpokenLanguage": "Polish"
+  },
+  "PM": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "PN": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "PR": {
+    "officialLanguages": [
+      "English",
+      "Spanish"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "PS": {
+    "officialLanguages": [
+      "Arabic"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "PT": {
+    "officialLanguages": [
+      "Portuguese",
+      "mwl"
+    ],
+    "mostWidelySpokenLanguage": "Portuguese"
+  },
+  "PW": {
+    "officialLanguages": [
+      "Palauan",
+      "sov",
+      "English",
+      "tox",
+      "Japanese",
+      "Filipino",
+      "Chinese"
+    ],
+    "mostWidelySpokenLanguage": "Palauan"
+  },
+  "PY": {
+    "officialLanguages": [
+      "Spanish",
+      "Guarani"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "QA": {
+    "officialLanguages": [
+      "Arabic",
+      "Spanish"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "RE": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "RO": {
+    "officialLanguages": [
+      "Romanian",
+      "Hungarian",
+      "rom"
+    ],
+    "mostWidelySpokenLanguage": "Romanian"
+  },
+  "RS": {
+    "officialLanguages": [
+      "Serbian",
+      "Hungarian",
+      "Bosnian",
+      "rom"
+    ],
+    "mostWidelySpokenLanguage": "Serbian"
+  },
+  "RU": {
+    "officialLanguages": [
+      "Russian",
+      "Tatar",
+      "xal",
+      "cau",
+      "ady",
+      "Komi",
+      "Chechen",
+      "tyv",
+      "Chuvash",
+      "udm",
+      "tut",
+      "mns",
+      "bua",
+      "myv",
+      "mdf",
+      "chm",
+      "Bashkir",
+      "inh",
+      "kbd",
+      "krc",
+      "Avaric",
+      "sah",
+      "nog"
+    ],
+    "mostWidelySpokenLanguage": "Russian"
+  },
+  "RW": {
+    "officialLanguages": [
+      "Kinyarwanda",
+      "English",
+      "French",
+      "Swahili"
+    ],
+    "mostWidelySpokenLanguage": "Kinyarwanda"
+  },
+  "SA": {
+    "officialLanguages": [
+      "Arabic"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "SB": {
+    "officialLanguages": [
+      "English",
+      "tpi"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "SC": {
+    "officialLanguages": [
+      "English",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "SD": {
+    "officialLanguages": [
+      "Arabic",
+      "English",
+      "fia"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "SS": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "SE": {
+    "officialLanguages": [
+      "Swedish",
+      "Northern Sami",
+      "sma",
+      "Finnish"
+    ],
+    "mostWidelySpokenLanguage": "Swedish"
+  },
+  "SG": {
+    "officialLanguages": [
+      "Mandarin Chinese",
+      "English",
+      "Malay",
+      "Tamil",
+      "Chinese"
+    ],
+    "mostWidelySpokenLanguage": "Mandarin Chinese"
+  },
+  "SH": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "SI": {
+    "officialLanguages": [
+      "Slovenian",
+      "Serbo-Croatian"
+    ],
+    "mostWidelySpokenLanguage": "Slovenian"
+  },
+  "SJ": {
+    "officialLanguages": [
+      "Norwegian",
+      "Russian"
+    ],
+    "mostWidelySpokenLanguage": "Norwegian"
+  },
+  "SK": {
+    "officialLanguages": [
+      "Slovak",
+      "Hungarian"
+    ],
+    "mostWidelySpokenLanguage": "Slovak"
+  },
+  "SL": {
+    "officialLanguages": [
+      "English",
+      "men",
+      "tem"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "SM": {
+    "officialLanguages": [
+      "Italian"
+    ],
+    "mostWidelySpokenLanguage": "Italian"
+  },
+  "SN": {
+    "officialLanguages": [
+      "French",
+      "Wolof",
+      "fuc",
+      "mnk"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "SO": {
+    "officialLanguages": [
+      "Somali",
+      "Arabic",
+      "Italian",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Somali"
+  },
+  "SR": {
+    "officialLanguages": [
+      "Dutch",
+      "English",
+      "srn",
+      "hns",
+      "Javanese"
+    ],
+    "mostWidelySpokenLanguage": "Dutch"
+  },
+  "ST": {
+    "officialLanguages": [
+      "Portuguese"
+    ],
+    "mostWidelySpokenLanguage": "Portuguese"
+  },
+  "SV": {
+    "officialLanguages": [
+      "Spanish"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "SX": {
+    "officialLanguages": [
+      "Dutch",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Dutch"
+  },
+  "SY": {
+    "officialLanguages": [
+      "Arabic",
+      "Kurdish",
+      "Armenian",
+      "arc",
+      "French",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "SZ": {
+    "officialLanguages": [
+      "English",
+      "Swati"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "TC": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "TD": {
+    "officialLanguages": [
+      "French",
+      "Arabic",
+      "sre"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "TF": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "TG": {
+    "officialLanguages": [
+      "French",
+      "Ewe",
+      "hna",
+      "kbp",
+      "dag",
+      "Hausa"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "TH": {
+    "officialLanguages": [
+      "Thai",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Thai"
+  },
+  "TJ": {
+    "officialLanguages": [
+      "Tajik",
+      "Russian"
+    ],
+    "mostWidelySpokenLanguage": "Tajik"
+  },
+  "TK": {
+    "officialLanguages": [
+      "Tokelauan",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Tokelauan"
+  },
+  "TL": {
+    "officialLanguages": [
+      "Tetum",
+      "Portuguese",
+      "Indonesian",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Tetum"
+  },
+  "TM": {
+    "officialLanguages": [
+      "Turkmen",
+      "Russian",
+      "Uzbek"
+    ],
+    "mostWidelySpokenLanguage": "Turkmen"
+  },
+  "TN": {
+    "officialLanguages": [
+      "Arabic",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "TO": {
+    "officialLanguages": [
+      "Tongan",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Tongan"
+  },
+  "TR": {
+    "officialLanguages": [
+      "Turkish",
+      "Kurdish",
+      "diq",
+      "Azerbaijani",
+      "Avaric"
+    ],
+    "mostWidelySpokenLanguage": "Turkish"
+  },
+  "TT": {
+    "officialLanguages": [
+      "English",
+      "hns",
+      "French",
+      "Spanish",
+      "Chinese"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "TV": {
+    "officialLanguages": [
+      "Tuvaluan",
+      "English",
+      "Samoan",
+      "gil"
+    ],
+    "mostWidelySpokenLanguage": "Tuvaluan"
+  },
+  "TW": {
+    "officialLanguages": [
+      "Chinese",
+      "Southern Min",
+      "hak"
+    ],
+    "mostWidelySpokenLanguage": "Chinese"
+  },
+  "TZ": {
+    "officialLanguages": [
+      "Swahili",
+      "English",
+      "Arabic"
+    ],
+    "mostWidelySpokenLanguage": "Swahili"
+  },
+  "UA": {
+    "officialLanguages": [
+      "Ukrainian",
+      "Russian",
+      "rom",
+      "Polish",
+      "Hungarian"
+    ],
+    "mostWidelySpokenLanguage": "Ukrainian"
+  },
+  "UG": {
+    "officialLanguages": [
+      "English",
+      "Ganda",
+      "Swahili",
+      "Arabic"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "UM": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "US": {
+    "officialLanguages": [
+      "English",
+      "Spanish",
+      "haw",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "UY": {
+    "officialLanguages": [
+      "Spanish"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "UZ": {
+    "officialLanguages": [
+      "Uzbek",
+      "Russian",
+      "Tajik"
+    ],
+    "mostWidelySpokenLanguage": "Uzbek"
+  },
+  "VA": {
+    "officialLanguages": [
+      "Latin",
+      "Italian",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "Latin"
+  },
+  "VC": {
+    "officialLanguages": [
+      "English",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "VE": {
+    "officialLanguages": [
+      "Spanish"
+    ],
+    "mostWidelySpokenLanguage": "Spanish"
+  },
+  "VG": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "VI": {
+    "officialLanguages": [
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "VN": {
+    "officialLanguages": [
+      "Vietnamese",
+      "English",
+      "French",
+      "Chinese",
+      "Khmer"
+    ],
+    "mostWidelySpokenLanguage": "Vietnamese"
+  },
+  "VU": {
+    "officialLanguages": [
+      "Bislama",
+      "English",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "Bislama"
+  },
+  "WF": {
+    "officialLanguages": [
+      "Wallisian",
+      "fud",
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "Wallisian"
+  },
+  "WS": {
+    "officialLanguages": [
+      "Samoan",
+      "English"
+    ],
+    "mostWidelySpokenLanguage": "Samoan"
+  },
+  "YE": {
+    "officialLanguages": [
+      "Arabic"
+    ],
+    "mostWidelySpokenLanguage": "Arabic"
+  },
+  "YT": {
+    "officialLanguages": [
+      "French"
+    ],
+    "mostWidelySpokenLanguage": "French"
+  },
+  "ZA": {
+    "officialLanguages": [
+      "Zulu",
+      "Xhosa",
+      "Afrikaans",
+      "nso",
+      "English",
+      "Tswana",
+      "Southern Sotho",
+      "Tsonga",
+      "Swati",
+      "Venda",
+      "South Ndebele"
+    ],
+    "mostWidelySpokenLanguage": "Zulu"
+  },
+  "ZM": {
+    "officialLanguages": [
+      "English",
+      "bem",
+      "loz",
+      "lun",
+      "lue",
+      "Chichewa",
+      "toi"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "ZW": {
+    "officialLanguages": [
+      "English",
+      "Shona",
+      "South Ndebele",
+      "North Ndebele"
+    ],
+    "mostWidelySpokenLanguage": "English"
+  },
+  "CS": {
+    "officialLanguages": [
+      "Church Slavic",
+      "Hungarian",
+      "Albanian",
+      "Serbian"
+    ],
+    "mostWidelySpokenLanguage": "Church Slavic"
+  },
+  "AN": {
+    "officialLanguages": [
+      "Dutch",
+      "English",
+      "Spanish"
+    ],
+    "mostWidelySpokenLanguage": "Dutch"
+  }
+}

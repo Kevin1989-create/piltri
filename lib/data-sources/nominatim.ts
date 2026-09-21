@@ -33,7 +33,7 @@ export async function getPlaceBoundary(query: string): Promise<PlaceBoundary | n
         // Required by Nominatim's usage policy — identifies the calling app.
         "User-Agent": "Piltri (piltri.me) - Explore feature boundary lookup",
       },
-      next: { revalidate: 60 * 60 * 24 * 30 },
+      cache: "no-store",
     },
     5000
   );
