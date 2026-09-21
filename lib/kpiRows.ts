@@ -74,9 +74,11 @@ const COLOR_RANGES = {
   salaryGbp: { min: 1580, max: 71100 },
   unemployment: { min: 0, max: 25 },
   temperatureDistanceFrom20C: { min: 0, max: 20 },
-  restaurantsBarsPer10k: { min: 0, max: 40 },
-  greenSpacePct: { min: 0, max: 20 }, // see aggregate.ts - already divided down from a 0-100 normalise() call
-  culturalVenuesPer10k: { min: 0, max: 10 },
+  // Matches aggregate.ts's RANGES exactly - see that file's comment for the
+  // live-data calibration behind these 3 (2026-09-21, after fixing the
+  // per10k bug that was dividing by country population instead of city).
+  restaurantsBarsPer10k: { min: 0, max: 30 },
+  culturalVenuesPer10k: { min: 0, max: 3 },
   familyActivitiesPer10k: { min: 0, max: 15 },
   // Rainfall/sunshine/snowfall don't have an app-established scoring
   // direction the way risk/readiness metrics do, but colour is still
@@ -239,10 +241,11 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           ),
         },
         {
-          label: "Green space",
-          value: `${l.greenSpacePctOfCityArea}% of city area`,
+          label: "Green space score",
+          value: `${l.greenSpaceScore}`,
           precision: "pinned",
-          colorClass: tierColorClass(normalise(l.greenSpacePctOfCityArea, COLOR_RANGES.greenSpacePct.min, COLOR_RANGES.greenSpacePct.max)),
+          colorClass: tierColorClass(l.greenSpaceScore),
+          hint: "Parks & gardens density within 5km of centre, normalised 0-100 - not a literal % of the city's land area",
         },
         {
           label: "Cultural venues density",

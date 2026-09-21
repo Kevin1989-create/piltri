@@ -89,7 +89,14 @@ export interface ClimateFields {
 
 export interface LiveabilityFields {
   restaurantsBarsDensityPer10k: number;
-  greenSpacePctOfCityArea: number;
+  /** 0-100, Overpass parks/gardens count within 5km of centre normalised
+   *  against a reasonable-range ceiling - a density SCORE, not a literal
+   *  percentage of the city's land area (renamed from
+   *  greenSpacePctOfCityArea 2026-09-21: the old name and its UI display
+   *  ("X% of city area") implied a real area computation this never did -
+   *  computing genuine area coverage would need OSM polygon geometry, not
+   *  just a point/way count, a bigger change than this rename). */
+  greenSpaceScore: number;
   culturalVenuesDensityPer10k: number;
   familyKidsActivitiesDensityPer10k: number;
   healthcareQualityScore: number; // 0-100, WHO UHC Service Coverage Index

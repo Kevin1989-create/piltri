@@ -240,22 +240,25 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.sectionScores.liveability,
   },
   {
+    // Suggested ranges below match aggregate.ts's RANGES (recalibrated
+    // 2026-09-21 against real per-city-population Overpass data, after
+    // fixing a bug that divided by country population instead of city).
     key: "liveability.restaurantsBarsDensityPer10k",
     category: "liveability",
     label: "Restaurants & bars density",
     unit: "per 10k population",
     kind: "range",
-    suggestedRange: [0, 100],
+    suggestedRange: [0, 30],
     getCityValue: (d) => d.liveability.restaurantsBarsDensityPer10k,
   },
   {
-    key: "liveability.greenSpacePctOfCityArea",
+    key: "liveability.greenSpaceScore",
     category: "liveability",
-    label: "Green space",
-    unit: "% of city area",
+    label: "Green space score",
+    unit: "score",
     kind: "range",
-    suggestedRange: [0, 60],
-    getCityValue: (d) => d.liveability.greenSpacePctOfCityArea,
+    suggestedRange: [0, 100],
+    getCityValue: (d) => d.liveability.greenSpaceScore,
   },
   {
     key: "liveability.culturalVenuesDensityPer10k",
@@ -263,7 +266,7 @@ export const CRITERIA: CriterionDef[] = [
     label: "Cultural venues density",
     unit: "per 10k population",
     kind: "range",
-    suggestedRange: [0, 50],
+    suggestedRange: [0, 3],
     getCityValue: (d) => d.liveability.culturalVenuesDensityPer10k,
   },
   {
@@ -272,7 +275,7 @@ export const CRITERIA: CriterionDef[] = [
     label: "Family activities density",
     unit: "per 10k population",
     kind: "range",
-    suggestedRange: [0, 50],
+    suggestedRange: [0, 15],
     getCityValue: (d) => d.liveability.familyKidsActivitiesDensityPer10k,
   },
   {

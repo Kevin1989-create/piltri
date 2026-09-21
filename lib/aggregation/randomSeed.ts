@@ -57,8 +57,8 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
   const avgAnnualSunshineHrs = randInt(800, 4000);
   const avgAnnualSnowfallCm = chance(0.5) ? 0 : randInt(0, 100);
 
-  const restaurantsBarsDensityPer10k = randFloat(0, 40, 2);
-  const culturalVenuesDensityPer10k = randFloat(0, 10, 2);
+  const restaurantsBarsDensityPer10k = randFloat(0, 30, 2);
+  const culturalVenuesDensityPer10k = randFloat(0, 3, 2);
   const familyKidsActivitiesDensityPer10k = randFloat(0, 15, 2);
   const healthcareQualityScore = randInt(30, 95);
 
@@ -100,7 +100,7 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
     },
     liveability: {
       restaurantsBarsDensityPer10k,
-      greenSpacePctOfCityArea: randInt(0, 45),
+      greenSpaceScore: randInt(0, 100),
       culturalVenuesDensityPer10k,
       familyKidsActivitiesDensityPer10k,
       healthcareQualityScore,
@@ -130,9 +130,9 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
       normalise(avgAnnualSnowfallCm, 0, 300, true),
     ]),
     liveability: averageScores([
-      normalise(restaurantsBarsDensityPer10k, 0, 40),
-      data.liveability.greenSpacePctOfCityArea,
-      normalise(culturalVenuesDensityPer10k, 0, 10),
+      normalise(restaurantsBarsDensityPer10k, 0, 30),
+      data.liveability.greenSpaceScore,
+      normalise(culturalVenuesDensityPer10k, 0, 3),
       normalise(familyKidsActivitiesDensityPer10k, 0, 15),
       healthcareQualityScore,
     ]),

@@ -445,6 +445,79 @@ for the *state*, Q1384). Falls back to the World Bank country figure,
 same documented, intentional behaviour as any other label mismatch — see
 `getCityPopulationAndArea`'s doc comment.
 
+## Country-level vs city-level audit, and 2 more bugs found (2026-09-21, later same session)
+
+After the fixes above, the user reported London still showed the UK's
+population - traced to Supabase's `city_scores` cache: cities cached
+before that session's fixes stay "fresh" by `CACHE_TTL_DAYS=30` and won't
+be touched by cron for up to 30 days on their own. **Cleared via
+`/admin` → "Clear entire cache"** (confirmed working as designed - every
+row is re-derivable, nothing lost) and re-warmed; London corrected
+immediately after. If this ever comes up again: check `/api/admin/status`
+for `freshCities` before assuming a code fix didn't work - a "fresh" row
+can still be running old logic.
+
+Asked to also audit every scored field by real data granularity. Full
+result: **Safety & Stability (30% weight) and Economy (25% weight) are
+100% World Bank, country-level, identical for every city in a country**;
+Climate (25%) is 100% city-level (Open-Meteo, exact coordinates);
+Liveability (20%) is city-level except its healthcare input (WHO,
+country-level). Net: **~59% of the Piltri Score's weighted inputs are
+country-level**, not city-specific - no free, globally-open per-city
+alternative exists for safety/crime or detailed local economic stats,
+which is why World Bank was used for these in the first place.
+
+**Decision (user, delegated with direction): keep all 4 sections and
+every current field as the basis, don't cut anything - just make it
+correct and honest.** Turned out the disclosure this implies was already
+built: `PrecisionTier` (`lib/kpiRows.ts`) and `DemographicsPrecision`
+(`CityHeader.tsx`) already tag every KPI row and demographic stat as
+`country` / `city` / `pinned` with a hover tooltip - Economy and Safety
+rows already say "Country Data", population/area already say "City Data"
+(genuinely true since the Wikidata fix), language already says "Country
+Data". Nothing to add there; if a future field's real source changes,
+update its tag in `buildKpiRows`/`CityHeader.tsx`, not before.
+
+Two real bugs found while doing this audit, both fixed:
+
+1. **Liveability's "per 10k population" fields divided by the country's
+   population, not the city's**, even though the numerator (Overpass
+   amenity count within 5km of the city centre) was always genuinely
+   city-level. Produced a meaningless ratio - a small capital in a huge
+   country read as artificially "sparse" purely from the country's size,
+   nothing to do with the city itself. Fixed in `aggregate.ts`: `per10k`
+   now divides by `resolvedPopulation` (the same city-level-when-possible
+   figure already shown in the UI), not the raw World Bank country total.
+   Recalibrated `RANGES.restaurantsBarsPer10k` (0-40 → 0-30),
+   `culturalVenuesPer10k` (0-10 → 0-3) against real Overpass data at the
+   new scale - tested live: London 4,933 restaurants/bars/cafes within
+   5km ÷ 8.8M city population = 5.6/10k; Ljubljana 554 ÷ 284k = 19.5/10k;
+   Prague 3,209 ÷ 1.4M = 23.0/10k. `familyActivitiesPer10k` kept at 0-15
+   (only one clean data point before Overpass's free mirrors rate-limited
+   the rest of this session's calibration traffic - revisit if it looks
+   off once more real data accumulates). Matching `COLOR_RANGES` in
+   `kpiRows.ts` and `suggestedRange`s in `criteria.ts` updated to match.
+2. **`greenSpacePctOfCityArea` never computed a real area percentage** -
+   it's a normalised count of parks/gardens (Overpass, within 5km) on a
+   fixed 0-60 scale, then divided by 5, displayed as "X% of city area".
+   Neither the division nor the label reflected anything about actual
+   land area (that would need OSM polygon geometry, not a point/way
+   count - a bigger change than this). Worse: the un-renormalised 0-20ish
+   value was fed directly into Liveability's `averageScores` alongside
+   four genuine 0-100 inputs, systematically dragging the section score
+   down. **Renamed to `greenSpaceScore`** (0-100, matching every other
+   *Score field's convention), dropped the `/5`, UI now shows a plain
+   score with a hint explaining what it measures instead of a fake
+   percentage. Touched: `types.ts`, `aggregate.ts`, `kpiRows.ts`,
+   `criteria.ts`, `randomSeed.ts` - same full-rename discipline as the
+   Wikidata/REST Countries work above.
+
+**Shape-drift reminder, learned firsthand while fixing #2**: renaming a
+`CityExploreData` field without clearing the cache shows `undefined` for
+every already-cached city until it's re-aggregated - `clear-cache`'s own
+doc comment already warns about exactly this. Cleared cache again after
+this round of fixes landed, for the same reason.
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new

@@ -32,8 +32,18 @@ const RANGES = {
   // World Bank's Price Level Index (PA.NUS.PRVT.PLI) — verified real-world
   // spread runs from ~India (23) to ~Switzerland (128).
   priceLevel: { min: 15, max: 130 },
-  restaurantsBarsPer10k: { min: 0, max: 40 },
-  culturalVenuesPer10k: { min: 0, max: 10 },
+  // Recalibrated 2026-09-21 after fixing the per10k population bug below
+  // (was dividing by country population, not city - see per10k's own
+  // comment). Tested live against real Overpass counts within 5km of a
+  // city centre, divided by that city's own resolved population: London
+  // 4,933 restaurants/bars/cafes -> 5.6 per 10k, Ljubljana 554 -> 19.5,
+  // Prague 3,209 -> 23.0. Cultural venues: London 175 -> 0.2, Ljubljana
+  // 33 -> 1.2, Prague 231 -> 1.65. Family activities: Ljubljana 92 -> 3.2
+  // (only one clean data point - Overpass rate-limited the rest of this
+  // session's testing traffic). Same "reasonable starting point, not a
+  // scientific constant" caveat as the rest of this object.
+  restaurantsBarsPer10k: { min: 0, max: 30 },
+  culturalVenuesPer10k: { min: 0, max: 3 },
   familyActivitiesPer10k: { min: 0, max: 15 },
   greenSpaceCount: { min: 0, max: 60 },
   temperatureDistanceFrom20C: { min: 0, max: 20 },
@@ -71,24 +81,27 @@ export async function aggregateCityData(city: CitySearchResult): Promise<CityExp
   const transportPresence = overpassData?.transport ?? { hasTrainStation: false, hasSubway: false, hasTramway: false, hasAirport: false };
   const mainEconomyType = overpassData ? pickMainEconomyType(overpassData.economySectors) : null;
 
-  // Country-level population from World Bank - kept under its own name
-  // (rather than reused for demographics.population below) because the
-  // liveability per10k density stats further down are calibrated against
-  // this country total, not the new city-level figure.
-  const population = wb?.population ?? 0;
-  const per10k = (count: number) => (population > 0 ? Number(((count / population) * 10000).toFixed(2)) : 0);
-
   // Demographics population/density: prefer the genuinely city-level
   // Wikidata match, falling back to the World Bank country figure only on
   // a miss. Density never mixes a country population with a city area or
   // vice versa - it's only computed from the two paired city-level
   // figures; otherwise it falls back to the World Bank country density.
   // Both are shown as city-level in the UI regardless (see CityHeader.tsx).
-  const resolvedPopulation = cityDemo.population ?? population;
+  const resolvedPopulation = cityDemo.population ?? wb?.population ?? 0;
   const resolvedDensityPerKm2 =
     cityDemo.population != null && cityDemo.areaKm2 != null
       ? Number((cityDemo.population / cityDemo.areaKm2).toFixed(1))
       : wb?.populationDensityPerKm2 ?? 0;
+
+  // Liveability's "per 10k population" density fields divide by this same
+  // resolvedPopulation - the number already shown to the user as this
+  // city's population - not the raw country total. An earlier version
+  // divided by the country's population unconditionally, which produced a
+  // meaningless ratio: a city's genuine, city-level Overpass amenity count
+  // over an unrelated country-wide denominator (a small capital in a large
+  // country would read as artificially "sparse" purely from the country's
+  // size, nothing to do with the city itself).
+  const per10k = (count: number) => (resolvedPopulation > 0 ? Number(((count / resolvedPopulation) * 10000).toFixed(2)) : 0);
 
   // Cost of living: World Bank's real Price Level Index, normalised onto
   // the same 0-100 "index" scale the UI has always shown (see
@@ -134,9 +147,9 @@ export async function aggregateCityData(city: CitySearchResult): Promise<CityExp
     },
     liveability: {
       restaurantsBarsDensityPer10k: overpassData ? per10k(overpassData.raw.restaurantsBars) : 0,
-      greenSpacePctOfCityArea: overpassData
-        ? normalise(overpassData.raw.greenSpaceCount, RANGES.greenSpaceCount.min, RANGES.greenSpaceCount.max) / 5
-        : 10,
+      greenSpaceScore: overpassData
+        ? normalise(overpassData.raw.greenSpaceCount, RANGES.greenSpaceCount.min, RANGES.greenSpaceCount.max)
+        : 50,
       culturalVenuesDensityPer10k: overpassData ? per10k(overpassData.raw.culturalVenues) : 0,
       familyKidsActivitiesDensityPer10k: overpassData ? per10k(overpassData.raw.familyKidsActivities) : 0,
       healthcareQualityScore: healthcare ?? 55,
@@ -177,7 +190,7 @@ export async function aggregateCityData(city: CitySearchResult): Promise<CityExp
     ]),
     liveability: averageScores([
       normalise(data.liveability.restaurantsBarsDensityPer10k, RANGES.restaurantsBarsPer10k.min, RANGES.restaurantsBarsPer10k.max),
-      data.liveability.greenSpacePctOfCityArea,
+      data.liveability.greenSpaceScore,
       normalise(data.liveability.culturalVenuesDensityPer10k, RANGES.culturalVenuesPer10k.min, RANGES.culturalVenuesPer10k.max),
       normalise(data.liveability.familyKidsActivitiesDensityPer10k, RANGES.familyActivitiesPer10k.min, RANGES.familyActivitiesPer10k.max),
       data.liveability.healthcareQualityScore,
