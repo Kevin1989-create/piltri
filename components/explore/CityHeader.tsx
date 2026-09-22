@@ -156,12 +156,23 @@ export function CityHeader({
   return (
     <div className="px-4 pt-3 pb-2 sticky top-0 z-10 rounded-t-card bg-surface/95 backdrop-blur border-b border-surface-border">
       <div className="flex items-start justify-between gap-2">
-        <h1 className="font-serif text-xl text-ink-900 leading-tight">
-          {cityName}
-          <span className="block text-ink-500 text-sm font-sans">
+        <h1 className="leading-tight">
+          {/* Country before City, top to bottom — matches the order of the
+           *  two stat groups below (2026-09-23, on request: the header used
+           *  to read City-then-country while the groups below read
+           *  country-then-City, an inconsistent order between the two).
+           *  City stays the visually dominant line (bigger, brand amber)
+           *  even though it's no longer first - that's what actually keeps
+           *  it clear this is a city page, not sheer reading order. Country
+           *  uses the same ink-700 the Country group's header below uses;
+           *  City uses the same piltri-amber-dark the City group's header
+           *  below uses - one consistent colour mapping between this title
+           *  and both subsections, not just a page-load coincidence. */}
+          <span className="block text-[11px] uppercase tracking-wide text-ink-700 font-sans font-medium">
             {region ? `${region}, ` : ""}
             {country}
           </span>
+          <span className="font-serif text-xl text-piltri-amber-dark">{cityName}</span>
         </h1>
         {(reportHref || compareHref) && (
           <div className="flex-shrink-0 mt-0.5 flex items-center gap-1.5">
@@ -221,8 +232,8 @@ export function CityHeader({
       )}
 
       {cityStats && (
-        <div className="mt-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5 border-l-2 border-ink-300">
-          <p className="font-serif text-sm text-ink-700 leading-tight">{cityName}</p>
+        <div className="mt-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5 border-l-2 border-piltri-amber">
+          <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{cityName}</p>
           <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1.5">
             {cityStats.map((stat) => (
               <div key={stat.label} className="min-w-0">

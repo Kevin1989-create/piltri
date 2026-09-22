@@ -103,11 +103,15 @@ function ReportContent() {
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 pb-4 border-b border-surface-border">
               <div>
                 <p className="text-xs uppercase tracking-wide text-ink-500">Piltri score report</p>
-                <h1 className="font-serif text-2xl sm:text-3xl text-ink-900 mt-1">{data.cityName}</h1>
-                <p className="text-sm text-ink-500 mt-0.5">
+                {/* Country before City, matching the order of the two
+                 *  Demographics groups below and CityHeader.tsx's title -
+                 *  same ink-700/piltri-amber-dark colour mapping too, so a
+                 *  colour always means the same tier everywhere in the app. */}
+                <p className="text-xs uppercase tracking-wide text-ink-700 font-medium mt-1">
                   {data.region ? `${data.region}, ` : ""}
                   {data.country}
                 </p>
+                <h1 className="font-serif text-2xl sm:text-3xl text-piltri-amber-dark mt-0.5">{data.cityName}</h1>
               </div>
               <div className="text-right flex-shrink-0">
                 <div className="flex items-baseline gap-1.5 justify-end">
@@ -167,7 +171,7 @@ function ReportContent() {
                 <ReportStat label="Main language" value={data.demographics.countryMostWidelySpokenLanguage ?? "Not available"} />
               </div>
 
-              <p className="font-serif text-base text-ink-700 mb-1.5 mt-4">{data.cityName}</p>
+              <p className="font-serif text-base text-piltri-amber-dark mb-1.5 mt-4">{data.cityName}</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
                 <ReportStat
                   label="Population"
