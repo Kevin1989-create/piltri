@@ -10,6 +10,21 @@ import { citySlug } from "./cache";
 // headroom rather than running right at the policy's edge.
 const REQUEST_PACE_MS = 1100;
 
+// Supabase's `.in()` filter is passed as a query-string value - at the
+// full ~6,300-city shortlist, a single unchunked `.in()` call for every
+// slug at once fails silently (returns an empty result, no error) rather
+// than erroring outright. Same real bug, same fix, as cache.ts's
+// IN_CLAUSE_CHUNK_SIZE (see that file's comment) - this job hit exactly
+// that on its first production run: every city read back as "not a
+// candidate" despite none having been checked yet.
+const IN_CLAUSE_CHUNK_SIZE = 300;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -63,41 +78,31 @@ export async function backfillLandArea(options: { deadlineMs?: number } = {}): P
     lat: c.lat,
     lng: c.lng,
   }));
-  // Supabase upsert has a practical payload/row-count ceiling similar to
-  // the IN_CLAUSE_CHUNK_SIZE issue documented in cache.ts - chunk defensively
-  // rather than risk one giant call failing silently.
-  const UPSERT_CHUNK_SIZE = 500;
-  for (let i = 0; i < upsertRows.length; i += UPSERT_CHUNK_SIZE) {
-    const { error } = await supabase
-      .from("cities")
-      .upsert(upsertRows.slice(i, i + UPSERT_CHUNK_SIZE), { onConflict: "slug", ignoreDuplicates: true });
+  // Chunked for the same reason the read below is - upsert payloads this
+  // large risk the same silent-failure class of problem.
+  for (const rowsChunk of chunk(upsertRows, IN_CLAUSE_CHUNK_SIZE)) {
+    const { error } = await supabase.from("cities").upsert(rowsChunk, { onConflict: "slug", ignoreDuplicates: true });
     if (error) console.error("backfillLandArea: cities upsert chunk failed:", error);
   }
 
-  const { data: uncheckedRows, error: readErr } = await supabase
-    .from("cities")
-    .select("id, slug, city_name, country")
-    .in(
-      "slug",
-      cities.map((c) => citySlug(c))
+  const slugChunks = chunk(
+    cities.map((c) => citySlug(c)),
+    IN_CLAUSE_CHUNK_SIZE
+  );
+  const readResults = await Promise.all(
+    slugChunks.map((slugChunk) =>
+      supabase.from("cities").select("id, slug, city_name, country").in("slug", slugChunk).is("osm_land_area_checked_at", null)
     )
-    .is("osm_land_area_checked_at", null);
+  );
 
-  if (readErr) {
-    console.error("backfillLandArea: read failed:", readErr);
-    return {
-      total: cities.length,
-      alreadyChecked: 0,
-      attempted: 0,
-      found: 0,
-      notFound: 0,
-      failed: 0,
-      remaining: cities.length,
-      stoppedReason: "exhausted",
-    };
+  const candidates: { id: string; slug: string; city_name: string; country: string }[] = [];
+  for (const { data, error } of readResults) {
+    if (error) {
+      console.error("backfillLandArea: read failed for a chunk:", error);
+      continue;
+    }
+    if (data) candidates.push(...data);
   }
-
-  const candidates = uncheckedRows ?? [];
   const alreadyChecked = cities.length - candidates.length;
 
   let attempted = 0;
