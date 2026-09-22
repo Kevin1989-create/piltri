@@ -225,8 +225,8 @@ export function CityHeader({
        *  per group — full-word labels need more width per cell than 3
        *  columns could give them. */}
       {countryStats && (
-        <div className="mt-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5">
-          <p className="text-[9px] text-ink-400 uppercase tracking-wide font-medium">Country</p>
+        <div className="mt-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5 border-l-2 border-ink-300">
+          <p className="font-serif text-sm text-ink-700 leading-tight">{country}</p>
           <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1.5">
             {countryStats.map((stat) => (
               <div key={stat.label} className="min-w-0">
@@ -239,8 +239,8 @@ export function CityHeader({
       )}
 
       {cityStats && (
-        <div className="mt-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5">
-          <p className="text-[9px] text-ink-400 uppercase tracking-wide font-medium">{cityName}</p>
+        <div className="mt-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5 border-l-2 border-piltri-amber">
+          <p className="font-serif text-sm text-piltri-amber leading-tight">{cityName}</p>
           <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1.5">
             {cityStats.map((stat) => (
               <div key={stat.label} className="min-w-0">
