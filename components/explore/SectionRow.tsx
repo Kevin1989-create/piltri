@@ -29,7 +29,7 @@ export function SectionRow({ sectionKey, score, isOpen, compact = false, onToggl
       aria-expanded={isOpen}
       className={cn(
         "flex items-center gap-2.5 w-full text-left transition-colors border-t border-surface-border first:border-t-0",
-        compact ? "px-4 py-1.5" : "px-4 py-2.5",
+        compact ? "px-4 py-1.5" : "px-4 py-2",
         isOpen ? "bg-piltri-amber-light/40" : "hover:bg-surface-muted"
       )}
     >

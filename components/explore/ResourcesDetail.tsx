@@ -17,11 +17,9 @@ import { RESOURCE_LINK_CATEGORIES, RESOURCE_LINK_CATEGORY_LABELS, type ResourceL
 export function ResourcesDetail({
   countryCode,
   bordered = true,
-  onLinkCountChange,
 }: {
   countryCode: string;
   bordered?: boolean;
-  onLinkCountChange?: (count: number) => void;
 }) {
   const [links, setLinks] = useState<ResourceLinksByCategory | null>(null);
 
@@ -31,9 +29,7 @@ export function ResourcesDetail({
       .then((res) => res.json())
       .then((body) => {
         if (cancelled) return;
-        const data = body.links as ResourceLinksByCategory;
-        setLinks(data);
-        onLinkCountChange?.(RESOURCE_LINK_CATEGORIES.reduce((sum, c) => sum + data[c].length, 0));
+        setLinks(body.links as ResourceLinksByCategory);
       })
       .catch(() => {
         if (!cancelled) setLinks({ home: [], immigration: [], health: [], jobs: [] });

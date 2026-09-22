@@ -5,7 +5,7 @@ import { SectionRow } from "./SectionRow";
 import { SectionDetail } from "./SectionDetail";
 import { ResourcesRow } from "./ResourcesRow";
 import { ResourcesDetail } from "./ResourcesDetail";
-import { RESOURCE_LINK_CATEGORIES, type CityExploreData, type ResourceLinksByCategory, type SectionKey } from "@/lib/types";
+import type { CityExploreData, SectionKey } from "@/lib/types";
 
 const ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveability"];
 
@@ -35,36 +35,17 @@ interface SectionColumnProps {
  *  tall enough to need scrolling in the first place). Opening a new section
  *  closes whichever one was open. Resources (2026-09-23) is a 5th row after
  *  the 4 scored ones, sharing this same single-open state machine even
- *  though it isn't itself a SectionKey. */
+ *  though it isn't itself a SectionKey. It no longer needs a link-count
+ *  fetch of its own here (see ResourcesRow's doc comment - the badge that
+ *  needed this was removed), so this column stays a plain accordion with
+ *  no extra data-fetching responsibility beyond opening/closing rows. */
 export function SectionColumn({ data, externalDetail = false, onOpenSectionChange, onAnyExpandedChange }: SectionColumnProps) {
   const [openKey, setOpenKey] = useState<OpenSectionKey | null>(null);
-  const [resourcesLinkCount, setResourcesLinkCount] = useState<number | null>(null);
 
   useEffect(() => {
     onAnyExpandedChange?.(openKey !== null);
     onOpenSectionChange?.(openKey);
   }, [openKey, onAnyExpandedChange, onOpenSectionChange]);
-
-  // Fetched here, independent of whether the row's own detail is expanded
-  // inline or externally (see externalDetail above) - the row's link-count
-  // badge needs a value regardless of which mode is rendering the actual
-  // detail content.
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/explore/resource-links?countryCode=${data.countryCode}`)
-      .then((res) => res.json())
-      .then((body) => {
-        if (cancelled) return;
-        const links = body.links as ResourceLinksByCategory;
-        setResourcesLinkCount(RESOURCE_LINK_CATEGORIES.reduce((sum, c) => sum + links[c].length, 0));
-      })
-      .catch(() => {
-        if (!cancelled) setResourcesLinkCount(0);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [data.countryCode]);
 
   function toggle(key: OpenSectionKey) {
     setOpenKey((cur) => (cur === key ? null : key));
@@ -88,12 +69,9 @@ export function SectionColumn({ data, externalDetail = false, onOpenSectionChang
         <ResourcesRow
           isOpen={openKey === "resources"}
           compact={!externalDetail && openKey !== null && openKey !== "resources"}
-          linkCount={resourcesLinkCount}
           onToggle={() => toggle("resources")}
         />
-        {!externalDetail && openKey === "resources" && (
-          <ResourcesDetail countryCode={data.countryCode} onLinkCountChange={setResourcesLinkCount} />
-        )}
+        {!externalDetail && openKey === "resources" && <ResourcesDetail countryCode={data.countryCode} />}
       </div>
     </div>
   );

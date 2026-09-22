@@ -783,6 +783,57 @@ create policy "service role updates country_resource_links" on country_resource_
 create policy "service role deletes country_resource_links" on country_resource_links for delete using (auth.role() = 'service_role');
 ```
 
+## Country/City header colour scheme, and Resources polish (2026-09-23, later same session)
+
+Two follow-up rounds of UI feedback on the same day Resources shipped.
+
+**Country/City colour scheme, round 2.** The first attempt (differentiate
+Country from City by giving each its own colour - neutral ink for Country,
+amber for City) still read as "not very clear" once seen live. Replaced
+with a simpler rule in `CityHeader.tsx` and `app/explore/report/page.tsx`:
+colour now signals *UI level*, not country-vs-city tier. The title block
+(eyebrow country line + city headline) is the strongest amber
+(`text-piltri-amber-dark`, both lines); both stat-group headers below it
+("United Kingdom" and "London" as plain text, not colour, is what actually
+says which tier a block is) share one lighter shade
+(`text-piltri-amber`); and both stat blocks now share the exact same
+background/border treatment (`bg-surface-muted`, `border-piltri-amber`)
+instead of one being neutral and the other amber. Same change made in
+both places that render this header (the results page's `CityHeader` and
+the printable report page) so they stay visually identical.
+
+**Resources row, two fixes.** The link-count pill added when Resources
+first shipped ("visible enough, but clearly not part of the score") was
+reversed on request - a plain neutral number in that exact badge slot
+still read as score-like regardless of colour. Removed entirely from
+`ResourcesRow.tsx`, along with the count-fetching machinery that existed
+only to feed it (`SectionColumn.tsx`'s `resourcesLinkCount` state/effect,
+and `ResourcesDetail.tsx`'s `onLinkCountChange` callback prop - nothing
+calls it now, so it's gone rather than left as dead plumbing). In its
+place, a permanent light amber-tint background
+(`bg-piltri-amber-tint/50`, vs. the plain/hover-only background the 4
+scored rows use) is the one subtle visual cue that Resources is a
+different kind of row - proposed as an option rather than assumed to be
+wanted, since the ask was explicitly "propose or not if you don't think
+it's good."
+
+**No scroll on the results page's left panel.** With 5 rows now (4 scored
++ Resources) plus the Country/City stat blocks, the floating panel had
+started needing to scroll on shorter windows. Trimmed vertical rhythm
+throughout `CityHeader.tsx` (stat block `py-1`→`py-0.5`, grid
+`gap-y-1`→`gap-y-0.5`, outer `pt-3 pb-2`→`pt-2 pb-1.5`, score-line
+`mt-2`→`mt-1.5`) and `SectionRow.tsx`/`ResourcesRow.tsx`'s non-compact row
+padding (`py-2.5`→`py-2`, ×5 rows). Verified via the browser tool by
+measuring the panel's `scrollHeight` vs `clientHeight` at emulated
+viewport heights down to 600px (content now fits exactly, 0px to spare)
+— it still overflows by ~20px at a deliberately extreme 560px, which
+would need shrinking touch targets or text further to fix and wasn't
+pursued, since 600px+ covers realistic laptop browser windows.
+
+No `CityExploreData` shape change in this round (pure display/spacing) -
+no cache clear needed, unlike the two data-model rounds earlier this
+session.
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new

@@ -105,10 +105,10 @@ function ReportContent() {
               <div>
                 <p className="text-xs uppercase tracking-wide text-ink-500">Piltri score report</p>
                 {/* Country before City, matching the order of the two
-                 *  Demographics groups below and CityHeader.tsx's title -
-                 *  same ink-700/piltri-amber-dark colour mapping too, so a
-                 *  colour always means the same tier everywhere in the app. */}
-                <p className="text-xs uppercase tracking-wide text-ink-700 font-medium mt-1">
+                 *  Demographics groups below and CityHeader.tsx's title.
+                 *  Colour signals UI level (title vs. group header), not
+                 *  country-vs-city tier - see CityHeader.tsx's comment. */}
+                <p className="text-xs uppercase tracking-wide text-piltri-amber-dark font-medium mt-1">
                   {data.region ? `${data.region}, ` : ""}
                   {data.country}
                 </p>
@@ -137,7 +137,7 @@ function ReportContent() {
                *  (see lib/types.ts's DemographicsFields comment) - shown
                *  as two clearly labelled groups, same as CityHeader.tsx,
                *  rather than blended into one set of stats. */}
-              <p className="font-serif text-base text-ink-700 mb-1.5">{data.country}</p>
+              <p className="font-serif text-base text-piltri-amber mb-1.5">{data.country}</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
                 <ReportStat
                   label="Population"
@@ -172,7 +172,7 @@ function ReportContent() {
                 <ReportStat label="Main language" value={data.demographics.countryMostWidelySpokenLanguage ?? "Not available"} />
               </div>
 
-              <p className="font-serif text-base text-piltri-amber-dark mb-1.5 mt-4">{data.cityName}</p>
+              <p className="font-serif text-base text-piltri-amber mb-1.5 mt-4">{data.cityName}</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
                 <ReportStat
                   label="Population"

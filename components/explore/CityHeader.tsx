@@ -154,21 +154,24 @@ export function CityHeader({
     : null;
 
   return (
-    <div className="px-4 pt-3 pb-2 sticky top-0 z-10 rounded-t-card bg-surface/95 backdrop-blur border-b border-surface-border">
+    <div className="px-4 pt-2 pb-1.5 sticky top-0 z-10 rounded-t-card bg-surface/95 backdrop-blur border-b border-surface-border">
       <div className="flex items-start justify-between gap-2">
         <h1 className="leading-tight">
           {/* Country before City, top to bottom — matches the order of the
-           *  two stat groups below (2026-09-23, on request: the header used
-           *  to read City-then-country while the groups below read
-           *  country-then-City, an inconsistent order between the two).
-           *  City stays the visually dominant line (bigger, brand amber)
-           *  even though it's no longer first - that's what actually keeps
-           *  it clear this is a city page, not sheer reading order. Country
-           *  uses the same ink-700 the Country group's header below uses;
-           *  City uses the same piltri-amber-dark the City group's header
-           *  below uses - one consistent colour mapping between this title
-           *  and both subsections, not just a page-load coincidence. */}
-          <span className="block text-[11px] uppercase tracking-wide text-ink-700 font-sans font-medium">
+           *  two stat groups below. City stays the visually dominant line
+           *  (bigger) even though it's no longer first - that's what
+           *  actually keeps it clear this is a city page, not sheer
+           *  reading order.
+           *
+           *  Colour now signals UI level, not country-vs-city tier
+           *  (2026-09-23, revised on request - an earlier version used
+           *  colour to distinguish Country from City, which still read as
+           *  unclear). The title (this block) is the strongest amber;
+           *  both stat-group headers below use a lighter shade of the same
+           *  amber; which tier a given block belongs to is now carried
+           *  entirely by its own label text ("United Kingdom" vs "London")
+           *  and position, not by colour - simpler to read at a glance. */}
+          <span className="block text-[11px] uppercase tracking-wide text-piltri-amber-dark font-sans font-medium">
             {region ? `${region}, ` : ""}
             {country}
           </span>
@@ -211,16 +214,15 @@ export function CityHeader({
        *  grid — Country info is always-published World Bank/UN/GeoNames
        *  data, identical for every city in that country; City data is
        *  genuinely this specific place's own Wikidata-matched figures,
-       *  "Not available" where no match resolved. Keeping them visually
-       *  distinct (own mini-header each) means a number is never
-       *  ambiguous about which tier it belongs to - see this file's
-       *  import of DemographicsFields for the full reasoning. 2 columns
-       *  per group — full-word labels need more width per cell than 3
-       *  columns could give them. */}
+       *  "Not available" where no match resolved. Both blocks now share
+       *  the exact same background and border colour (2026-09-23, on
+       *  request) - the earlier version's amber-vs-neutral distinction
+       *  between them was read as unclear rather than informative; the
+       *  block's own header text is what actually says which tier it is. */}
       {countryStats && (
-        <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-1 border-l-2 border-ink-300">
-          <p className="font-serif text-sm text-ink-700 leading-tight">{country}</p>
-          <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-1">
+        <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
+          <p className="font-serif text-sm text-piltri-amber leading-tight">{country}</p>
+          <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
             {countryStats.map((stat) => (
               <div key={stat.label} className="min-w-0">
                 <p className={`text-[11px] font-medium leading-snug ${stat.colorClass}`}>{stat.value}</p>
@@ -232,9 +234,9 @@ export function CityHeader({
       )}
 
       {cityStats && (
-        <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-1 border-l-2 border-piltri-amber">
-          <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{cityName}</p>
-          <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-1">
+        <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
+          <p className="font-serif text-sm text-piltri-amber leading-tight">{cityName}</p>
+          <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
             {cityStats.map((stat) => (
               <div key={stat.label} className="min-w-0">
                 <p className={`text-[11px] font-medium leading-snug ${stat.colorClass}`}>{stat.value}</p>
@@ -247,7 +249,7 @@ export function CityHeader({
 
       {/* Label and score on one line — saves the vertical space the label
        *  used to take as its own row above the big number. */}
-      <div className="mt-2 flex items-baseline justify-between gap-2">
+      <div className="mt-1.5 flex items-baseline justify-between gap-2">
         <p className="text-[11px] uppercase tracking-wide text-ink-500">
           Piltri score{isCustomised ? " (custom)" : ""}
         </p>
