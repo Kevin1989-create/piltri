@@ -127,25 +127,64 @@ function ReportContent() {
 
             <section className="mt-8">
               <h2 className="text-xs uppercase tracking-wide text-ink-500 mb-2">Demographics</h2>
+
+              {/* Country and City are two genuinely separate data tiers
+               *  (see lib/types.ts's DemographicsFields comment) - shown
+               *  as two clearly labelled groups, same as CityHeader.tsx,
+               *  rather than blended into one set of stats. */}
+              <p className="text-[11px] uppercase tracking-wide text-ink-400 font-medium mb-1.5">Country</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
-                <ReportStat label="Population" value={data.demographics.population.toLocaleString()} precision="city" />
+                <ReportStat
+                  label="Population"
+                  value={data.demographics.countryPopulation != null ? data.demographics.countryPopulation.toLocaleString() : "Not available"}
+                />
                 <ReportStat
                   label="Population density"
-                  value={formatDensityPerKm2(data.demographics.populationDensityPerKm2, prefs, (n) => Math.round(n).toLocaleString())}
-                  precision="city"
+                  value={
+                    data.demographics.countryPopulationDensityPerKm2 != null
+                      ? formatDensityPerKm2(data.demographics.countryPopulationDensityPerKm2, prefs, (n) => Math.round(n).toLocaleString())
+                      : "Not available"
+                  }
                 />
                 <ReportStat
                   label="Land area"
-                  value={data.demographics.areaKm2 != null ? formatAreaKm2(data.demographics.areaKm2, prefs) : "Not available"}
-                  precision="city"
+                  value={
+                    data.demographics.countryLandAreaKm2 != null ? formatAreaKm2(data.demographics.countryLandAreaKm2, prefs) : "Not available"
+                  }
                 />
                 <ReportStat
                   label="Population trend (5 yr)"
-                  value={`${data.demographics.populationTrend5yrPct > 0 ? "+" : ""}${data.demographics.populationTrend5yrPct}%`}
-                  precision="country"
+                  value={
+                    data.demographics.countryPopulationTrend5yrPct != null
+                      ? `${data.demographics.countryPopulationTrend5yrPct > 0 ? "+" : ""}${data.demographics.countryPopulationTrend5yrPct}%`
+                      : "Not available"
+                  }
                 />
-                <ReportStat label="Population avg age" value={String(data.demographics.averageAge)} precision="country" />
-                <ReportStat label="Main language" value={data.demographics.mostWidelySpokenLanguage} precision="country" />
+                <ReportStat
+                  label="Average age"
+                  value={data.demographics.countryAverageAge != null ? String(data.demographics.countryAverageAge) : "Not available"}
+                />
+                <ReportStat label="Main language" value={data.demographics.countryMostWidelySpokenLanguage ?? "Not available"} />
+              </div>
+
+              <p className="text-[11px] uppercase tracking-wide text-ink-400 font-medium mb-1.5 mt-4">{data.cityName}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
+                <ReportStat
+                  label="Population"
+                  value={data.demographics.cityPopulation != null ? data.demographics.cityPopulation.toLocaleString() : "Not available"}
+                />
+                <ReportStat
+                  label="Land area"
+                  value={data.demographics.cityAreaKm2 != null ? formatAreaKm2(data.demographics.cityAreaKm2, prefs) : "Not available"}
+                />
+                <ReportStat
+                  label="Population density"
+                  value={
+                    data.demographics.cityPopulationDensityPerKm2 != null
+                      ? formatDensityPerKm2(data.demographics.cityPopulationDensityPerKm2, prefs, (n) => Math.round(n).toLocaleString())
+                      : "Not available"
+                  }
+                />
               </div>
             </section>
 

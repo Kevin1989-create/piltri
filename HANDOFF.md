@@ -518,6 +518,81 @@ every already-cached city until it's re-aggregated - `clear-cache`'s own
 doc comment already warns about exactly this. Cleared cache again after
 this round of fixes landed, for the same reason.
 
+## Demographics split into Country vs City, for real (2026-09-22)
+
+User was "checking one by one" against real city research and asked, per
+field, exactly where the data comes from and for how many cities - then,
+looking at the answers, proposed a structural fix rather than more point
+patches: **stop blending country-level and city-level numbers under one
+label, show both, clearly separated, "Not available" per field rather
+than silently substituting one tier for the other.**
+
+`DemographicsFields` (`lib/types.ts`) is now two explicit groups instead
+of one merged set - `countryPopulation`/`countryPopulationDensityPerKm2`/
+`countryLandAreaKm2`/`countryAverageAge`/`countryPopulationTrend5yrPct`/
+`countryMostWidelySpokenLanguage`, and separately `cityPopulation`/
+`cityAreaKm2`/`cityPopulationDensityPerKm2`. Every field is independently
+nullable; the city ones are null whenever Wikidata's exact-label match
+doesn't resolve (~70% of cities do, per the earlier session's sample),
+never backfilled from the country figures. `CityHeader.tsx` and the
+printable report page (`app/explore/report/page.tsx`) both render this as
+two mini-headed groups ("Country" / the city's own name) instead of one
+flat grid with per-stat precision icons - the grouping itself now carries
+that information, so the individual icons were redundant and dropped from
+this specific block (still used elsewhere, e.g. `SectionDetail.tsx`'s KPI
+rows).
+
+Two new fields needed real sources that didn't exist before:
+
+- **Country Land Area** - added `AG.LND.TOTL.K2` to the existing World
+  Bank fetch in `worldbank.ts` (`landAreaKm2`). Trivial - same API,
+  same pattern as every other WB indicator here. 167/171 shortlisted
+  countries covered.
+- **Country Average Age** - this one mattered more. The old `averageAge`
+  field had **no real source at all**: World Bank doesn't publish median
+  age directly, so `medianAgeProxy` was permanently `null` and the code
+  fell back to a hardcoded `38` for literally every city, unconditionally
+  - found while building the coverage table above, not something anyone
+    had flagged before. World Bank has no substitute; the UN Population
+    Division's Data Portal API does have a "Median age of population"
+    indicator, but its live query endpoints need a bearer token
+    (`WWW-Authenticate: Bearer` on every data request, confirmed by
+    testing), which breaks this project's "no keys anywhere" rule. Its
+    **bulk CSV downloads don't** - population.un.org/wpp/downloads serves
+    `WPP2024_Demographic_Indicators_Medium.csv.gz` with no login, no key,
+    16.5MB. Parsed the `MedianAgePop` column for `Time=2024`,
+    `LocTypeName=Country/Area` (excludes UN's regional-aggregate rows)
+    into `data/static/country-median-age.json`
+    (`lib/data-sources/medianAge.ts` is the accessor) - same
+    generate-once-and-bake-in pattern as `country-languages.json`.
+    233 countries; 168/171 on this project's shortlist (missing only
+    Taiwan/Hong Kong/Macau, which UN's dataset reports under China rather
+    than separately - a political/statistical choice on UN's part, not a
+    gap in this file). Spot-checked against public knowledge: Japan 49.4,
+    Niger 15.4, UK 40 - all correct.
+
+**What this replaced wasn't actually removed** - Liveability's per10k
+ratios (see "City-level data reliability fixes" above) still need *some*
+population figure to divide by. That's now `bestEffortPopulation`, a
+local variable in `aggregate.ts` (city-preferred, country-fallback) used
+only for that internal calculation - never part of the returned
+`demographics` object, so it can't leak into the UI as an ambiguous
+number the way the old merged fields did.
+
+Also touched for the rename: `lib/advancedSearch/criteria.ts`'s 5
+Demographics filter criteria now point at `cityPopulation` /
+`cityPopulationDensityPerKm2` / `cityAreaKm2` (population/density/area -
+these filter cities, so the city-level figure is the more useful one to
+filter on, consistent with how they behaved before this split) and
+`countryAverageAge` / `countryPopulationTrend5yrPct` (always were
+country-only, no city equivalent exists). Not otherwise expanded - no new
+filter criteria added for country land area/density/etc, since that
+wasn't asked for; worth doing later if wanted. `randomSeed.ts`'s mock
+data generator updated to the new shape too, with city fields present
+~70% of the time (matching the real match rate) so Advanced search's
+"Not available" handling gets exercised by the mock-data path too, not
+just the live one.
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new

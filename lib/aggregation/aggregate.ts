@@ -1,5 +1,6 @@
 import { getWorldBankIndicators } from "@/lib/data-sources/worldbank";
 import { getCountryLanguages } from "@/lib/data-sources/languages";
+import { getCountryMedianAge } from "@/lib/data-sources/medianAge";
 import { getClimateAverages } from "@/lib/data-sources/openmeteo";
 import { getCityOverpassData, pickMainEconomyType } from "@/lib/data-sources/overpass";
 import { getHealthcareQualityScore } from "@/lib/data-sources/who";
@@ -81,27 +82,29 @@ export async function aggregateCityData(city: CitySearchResult): Promise<CityExp
   const transportPresence = overpassData?.transport ?? { hasTrainStation: false, hasSubway: false, hasTramway: false, hasAirport: false };
   const mainEconomyType = overpassData ? pickMainEconomyType(overpassData.economySectors) : null;
 
-  // Demographics population/density: prefer the genuinely city-level
-  // Wikidata match, falling back to the World Bank country figure only on
-  // a miss. Density never mixes a country population with a city area or
-  // vice versa - it's only computed from the two paired city-level
-  // figures; otherwise it falls back to the World Bank country density.
-  // Both are shown as city-level in the UI regardless (see CityHeader.tsx).
-  const resolvedPopulation = cityDemo.population ?? wb?.population ?? 0;
-  const resolvedDensityPerKm2 =
-    cityDemo.population != null && cityDemo.areaKm2 != null
-      ? Number((cityDemo.population / cityDemo.areaKm2).toFixed(1))
-      : wb?.populationDensityPerKm2 ?? 0;
+  // Demographics used to silently prefer the city-level Wikidata figure
+  // and fall back to the World Bank country one on a miss, both shown
+  // under one "Population" label - no way to tell which you were looking
+  // at (see lib/types.ts's DemographicsFields comment for the full
+  // reasoning). Country and city values are now kept fully separate in
+  // the returned `demographics` object below; this local
+  // bestEffortPopulation is purely an internal calculation input for
+  // Liveability's per10k ratios further down, not something displayed -
+  // those ratios need *some* population figure to divide by, and a
+  // city-preferred, country-as-fallback number is the most defensible
+  // choice for that even though the two tiers are no longer blended
+  // anywhere the user actually sees.
+  const bestEffortPopulation = cityDemo.population ?? wb?.population ?? 0;
 
-  // Liveability's "per 10k population" density fields divide by this same
-  // resolvedPopulation - the number already shown to the user as this
-  // city's population - not the raw country total. An earlier version
-  // divided by the country's population unconditionally, which produced a
-  // meaningless ratio: a city's genuine, city-level Overpass amenity count
-  // over an unrelated country-wide denominator (a small capital in a large
-  // country would read as artificially "sparse" purely from the country's
-  // size, nothing to do with the city itself).
-  const per10k = (count: number) => (resolvedPopulation > 0 ? Number(((count / resolvedPopulation) * 10000).toFixed(2)) : 0);
+  // Liveability's "per 10k population" density fields divide by
+  // bestEffortPopulation above - not the raw country population
+  // unconditionally. An earlier version divided by the country's
+  // population unconditionally, which produced a meaningless ratio: a
+  // city's genuine, city-level Overpass amenity count over an unrelated
+  // country-wide denominator (a small capital in a large country would
+  // read as artificially "sparse" purely from the country's size, nothing
+  // to do with the city itself).
+  const per10k = (count: number) => (bestEffortPopulation > 0 ? Number(((count / bestEffortPopulation) * 10000).toFixed(2)) : 0);
 
   // Cost of living: World Bank's real Price Level Index, normalised onto
   // the same 0-100 "index" scale the UI has always shown (see
@@ -119,12 +122,19 @@ export async function aggregateCityData(city: CitySearchResult): Promise<CityExp
     lng: city.lng,
 
     demographics: {
-      population: resolvedPopulation,
-      populationDensityPerKm2: resolvedDensityPerKm2,
-      populationTrend5yrPct: wb?.populationTrend5yrPct ?? 0,
-      averageAge: wb?.medianAgeProxy ?? 38, // world median-ish default until sourced
-      mostWidelySpokenLanguage: languages.mostWidelySpokenLanguage,
-      areaKm2: cityDemo.areaKm2,
+      countryPopulation: wb?.population ?? null,
+      countryPopulationDensityPerKm2: wb?.populationDensityPerKm2 ?? null,
+      countryLandAreaKm2: wb?.landAreaKm2 ?? null,
+      countryAverageAge: getCountryMedianAge(city.countryCode),
+      countryPopulationTrend5yrPct: wb?.populationTrend5yrPct ?? null,
+      countryMostWidelySpokenLanguage: languages.mostWidelySpokenLanguage,
+
+      cityPopulation: cityDemo.population,
+      cityAreaKm2: cityDemo.areaKm2,
+      cityPopulationDensityPerKm2:
+        cityDemo.population != null && cityDemo.areaKm2 != null
+          ? Number((cityDemo.population / cityDemo.areaKm2).toFixed(1))
+          : null,
     },
     economy: {
       economicGrowth5yrGdpPct: wb?.gdpGrowth5yrPct ?? 0,

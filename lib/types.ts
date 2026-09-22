@@ -30,22 +30,47 @@ export type EconomyTypeProfile = {
 export type TrendDirection = "Improving" | "Stable" | "Worsening";
 
 /** Supplementary city info shown next to the name/region on the results
- *  page — not part of the scored sections (see SectionKey). */
+ *  page — not part of the scored sections (see SectionKey).
+ *
+ *  Split into genuinely separate country-level and city-level groups
+ *  (2026-09-22) - an earlier version silently preferred the city-level
+ *  Wikidata figure for population/density and fell back to the World
+ *  Bank country figure on a miss, both displayed under one "Population"
+ *  label with no way to tell which you were looking at. That's exactly
+ *  the kind of blend this project has otherwise been removing all
+ *  session: a country's number and a city's number don't mean the same
+ *  thing, so now both are kept and shown side by side, honestly, with
+ *  "Not available" wherever a given tier's source doesn't resolve -
+ *  never silently substituting one tier for the other. */
 export interface DemographicsFields {
-  population: number;
-  populationDensityPerKm2: number;
-  populationTrend5yrPct: number;
-  averageAge: number;
-  mostWidelySpokenLanguage: string;
-  /** City land area (km²), from Wikidata (see
-   *  lib/data-sources/wikidata.ts getCityPopulationAndArea). Null when no
-   *  matching city entity/area statement was found - shown honestly as
-   *  "not available" rather than estimated. `population` and
-   *  `populationDensityPerKm2` are always displayed as city-level data
-   *  (see CityHeader.tsx) - genuinely attempted per search via the same
-   *  Wikidata lookup, falling back to the World Bank country figure only
-   *  on a miss, per product decision. */
-  areaKm2: number | null;
+  /** World Bank (SP.POP.TOTL). Null only on a genuine per-country gap -
+   *  see lib/data-sources/worldbank.ts. */
+  countryPopulation: number | null;
+  /** World Bank (EN.POP.DNST). */
+  countryPopulationDensityPerKm2: number | null;
+  /** World Bank (AG.LND.TOTL.K2). */
+  countryLandAreaKm2: number | null;
+  /** UN World Population Prospects 2024, median age - see
+   *  lib/data-sources/medianAge.ts for why this isn't a World Bank
+   *  indicator like the others here. */
+  countryAverageAge: number | null;
+  /** World Bank (SP.POP.TOTL, derived multi-year trend). */
+  countryPopulationTrend5yrPct: number | null;
+  /** GeoNames countryInfo.txt - see lib/data-sources/languages.ts. */
+  countryMostWidelySpokenLanguage: string | null;
+
+  /** Wikidata (P1082), exact-label city match - see
+   *  lib/data-sources/wikidata.ts getCityPopulationAndArea. Null
+   *  whenever the match doesn't resolve (label mismatch, or a match with
+   *  no population statement) - never backfilled from
+   *  countryPopulation above. */
+  cityPopulation: number | null;
+  /** Wikidata (P2046), same match as cityPopulation. */
+  cityAreaKm2: number | null;
+  /** Only set when BOTH cityPopulation and cityAreaKm2 resolve for the
+   *  same matched entity - never mixes a city figure with a country one
+   *  or vice versa. */
+  cityPopulationDensityPerKm2: number | null;
 }
 
 export interface EconomyFields {

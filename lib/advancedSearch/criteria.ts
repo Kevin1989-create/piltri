@@ -316,6 +316,12 @@ export const CRITERIA: CriterionDef[] = [
   },
 
   // ---- Demographics (reference info, not scored) ---------------------------
+  // Population/density/land area filter on the city-level Wikidata figures
+  // (null - and so excluded from range matches - whenever that city didn't
+  // resolve); average age and 5yr trend have no city-level equivalent, so
+  // they always use the country figures, same as before this file's
+  // corresponding DemographicsFields fields were split into separate
+  // country/city ones (see lib/types.ts).
   {
     key: "demographics.population",
     category: "demographics",
@@ -328,7 +334,7 @@ export const CRITERIA: CriterionDef[] = [
     // the suggestedRange bounds above (1 to 5000, i.e. 1,000 to 5,000,000)
     // and how it's shown in formatCriterionValue's default "num unit"
     // rendering ("1,240 K" rather than a much harder-to-scan "1,240,000").
-    getCityValue: (d) => Math.round(d.demographics.population / 1000),
+    getCityValue: (d) => (d.demographics.cityPopulation != null ? Math.round(d.demographics.cityPopulation / 1000) : null),
   },
   {
     key: "demographics.populationDensityPerKm2",
@@ -337,7 +343,7 @@ export const CRITERIA: CriterionDef[] = [
     unit: "per km²",
     kind: "range",
     suggestedRange: [500, 50000],
-    getCityValue: (d) => d.demographics.populationDensityPerKm2,
+    getCityValue: (d) => d.demographics.cityPopulationDensityPerKm2,
   },
   {
     key: "demographics.populationTrend5yrPct",
@@ -346,7 +352,7 @@ export const CRITERIA: CriterionDef[] = [
     unit: "%",
     kind: "range",
     suggestedRange: [-25, 25],
-    getCityValue: (d) => d.demographics.populationTrend5yrPct,
+    getCityValue: (d) => d.demographics.countryPopulationTrend5yrPct,
   },
   {
     key: "demographics.averageAge",
@@ -355,7 +361,7 @@ export const CRITERIA: CriterionDef[] = [
     unit: "yrs",
     kind: "range",
     suggestedRange: [20, 60],
-    getCityValue: (d) => d.demographics.averageAge,
+    getCityValue: (d) => d.demographics.countryAverageAge,
   },
   {
     key: "demographics.areaKm2",
@@ -365,7 +371,7 @@ export const CRITERIA: CriterionDef[] = [
     unit: "km²",
     kind: "range",
     suggestedRange: [10, 10000],
-    getCityValue: (d) => d.demographics.areaKm2,
+    getCityValue: (d) => d.demographics.cityAreaKm2,
   },
 
   // ---- Nearby & distance from city centre (mirrors Pin mode) --------------

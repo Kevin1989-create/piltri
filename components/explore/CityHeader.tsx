@@ -2,22 +2,11 @@
 
 import Link from "next/link";
 import { PiltriScoreDisplay } from "@/components/ui/ScoreBadge";
-import { EyeIcon, PlusIcon, PrecisionCityIcon, PrecisionCountryIcon } from "@/components/ui/icons";
+import { EyeIcon, PlusIcon } from "@/components/ui/icons";
 import { isCustomWeights } from "@/lib/scoreWeights";
 import { normalise } from "@/lib/aggregation/scoring";
-import { PRECISION_LABEL } from "@/lib/kpiRows";
 import { formatAreaKm2Compact, formatDensityPerKm2, useUnitPreferences } from "@/lib/unitPreferences";
 import type { DemographicsFields, SectionKey } from "@/lib/types";
-
-// Demographics never uses "pinned" today - only these two tiers are
-// possible here (see DemographicStat below), unlike the full PrecisionTier
-// union used elsewhere in the app.
-type DemographicsPrecision = "city" | "country";
-
-const PRECISION_ICON: Record<DemographicsPrecision, typeof PrecisionCountryIcon> = {
-  country: PrecisionCountryIcon,
-  city: PrecisionCityIcon,
-};
 
 interface CityHeaderProps {
   cityName: string;
@@ -93,59 +82,91 @@ export function CityHeader({
   const isCustomised = weights != null && isCustomWeights(weights);
   const { prefs } = useUnitPreferences();
 
-  type Stat = { label: string; value: string; colorClass: string; precision: DemographicsPrecision };
-  // `null` is a deliberate empty grid cell (see the row3/row4 alignment
-  // comment below) - rendered as a blank placeholder, not skipped, so
-  // everything after it still lands in the intended row/column.
-  const demographicStats: (Stat | null)[] | null = demographics
+  type Stat = { label: string; value: string; colorClass: string };
+  const NOT_AVAILABLE = "Not available";
+
+  // Country and City are two genuinely separate data tiers (see
+  // lib/types.ts's DemographicsFields comment) - shown as two clearly
+  // labelled groups rather than blended into one set of stats, so it's
+  // never ambiguous which one a number belongs to. Every field is
+  // nullable at the source; null renders as "Not available" rather than
+  // being silently backfilled from the other tier.
+  const countryStats: Stat[] | null = demographics
     ? [
         {
           label: "Population",
-          value: formatCompactNumber(demographics.population),
+          value: demographics.countryPopulation != null ? formatCompactNumber(demographics.countryPopulation) : NOT_AVAILABLE,
           colorClass: "text-ink-900",
-          // Always "city" - genuinely attempted at city level via Wikidata
-          // (see lib/data-sources/wikidata.ts getCityPopulationAndArea),
-          // same honest-attempt convention as Land Area below even on the
-          // rare miss that falls back to the country figure.
-          precision: "city",
         },
         {
           label: "Population Density",
-          value: formatDensityPerKm2(demographics.populationDensityPerKm2, prefs, formatCompactNumber),
+          value:
+            demographics.countryPopulationDensityPerKm2 != null
+              ? formatDensityPerKm2(demographics.countryPopulationDensityPerKm2, prefs, formatCompactNumber)
+              : NOT_AVAILABLE,
           // Inverted: lower density reads as "spacious" (strong/green),
           // higher density as "crowded" (weak/rust) — same 5-15,000/km²
           // reference range used elsewhere in the aggregation pipeline.
-          colorClass: tierColorClass(normalise(demographics.populationDensityPerKm2, 5, 15000, true)),
-          precision: "city",
+          colorClass:
+            demographics.countryPopulationDensityPerKm2 != null
+              ? tierColorClass(normalise(demographics.countryPopulationDensityPerKm2, 5, 15000, true))
+              : "text-ink-500",
         },
         {
           label: "Land Area",
-          value: demographics.areaKm2 != null ? formatAreaKm2Compact(demographics.areaKm2, prefs, formatCompactNumber) : "Not available",
+          value:
+            demographics.countryLandAreaKm2 != null
+              ? formatAreaKm2Compact(demographics.countryLandAreaKm2, prefs, formatCompactNumber)
+              : NOT_AVAILABLE,
           colorClass: "text-ink-900",
-          precision: "city",
         },
-        // Deliberate gap: leaves Main Language to drop to the next row
-        // rather than sit beside Land Area, so it lines up with Population
-        // Avg Age one row down (per explicit request - the empty cell here
-        // is intentional, not a bug).
-        null,
         {
-          label: "Population Avg Age",
-          value: `${demographics.averageAge}`,
-          colorClass: tierColorClass(normalise(demographics.averageAge, 20, 50)),
-          precision: "country",
+          label: "Average Age",
+          value: demographics.countryAverageAge != null ? `${demographics.countryAverageAge}` : NOT_AVAILABLE,
+          colorClass:
+            demographics.countryAverageAge != null ? tierColorClass(normalise(demographics.countryAverageAge, 20, 50)) : "text-ink-500",
         },
         {
           label: "Main Language",
-          value: demographics.mostWidelySpokenLanguage,
+          value: demographics.countryMostWidelySpokenLanguage ?? NOT_AVAILABLE,
           colorClass: "text-ink-900",
-          precision: "country",
         },
         {
           label: TREND_LABEL,
-          value: `${demographics.populationTrend5yrPct > 0 ? "+" : ""}${demographics.populationTrend5yrPct}%`,
-          colorClass: tierColorClass(normalise(demographics.populationTrend5yrPct, -2, 5)),
-          precision: "country",
+          value:
+            demographics.countryPopulationTrend5yrPct != null
+              ? `${demographics.countryPopulationTrend5yrPct > 0 ? "+" : ""}${demographics.countryPopulationTrend5yrPct}%`
+              : NOT_AVAILABLE,
+          colorClass:
+            demographics.countryPopulationTrend5yrPct != null
+              ? tierColorClass(normalise(demographics.countryPopulationTrend5yrPct, -2, 5))
+              : "text-ink-500",
+        },
+      ]
+    : null;
+
+  const cityStats: Stat[] | null = demographics
+    ? [
+        {
+          label: "Population",
+          value: demographics.cityPopulation != null ? formatCompactNumber(demographics.cityPopulation) : NOT_AVAILABLE,
+          colorClass: "text-ink-900",
+        },
+        {
+          label: "Land Area",
+          value: demographics.cityAreaKm2 != null ? formatAreaKm2Compact(demographics.cityAreaKm2, prefs, formatCompactNumber) : NOT_AVAILABLE,
+          colorClass: "text-ink-900",
+        },
+        {
+          label: "Population Density",
+          value:
+            demographics.cityPopulationDensityPerKm2 != null
+              ? formatDensityPerKm2(demographics.cityPopulationDensityPerKm2, prefs, formatCompactNumber)
+              : NOT_AVAILABLE,
+          colorClass:
+            demographics.cityPopulationDensityPerKm2 != null
+              ? tierColorClass(normalise(demographics.cityPopulationDensityPerKm2, 5, 15000, true))
+              : "text-ink-500",
         },
       ]
     : null;
@@ -193,41 +214,41 @@ export function CityHeader({
 
       {/* Demographics — supplementary reference info, not a scored section
        *  (a population count doesn't really have a "good/bad" score).
-       *  2 columns rather than 3 — the full-word labels ("Population Trend
-       *  (5 yr)", "English Proficiency") need more width per cell than a
-       *  3-column layout could give them to comfortably wrap onto 2 lines
-       *  instead of 3. Population is the only label short enough to sit on
-       *  one line; everything else is a 2-line label by design now.
-       *  Made smaller still (mt-1.5, smaller text, tighter gaps/padding) and
-       *  pulled closer to the name above it, on request to shrink this
-       *  block further and free up more room for the section list below. */}
-      {demographicStats && (
-        <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5">
-          {demographicStats.map((stat, i) => {
-            if (!stat) return <div key={`gap-${i}`} />;
-            const Icon = PRECISION_ICON[stat.precision];
-            return (
+       *  Two clearly separate groups (2026-09-22) rather than one blended
+       *  grid — Country info is always-published World Bank/UN/GeoNames
+       *  data, identical for every city in that country; City data is
+       *  genuinely this specific place's own Wikidata-matched figures,
+       *  "Not available" where no match resolved. Keeping them visually
+       *  distinct (own mini-header each) means a number is never
+       *  ambiguous about which tier it belongs to - see this file's
+       *  import of DemographicsFields for the full reasoning. 2 columns
+       *  per group — full-word labels need more width per cell than 3
+       *  columns could give them. */}
+      {countryStats && (
+        <div className="mt-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5">
+          <p className="text-[9px] text-ink-400 uppercase tracking-wide font-medium">Country</p>
+          <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1.5">
+            {countryStats.map((stat) => (
               <div key={stat.label} className="min-w-0">
-                <div className="flex items-center justify-between gap-1">
-                  {/* Population/Population Density/Land Area are always
-                   *  tagged city-level - genuinely attempted per search via
-                   *  Wikidata (see lib/data-sources/wikidata.ts
-                   *  getCityPopulationAndArea), same honest-attempt
-                   *  convention used elsewhere even on a rare miss. The
-                   *  other 4 stats are always country-level today (World
-                   *  Bank / REST Countries / manual-sources.ts). Icon sits
-                   *  at the cell's right edge (not glued to the value) so
-                   *  icons line up in a clean column regardless of value
-                   *  length. */}
-                  <p className={`text-[11px] font-medium leading-snug ${stat.colorClass}`}>{stat.value}</p>
-                  <span className="inline-flex flex-shrink-0" title={PRECISION_LABEL[stat.precision]}>
-                    <Icon className="w-2.5 h-2.5 text-ink-300" />
-                  </span>
-                </div>
+                <p className={`text-[11px] font-medium leading-snug ${stat.colorClass}`}>{stat.value}</p>
                 <p className="text-[9px] text-ink-500 uppercase tracking-wide leading-snug">{stat.label}</p>
               </div>
-            );
-          })}
+            ))}
+          </div>
+        </div>
+      )}
+
+      {cityStats && (
+        <div className="mt-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5">
+          <p className="text-[9px] text-ink-400 uppercase tracking-wide font-medium">{cityName}</p>
+          <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1.5">
+            {cityStats.map((stat) => (
+              <div key={stat.label} className="min-w-0">
+                <p className={`text-[11px] font-medium leading-snug ${stat.colorClass}`}>{stat.value}</p>
+                <p className="text-[9px] text-ink-500 uppercase tracking-wide leading-snug">{stat.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

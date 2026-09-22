@@ -53,7 +53,9 @@ export interface WorldBankIndicators {
   population: number | null;
   populationDensityPerKm2: number | null;
   populationTrend5yrPct: number | null;
-  medianAgeProxy: number | null; // WB doesn't expose median age directly; treated as a proxy
+  /** Country land area, km² (AG.LND.TOTL.K2) — added 2026-09-22 alongside
+   *  the country/city demographics split (see lib/types.ts). */
+  landAreaKm2: number | null;
   gdpGrowth5yrPct: number | null;
   gniPerCapitaUsd: number | null; // used as average salary proxy
   unemploymentRatePct: number | null;
@@ -79,9 +81,10 @@ export interface WorldBankIndicators {
  * Governance Indicators" — verified via https://api.worldbank.org/v2/sources).
  */
 export async function getWorldBankIndicators(countryCode: string): Promise<WorldBankIndicators> {
-  const [population, density, gdpGrowth, gni, unemployment, ppp, priceLevel, politicalStability, ruleOfLaw] = await Promise.all([
+  const [population, density, landArea, gdpGrowth, gni, unemployment, ppp, priceLevel, politicalStability, ruleOfLaw] = await Promise.all([
     fetchIndicator(countryCode, "SP.POP.TOTL"),
     fetchIndicator(countryCode, "EN.POP.DNST"),
+    fetchIndicator(countryCode, "AG.LND.TOTL.K2"),
     fetchIndicator(countryCode, "NY.GDP.MKTP.KD.ZG"),
     fetchIndicator(countryCode, "NY.GNP.PCAP.CD"),
     fetchIndicator(countryCode, "SL.UEM.TOTL.ZS"),
@@ -95,7 +98,7 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     population: latest(population),
     populationDensityPerKm2: latest(density),
     populationTrend5yrPct: pctChange(population),
-    medianAgeProxy: null, // no direct WB indicator; left null unless overridden upstream
+    landAreaKm2: latest(landArea),
     gdpGrowth5yrPct: pctChange(gdpGrowth) ?? latest(gdpGrowth),
     gniPerCapitaUsd: latest(gni),
     unemploymentRatePct: latest(unemployment),

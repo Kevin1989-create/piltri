@@ -10,12 +10,15 @@ section, per `piltri-project-brief.md` and `piltri-project-checklist.md`.
   cards, score badges, search bar with the locked suggestion behaviour.
 - **Backend** (`app/api/explore/*`, `lib/aggregation/*`,
   `lib/data-sources/*`) — search, score aggregation, and pin-mode endpoints;
-  a Supabase caching layer; adapters for World Bank (including governance
-  and price-level indicators), GeoNames (country languages, city
-  population/area), Open-Meteo, Overpass/OSM, Wikidata, Mapbox, and WHO —
-  all free/keyless, and every field in the scored model is backed by one
-  of them today. No placeholder/manual data sources remain — see
-  HANDOFF.md's "Data model" section for what changed and why.
+  a Supabase caching layer; adapters for World Bank (including governance,
+  price-level, and land-area indicators), UN Population Division (country
+  median age), GeoNames (country languages), Open-Meteo, Overpass/OSM,
+  Wikidata (city-level population/area), Mapbox, and WHO — all
+  free/keyless, and every field in the scored model is backed by one of
+  them today. Demographics shows country-level and city-level figures
+  separately rather than blending them — see HANDOFF.md's "Demographics
+  split into Country vs City" section. No placeholder/manual data sources
+  remain — see HANDOFF.md's "Data model" section for what changed and why.
 - **Frontend** (`app/page.tsx`, `app/explore/*`) — Home, Explore landing,
   Explore results (map + 4 section cards), and Pin mode overlay, responsive
   from phone to desktop.

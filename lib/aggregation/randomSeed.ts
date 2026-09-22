@@ -71,14 +71,28 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
     lat: city.lat,
     lng: city.lng,
 
-    demographics: {
-      population: randInt(1000, 5000000),
-      populationDensityPerKm2: randInt(500, 20000),
-      populationTrend5yrPct: randFloat(-10, 15),
-      averageAge: randInt(25, 48),
-      mostWidelySpokenLanguage: pick(LANGUAGES),
-      areaKm2: chance(0.9) ? randInt(10, 10000) : null,
-    },
+    demographics: (() => {
+      // Country fields: near-universal in reality (see
+      // lib/data-sources/worldbank.ts / medianAge.ts / languages.ts), so
+      // present ~97% of the time here too. City fields (Wikidata,
+      // exact-label match) resolve for roughly 70% of real cities - see
+      // lib/data-sources/wikidata.ts's doc comment - mirrored here so
+      // Advanced search's "Not available" handling gets exercised too,
+      // not just the happy path.
+      const cityPopulation = chance(0.7) ? randInt(1000, 5000000) : null;
+      const cityAreaKm2 = chance(0.7) ? randInt(10, 10000) : null;
+      return {
+        countryPopulation: chance(0.97) ? randInt(500000, 1400000000) : null,
+        countryPopulationDensityPerKm2: chance(0.97) ? randInt(2, 500) : null,
+        countryLandAreaKm2: chance(0.97) ? randInt(300, 17000000) : null,
+        countryAverageAge: chance(0.97) ? randFloat(15, 49, 1) : null,
+        countryPopulationTrend5yrPct: chance(0.97) ? randFloat(-10, 15) : null,
+        countryMostWidelySpokenLanguage: pick(LANGUAGES),
+        cityPopulation,
+        cityAreaKm2,
+        cityPopulationDensityPerKm2: cityPopulation != null && cityAreaKm2 != null ? Number((cityPopulation / cityAreaKm2).toFixed(1)) : null,
+      };
+    })(),
     economy: {
       economicGrowth5yrGdpPct,
       averageSalaryGbp,
