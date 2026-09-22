@@ -55,7 +55,7 @@ export async function getOrAggregateCityData(city: CitySearchResult): Promise<Ci
 
   const { data: existing, error: readErr } = await supabase
     .from("city_scores")
-    .select("city_id, data, last_updated, cities!inner(slug)")
+    .select("city_id, data, last_updated, cities!inner(slug, osm_land_area_km2)")
     .eq("cities.slug", slug)
     .maybeSingle();
 
@@ -69,8 +69,17 @@ export async function getOrAggregateCityData(city: CitySearchResult): Promise<Ci
   // Cache miss or stale - need the city's row id (creating the row if this
   // city has genuinely never been seen before). A stale-but-existing
   // city_scores row already tells us the id via `existing`, so this only
-  // does a fresh cities upsert for a truly new city.
+  // does a fresh cities upsert for a truly new city. Same for the
+  // pre-backfilled OSM land area (see schema.sql) - a brand new city won't
+  // have one yet (backfill hasn't reached it), an existing-but-stale one
+  // might.
   let cityId = existing?.city_id as string | undefined;
+  // Supabase's JS client returns a joined many-to-one relation as a single
+  // object, but its generic types model every embed as an array - handle
+  // both shapes defensively, same as getCachedCityDataBatch below does.
+  const existingCityRel = Array.isArray(existing?.cities) ? existing.cities[0] : existing?.cities;
+  let osmLandAreaKm2 = existingCityRel?.osm_land_area_km2 as number | null | undefined;
+
   if (!cityId) {
     const { data: cityRow, error: cityErr } = await supabase
       .from("cities")
@@ -86,7 +95,7 @@ export async function getOrAggregateCityData(city: CitySearchResult): Promise<Ci
         },
         { onConflict: "slug" }
       )
-      .select("id")
+      .select("id, osm_land_area_km2")
       .single();
 
     if (cityErr || !cityRow) {
@@ -96,9 +105,10 @@ export async function getOrAggregateCityData(city: CitySearchResult): Promise<Ci
       return memoize(citySlug(city), CACHE_TTL_MS, () => aggregateCityData(city));
     }
     cityId = cityRow.id as string;
+    osmLandAreaKm2 = cityRow.osm_land_area_km2 as number | null;
   }
 
-  const fresh = await aggregateCityData({ ...city, cityId });
+  const fresh = await aggregateCityData({ ...city, cityId }, { osmLandAreaKm2: osmLandAreaKm2 ?? null });
 
   await supabase.from("city_scores").upsert({
     city_id: cityId,

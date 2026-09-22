@@ -593,6 +593,86 @@ data generator updated to the new shape too, with city fields present
 "Not available" handling gets exercised by the mock-data path too, not
 just the live one.
 
+## City land area from real OSM boundaries, not Wikidata (2026-09-22, later same session)
+
+User asked whether satellite data (NASA et al.) would give a more
+accurate land area/population/density than Wikidata. Answer landed on:
+population from satellite imagery isn't actually more "true" than
+Wikidata's census-sourced figures (products like NASA SEDAC's Gridded
+Population of the World are themselves census data redistributed across
+a grid using imagery as a weighting signal, not a raw headcount, and
+need real GIS tooling to use at all) - but **land area was a genuine,
+much smaller win, because the app already fetches a real OSM
+administrative boundary polygon** (`lib/data-sources/nominatim.ts`
+`getPlaceBoundary`, used for the map outline) that was sitting there
+unused for anything but the map.
+
+Tested live against 3 cities before committing to the approach: London
+1589 km² (Wikidata: 1572 - close), Paris 105.06 km² (Wikidata: 105.4 -
+very close), **Zagreb 639.69 km² vs Wikidata's 305.8** - Zagreb's real
+official area is ~641 km², so Wikidata's figure was roughly half the
+true value. Confirmed the accuracy call: a real boundary polygon,
+computed the same way for every city, beats a single crowdsourced number
+with no geometry behind it and no way to tell if it's stale or uses a
+different definition (city proper vs. metro) than the next city's figure.
+
+**Coverage isn't universal either way** - tested a real 25-city random
+sample against Nominatim: only 16/25 (64%) had an actual polygon, the
+rest matched a point/pin only. So this isn't "replace Wikidata," it's
+"prefer OSM's polygon-derived area when it resolves, fall back to
+Wikidata's stated figure otherwise" - maximising combined coverage
+rather than picking one universal source, since neither alone reaches
+100%.
+
+**Why this needed different plumbing than every other field added this
+session**: Nominatim's usage policy is a hard 1 request/second, strictly
+enforced - not Overpass's "gentle concurrency + pause" tolerance. Fetching
+all ~6,300 shortlisted cities at that pace is ~105+ minutes of continuous
+requests, and a city's administrative boundary essentially never changes,
+so redoing this on `city_scores`' normal 30-day refresh cycle would be
+pure waste even if it fit in a serverless function's time limit (it
+doesn't - one `warm-cache` tick's entire 30s budget wouldn't cover 30
+Nominatim calls once other per-city work is accounted for). So:
+
+- `cities.osm_land_area_km2` / `cities.osm_land_area_checked_at` -
+  2 new columns on the *`cities`* table (not `city_scores`), added via a
+  manual migration (Supabase doesn't expose DDL over the REST API this
+  project otherwise uses - had to walk the user through running
+  `alter table cities add column ...` in Supabase's SQL editor directly,
+  same one-off manual step as the original `schema.sql` setup). Lives on
+  `cities` specifically because it's permanent, per-city metadata, not a
+  score that needs periodic refreshing.
+- `lib/aggregation/backfillLandArea.ts` + `POST
+  /api/admin/backfill-land-area` - a genuinely separate, one-time
+  (resumable) job, structurally like `warmCache.ts` but sequential
+  (1 request at a time, ~1.1s pacing) instead of concurrent-with-pauses,
+  and tracking "checked" independently of "found a value" so a
+  city with no OSM boundary isn't retried forever. Triggered manually
+  from `/admin`'s new "Backfill city land area (OSM)" button - same
+  click-until-`remaining`-is-0 pattern as "Warm everything stale".
+- `getCityLandAreaKm2` (`nominatim.ts`) rejects any match that isn't
+  `category: "boundary"` + `type: "administrative"` with real Polygon/
+  MultiPolygon geometry, even if Nominatim's `limit=1` best-text-match
+  happens to return *something* geometric - a landmark or the wrong kind
+  of place with a real geometry attached is treated the same as no
+  match, rather than risking silently computing the area of the wrong
+  thing. Area itself via `@turf/area` (new dependency - small, focused,
+  not worth hand-rolling geodesic polygon math for).
+- `cache.ts`'s existing `cities` join (already read for `slug`) now also
+  selects `osm_land_area_km2` and threads it into `aggregateCityData` as
+  an optional `opts.osmLandAreaKm2` - a precomputed value passed in, never
+  fetched live during normal aggregation. `aggregate.ts` prefers it over
+  Wikidata's `areaKm2` for `demographics.cityAreaKm2`, and
+  `cityPopulationDensityPerKm2` is recomputed from it (population is
+  still Wikidata-only - only the area input changed).
+
+**Real deployment gotcha worth remembering**: this genuinely could not be
+deployed before the migration ran - `cache.ts`'s `cities!inner(slug,
+osm_land_area_km2)` select would have failed for *every* city read, not
+just this feature, breaking the whole site's Explore search until the
+column existed. Held the push until the user confirmed the migration was
+applied, rather than deploying speculatively.
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new

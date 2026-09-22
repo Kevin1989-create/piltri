@@ -65,7 +65,13 @@ export interface DemographicsFields {
    *  no population statement) - never backfilled from
    *  countryPopulation above. */
   cityPopulation: number | null;
-  /** Wikidata (P2046), same match as cityPopulation. */
+  /** OSM/Nominatim real boundary-polygon area (geodesic, via
+   *  lib/data-sources/nominatim.ts getCityLandAreaKm2 - a one-time,
+   *  separately-stored backfill, see schema.sql's cities.osm_land_area_km2)
+   *  when available; falls back to Wikidata's manually-entered P2046
+   *  figure otherwise. The polygon-derived figure is preferred as more
+   *  accurate and consistently computed - see aggregate.ts's
+   *  resolvedCityAreaKm2 comment for a concrete before/after example. */
   cityAreaKm2: number | null;
   /** Only set when BOTH cityPopulation and cityAreaKm2 resolve for the
    *  same matched entity - never mixes a city figure with a country one

@@ -13,7 +13,24 @@ create table if not exists cities (
   country_code text not null,
   lat double precision not null,
   lng double precision not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- City land area computed from a real OSM/Nominatim administrative
+  -- boundary polygon (geodesic area, see lib/data-sources/nominatim.ts
+  -- getCityLandAreaKm2) - preferred over Wikidata's stated area, which is
+  -- a single manually-entered number with no geometry behind it. Lives
+  -- here, not in city_scores, because a city's boundary essentially never
+  -- changes - unlike population/GDP/etc. it doesn't need re-fetching on
+  -- city_scores' 30-day TTL, and Nominatim's 1 request/second usage-policy
+  -- limit makes it impractical to fetch live during normal aggregation
+  -- anyway (see lib/aggregation/backfillLandArea.ts). Null until the
+  -- one-time backfill (POST /api/admin/backfill-land-area, or the "Backfill
+  -- land area" button on /admin) reaches this city; also null (rather than
+  -- never revisited) when Nominatim genuinely has no polygon for it -
+  -- osm_land_area_checked_at is what distinguishes "not attempted yet"
+  -- from "attempted, no boundary found" so a resumed backfill doesn't keep
+  -- re-querying cities with a real, checked, negative result.
+  osm_land_area_km2 double precision,
+  osm_land_area_checked_at timestamptz
 );
 
 create extension if not exists pg_trgm;

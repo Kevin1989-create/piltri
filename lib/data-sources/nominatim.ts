@@ -12,6 +12,7 @@
  * large the place is.
  */
 
+import turfArea from "@turf/area";
 import { fetchWithTimeout } from "./fetchWithTimeout";
 
 export interface PlaceBoundary {
@@ -50,4 +51,55 @@ export async function getPlaceBoundary(query: string): Promise<PlaceBoundary | n
     geometry: match.geojson as GeoJSON.Geometry,
     bbox: [west, south, east, north],
   };
+}
+
+/**
+ * City land area computed from Nominatim's real administrative boundary
+ * polygon (geodesic area via @turf/area, m² -> km²) — added 2026-09-22 as
+ * the preferred source over Wikidata's stated area (see
+ * lib/data-sources/wikidata.ts getCityPopulationAndArea), which is a
+ * single manually-entered number with no geometry behind it: no way to
+ * tell if it's stale, uses a different definition (city proper vs. metro)
+ * than another city's figure, or is simply wrong. A real boundary polygon
+ * computed the same way for every city is a more accurate AND more
+ * consistent source - Wikidata's area remains the fallback for the
+ * ~35-40% of cities (tested against a live sample) where Nominatim has no
+ * polygon at all, only a point/pin.
+ *
+ * Quality filter: Nominatim's `limit=1` returns its single best text
+ * match regardless of what kind of place that turns out to be - a
+ * landmark, a business, a neighbourhood, or the actual city. Only a
+ * result tagged `category: "boundary"` + `type: "administrative"` is
+ * accepted; anything else (including a real Polygon geometry attached to
+ * the wrong kind of place) is treated the same as no match, rather than
+ * risking silently computing the area of the wrong thing.
+ */
+export async function getCityLandAreaKm2(cityName: string, country: string): Promise<number | null> {
+  const query = `${cityName}, ${country}`;
+  const url =
+    `https://nominatim.openstreetmap.org/search?format=jsonv2&polygon_geojson=1&limit=1` +
+    `&q=${encodeURIComponent(query)}`;
+
+  const res = await fetchWithTimeout(
+    url,
+    {
+      headers: {
+        "User-Agent": "Piltri (piltri.me) - city land area backfill",
+      },
+      cache: "no-store",
+    },
+    8000
+  );
+  if (!res.ok) throw new Error(`Nominatim request failed: ${res.status}`);
+
+  const results = await res.json();
+  const match = results?.[0];
+  if (!match?.geojson) return null;
+  if (match.category !== "boundary" || match.type !== "administrative") return null;
+  if (match.geojson.type !== "Polygon" && match.geojson.type !== "MultiPolygon") return null;
+
+  const areaM2 = turfArea(match.geojson as GeoJSON.Geometry);
+  if (!Number.isFinite(areaM2) || areaM2 <= 0) return null;
+
+  return Number((areaM2 / 1_000_000).toFixed(2));
 }

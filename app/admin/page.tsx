@@ -11,6 +11,8 @@ interface Status {
   freshCities: number;
   staleCities: number;
   cacheTtlDays: number;
+  landAreaChecked: number;
+  landAreaFound: number;
 }
 
 interface WarmResult {
@@ -22,6 +24,17 @@ interface WarmResult {
   failedCities: string[];
   remaining: number;
   stoppedReason: "exhausted" | "limit" | "deadline";
+}
+
+interface BackfillLandAreaResult {
+  total: number;
+  alreadyChecked: number;
+  attempted: number;
+  found: number;
+  notFound: number;
+  failed: number;
+  remaining: number;
+  stoppedReason: "exhausted" | "deadline";
 }
 
 /** Back-office status page: how much of the city shortlist currently has
@@ -36,15 +49,17 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
-  const [busy, setBusy] = useState<"warm" | "sweep" | "clear" | null>(null);
+  const [busy, setBusy] = useState<"warm" | "sweep" | "clear" | "landArea" | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [sweepProgress, setSweepProgress] = useState<{ warmed: number; failed: number } | null>(null);
+  const [landAreaProgress, setLandAreaProgress] = useState<{ found: number; notFound: number; failed: number } | null>(null);
   // A plain ref, not state - flipping it doesn't need a re-render, it's
   // only read at the top of runSweep's loop between calls to decide
   // whether to keep going, same pattern as an AbortController but simpler
   // for "let the current call finish, then stop" rather than truly
   // cancelling an in-flight request.
   const stopRequested = useRef(false);
+  const stopLandAreaRequested = useRef(false);
 
   async function loadStatus() {
     const res = await fetch("/api/admin/status");
@@ -136,6 +151,48 @@ export default function AdminPage() {
     }
   }
 
+  /** Land area backfill — same repeat-until-done pattern as the cache
+   *  sweep above, but Nominatim's strict 1 request/second usage policy
+   *  (vs. Overpass's tolerance for gentle concurrency) means each call
+   *  only gets through ~40 cities, not hundreds - a full ~6,300-city pass
+   *  is genuinely dozens of calls / well over an hour of wall-clock time,
+   *  not a quick sweep. Safe to stop and resume any time - nothing here
+   *  is lost, cities.osm_land_area_checked_at just tracks what's already
+   *  been attempted. */
+  async function triggerLandAreaBackfill() {
+    setBusy("landArea");
+    setLastResult(null);
+    stopLandAreaRequested.current = false;
+    let totalFound = 0;
+    let totalNotFound = 0;
+    let totalFailed = 0;
+    setLandAreaProgress({ found: 0, notFound: 0, failed: 0 });
+
+    try {
+      while (!stopLandAreaRequested.current) {
+        const res = await fetch("/api/admin/backfill-land-area", { method: "POST" });
+        const body: BackfillLandAreaResult = await res.json();
+        totalFound += body.found;
+        totalNotFound += body.notFound;
+        totalFailed += body.failed;
+        setLandAreaProgress({ found: totalFound, notFound: totalNotFound, failed: totalFailed });
+        await loadStatus();
+        if (body.remaining <= 0) {
+          setLastResult(`Land area backfill complete — ${totalFound} found, ${totalNotFound} had no OSM boundary, ${totalFailed} failed.`);
+          break;
+        }
+      }
+      if (stopLandAreaRequested.current) {
+        setLastResult(`Stopped — ${totalFound} found, ${totalNotFound} not found this run. Resume any time.`);
+      }
+    } catch {
+      setLastResult(`Request failed after ${totalFound} found this run — see server logs.`);
+    } finally {
+      setBusy(null);
+      setLandAreaProgress(null);
+    }
+  }
+
   async function triggerClear() {
     if (!confirm("Clear every cached city score? Nothing is lost (it's all re-derivable), but the site will read slower until re-warmed.")) {
       return;
@@ -206,6 +263,16 @@ export default function AdminPage() {
                     <p className="font-serif text-2xl text-ink-900 tabular-nums">{status.cacheTtlDays}d</p>
                     <p className="text-ink-500 text-xs mt-0.5">Cache freshness window</p>
                   </div>
+                  <div>
+                    <p className="font-serif text-2xl text-ink-900 tabular-nums">{status.landAreaFound}</p>
+                    <p className="text-ink-500 text-xs mt-0.5">City land area found (OSM)</p>
+                  </div>
+                  <div>
+                    <p className="font-serif text-2xl text-ink-900 tabular-nums">
+                      {status.landAreaChecked}/{status.totalCities}
+                    </p>
+                    <p className="text-ink-500 text-xs mt-0.5">Land area backfill checked</p>
+                  </div>
                 </div>
               </Card>
 
@@ -226,6 +293,21 @@ export default function AdminPage() {
                 ) : (
                   <Button variant="secondary" onClick={triggerFullSweep} disabled={busy !== null} className="w-full">
                     Warm everything stale (full sweep — runs several batches, can take a while)
+                  </Button>
+                )}
+                {busy === "landArea" ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      stopLandAreaRequested.current = true;
+                    }}
+                    className="w-full"
+                  >
+                    Stop backfill{landAreaProgress ? ` (${landAreaProgress.found} found so far)` : ""}
+                  </Button>
+                ) : (
+                  <Button variant="secondary" onClick={triggerLandAreaBackfill} disabled={busy !== null} className="w-full">
+                    Backfill city land area (OSM) — one-time, paced at 1/sec, can take a while
                   </Button>
                 )}
                 <Button variant="ghost" onClick={triggerClear} disabled={busy !== null} className="w-full">

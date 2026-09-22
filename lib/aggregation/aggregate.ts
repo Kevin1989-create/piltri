@@ -63,8 +63,18 @@ const RANGES = {
  * next to the city name on the results page rather than a scored section
  * (a population count doesn't really have a "good/bad" score). Real Estate
  * has no field here at all — see lib/types.ts's file header comment for why.
+ *
+ * `opts.osmLandAreaKm2` is the city's precomputed OSM/Nominatim boundary
+ * area (see lib/data-sources/nominatim.ts getCityLandAreaKm2 and
+ * lib/aggregation/backfillLandArea.ts) - looked up by the caller
+ * (cache.ts) from the `cities` table rather than fetched live here, since
+ * Nominatim's 1 request/second usage-policy limit makes a live per-request
+ * call impractical, and a city's boundary essentially never changes
+ * anyway. When present, it's preferred over Wikidata's stated area for
+ * `cityAreaKm2` - see this function's `demographics` block below.
  */
-export async function aggregateCityData(city: CitySearchResult): Promise<CityExploreData> {
+export async function aggregateCityData(city: CitySearchResult, opts: { osmLandAreaKm2?: number | null } = {}): Promise<CityExploreData> {
+  const osmLandAreaKm2 = opts.osmLandAreaKm2 ?? null;
   const iso3 = toIso3(city.countryCode);
 
   const [wb, languages, climate, overpassData, healthcare, cityDemo] = await Promise.all([
@@ -112,6 +122,21 @@ export async function aggregateCityData(city: CitySearchResult): Promise<CityExp
   // genuinely has no published figure.
   const costOfLivingIndex = wb?.priceLevelIndex != null ? normalise(wb.priceLevelIndex, RANGES.priceLevel.min, RANGES.priceLevel.max) : 50;
 
+  // OSM/Nominatim's real boundary-polygon area (osmLandAreaKm2, see this
+  // function's doc comment) is preferred over Wikidata's areaKm2 - a
+  // single manually-entered number with no geometry behind it,
+  // unverifiable for staleness or a mismatched definition (city proper
+  // vs. metro). Tested live against 3 cities: matched Wikidata closely
+  // where Wikidata happened to be right (London 1589 km² vs Wikidata's
+  // 1572, Paris 105.06 km² vs 105.4), and caught a real error where it
+  // wasn't (Zagreb 639.69 km² - matches its official area - vs
+  // Wikidata's 305.8, roughly half the real figure). Wikidata remains
+  // the fallback for the ~35-40% of cities where Nominatim has no
+  // boundary polygon at all (see backfillLandArea.ts). Population is
+  // still Wikidata-only - no change there, only which area feeds the
+  // density calculation.
+  const resolvedCityAreaKm2 = osmLandAreaKm2 ?? cityDemo.areaKm2;
+
   const data: CityExploreData = {
     cityId: city.cityId,
     cityName: city.cityName,
@@ -130,10 +155,10 @@ export async function aggregateCityData(city: CitySearchResult): Promise<CityExp
       countryMostWidelySpokenLanguage: languages.mostWidelySpokenLanguage,
 
       cityPopulation: cityDemo.population,
-      cityAreaKm2: cityDemo.areaKm2,
+      cityAreaKm2: resolvedCityAreaKm2,
       cityPopulationDensityPerKm2:
-        cityDemo.population != null && cityDemo.areaKm2 != null
-          ? Number((cityDemo.population / cityDemo.areaKm2).toFixed(1))
+        cityDemo.population != null && resolvedCityAreaKm2 != null
+          ? Number((cityDemo.population / resolvedCityAreaKm2).toFixed(1))
           : null,
     },
     economy: {
