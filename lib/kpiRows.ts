@@ -109,15 +109,19 @@ export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
 /** The city's likely dominant local sector — genuinely computed from OSM
  *  POI/land-use density within range of its exact coordinates (see
  *  lib/data-sources/overpass.ts getEconomySectorCounts / pickMainEconomyType),
- *  not a placeholder. Left uncoloured - a category label, not a good/bad
- *  value. */
+ *  not a placeholder. A resolved category is left uncoloured - a plain
+ *  label, not a good/bad value - but "Not enough Data" is muted grey
+ *  (2026-09-23, on request), the same empty-state convention used for
+ *  "Not available" elsewhere (see CityHeader.tsx) - an absence of data
+ *  isn't a bad score, so it shouldn't read like one. */
 export function buildCityEconomyTypeRows(data: CityExploreData): KpiRow[] {
   const e = data.economy;
   return [
     {
       label: "Main economy type",
-      value: e.mainEconomyType ? ECONOMY_TYPE_LABELS[e.mainEconomyType] : "Not enough local data",
+      value: e.mainEconomyType ? ECONOMY_TYPE_LABELS[e.mainEconomyType] : "Not enough Data",
       precision: "pinned",
+      colorClass: e.mainEconomyType ? undefined : "text-ink-500",
     },
   ];
 }
