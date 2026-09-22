@@ -125,7 +125,7 @@ export default function AdminResourcesPage() {
             ← Back office
           </Link>
           <h1 className="font-serif text-2xl text-ink-900 mt-1 mb-1">Resources</h1>
-          <p className="text-sm text-ink-500 mb-6">Curated external links per country (Home, Immigration, Health, Jobs).</p>
+          <p className="text-sm text-ink-500 mb-6">Curated external links per country (Property, Visa and Immigration, Health System, Jobs).</p>
 
           {authed === null && <p className="text-sm text-ink-500">Loading…</p>}
 

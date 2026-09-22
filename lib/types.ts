@@ -165,10 +165,13 @@ export type ResourceLinkCategory = "home" | "immigration" | "health" | "jobs";
 
 export const RESOURCE_LINK_CATEGORIES: ResourceLinkCategory[] = ["home", "immigration", "health", "jobs"];
 
+/** Display labels only — the underlying category keys (and the
+ *  `country_resource_links.category` CHECK constraint in schema.sql) stay
+ *  "home"/"immigration"/"health"/"jobs" regardless of copy changes here. */
 export const RESOURCE_LINK_CATEGORY_LABELS: Record<ResourceLinkCategory, string> = {
-  home: "Home",
-  immigration: "Immigration",
-  health: "Health",
+  home: "Property",
+  immigration: "Visa and Immigration",
+  health: "Health System",
   jobs: "Jobs",
 };
 

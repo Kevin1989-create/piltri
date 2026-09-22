@@ -5,6 +5,7 @@ import { SectionRow } from "./SectionRow";
 import { SectionDetail } from "./SectionDetail";
 import { ResourcesRow } from "./ResourcesRow";
 import { ResourcesDetail } from "./ResourcesDetail";
+import { prefetchResourceLinks } from "@/lib/resourceLinksCache";
 import type { CityExploreData, SectionKey } from "@/lib/types";
 
 const ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveability"];
@@ -38,7 +39,10 @@ interface SectionColumnProps {
  *  though it isn't itself a SectionKey. It no longer needs a link-count
  *  fetch of its own here (see ResourcesRow's doc comment - the badge that
  *  needed this was removed), so this column stays a plain accordion with
- *  no extra data-fetching responsibility beyond opening/closing rows. */
+ *  no extra data-fetching responsibility beyond opening/closing rows — it
+ *  does still kick off `prefetchResourceLinks` as soon as it mounts, purely
+ *  so the request is already in flight (or done) by the time a user
+ *  actually opens Resources, rather than starting fresh on click. */
 export function SectionColumn({ data, externalDetail = false, onOpenSectionChange, onAnyExpandedChange }: SectionColumnProps) {
   const [openKey, setOpenKey] = useState<OpenSectionKey | null>(null);
 
@@ -46,6 +50,10 @@ export function SectionColumn({ data, externalDetail = false, onOpenSectionChang
     onAnyExpandedChange?.(openKey !== null);
     onOpenSectionChange?.(openKey);
   }, [openKey, onAnyExpandedChange, onOpenSectionChange]);
+
+  useEffect(() => {
+    prefetchResourceLinks(data.countryCode);
+  }, [data.countryCode]);
 
   function toggle(key: OpenSectionKey) {
     setOpenKey((cur) => (cur === key ? null : key));

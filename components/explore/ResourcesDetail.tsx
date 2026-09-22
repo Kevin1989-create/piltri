@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
+import { prefetchResourceLinks } from "@/lib/resourceLinksCache";
 import { RESOURCE_LINK_CATEGORIES, RESOURCE_LINK_CATEGORY_LABELS, type ResourceLinksByCategory } from "@/lib/types";
 
-/** Expanded Resources detail - fetches this country's curated links
- *  (GET /api/explore/resource-links) itself rather than expecting them on
- *  `data`, since Resources deliberately isn't part of the cached
- *  CityExploreData payload (see lib/types.ts's ResourceLinkCategory doc
- *  comment). Only fetches once actually opened, same as the rest of this
- *  page waits to fetch pin/nearby data until it's needed.
+/** Expanded Resources detail - reads this country's curated links via
+ *  `prefetchResourceLinks` rather than fetching them itself, since Resources
+ *  deliberately isn't part of the cached CityExploreData payload (see
+ *  lib/types.ts's ResourceLinkCategory doc comment). Callers that mount well
+ *  ahead of time (SectionColumn) already kicked the same request off, so
+ *  this usually resolves instantly instead of showing "Loading…" on open.
  *
  *  `bordered` mirrors SectionDetail's prop of the same name/purpose: on
  *  when this renders inline under its own row, off when it's the sole
@@ -25,19 +26,12 @@ export function ResourcesDetail({
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/explore/resource-links?countryCode=${countryCode}`)
-      .then((res) => res.json())
-      .then((body) => {
-        if (cancelled) return;
-        setLinks(body.links as ResourceLinksByCategory);
-      })
-      .catch(() => {
-        if (!cancelled) setLinks({ home: [], immigration: [], health: [], jobs: [] });
-      });
+    prefetchResourceLinks(countryCode).then((data) => {
+      if (!cancelled) setLinks(data);
+    });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countryCode]);
 
   const totalCount = links ? RESOURCE_LINK_CATEGORIES.reduce((sum, c) => sum + links[c].length, 0) : null;
