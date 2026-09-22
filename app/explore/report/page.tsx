@@ -258,7 +258,7 @@ function ReportGroup({ title, rows, spacing = "mt-4" }: { title: string; rows: K
   if (rows.length === 0) return null;
   return (
     <div className={spacing}>
-      <p className="font-serif text-sm text-ink-900 mb-1.5">{title}</p>
+      <p className="font-serif text-sm text-black mb-1.5">{title}</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
         {rows.map((row) => (
           <ReportStat
