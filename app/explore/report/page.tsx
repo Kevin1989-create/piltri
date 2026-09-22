@@ -247,15 +247,18 @@ function ReportContent() {
  *  tier (Climate is 100% city, Safety & Stability is 100% country) renders
  *  only that one group. `title` is the actual country/city name (e.g.
  *  "United Kingdom", "London"), not the generic word "Country"/"City" -
- *  styled the same serif-amber way as the Demographics headings above,
- *  just one size down. `spacing` lets the caller give whichever group
- *  lands first the tighter "mt-3" the original single grid used, since an
- *  empty group renders nothing and shouldn't leave a gap in its place. */
+ *  serif like the Demographics headings above, but plain ink/black here
+ *  (2026-09-23, on request) rather than the Demographics block's amber,
+ *  since these 4 scored sections don't have a separate amber-vs-black
+ *  title of their own for the amber to contrast against. `spacing` lets
+ *  the caller give whichever group lands first the tighter "mt-3" the
+ *  original single grid used, since an empty group renders nothing and
+ *  shouldn't leave a gap in its place. */
 function ReportGroup({ title, rows, spacing = "mt-4" }: { title: string; rows: KpiRow[]; spacing?: string }) {
   if (rows.length === 0) return null;
   return (
     <div className={spacing}>
-      <p className="font-serif text-sm text-piltri-amber-dark mb-1.5">{title}</p>
+      <p className="font-serif text-sm text-ink-900 mb-1.5">{title}</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
         {rows.map((row) => (
           <ReportStat
