@@ -4,7 +4,6 @@ import Link from "next/link";
 import { PiltriScoreDisplay } from "@/components/ui/ScoreBadge";
 import { EyeIcon, PlusIcon } from "@/components/ui/icons";
 import { isCustomWeights } from "@/lib/scoreWeights";
-import { normalise } from "@/lib/aggregation/scoring";
 import { formatAreaKm2Compact, formatDensityPerKm2, useUnitPreferences } from "@/lib/unitPreferences";
 import type { DemographicsFields, SectionKey } from "@/lib/types";
 
@@ -46,18 +45,6 @@ function formatCompactNumber(n: number): string {
   return n.toLocaleString();
 }
 
-/** Same 3-tier colour language used for section scores elsewhere in the app
- *  (text-score-strong/moderate/weak) — reused here purely as a "where does
- *  this sit on a typical global range: high, middle, or low" indicator, not
- *  a judgement (e.g. an older average age isn't "worse"). Population and
- *  Main Language are left uncoloured — there's no meaningful spectrum to
- *  place a raw headcount or a language name on. */
-function tierColorClass(value0to100: number): string {
-  if (value0to100 >= 67) return "text-score-strong";
-  if (value0to100 >= 34) return "text-score-moderate";
-  return "text-score-weak";
-}
-
 /** Non-breaking space (as a   escape, not a literal character, so it
  *  can't get silently normalised back to a plain space by any editing
  *  step) between "5" and "yr" — makes "(5 yr)" wrap as one whole unit onto
@@ -91,12 +78,20 @@ export function CityHeader({
   // never ambiguous which one a number belongs to. Every field is
   // nullable at the source; null renders as "Not available" rather than
   // being silently backfilled from the other tier.
+  //
+  // Deliberately uncoloured (2026-09-23, on request) - these are
+  // informational facts, not judgements, and an earlier version's
+  // green/amber/red tier colouring on density/age/trend implied a
+  // "good vs bad" reading that doesn't actually apply to any of them
+  // (a higher or lower average age isn't worse, neither is a denser or
+  // sparser population). "Not available" is still shown in a muted
+  // colour - that's a plain empty-state convention, not a value judgement.
   const countryStats: Stat[] | null = demographics
     ? [
         {
           label: "Population",
           value: demographics.countryPopulation != null ? formatCompactNumber(demographics.countryPopulation) : NOT_AVAILABLE,
-          colorClass: "text-ink-900",
+          colorClass: demographics.countryPopulation != null ? "text-ink-900" : "text-ink-500",
         },
         {
           label: "Population Density",
@@ -104,13 +99,7 @@ export function CityHeader({
             demographics.countryPopulationDensityPerKm2 != null
               ? formatDensityPerKm2(demographics.countryPopulationDensityPerKm2, prefs, formatCompactNumber)
               : NOT_AVAILABLE,
-          // Inverted: lower density reads as "spacious" (strong/green),
-          // higher density as "crowded" (weak/rust) — same 5-15,000/km²
-          // reference range used elsewhere in the aggregation pipeline.
-          colorClass:
-            demographics.countryPopulationDensityPerKm2 != null
-              ? tierColorClass(normalise(demographics.countryPopulationDensityPerKm2, 5, 15000, true))
-              : "text-ink-500",
+          colorClass: demographics.countryPopulationDensityPerKm2 != null ? "text-ink-900" : "text-ink-500",
         },
         {
           label: "Land Area",
@@ -118,18 +107,17 @@ export function CityHeader({
             demographics.countryLandAreaKm2 != null
               ? formatAreaKm2Compact(demographics.countryLandAreaKm2, prefs, formatCompactNumber)
               : NOT_AVAILABLE,
-          colorClass: "text-ink-900",
+          colorClass: demographics.countryLandAreaKm2 != null ? "text-ink-900" : "text-ink-500",
         },
         {
           label: "Average Age",
           value: demographics.countryAverageAge != null ? `${demographics.countryAverageAge}` : NOT_AVAILABLE,
-          colorClass:
-            demographics.countryAverageAge != null ? tierColorClass(normalise(demographics.countryAverageAge, 20, 50)) : "text-ink-500",
+          colorClass: demographics.countryAverageAge != null ? "text-ink-900" : "text-ink-500",
         },
         {
           label: "Main Language",
           value: demographics.countryMostWidelySpokenLanguage ?? NOT_AVAILABLE,
-          colorClass: "text-ink-900",
+          colorClass: demographics.countryMostWidelySpokenLanguage != null ? "text-ink-900" : "text-ink-500",
         },
         {
           label: TREND_LABEL,
@@ -137,10 +125,7 @@ export function CityHeader({
             demographics.countryPopulationTrend5yrPct != null
               ? `${demographics.countryPopulationTrend5yrPct > 0 ? "+" : ""}${demographics.countryPopulationTrend5yrPct}%`
               : NOT_AVAILABLE,
-          colorClass:
-            demographics.countryPopulationTrend5yrPct != null
-              ? tierColorClass(normalise(demographics.countryPopulationTrend5yrPct, -2, 5))
-              : "text-ink-500",
+          colorClass: demographics.countryPopulationTrend5yrPct != null ? "text-ink-900" : "text-ink-500",
         },
       ]
     : null;
@@ -150,12 +135,12 @@ export function CityHeader({
         {
           label: "Population",
           value: demographics.cityPopulation != null ? formatCompactNumber(demographics.cityPopulation) : NOT_AVAILABLE,
-          colorClass: "text-ink-900",
+          colorClass: demographics.cityPopulation != null ? "text-ink-900" : "text-ink-500",
         },
         {
           label: "Land Area",
           value: demographics.cityAreaKm2 != null ? formatAreaKm2Compact(demographics.cityAreaKm2, prefs, formatCompactNumber) : NOT_AVAILABLE,
-          colorClass: "text-ink-900",
+          colorClass: demographics.cityAreaKm2 != null ? "text-ink-900" : "text-ink-500",
         },
         {
           label: "Population Density",
@@ -163,10 +148,7 @@ export function CityHeader({
             demographics.cityPopulationDensityPerKm2 != null
               ? formatDensityPerKm2(demographics.cityPopulationDensityPerKm2, prefs, formatCompactNumber)
               : NOT_AVAILABLE,
-          colorClass:
-            demographics.cityPopulationDensityPerKm2 != null
-              ? tierColorClass(normalise(demographics.cityPopulationDensityPerKm2, 5, 15000, true))
-              : "text-ink-500",
+          colorClass: demographics.cityPopulationDensityPerKm2 != null ? "text-ink-900" : "text-ink-500",
         },
       ]
     : null;
@@ -239,8 +221,8 @@ export function CityHeader({
       )}
 
       {cityStats && (
-        <div className="mt-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5 border-l-2 border-piltri-amber">
-          <p className="font-serif text-sm text-piltri-amber leading-tight">{cityName}</p>
+        <div className="mt-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5 border-l-2 border-ink-300">
+          <p className="font-serif text-sm text-ink-700 leading-tight">{cityName}</p>
           <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1.5">
             {cityStats.map((stat) => (
               <div key={stat.label} className="min-w-0">

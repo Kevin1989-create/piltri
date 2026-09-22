@@ -167,7 +167,7 @@ function ReportContent() {
                 <ReportStat label="Main language" value={data.demographics.countryMostWidelySpokenLanguage ?? "Not available"} />
               </div>
 
-              <p className="font-serif text-base text-piltri-amber mb-1.5 mt-4">{data.cityName}</p>
+              <p className="font-serif text-base text-ink-700 mb-1.5 mt-4">{data.cityName}</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
                 <ReportStat
                   label="Population"
