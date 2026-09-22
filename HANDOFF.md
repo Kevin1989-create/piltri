@@ -834,6 +834,40 @@ No `CityExploreData` shape change in this round (pure display/spacing) -
 no cache clear needed, unlike the two data-model rounds earlier this
 session.
 
+## Country vs City split for the 4 scored sections' KPI detail (2026-09-23, later same session)
+
+Same Country/City separation the Demographics block already used (see
+"Demographics split into Country vs City, for real" above), extended to
+each scored section's expanded KPI detail on request: "separate in 2
+subsections when it's country vs city related... if the data only exists
+for countries, don't add it to the city section, and vice versa."
+
+The grouping isn't new manual work per section - every `KpiRow` already
+carries a `precision: PrecisionTier` tag (`"country"` / `"pinned"` /
+`"city"`, see `lib/kpiRows.ts`), so `splitKpiRowsByTier` (new, same file)
+just partitions on that: `"country"` rows go to the Country group,
+everything else (`"pinned"` - genuinely tied to this city's exact
+coordinates, and the still-unused `"city"` tier) goes to City. A section
+whose rows are 100% one tier renders only that one group - confirmed
+live: Safety & Stability is Country-only (political stability, rule of
+law, safety trend - all World Bank), Climate is City-only (temperature/
+rainfall/sunshine/snowfall - all Open-Meteo, pinned to the exact
+coordinate), Economy and Liveability are the mixed ones (Economy: 5
+country stats + "Economy Type" as a one-row City group; Liveability: 1
+country stat (healthcare quality) + 4 city density stats + the existing
+"Local Signals" transport sub-block, all nested under City since they're
+all pinned too).
+
+Applied in both places these KPIs render, same as every other display
+change this session: `components/explore/SectionDetail.tsx` (Compare
+page inline, results page's floating panel) and
+`app/explore/report/page.tsx` (printable report - got its own
+`ReportGroup` component, parallel to `SectionDetail`'s inline grouping
+logic since the report has always hand-rolled its own layout rather than
+reusing `SectionDetail`). No `CityExploreData` shape change - this is
+purely how already-fetched rows get grouped for display - so no cache
+clear needed.
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new

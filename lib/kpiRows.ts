@@ -274,6 +274,20 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
   }
 }
 
+/** Splits a section's KPI rows into Country vs City groups, using each
+ *  row's precision tier as the source of truth - "country" rows go to
+ *  Country, "pinned"/"city" rows (both genuinely tied to this city rather
+ *  than its country - see PrecisionTier above) go to City. Mirrors
+ *  CityHeader's Demographics split: a section with data at only one tier
+ *  produces an empty array for the other, so callers render only the
+ *  subsection that actually has content rather than a padded-out empty one. */
+export function splitKpiRowsByTier(rows: KpiRow[]): { countryRows: KpiRow[]; cityRows: KpiRow[] } {
+  return {
+    countryRows: rows.filter((r) => r.precision === "country"),
+    cityRows: rows.filter((r) => r.precision !== "country"),
+  };
+}
+
 /** The 4 Overpass-sourced transport presence flags, split out of the main
  *  Liveability row list into their own "Transport Access" sub-block -
  *  keeping the main grid tighter than one flat wall of rows. Coloured

@@ -7,6 +7,7 @@ import {
   buildCityEconomyTypeRows,
   buildKpiRows,
   buildLiveabilityTransportRows,
+  splitKpiRowsByTier,
   type KpiRow,
   type PrecisionTier,
 } from "@/lib/kpiRows";
@@ -50,15 +51,12 @@ function StatCell({ row, bold = false }: { row: KpiRow; bold?: boolean }) {
   );
 }
 
-function SubBlock({ title, rows, cols }: { title: string; rows: KpiRow[]; cols: 2 | 3 }) {
+function StatGrid({ rows, cols, bold = false }: { rows: KpiRow[]; cols: 2 | 3; bold?: boolean }) {
   return (
-    <div className="mt-2 pt-1.5 border-t border-piltri-amber/20">
-      <p className="text-[10px] text-ink-500 uppercase tracking-wide mb-1">{title}</p>
-      <div className={cn("grid gap-x-3 gap-y-3", cols === 3 ? "grid-cols-3" : "grid-cols-2")}>
-        {rows.map((row) => (
-          <StatCell key={row.label} row={row} bold />
-        ))}
-      </div>
+    <div className={cn("grid gap-x-3 gap-y-3", cols === 3 ? "grid-cols-3" : "grid-cols-2")}>
+      {rows.map((row) => (
+        <StatCell key={row.label} row={row} bold={bold} />
+      ))}
     </div>
   );
 }
@@ -68,11 +66,17 @@ function SubBlock({ title, rows, cols }: { title: string; rows: KpiRow[]; cols: 
  *  CityHeader) rather than a single tall column of rows, so a KPI-heavy
  *  section like Economy or Liveability never needs its own scrollbar:
  *  width absorbs the row count instead of height. Sections with more than
- *  6 items total get 3 columns instead of 2. Economy and Liveability each
- *  split their extra detail into labeled sub-blocks (Country/City Economy
- *  Type; Transport Access; Notable Institutions) rather than one long flat
- *  list, so a KPI-heavy section reads as a few small groups instead of a
- *  wall of rows.
+ *  6 items total get 3 columns instead of 2.
+ *
+ *  Split into Country vs City groups (2026-09-23, mirrors CityHeader's
+ *  Demographics split) using each row's precision tier - see
+ *  lib/kpiRows.ts's splitKpiRowsByTier. A section with data at only one
+ *  tier (Climate is 100% city/pinned, Safety & Stability is 100% country)
+ *  renders only that one group, never a padded-out empty other one.
+ *  Economy's "Economy Type" and Liveability's "Local Signals" are both
+ *  genuinely city-tier (pinned to this city's exact coordinates), so they
+ *  nest inside the City group as labeled sub-blocks rather than sitting
+ *  beside it.
  *
  *  `bordered` controls the top divider: on (default) when this renders
  *  inline directly under its own SectionRow (Compare page); off when it's
@@ -98,16 +102,36 @@ export function SectionDetail({
   const totalItems = rows.length + (cityEconomyTypeRows?.length ?? 0) + (localSignalRows?.length ?? 0);
   const cols = totalItems > 6 ? 3 : 2;
 
+  const { countryRows, cityRows } = splitKpiRowsByTier(rows);
+  const cityExtraBlocks = [
+    cityEconomyTypeRows && { title: "Economy Type", rows: cityEconomyTypeRows },
+    localSignalRows && { title: "Local Signals", rows: localSignalRows },
+  ].filter((b): b is { title: string; rows: KpiRow[] } => !!b);
+
+  const hasCountry = countryRows.length > 0;
+  const hasCity = cityRows.length > 0 || cityExtraBlocks.length > 0;
+
   return (
     <div className={cn("bg-piltri-amber-tint/40 px-4 py-2.5", bordered && "border-t border-piltri-amber/20")}>
-      <div className={cn("grid gap-x-3 gap-y-3", cols === 3 ? "grid-cols-3" : "grid-cols-2")}>
-        {rows.map((row) => (
-          <StatCell key={row.label} row={row} />
-        ))}
-      </div>
+      {hasCountry && (
+        <div>
+          <p className="text-[10px] text-ink-500 uppercase tracking-wide mb-1">Country</p>
+          <StatGrid rows={countryRows} cols={cols} />
+        </div>
+      )}
 
-      {cityEconomyTypeRows && <SubBlock title="Economy Type" rows={cityEconomyTypeRows} cols={cols} />}
-      {localSignalRows && <SubBlock title="Local Signals" rows={localSignalRows} cols={cols} />}
+      {hasCity && (
+        <div className={cn(hasCountry && "mt-2 pt-1.5 border-t border-piltri-amber/20")}>
+          <p className="text-[10px] text-ink-500 uppercase tracking-wide mb-1">City</p>
+          {cityRows.length > 0 && <StatGrid rows={cityRows} cols={cols} />}
+          {cityExtraBlocks.map((block, i) => (
+            <div key={block.title} className={cn((i > 0 || cityRows.length > 0) && "mt-2 pt-1.5 border-t border-piltri-amber/20")}>
+              <p className="text-[10px] text-ink-500 uppercase tracking-wide mb-1">{block.title}</p>
+              <StatGrid rows={block.rows} cols={cols} bold />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

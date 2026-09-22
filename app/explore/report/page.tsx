@@ -10,6 +10,7 @@ import {
   buildCityEconomyTypeRows,
   buildKpiRows,
   buildLiveabilityTransportRows,
+  splitKpiRowsByTier,
   type KpiRow,
   type PrecisionTier,
 } from "@/lib/kpiRows";
@@ -197,6 +198,8 @@ function ReportContent() {
               const rows = buildKpiRows(section, data, prefs);
               const cityEconomyTypeRows = section === "economy" ? buildCityEconomyTypeRows(data) : null;
               const localSignalRows = section === "liveability" ? buildLiveabilityTransportRows(data) : null;
+              const { countryRows, cityRows } = splitKpiRowsByTier(rows);
+              const countryFirst = countryRows.length > 0;
               return (
                 <section key={section} className="mt-8 break-inside-avoid">
                   <div className="flex items-baseline justify-between border-b border-surface-border pb-1.5">
@@ -205,18 +208,8 @@ function ReportContent() {
                       {Math.round(data.sectionScores[section])}
                     </span>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
-                    {rows.map((row) => (
-                      <ReportStat
-                        key={row.label}
-                        label={row.label}
-                        value={row.value}
-                        precision={row.precision}
-                        colorClass={row.colorClass}
-                        hint={row.hint}
-                      />
-                    ))}
-                  </div>
+                  <ReportGroup title="Country" rows={countryRows} spacing={countryFirst ? "mt-3" : "mt-4"} />
+                  <ReportGroup title="City" rows={cityRows} spacing={countryFirst ? "mt-4" : "mt-3"} />
                   <ReportSubBlock title="Economy Type" rows={cityEconomyTypeRows} />
                   <ReportSubBlock title="Local Signals" rows={localSignalRows} />
                 </section>
@@ -246,6 +239,33 @@ function ReportContent() {
         )}
       </div>
     </main>
+  );
+}
+
+/** Country vs City split (2026-09-23, mirrors the Demographics block above
+ *  and SectionDetail.tsx's same split) - a section with data at only one
+ *  tier (Climate is 100% city, Safety & Stability is 100% country) renders
+ *  only that one group. `spacing` lets the caller give whichever group
+ *  lands first the tighter "mt-3" the original single grid used, since an
+ *  empty group renders nothing and shouldn't leave a gap in its place. */
+function ReportGroup({ title, rows, spacing = "mt-4" }: { title: string; rows: KpiRow[]; spacing?: string }) {
+  if (rows.length === 0) return null;
+  return (
+    <div className={spacing}>
+      <p className="text-[11px] uppercase tracking-wide text-ink-500 mb-2">{title}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
+        {rows.map((row) => (
+          <ReportStat
+            key={row.label}
+            label={row.label}
+            value={row.value}
+            precision={row.precision}
+            colorClass={row.colorClass}
+            hint={row.hint}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
