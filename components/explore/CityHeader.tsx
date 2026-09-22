@@ -218,9 +218,9 @@ export function CityHeader({
        *  per group — full-word labels need more width per cell than 3
        *  columns could give them. */}
       {countryStats && (
-        <div className="mt-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5 border-l-2 border-ink-300">
+        <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-1 border-l-2 border-ink-300">
           <p className="font-serif text-sm text-ink-700 leading-tight">{country}</p>
-          <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1.5">
+          <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-1">
             {countryStats.map((stat) => (
               <div key={stat.label} className="min-w-0">
                 <p className={`text-[11px] font-medium leading-snug ${stat.colorClass}`}>{stat.value}</p>
@@ -232,9 +232,9 @@ export function CityHeader({
       )}
 
       {cityStats && (
-        <div className="mt-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5 border-l-2 border-piltri-amber">
+        <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-1 border-l-2 border-piltri-amber">
           <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{cityName}</p>
-          <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1.5">
+          <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-1">
             {cityStats.map((stat) => (
               <div key={stat.label} className="min-w-0">
                 <p className={`text-[11px] font-medium leading-snug ${stat.colorClass}`}>{stat.value}</p>
