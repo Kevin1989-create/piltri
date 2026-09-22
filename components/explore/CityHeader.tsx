@@ -164,14 +164,15 @@ export function CityHeader({
            *  reading order.
            *
            *  Colour now signals UI level, not country-vs-city tier
-           *  (2026-09-23, revised again on request - amber-on-amber for
-           *  title vs stat-group headers still read as too similar). The
-           *  title (this block) is plain ink/black, the strongest possible
-           *  contrast; both stat-group headers below use the brand amber
-           *  ("tri" in the Piltri wordmark) so they read as a distinct,
-           *  secondary tier; which tier a given block belongs to is still
-           *  carried by its own label text ("United Kingdom" vs "London")
-           *  and position, not by colour choice alone. */}
+           *  (2026-09-23, revised again on request - the brand amber read
+           *  as too light/washed-out for the stat-group headers once the
+           *  title itself went black). The title (this block) is plain
+           *  ink/black, the strongest possible contrast; both stat-group
+           *  headers below use the darker amber shade instead so they stay
+           *  clearly legible against the light card behind them; which
+           *  tier a given block belongs to is still carried by its own
+           *  label text ("United Kingdom" vs "London") and position, not
+           *  by colour choice alone. */}
           <span className="block text-[11px] uppercase tracking-wide text-ink-900 font-sans font-medium">
             {region ? `${region}, ` : ""}
             {country}
@@ -222,7 +223,7 @@ export function CityHeader({
        *  block's own header text is what actually says which tier it is. */}
       {countryStats && (
         <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
-          <p className="font-serif text-sm text-piltri-amber leading-tight">{country}</p>
+          <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{country}</p>
           <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
             {countryStats.map((stat) => (
               <div key={stat.label} className="min-w-0">
@@ -236,7 +237,7 @@ export function CityHeader({
 
       {cityStats && (
         <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
-          <p className="font-serif text-sm text-piltri-amber leading-tight">{cityName}</p>
+          <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{cityName}</p>
           <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
             {cityStats.map((stat) => (
               <div key={stat.label} className="min-w-0">

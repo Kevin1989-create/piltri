@@ -119,14 +119,14 @@ export function SectionDetail({
     <div className={cn("bg-piltri-amber-tint/40 px-4 py-2.5", bordered && "border-t border-piltri-amber/20")}>
       {hasCountry && (
         <div>
-          <p className="font-serif text-xs text-piltri-amber leading-tight mb-1">{data.country}</p>
+          <p className="font-serif text-xs text-piltri-amber-dark leading-tight mb-1">{data.country}</p>
           <StatGrid rows={countryRows} cols={cols} />
         </div>
       )}
 
       {hasCity && (
         <div className={cn(hasCountry && "mt-2 pt-1.5 border-t border-piltri-amber/20")}>
-          <p className="font-serif text-xs text-piltri-amber leading-tight mb-1">{data.cityName}</p>
+          <p className="font-serif text-xs text-piltri-amber-dark leading-tight mb-1">{data.cityName}</p>
           {cityRows.length > 0 && <StatGrid rows={cityRows} cols={cols} />}
           {cityExtraBlocks.map((block, i) => (
             <div key={block.title} className={cn((i > 0 || cityRows.length > 0) && "mt-2 pt-1.5 border-t border-piltri-amber/20")}>

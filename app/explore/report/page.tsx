@@ -138,7 +138,7 @@ function ReportContent() {
                *  (see lib/types.ts's DemographicsFields comment) - shown
                *  as two clearly labelled groups, same as CityHeader.tsx,
                *  rather than blended into one set of stats. */}
-              <p className="font-serif text-base text-piltri-amber mb-1.5">{data.country}</p>
+              <p className="font-serif text-base text-piltri-amber-dark mb-1.5">{data.country}</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
                 <ReportStat
                   label="Population"
@@ -173,7 +173,7 @@ function ReportContent() {
                 <ReportStat label="Main language" value={data.demographics.countryMostWidelySpokenLanguage ?? "Not available"} />
               </div>
 
-              <p className="font-serif text-base text-piltri-amber mb-1.5 mt-4">{data.cityName}</p>
+              <p className="font-serif text-base text-piltri-amber-dark mb-1.5 mt-4">{data.cityName}</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
                 <ReportStat
                   label="Population"
@@ -255,7 +255,7 @@ function ReportGroup({ title, rows, spacing = "mt-4" }: { title: string; rows: K
   if (rows.length === 0) return null;
   return (
     <div className={spacing}>
-      <p className="font-serif text-sm text-piltri-amber mb-1.5">{title}</p>
+      <p className="font-serif text-sm text-piltri-amber-dark mb-1.5">{title}</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
         {rows.map((row) => (
           <ReportStat
