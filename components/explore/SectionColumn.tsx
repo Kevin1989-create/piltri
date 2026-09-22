@@ -3,9 +3,17 @@
 import { useEffect, useState } from "react";
 import { SectionRow } from "./SectionRow";
 import { SectionDetail } from "./SectionDetail";
-import type { CityExploreData, SectionKey } from "@/lib/types";
+import { ResourcesRow } from "./ResourcesRow";
+import { ResourcesDetail } from "./ResourcesDetail";
+import { RESOURCE_LINK_CATEGORIES, type CityExploreData, type ResourceLinksByCategory, type SectionKey } from "@/lib/types";
 
 const ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveability"];
+
+/** The 4 scored sections plus Resources (see lib/types.ts's
+ *  ResourceLinkCategory doc comment for why Resources isn't part of
+ *  SectionKey itself - it isn't scored, so it doesn't belong in the same
+ *  union as the 4 that are). */
+export type OpenSectionKey = SectionKey | "resources";
 
 interface SectionColumnProps {
   data: CityExploreData;
@@ -18,23 +26,47 @@ interface SectionColumnProps {
    *  comparison column has no adjacent space for a second panel, so it
    *  keeps the original inline-detail-with-dimmed-siblings behaviour. */
   externalDetail?: boolean;
-  onOpenSectionChange?: (key: SectionKey | null) => void;
+  onOpenSectionChange?: (key: OpenSectionKey | null) => void;
   onAnyExpandedChange?: (anyExpanded: boolean) => void;
 }
 
 /** Single-open accordion: only one section can be open at a time (a Set of
  *  open keys used to allow several at once, which is what made this column
  *  tall enough to need scrolling in the first place). Opening a new section
- *  closes whichever one was open. */
+ *  closes whichever one was open. Resources (2026-09-23) is a 5th row after
+ *  the 4 scored ones, sharing this same single-open state machine even
+ *  though it isn't itself a SectionKey. */
 export function SectionColumn({ data, externalDetail = false, onOpenSectionChange, onAnyExpandedChange }: SectionColumnProps) {
-  const [openKey, setOpenKey] = useState<SectionKey | null>(null);
+  const [openKey, setOpenKey] = useState<OpenSectionKey | null>(null);
+  const [resourcesLinkCount, setResourcesLinkCount] = useState<number | null>(null);
 
   useEffect(() => {
     onAnyExpandedChange?.(openKey !== null);
     onOpenSectionChange?.(openKey);
   }, [openKey, onAnyExpandedChange, onOpenSectionChange]);
 
-  function toggle(key: SectionKey) {
+  // Fetched here, independent of whether the row's own detail is expanded
+  // inline or externally (see externalDetail above) - the row's link-count
+  // badge needs a value regardless of which mode is rendering the actual
+  // detail content.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/explore/resource-links?countryCode=${data.countryCode}`)
+      .then((res) => res.json())
+      .then((body) => {
+        if (cancelled) return;
+        const links = body.links as ResourceLinksByCategory;
+        setResourcesLinkCount(RESOURCE_LINK_CATEGORIES.reduce((sum, c) => sum + links[c].length, 0));
+      })
+      .catch(() => {
+        if (!cancelled) setResourcesLinkCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [data.countryCode]);
+
+  function toggle(key: OpenSectionKey) {
     setOpenKey((cur) => (cur === key ? null : key));
   }
 
@@ -52,6 +84,17 @@ export function SectionColumn({ data, externalDetail = false, onOpenSectionChang
           {!externalDetail && openKey === key && <SectionDetail section={key} data={data} />}
         </div>
       ))}
+      <div>
+        <ResourcesRow
+          isOpen={openKey === "resources"}
+          compact={!externalDetail && openKey !== null && openKey !== "resources"}
+          linkCount={resourcesLinkCount}
+          onToggle={() => toggle("resources")}
+        />
+        {!externalDetail && openKey === "resources" && (
+          <ResourcesDetail countryCode={data.countryCode} onLinkCountChange={setResourcesLinkCount} />
+        )}
+      </div>
     </div>
   );
 }

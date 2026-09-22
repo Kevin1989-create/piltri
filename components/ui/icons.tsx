@@ -210,3 +210,15 @@ export const SECTION_ICONS = {
   climate: IconClimate,
   liveability: IconLiveability,
 } as const;
+
+/** Resources section (2026-09-23) - a signpost, distinct from the 4 scored
+ *  sections' icons above since Resources is deliberately not one of them
+ *  (see SectionKey in lib/types.ts) - kept out of SECTION_ICONS on purpose
+ *  rather than forcing it into that scored-sections-only map. */
+export function IconResources(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} {...props}>
+      <path d="M12 3v18M12 6l6-1.5v9L12 15M12 6L6 4.5v9L12 15" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

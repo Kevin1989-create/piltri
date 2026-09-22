@@ -673,6 +673,116 @@ just this feature, breaking the whole site's Explore search until the
 column existed. Held the push until the user confirmed the migration was
 applied, rather than deploying speculatively.
 
+## New: Resources — a 5th, deliberately unscored section (2026-09-23)
+
+User's idea: a small, hand-curated list of external links per country -
+official immigration/visa portals, national property listings, health
+registration, job boards - shown as a 5th section alongside the 4 scored
+ones, but clearly not part of the Piltri Score. 4 categories, chosen in
+conversation: **Home, Immigration, Health, Jobs**. Deliberately kept
+small by product decision (a soft ~10-links-per-country nudge in the
+admin UI, not a hard limit) - this is meant to stay a curated shortlist,
+not grow into a directory.
+
+**Complexity assessment given to the user before building** (worth
+keeping here since it turned out accurate): engineering is the *easy*
+part - no external API, no rate limits, no aggregation pipeline, just a
+small table and a CRUD form. The real cost is content: curating
+genuinely useful, current, trustworthy links per country is a large,
+open-ended manual effort, expected to grow gradually the same way city
+data coverage has all session - not something to expect "done" any time
+soon.
+
+**Where it lives, and why it's structured differently from everything
+else added this session**: Resources is *not* part of `SectionKey` (see
+`lib/types.ts`'s `ResourceLinkCategory` doc comment) - there's no
+sensible score for a links list, same reasoning that's kept Demographics
+out of `SectionKey` since the start. It's also *not* part of the cached
+`CityExploreData` blob in `city_scores`, unlike everything else -
+deliberately, since these links are:
+- **country-level** (shared across every city in that country, same
+  pattern as `countryPopulation` etc.), and
+- **hand-edited, expected to change often** while the user and Claude
+  build the list out together.
+
+Baking it into `city_scores` would mean an edited link doesn't show up
+until that specific city's next 30-day cache refresh - the exact
+"shape drift" pain point hit twice already this session (population/
+language, then land area), except this time it's not a one-off schema
+change, it's the *normal* way this data gets edited going forward. So
+instead: its own table (`country_resource_links` - country_code,
+category, title, url), read live via its own endpoint
+(`GET /api/explore/resource-links?countryCode=..`), fetched client-side
+by the results page independently of the main score fetch. An edit in
+`/admin/resources` is visible on the site immediately - no cache-clear
+dance needed, ever, for this one.
+
+**New pieces**:
+- `lib/types.ts` - `ResourceLinkCategory`, `ResourceLink`,
+  `ResourceLinksByCategory`, `RESOURCE_LINK_CATEGORIES`,
+  `RESOURCE_LINK_CATEGORY_LABELS`.
+- `lib/data-sources/resourceLinks.ts` - `getCountryResourceLinks`, the
+  one read function, used by both the public endpoint and (indirectly)
+  nothing else - kept intentionally thin.
+- `GET /api/explore/resource-links` (public) / `GET+POST+DELETE
+  /api/admin/resource-links` (password-gated, same `isAdminRequest`
+  pattern as every other admin route).
+- `/admin/resources` - a dedicated back-office page (linked from the
+  main `/admin` page), not folded into the main admin page - a country
+  code field, an add-link form, and a delete-able list per category.
+  Deliberately simple: no country picker, no bulk import, no pagination.
+- `components/explore/ResourcesRow.tsx` / `ResourcesDetail.tsx` /
+  `ResourcesDetailPanel.tsx` - same visual shell as the existing
+  `SectionRow`/`SectionDetail`/`SectionDetailPanel` trio (identical
+  padding, hover states, positioning) so Resources sits consistently
+  alongside the 4 scored rows, but **the badge slot is a plain neutral
+  pill showing the link count, never the green/amber/red `ScoreBadge`**
+  - the whole point was "visible enough, but clearly not part of the
+  score," so the row had to actually look different in that one specific
+  way, not just internally be a different type. Wired into
+  `SectionColumn.tsx` as a 5th row after the existing `ORDER.map` loop
+  (which is why `SectionColumn` already exports an `OpenSectionKey =
+  SectionKey | "resources"` type now, instead of every caller assuming
+  the open section is always a scored one) - this also means Resources
+  appears automatically on the Compare page (reuses `SectionColumn`) with
+  no extra wiring. Also added to the printable report page, reusing
+  `ResourcesDetail` directly rather than a 3rd rendering of the same
+  fetch-and-list logic.
+- `components/ui/icons.tsx` - `IconResources` (a signpost), kept out of
+  `SECTION_ICONS` on purpose since that map is typed to `SectionKey`.
+
+**Verified safe to deploy before the migration ran** (unlike the land-area
+column, which broke every city read until the migration landed) -
+`getCountryResourceLinks` treats a missing table as "no links," not an
+error to propagate, so the feature degrades to an honest empty state
+("No Resources links have been added for this country yet") rather than
+breaking anything else. Tested live locally before the migration existed:
+the public endpoint returned `{}` cleanly, the results page rendered the
+empty state, and the admin add-link form surfaced the real Postgres error
+("Could not find the table 'public.country_resource_links'...") without
+crashing the page - confirmed the ordering didn't matter this time, but
+still asked the user to run the migration before actually using it, since
+the feature isn't useful without it.
+
+Migration (2 new columns worth on `cities` from land area, this time a
+whole new table):
+```sql
+create table if not exists country_resource_links (
+  id uuid primary key default uuid_generate_v4(),
+  country_code text not null,
+  category text not null check (category in ('home', 'immigration', 'health', 'jobs')),
+  title text not null,
+  url text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists country_resource_links_country_idx on country_resource_links (country_code);
+alter table country_resource_links enable row level security;
+create policy "public read country_resource_links" on country_resource_links for select using (true);
+create policy "service role writes country_resource_links" on country_resource_links for insert with check (auth.role() = 'service_role');
+create policy "service role updates country_resource_links" on country_resource_links for update using (auth.role() = 'service_role');
+create policy "service role deletes country_resource_links" on country_resource_links for delete using (auth.role() = 'service_role');
+```
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new

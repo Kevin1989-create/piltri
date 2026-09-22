@@ -49,6 +49,26 @@ create table if not exists city_scores (
 
 create index if not exists city_scores_last_updated_idx on city_scores (last_updated);
 
+-- Resources — hand-curated external links per country (immigration,
+-- housing, health, jobs - see ResourceLinkCategory in lib/types.ts).
+-- Deliberately its own table, not a column on city_scores' JSONB blob:
+-- these are country-level (shared across every city in that country,
+-- same as countryPopulation etc.), and curated/edited by hand via
+-- /admin/resources rather than fetched - putting them in city_scores
+-- would mean an edit doesn't show up until that specific city's next
+-- 30-day cache refresh, for no benefit (this table is tiny and fast to
+-- read directly, no need to cache it inside another cache).
+create table if not exists country_resource_links (
+  id uuid primary key default uuid_generate_v4(),
+  country_code text not null,
+  category text not null check (category in ('home', 'immigration', 'health', 'jobs')),
+  title text not null,
+  url text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists country_resource_links_country_idx on country_resource_links (country_code);
+
 -- Saved pinned locations ("Save this location" button in Pin mode).
 -- user_id is nullable pre-auth; wire to Supabase Auth once accounts ship.
 create table if not exists saved_pins (
@@ -66,15 +86,20 @@ create table if not exists saved_pins (
 -- writes to the service role (aggregation layer runs server-side only).
 alter table cities enable row level security;
 alter table city_scores enable row level security;
+alter table country_resource_links enable row level security;
 alter table saved_pins enable row level security;
 
 create policy "public read cities" on cities for select using (true);
 create policy "public read city_scores" on city_scores for select using (true);
+create policy "public read country_resource_links" on country_resource_links for select using (true);
 
 create policy "service role writes cities" on cities for insert with check (auth.role() = 'service_role');
 create policy "service role updates cities" on cities for update using (auth.role() = 'service_role');
 create policy "service role writes city_scores" on city_scores for insert with check (auth.role() = 'service_role');
 create policy "service role updates city_scores" on city_scores for update using (auth.role() = 'service_role');
+create policy "service role writes country_resource_links" on country_resource_links for insert with check (auth.role() = 'service_role');
+create policy "service role updates country_resource_links" on country_resource_links for update using (auth.role() = 'service_role');
+create policy "service role deletes country_resource_links" on country_resource_links for delete using (auth.role() = 'service_role');
 
 -- Saved pins: anyone can insert (pre-auth save button), only service role reads all.
 create policy "anyone can save a pin" on saved_pins for insert with check (true);

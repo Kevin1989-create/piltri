@@ -8,13 +8,14 @@ import { SearchBar } from "@/components/ui/SearchBar";
 import { DiscoverIcon } from "@/components/ui/icons";
 import { MapView } from "@/components/explore/MapView";
 import { CityHeader } from "@/components/explore/CityHeader";
-import { SectionColumn } from "@/components/explore/SectionColumn";
+import { SectionColumn, type OpenSectionKey } from "@/components/explore/SectionColumn";
 import { SectionDetailPanel } from "@/components/explore/SectionDetailPanel";
+import { ResourcesDetailPanel } from "@/components/explore/ResourcesDetailPanel";
 import { PinPanel } from "@/components/explore/PinPanel";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { useMediaQuery } from "@/lib/useMediaQuery";
-import type { CityExploreData, NearbyPlace, SectionKey, TravelTimes } from "@/lib/types";
+import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
 function ResultsContent() {
   const params = useSearchParams();
@@ -83,7 +84,7 @@ function ResultsContent() {
   // Which section's detail panel is showing, if any — the main column
   // (CityHeader + 5 section rows) is a fixed size and never reacts to this;
   // it only controls whether the separate SectionDetailPanel is rendered.
-  const [openSectionKey, setOpenSectionKey] = useState<SectionKey | null>(null);
+  const [openSectionKey, setOpenSectionKey] = useState<OpenSectionKey | null>(null);
   // Persisted, shared preference (lib/scoreWeights.ts) — same weighting
   // applies here, in Discover mode's ranking, and on every other city you
   // look at. Read-only here: editing lives on /explore/weights only, to
@@ -330,7 +331,10 @@ function ResultsContent() {
           </div>
         </div>
 
-        {data && openSectionKey && isDesktop && <SectionDetailPanel section={openSectionKey} data={data} />}
+        {data && openSectionKey && openSectionKey !== "resources" && isDesktop && (
+          <SectionDetailPanel section={openSectionKey} data={data} />
+        )}
+        {data && openSectionKey === "resources" && isDesktop && <ResourcesDetailPanel countryCode={data.countryCode} />}
 
         {/* Pin marker itself stays on the map (MapView); its details show
             as a horizontal bar. On desktop that bar floats at the bottom,

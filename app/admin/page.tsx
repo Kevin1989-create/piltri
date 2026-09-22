@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -313,6 +314,11 @@ export default function AdminPage() {
                 <Button variant="ghost" onClick={triggerClear} disabled={busy !== null} className="w-full">
                   {busy === "clear" ? "Clearing…" : "Clear entire cache"}
                 </Button>
+                <Link href="/admin/resources">
+                  <Button variant="secondary" className="w-full">
+                    Manage Resources links
+                  </Button>
+                </Link>
               </div>
 
               {lastResult && <p className="mt-4 text-sm text-ink-700">{lastResult}</p>}

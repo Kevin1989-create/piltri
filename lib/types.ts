@@ -142,8 +142,44 @@ export interface LiveabilityFields {
 /** The 4 SCORED sections. Demographics is deliberately not here — it's
  *  supplementary info on CityExploreData.demographics, not part of the
  *  Piltri Score. There's no Real Estate section — see the file header
- *  comment. */
+ *  comment. Resources (see ResourceLinkCategory below) isn't here either,
+ *  for the same reason Demographics isn't - a handful of curated external
+ *  links has no sensible "good/bad" score. */
 export type SectionKey = "economy" | "safetyStability" | "climate" | "liveability";
+
+/** Resources — a small, hand-curated (not fetched/computed) set of
+ *  external links per country: official immigration/visa portals,
+ *  national property listing sites, healthcare registration, job boards.
+ *  Added 2026-09-23, deliberately limited (product decision: a handful of
+ *  genuinely useful links, not a directory) and country-level only (an
+ *  immigration authority or national job board doesn't vary by city -
+ *  same "shared across every city in that country" pattern as
+ *  countryPopulation etc. in DemographicsFields). Curated via /admin,
+ *  stored in its own `country_resource_links` Supabase table (see
+ *  schema.sql) - deliberately NOT part of the cached CityExploreData
+ *  blob, so adding/editing a link shows up immediately rather than
+ *  waiting on that city's next city_scores refresh (up to
+ *  CACHE_TTL_DAYS). Fetched by its own lightweight endpoint
+ *  (GET /api/explore/resource-links?countryCode=..) instead. */
+export type ResourceLinkCategory = "home" | "immigration" | "health" | "jobs";
+
+export const RESOURCE_LINK_CATEGORIES: ResourceLinkCategory[] = ["home", "immigration", "health", "jobs"];
+
+export const RESOURCE_LINK_CATEGORY_LABELS: Record<ResourceLinkCategory, string> = {
+  home: "Home",
+  immigration: "Immigration",
+  health: "Health",
+  jobs: "Jobs",
+};
+
+export interface ResourceLink {
+  id: string;
+  category: ResourceLinkCategory;
+  title: string;
+  url: string;
+}
+
+export type ResourceLinksByCategory = Record<ResourceLinkCategory, ResourceLink[]>;
 
 export const SECTION_WEIGHTS: Record<SectionKey, number> = {
   safetyStability: 0.3,
