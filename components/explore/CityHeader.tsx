@@ -164,18 +164,19 @@ export function CityHeader({
            *  reading order.
            *
            *  Colour now signals UI level, not country-vs-city tier
-           *  (2026-09-23, revised on request - an earlier version used
-           *  colour to distinguish Country from City, which still read as
-           *  unclear). The title (this block) is the strongest amber;
-           *  both stat-group headers below use a lighter shade of the same
-           *  amber; which tier a given block belongs to is now carried
-           *  entirely by its own label text ("United Kingdom" vs "London")
-           *  and position, not by colour - simpler to read at a glance. */}
-          <span className="block text-[11px] uppercase tracking-wide text-piltri-amber-dark font-sans font-medium">
+           *  (2026-09-23, revised again on request - amber-on-amber for
+           *  title vs stat-group headers still read as too similar). The
+           *  title (this block) is plain ink/black, the strongest possible
+           *  contrast; both stat-group headers below use the brand amber
+           *  ("tri" in the Piltri wordmark) so they read as a distinct,
+           *  secondary tier; which tier a given block belongs to is still
+           *  carried by its own label text ("United Kingdom" vs "London")
+           *  and position, not by colour choice alone. */}
+          <span className="block text-[11px] uppercase tracking-wide text-ink-900 font-sans font-medium">
             {region ? `${region}, ` : ""}
             {country}
           </span>
-          <span className="font-serif text-xl text-piltri-amber-dark">{cityName}</span>
+          <span className="font-serif text-xl text-ink-900">{cityName}</span>
         </h1>
         {(reportHref || compareHref) && (
           <div className="flex-shrink-0 mt-0.5 flex items-center gap-1.5">

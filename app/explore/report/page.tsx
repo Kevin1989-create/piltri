@@ -109,11 +109,11 @@ function ReportContent() {
                  *  Demographics groups below and CityHeader.tsx's title.
                  *  Colour signals UI level (title vs. group header), not
                  *  country-vs-city tier - see CityHeader.tsx's comment. */}
-                <p className="text-xs uppercase tracking-wide text-piltri-amber-dark font-medium mt-1">
+                <p className="text-xs uppercase tracking-wide text-ink-900 font-medium mt-1">
                   {data.region ? `${data.region}, ` : ""}
                   {data.country}
                 </p>
-                <h1 className="font-serif text-2xl sm:text-3xl text-piltri-amber-dark mt-0.5">{data.cityName}</h1>
+                <h1 className="font-serif text-2xl sm:text-3xl text-ink-900 mt-0.5">{data.cityName}</h1>
               </div>
               <div className="text-right flex-shrink-0">
                 <div className="flex items-baseline gap-1.5 justify-end">
