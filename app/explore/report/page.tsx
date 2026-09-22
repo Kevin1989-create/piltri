@@ -208,8 +208,8 @@ function ReportContent() {
                       {Math.round(data.sectionScores[section])}
                     </span>
                   </div>
-                  <ReportGroup title="Country" rows={countryRows} spacing={countryFirst ? "mt-3" : "mt-4"} />
-                  <ReportGroup title="City" rows={cityRows} spacing={countryFirst ? "mt-4" : "mt-3"} />
+                  <ReportGroup title={data.country} rows={countryRows} spacing={countryFirst ? "mt-3" : "mt-4"} />
+                  <ReportGroup title={data.cityName} rows={cityRows} spacing={countryFirst ? "mt-4" : "mt-3"} />
                   <ReportSubBlock title="Economy Type" rows={cityEconomyTypeRows} />
                   <ReportSubBlock title="Local Signals" rows={localSignalRows} />
                 </section>
@@ -245,14 +245,17 @@ function ReportContent() {
 /** Country vs City split (2026-09-23, mirrors the Demographics block above
  *  and SectionDetail.tsx's same split) - a section with data at only one
  *  tier (Climate is 100% city, Safety & Stability is 100% country) renders
- *  only that one group. `spacing` lets the caller give whichever group
+ *  only that one group. `title` is the actual country/city name (e.g.
+ *  "United Kingdom", "London"), not the generic word "Country"/"City" -
+ *  styled the same serif-amber way as the Demographics headings above,
+ *  just one size down. `spacing` lets the caller give whichever group
  *  lands first the tighter "mt-3" the original single grid used, since an
  *  empty group renders nothing and shouldn't leave a gap in its place. */
 function ReportGroup({ title, rows, spacing = "mt-4" }: { title: string; rows: KpiRow[]; spacing?: string }) {
   if (rows.length === 0) return null;
   return (
     <div className={spacing}>
-      <p className="text-[11px] uppercase tracking-wide text-ink-500 mb-2">{title}</p>
+      <p className="font-serif text-sm text-piltri-amber mb-1.5">{title}</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
         {rows.map((row) => (
           <ReportStat

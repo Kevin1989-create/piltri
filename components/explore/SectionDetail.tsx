@@ -76,7 +76,11 @@ function StatGrid({ rows, cols, bold = false }: { rows: KpiRow[]; cols: 2 | 3; b
  *  Economy's "Economy Type" and Liveability's "Local Signals" are both
  *  genuinely city-tier (pinned to this city's exact coordinates), so they
  *  nest inside the City group as labeled sub-blocks rather than sitting
- *  beside it.
+ *  beside it. Each group is headed by the actual country/city name (not
+ *  the generic word "Country"/"City"), styled the same serif-amber way as
+ *  CityHeader's Demographics block and the report page's Demographics
+ *  section - just smaller, since this panel is tighter than either of
+ *  those.
  *
  *  `bordered` controls the top divider: on (default) when this renders
  *  inline directly under its own SectionRow (Compare page); off when it's
@@ -115,14 +119,14 @@ export function SectionDetail({
     <div className={cn("bg-piltri-amber-tint/40 px-4 py-2.5", bordered && "border-t border-piltri-amber/20")}>
       {hasCountry && (
         <div>
-          <p className="text-[10px] text-ink-500 uppercase tracking-wide mb-1">Country</p>
+          <p className="font-serif text-xs text-piltri-amber leading-tight mb-1">{data.country}</p>
           <StatGrid rows={countryRows} cols={cols} />
         </div>
       )}
 
       {hasCity && (
         <div className={cn(hasCountry && "mt-2 pt-1.5 border-t border-piltri-amber/20")}>
-          <p className="text-[10px] text-ink-500 uppercase tracking-wide mb-1">City</p>
+          <p className="font-serif text-xs text-piltri-amber leading-tight mb-1">{data.cityName}</p>
           {cityRows.length > 0 && <StatGrid rows={cityRows} cols={cols} />}
           {cityExtraBlocks.map((block, i) => (
             <div key={block.title} className={cn((i > 0 || cityRows.length > 0) && "mt-2 pt-1.5 border-t border-piltri-amber/20")}>
