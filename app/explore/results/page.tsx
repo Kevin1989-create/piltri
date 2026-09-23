@@ -292,8 +292,17 @@ function ResultsContent() {
          *  for the main thread (see MapView's ResizeObserver comment) read
          *  as janky no matter how that resize was debounced. CityHeader
          *  disappearing instead (below) frees the same space without ever
-         *  touching the map. */}
-        <div className="h-[26dvh] md:h-full md:flex-1 relative">
+         *  touching the map.
+         *
+         *  23dvh, not 26dvh (2026-09-23, on request - Resources still cut
+         *  off on a real phone despite this fitting with 0px to spare in
+         *  this session's own testing tooling). dvh already accounts for
+         *  the browser chrome showing/hiding, but a razor-thin exact fit is
+         *  still fragile against small real-device differences (nav
+         *  buttons, a slightly taller status bar, etc.) that this tooling
+         *  can't reproduce - trading a little more map for a genuine
+         *  safety margin instead of a mathematically-exact one. */}
+        <div className="h-[23dvh] md:h-full md:flex-1 relative">
           <MapView
             lat={lat}
             lng={lng}
@@ -328,29 +337,32 @@ function ResultsContent() {
             )}
             {data && (
               <>
-                {/* Hidden on mobile while a section is open (2026-09-23, on
-                 *  request) - its space is what actually replaces the map
-                 *  resize that used to make room for the open row's detail;
-                 *  see the map div's comment above. Always shown on desktop,
-                 *  where a section opening never touches this column at all
-                 *  (its detail renders in the separate SectionDetailPanel
-                 *  instead). */}
-                {(isDesktop || !openSectionKey) && (
-                  <CityHeader
-                    cityName={data.cityName}
-                    country={data.country}
-                    piltriScore={displayedScore}
-                    demographics={data.demographics}
-                    compareHref={compareHref}
-                    reportHref={reportHref}
-                    weights={weights}
-                  />
-                )}
+                {/* City name + view/compare buttons stay put on mobile even
+                 *  while a section is open (2026-09-23, revised on request -
+                 *  used to hide this whole block, title included). Only the
+                 *  Demographics stat blocks (the `demographics` prop) go
+                 *  away, by passing undefined rather than conditionally
+                 *  rendering CityHeader itself - that reclaimed space is
+                 *  what replaces the map resize that used to make room for
+                 *  the open row's detail; see the map div's comment above.
+                 *  Always shown in full on desktop, where a section opening
+                 *  never touches this column at all (its detail renders in
+                 *  the separate SectionDetailPanel instead). */}
+                <CityHeader
+                  cityName={data.cityName}
+                  country={data.country}
+                  piltriScore={displayedScore}
+                  demographics={isDesktop || !openSectionKey ? data.demographics : undefined}
+                  compareHref={compareHref}
+                  reportHref={reportHref}
+                  weights={weights}
+                />
                 <SectionColumn
                   data={data}
                   externalDetail={isDesktop}
                   onOpenSectionChange={setOpenSectionKey}
                   autoScrollOnOpen={!isDesktop}
+                  hideOthersOnOpen={!isDesktop}
                 />
               </>
             )}

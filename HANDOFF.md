@@ -1126,6 +1126,38 @@ still a reasonable safeguard for other resize triggers (window resize,
 the pin panel changing width on desktop), just no longer load-bearing
 for the mobile expand/collapse case specifically.
 
+## Genuine safety margin for zero-scroll, and a leaner expand view (2026-09-23, later same session)
+
+Two more rounds of feedback on the mobile results page's default and
+expanded layouts.
+
+**Resources was still getting cut off on a real phone**, even after the
+`vh` → `dvh` fix. Measured this session's own testing tooling again: the
+"fit" was real but razor-thin - Resources' own bottom edge landed only
+~6px above the viewport's bottom edge, essentially an exact 0px-overflow
+fit with no margin. `dvh` correctly accounts for the browser chrome
+showing/hiding, but a fit that tight is still fragile against small
+real-device differences (a slightly taller status bar, on-screen nav
+buttons, etc.) this tooling can't reproduce. Traded a bit more map for a
+genuine buffer: the map's mobile height dropped from `26dvh` to `23dvh`,
+which measured out to ~32px of clear space below Resources instead of ~6px.
+
+**The expanded view got leaner still.** Hiding CityHeader's Demographics
+blocks (previous round) helped, but the city name and view/compare
+buttons disappearing too, and the other 4 rows staying as thin "compact"
+lines, still added up to more motion/content change than wanted. Revised
+per explicit direction: on mobile, opening a row now keeps the city name
++ Piltri score + the view/compare buttons in place (only the two
+Demographics stat blocks disappear - `CityHeader`'s `demographics` prop
+goes to `undefined` rather than the whole component unmounting), and the
+other 4 rows are removed entirely rather than shown compact
+(`SectionColumn`'s new `hideOthersOnOpen` prop, mirroring
+`autoScrollOnOpen`'s "mobile results only" scoping - Compare page's
+columns still show their compact siblings, since there's nowhere else
+those scores would be visible). Net effect on mobile: expanding a row
+now shows just nav + map (both still completely static) + city name/
+score/buttons + the one open row and its detail - nothing else.
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new

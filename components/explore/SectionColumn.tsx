@@ -40,6 +40,15 @@ interface SectionColumnProps {
    *  auto-scrolling the whole page from one column's click would fight
    *  whatever the other columns are showing. */
   autoScrollOnOpen?: boolean;
+  /** Removes the other 4 rows entirely (not just dims them to a thin
+   *  "compact" line - see SectionRow's `compact` prop) while one is open
+   *  (2026-09-23, on request, alongside CityHeader's Demographics blocks
+   *  disappearing in results/page.tsx - the same "only show what's
+   *  actually relevant right now" idea applied to this column's own
+   *  rows). Mobile results only, same reasoning as `autoScrollOnOpen`:
+   *  Compare page's columns need their compact siblings to stay
+   *  glanceable since there's no separate place their scores show. */
+  hideOthersOnOpen?: boolean;
 }
 
 /** Single-open accordion: only one section can be open at a time (a Set of
@@ -59,6 +68,7 @@ export function SectionColumn({
   externalDetail = false,
   onOpenSectionChange,
   autoScrollOnOpen = false,
+  hideOthersOnOpen = false,
 }: SectionColumnProps) {
   const [openKey, setOpenKey] = useState<OpenSectionKey | null>(null);
   // The button that triggered the most recent toggle - only read when a
@@ -104,26 +114,34 @@ export function SectionColumn({
 
   return (
     <div>
-      {ORDER.map((key) => (
-        <div key={key}>
-          <SectionRow
-            sectionKey={key}
-            score={data.sectionScores[key]}
-            isOpen={openKey === key}
-            compact={!externalDetail && openKey !== null && openKey !== key}
-            onToggle={(e) => toggle(key, e)}
-          />
-          {!externalDetail && openKey === key && <SectionDetail section={key} data={data} />}
-        </div>
-      ))}
-      <div>
-        <ResourcesRow
-          isOpen={openKey === "resources"}
-          compact={!externalDetail && openKey !== null && openKey !== "resources"}
-          onToggle={(e) => toggle("resources", e)}
-        />
-        {!externalDetail && openKey === "resources" && <ResourcesDetail countryCode={data.countryCode} />}
-      </div>
+      {ORDER.map((key) => {
+        const isOpen = openKey === key;
+        const isOtherRow = openKey !== null && !isOpen;
+        if (isOtherRow && hideOthersOnOpen) return null;
+        return (
+          <div key={key}>
+            <SectionRow
+              sectionKey={key}
+              score={data.sectionScores[key]}
+              isOpen={isOpen}
+              compact={!externalDetail && isOtherRow}
+              onToggle={(e) => toggle(key, e)}
+            />
+            {!externalDetail && isOpen && <SectionDetail section={key} data={data} />}
+          </div>
+        );
+      })}
+      {(() => {
+        const isOpen = openKey === "resources";
+        const isOtherRow = openKey !== null && !isOpen;
+        if (isOtherRow && hideOthersOnOpen) return null;
+        return (
+          <div>
+            <ResourcesRow isOpen={isOpen} compact={!externalDetail && isOtherRow} onToggle={(e) => toggle("resources", e)} />
+            {!externalDetail && isOpen && <ResourcesDetail countryCode={data.countryCode} />}
+          </div>
+        );
+      })()}
     </div>
   );
 }
