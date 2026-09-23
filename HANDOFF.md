@@ -1090,6 +1090,42 @@ briefly-clipped-but-smooth transition reads far better than a
 correctly-sized-but-stuttery one. Also added `ease-out` to the
 transition's timing function for a slightly more natural deceleration.
 
+## Mobile expand animation: stopped resizing the map, hide CityHeader instead (2026-09-23, later same session)
+
+The debounced-resize fix above helped but didn't fully solve the janky
+expand animation - the user's own diagnosis was right: resizing a live
+WebGL map via a CSS transition was never going to read as smooth, no
+matter how the resize calls were throttled. Their proposed fix: stop
+moving the map (and the nav bar) on expand/collapse at all, and instead
+free up the space that used to come from shrinking the map by hiding
+CityHeader (the city name + both Demographics blocks) while a section
+is open on mobile - reappearing the instant it closes.
+
+Implemented exactly that in `results/page.tsx`:
+- The map's mobile height is now a single fixed `h-[26dvh]` always - no
+  more `anySectionExpanded`-driven `h-[18dvh]`/`h-[26dvh]` toggle, no
+  more `transition-[height]` on it at all. It simply never moves.
+- `CityHeader` only renders when `isDesktop || !openSectionKey` - gone
+  the instant any of the 5 rows opens on mobile, back the instant
+  everything closes. No transition on this either - a plain DOM block
+  disappearing/reappearing isn't expensive the way a WebGL canvas
+  resize was, so there was nothing to smooth out in the first place.
+- `anySectionExpanded` state and `SectionColumn`'s `onAnyExpandedChange`
+  callback are gone entirely (nothing needs "is anything open" as a
+  bare boolean anymore - `openSectionKey` already carries strictly more
+  information and was the only thing actually consulted). Removed
+  rather than left dead.
+- `SectionColumn`'s auto-scroll effect (previous round) no longer needs
+  the artificial ~320ms delay that existed specifically to ride out the
+  map's now-deleted CSS transition - scrolls immediately once the
+  open/close state (and CityHeader's visibility) has committed.
+
+MapView's debounced `ResizeObserver` (previous round) is left in place
+even though this specific interaction no longer triggers it - it's
+still a reasonable safeguard for other resize triggers (window resize,
+the pin panel changing width on desktop), just no longer load-bearing
+for the mobile expand/collapse case specifically.
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new

@@ -28,7 +28,6 @@ interface SectionColumnProps {
    *  keeps the original inline-detail-with-dimmed-siblings behaviour. */
   externalDetail?: boolean;
   onOpenSectionChange?: (key: OpenSectionKey | null) => void;
-  onAnyExpandedChange?: (anyExpanded: boolean) => void;
   /** Scrolls the row just opened to the top of the viewport, and scrolls
    *  the whole page back to the top when the last open row closes
    *  (2026-09-23, on request - closing should return to exactly the
@@ -59,7 +58,6 @@ export function SectionColumn({
   data,
   externalDetail = false,
   onOpenSectionChange,
-  onAnyExpandedChange,
   autoScrollOnOpen = false,
 }: SectionColumnProps) {
   const [openKey, setOpenKey] = useState<OpenSectionKey | null>(null);
@@ -69,41 +67,34 @@ export function SectionColumn({
   const lastToggledRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
-    onAnyExpandedChange?.(openKey !== null);
     onOpenSectionChange?.(openKey);
-  }, [openKey, onAnyExpandedChange, onOpenSectionChange]);
+  }, [openKey, onOpenSectionChange]);
 
   useEffect(() => {
     prefetchResourceLinks(data.countryCode);
   }, [data.countryCode]);
 
   // Runs after the open/close state has committed, so the on-screen layout
-  // already reflects it (a section's detail added or removed) before
-  // scrolling. Delayed slightly past the results page's map-resize
-  // transition (see `onAnyExpandedChange` there - it animates the map
-  // smaller/back to full size over 300ms whenever any row opens/closes, on
-  // mobile) rather than firing immediately: scrolling mid-transition raced
-  // against that animation and could land the page at the wrong spot,
-  // since the target kept moving for the next ~300ms after this effect's
-  // first frame.
+  // already reflects it (a section's detail added or removed, CityHeader
+  // shown/hidden on mobile results - see results/page.tsx) before
+  // scrolling. No artificial delay needed here (there used to be one, to
+  // ride out a CSS transition on the map that no longer exists - see
+  // MapView's ResizeObserver comment for why that got removed): nothing
+  // left in this layout animates, so the DOM already reflects its final
+  // position by the time this effect runs.
   //
-  // Opening a row scrolls it to the top of the viewport (see
-  // SectionColumn's own doc comment). Closing the last open one - back to
-  // nothing expanded - scrolls the whole page back to the top instead, on
-  // request: the map has already grown back to full size by then, so this
-  // returns the page to the exact "nothing open" layout it started at,
-  // rather than leaving it wherever the scroll happened to land while a
-  // section was open.
+  // Opening a row scrolls it to the top of the viewport. Closing the last
+  // open one - back to nothing expanded - scrolls the whole page back to
+  // the top instead, on request: this returns the page to the exact
+  // "nothing open" layout it started at, rather than leaving it wherever
+  // the scroll happened to land while a section was open.
   useEffect(() => {
     if (!autoScrollOnOpen) return;
     if (openKey) {
-      const el = lastToggledRef.current;
-      if (!el) return;
-      const timer = setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 320);
-      return () => clearTimeout(timer);
+      lastToggledRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
     }
-    const timer = setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 320);
-    return () => clearTimeout(timer);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [openKey, autoScrollOnOpen]);
 
   function toggle(key: OpenSectionKey, e: MouseEvent<HTMLButtonElement>) {

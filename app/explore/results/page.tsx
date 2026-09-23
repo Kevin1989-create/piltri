@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { cn } from "@/lib/cn";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { DiscoverIcon } from "@/components/ui/icons";
@@ -82,15 +81,16 @@ function ResultsContent() {
   const leftColumnBoxRef = useRef<HTMLDivElement | null>(null);
   const mapAreaRef = useRef<HTMLDivElement | null>(null);
   const [pinPanelBottomPx, setPinPanelBottomPx] = useState(16);
-  // Which section's detail panel is showing, if any — the main column
-  // (CityHeader + 5 section rows) is a fixed size and never reacts to this;
-  // it only controls whether the separate SectionDetailPanel is rendered.
+  // Which section's detail panel is showing, if any. On desktop the main
+  // column (CityHeader + 5 section rows) is a fixed size and never reacts
+  // to this — it only controls whether the separate SectionDetailPanel is
+  // rendered. On mobile it also controls whether CityHeader itself renders
+  // at all (see the JSX below) - freeing up its space for the open row's
+  // detail instead of resizing the map, which used to animate open/closed
+  // alongside it and was reported as janky (a live WebGL canvas fighting a
+  // CSS height transition for the main thread). The map now stays a fixed
+  // size on mobile at all times.
   const [openSectionKey, setOpenSectionKey] = useState<OpenSectionKey | null>(null);
-  // Mobile only (see the map height below) - true while any of the 5 rows
-  // is expanded inline, so the map can shrink out of the way and free up
-  // room for the newly-opened detail instead of pushing it further below
-  // the fold.
-  const [anySectionExpanded, setAnySectionExpanded] = useState(false);
   // Persisted, shared preference (lib/scoreWeights.ts) — same weighting
   // applies here, in Discover mode's ranking, and on every other city you
   // look at. Read-only here: editing lives on /explore/weights only, to
@@ -286,12 +286,14 @@ function ResultsContent() {
        *  `relative` stays on unconditionally since it's still needed as the
        *  positioning context for the `md:absolute` children. */}
       <div ref={mapAreaRef} className="relative flex flex-col md:flex-1 md:overflow-hidden">
-        <div
-          className={cn(
-            "md:h-full md:flex-1 relative transition-[height] duration-300 ease-out",
-            anySectionExpanded ? "h-[18dvh]" : "h-[26dvh]"
-          )}
-        >
+        {/* Fixed size always on mobile now (2026-09-23, on request) - this
+         *  used to shrink while a section was open, animated via a CSS
+         *  height transition, but a live WebGL map fighting that transition
+         *  for the main thread (see MapView's ResizeObserver comment) read
+         *  as janky no matter how that resize was debounced. CityHeader
+         *  disappearing instead (below) frees the same space without ever
+         *  touching the map. */}
+        <div className="h-[26dvh] md:h-full md:flex-1 relative">
           <MapView
             lat={lat}
             lng={lng}
@@ -326,20 +328,28 @@ function ResultsContent() {
             )}
             {data && (
               <>
-                <CityHeader
-                  cityName={data.cityName}
-                  country={data.country}
-                  piltriScore={displayedScore}
-                  demographics={data.demographics}
-                  compareHref={compareHref}
-                  reportHref={reportHref}
-                  weights={weights}
-                />
+                {/* Hidden on mobile while a section is open (2026-09-23, on
+                 *  request) - its space is what actually replaces the map
+                 *  resize that used to make room for the open row's detail;
+                 *  see the map div's comment above. Always shown on desktop,
+                 *  where a section opening never touches this column at all
+                 *  (its detail renders in the separate SectionDetailPanel
+                 *  instead). */}
+                {(isDesktop || !openSectionKey) && (
+                  <CityHeader
+                    cityName={data.cityName}
+                    country={data.country}
+                    piltriScore={displayedScore}
+                    demographics={data.demographics}
+                    compareHref={compareHref}
+                    reportHref={reportHref}
+                    weights={weights}
+                  />
+                )}
                 <SectionColumn
                   data={data}
                   externalDetail={isDesktop}
                   onOpenSectionChange={setOpenSectionKey}
-                  onAnyExpandedChange={setAnySectionExpanded}
                   autoScrollOnOpen={!isDesktop}
                 />
               </>
