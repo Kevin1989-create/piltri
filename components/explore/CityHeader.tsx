@@ -162,7 +162,7 @@ export function CityHeader({
     // the top of the screen the moment you scrolled past it, permanently
     // eating a few hundred px of a phone's viewport height and directly
     // contributing to "a lot of scrolling needed" once a section opened.
-    <div className="px-4 pt-2 pb-1.5 md:sticky md:top-0 z-10 rounded-t-card bg-surface/95 backdrop-blur border-b border-surface-border">
+    <div className="px-4 pt-1.5 pb-1 md:sticky md:top-0 z-10 rounded-t-card bg-surface/95 backdrop-blur border-b border-surface-border">
       <div className="flex items-start justify-between gap-2">
         <h1 className="leading-tight">
           {/* Region/country eyebrow line removed (2026-09-23, on request) -

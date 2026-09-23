@@ -29,13 +29,17 @@ interface SectionColumnProps {
   externalDetail?: boolean;
   onOpenSectionChange?: (key: OpenSectionKey | null) => void;
   onAnyExpandedChange?: (anyExpanded: boolean) => void;
-  /** Scrolls the row just opened to the top of the viewport (2026-09-23, on
-   *  request) - mobile results only, where this column's inline detail is
-   *  the only place a section's data ever shows, so opening a row several
-   *  rows down otherwise leaves its newly-revealed content mostly or
-   *  entirely below the fold. Left off by default: Compare page's columns
-   *  sit side by side, and auto-scrolling the whole page from one column's
-   *  click would fight whatever the other columns are showing. */
+  /** Scrolls the row just opened to the top of the viewport, and scrolls
+   *  the whole page back to the top when the last open row closes
+   *  (2026-09-23, on request - closing should return to exactly the
+   *  "nothing expanded" layout the page started at, not leave it wherever
+   *  the scroll happened to land) - mobile results only, where this
+   *  column's inline detail is the only place a section's data ever
+   *  shows, so opening a row several rows down otherwise leaves its
+   *  newly-revealed content mostly or entirely below the fold. Left off
+   *  by default: Compare page's columns sit side by side, and
+   *  auto-scrolling the whole page from one column's click would fight
+   *  whatever the other columns are showing. */
   autoScrollOnOpen?: boolean;
 }
 
@@ -73,21 +77,32 @@ export function SectionColumn({
     prefetchResourceLinks(data.countryCode);
   }, [data.countryCode]);
 
-  // Runs after the open/close state has committed, so the clicked row's
-  // on-screen position already reflects the new layout (this section's
-  // detail added, whichever one was previously open removed) before
-  // scrolling to it. Delayed slightly past the results page's map-shrink
+  // Runs after the open/close state has committed, so the on-screen layout
+  // already reflects it (a section's detail added or removed) before
+  // scrolling. Delayed slightly past the results page's map-resize
   // transition (see `onAnyExpandedChange` there - it animates the map
-  // smaller over 300ms whenever any row is expanded, on mobile) rather
-  // than firing immediately: scrolling mid-transition raced against that
-  // animation and could land the page back at scrollY 0, since the target
-  // row's position kept moving for the next ~300ms after this effect's
+  // smaller/back to full size over 300ms whenever any row opens/closes, on
+  // mobile) rather than firing immediately: scrolling mid-transition raced
+  // against that animation and could land the page at the wrong spot,
+  // since the target kept moving for the next ~300ms after this effect's
   // first frame.
+  //
+  // Opening a row scrolls it to the top of the viewport (see
+  // SectionColumn's own doc comment). Closing the last open one - back to
+  // nothing expanded - scrolls the whole page back to the top instead, on
+  // request: the map has already grown back to full size by then, so this
+  // returns the page to the exact "nothing open" layout it started at,
+  // rather than leaving it wherever the scroll happened to land while a
+  // section was open.
   useEffect(() => {
-    if (!autoScrollOnOpen || !openKey) return;
-    const el = lastToggledRef.current;
-    if (!el) return;
-    const timer = setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 320);
+    if (!autoScrollOnOpen) return;
+    if (openKey) {
+      const el = lastToggledRef.current;
+      if (!el) return;
+      const timer = setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 320);
+      return () => clearTimeout(timer);
+    }
+    const timer = setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 320);
     return () => clearTimeout(timer);
   }, [openKey, autoScrollOnOpen]);
 

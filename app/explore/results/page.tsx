@@ -289,7 +289,7 @@ function ResultsContent() {
         <div
           className={cn(
             "md:h-full md:flex-1 relative transition-[height] duration-300",
-            anySectionExpanded ? "h-[18vh]" : "h-[45vh]"
+            anySectionExpanded ? "h-[18vh]" : "h-[26vh]"
           )}
         >
           <MapView

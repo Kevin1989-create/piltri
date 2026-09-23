@@ -967,6 +967,56 @@ the map shrunk out of the way. Desktop is untouched (`md:h-full`
 already overrides the mobile map height at that breakpoint regardless
 of `anySectionExpanded`, and `autoScrollOnOpen` is never true there).
 
+## Mobile results: zero-scroll default layout, and closing returns to it (2026-09-23, later same session)
+
+Follow-up to the mobile scrolling fixes above. Two more asks: the
+*default* view (nothing expanded - nav, map, city name, both
+Demographics blocks, all 5 rows) should fit on one phone screen with
+no scrolling at all, not just "less scrolling once something's open";
+and closing the last open row should return to exactly that layout,
+not leave the page wherever it happened to be scrolled to.
+
+**Zero-scroll default.** Measured the actual overflow locally (a
+reliable read, unlike the live site mid the slow-deploy episode below)
+at a 375×812 viewport (iPhone 12-14 standard, the baseline this was
+tuned against): 152px of forced scroll before any change. Traced it to
+three fixed-size pieces plus one relative one:
+- The map's default (nothing-expanded) mobile height was still `45vh`
+  (365px at this viewport) - dropped to `26vh` (~211px). Combined with
+  the already-`18vh` expanded height from the previous round, this
+  reads as one continuous idea now: the map is *always* smaller on
+  mobile than it used to be, shrinking further still while something's
+  open.
+- `CityHeader`'s outer padding `pt-2 pb-1.5` → `pt-1.5 pb-1`.
+That closed it exactly to 0px overflow at 375×812. Shorter phones
+(iPhone SE's 667px, for one) still need some scroll - closing that gap
+too would mean shrinking the map to the point of being nearly
+decorative on the far more common 800px+ class of screens, judged not
+worth it unless asked.
+
+**Closing returns to the top.** `SectionColumn`'s `autoScrollOnOpen`
+effect (previous round) only handled the *opening* case - closing the
+last open row left the page at whatever scroll position it was at.
+Extended the same effect: when `openKey` goes back to `null`, scroll
+the whole page to `{top: 0}` instead of a specific row, on the same
+~320ms delay past the map's resize transition as the open case (same
+race condition, same fix). Net effect: opening and closing any of the
+5 rows now always lands on a deliberate, complete layout - either "this
+section's detail, scrolled into view" or "the exact nothing-expanded
+view the page started at" - never a half-scrolled in-between state.
+
+**Aside: a live-site scare that turned out unrelated.** While chasing
+the very slow deploy for the previous round's commit (`fc5b461` - it
+took over 20 minutes to go out, versus this session's usual ~60-90s),
+the user separately reported the live site itself feeling slow/
+unstable. Checked network activity on the live site during that window
+and confirmed it was still serving the *old*, previously-fine build
+(chunk hash unchanged) - meaning whatever was slow was happening to
+already-deployed code, not anything from this session. Most likely a
+transient Vercel/Supabase platform issue rather than an app bug -
+flagged to the user to check Vercel's dashboard/status page directly,
+since that's outside what's visible from here.
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new
