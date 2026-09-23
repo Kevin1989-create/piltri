@@ -868,6 +868,32 @@ reusing `SectionDetail`). No `CityExploreData` shape change - this is
 purely how already-fetched rows get grouped for display - so no cache
 clear needed.
 
+## Title simplified to city-only, City before Country everywhere (2026-09-23, later same session)
+
+Final round of feedback on the results header for this session: drop
+the "England, United Kingdom" eyebrow line above the city name
+entirely, size the city name up since it's now the only line, and swap
+the two Demographics stat blocks so the city's own block comes first
+(country second) - matching the title now being city-first too.
+
+Applied in the three places this header renders: `CityHeader.tsx`
+(results page floating panel, Compare page columns) and the printable
+report page's equivalent markup (`app/explore/report/page.tsx`). Since
+the eyebrow line was the only thing reading `region`, `CityHeader`'s
+`region` prop is now fully removed (from the component, its props
+interface, and both call sites in `results/page.tsx` and
+`compare/page.tsx`) rather than left as an unused prop - the region
+name (e.g. "England") is simply no longer shown anywhere in this
+header; `data.region` itself is untouched in `CityExploreData`, just
+no longer read here.
+
+Deliberately **not** touched: the 4 scored sections' own Country/City
+KPI groups (`SectionDetail.tsx`, `ReportGroup` in the report page)
+still show Country before City - that ordering wasn't part of this
+round's request, only the top Demographics header was.
+
+No `CityExploreData` shape change - no cache clear needed.
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new

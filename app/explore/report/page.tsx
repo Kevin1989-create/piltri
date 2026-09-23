@@ -105,15 +105,10 @@ function ReportContent() {
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 pb-4 border-b border-surface-border">
               <div>
                 <p className="text-xs uppercase tracking-wide text-ink-500">Piltri score report</p>
-                {/* Country before City, matching the order of the two
-                 *  Demographics groups below and CityHeader.tsx's title.
-                 *  Colour signals UI level (title vs. group header), not
-                 *  country-vs-city tier - see CityHeader.tsx's comment. */}
-                <p className="text-xs uppercase tracking-wide text-ink-900 font-medium mt-1">
-                  {data.region ? `${data.region}, ` : ""}
-                  {data.country}
-                </p>
-                <h1 className="font-serif text-2xl sm:text-3xl text-ink-900 mt-0.5">{data.cityName}</h1>
+                {/* Region/country eyebrow line removed (2026-09-23, on
+                 *  request), matching CityHeader.tsx's title - the city
+                 *  name is sized up since it's the only line left. */}
+                <h1 className="font-serif text-3xl sm:text-4xl text-ink-900 mt-1">{data.cityName}</h1>
               </div>
               <div className="text-right flex-shrink-0">
                 <div className="flex items-baseline gap-1.5 justify-end">
@@ -136,9 +131,30 @@ function ReportContent() {
 
               {/* Country and City are two genuinely separate data tiers
                *  (see lib/types.ts's DemographicsFields comment) - shown
-               *  as two clearly labelled groups, same as CityHeader.tsx,
-               *  rather than blended into one set of stats. */}
-              <p className="font-serif text-base text-piltri-amber-dark mb-1.5">{data.country}</p>
+               *  as two clearly labelled groups, same as CityHeader.tsx.
+               *  City before Country (2026-09-23, on request), matching
+               *  the title above now being city-only. */}
+              <p className="font-serif text-base text-piltri-amber-dark mb-1.5">{data.cityName}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
+                <ReportStat
+                  label="Population"
+                  value={data.demographics.cityPopulation != null ? data.demographics.cityPopulation.toLocaleString() : "Not available"}
+                />
+                <ReportStat
+                  label="Land area"
+                  value={data.demographics.cityAreaKm2 != null ? formatAreaKm2(data.demographics.cityAreaKm2, prefs) : "Not available"}
+                />
+                <ReportStat
+                  label="Population density"
+                  value={
+                    data.demographics.cityPopulationDensityPerKm2 != null
+                      ? formatDensityPerKm2(data.demographics.cityPopulationDensityPerKm2, prefs, (n) => Math.round(n).toLocaleString())
+                      : "Not available"
+                  }
+                />
+              </div>
+
+              <p className="font-serif text-base text-piltri-amber-dark mb-1.5 mt-4">{data.country}</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
                 <ReportStat
                   label="Population"
@@ -171,26 +187,6 @@ function ReportContent() {
                   value={data.demographics.countryAverageAge != null ? String(data.demographics.countryAverageAge) : "Not available"}
                 />
                 <ReportStat label="Main language" value={data.demographics.countryMostWidelySpokenLanguage ?? "Not available"} />
-              </div>
-
-              <p className="font-serif text-base text-piltri-amber-dark mb-1.5 mt-4">{data.cityName}</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
-                <ReportStat
-                  label="Population"
-                  value={data.demographics.cityPopulation != null ? data.demographics.cityPopulation.toLocaleString() : "Not available"}
-                />
-                <ReportStat
-                  label="Land area"
-                  value={data.demographics.cityAreaKm2 != null ? formatAreaKm2(data.demographics.cityAreaKm2, prefs) : "Not available"}
-                />
-                <ReportStat
-                  label="Population density"
-                  value={
-                    data.demographics.cityPopulationDensityPerKm2 != null
-                      ? formatDensityPerKm2(data.demographics.cityPopulationDensityPerKm2, prefs, (n) => Math.round(n).toLocaleString())
-                      : "Not available"
-                  }
-                />
               </div>
             </section>
 

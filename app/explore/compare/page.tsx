@@ -138,7 +138,6 @@ function CompareContent() {
                   <>
                     <CityHeader
                       cityName={slot.data.cityName}
-                      region={slot.data.region}
                       country={slot.data.country}
                       piltriScore={slot.data.piltriScore}
                       demographics={slot.data.demographics}

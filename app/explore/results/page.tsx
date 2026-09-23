@@ -317,7 +317,6 @@ function ResultsContent() {
               <>
                 <CityHeader
                   cityName={data.cityName}
-                  region={data.region}
                   country={data.country}
                   piltriScore={displayedScore}
                   demographics={data.demographics}
