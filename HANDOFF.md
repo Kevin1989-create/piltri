@@ -1287,6 +1287,35 @@ Worth remembering for any future "new field on an existing section" change:
 grep for anywhere the new field is read and nullish-guard it, since old
 cache rows won't have it for up to 30 days after the field ships.
 
+## Confirmed live homicide data, removed the per-stat precision icons (2026-09-23, later same session)
+
+Two quick follow-ups after the homicide-rate addition above.
+
+**"It shows zero for United Kingdom" turned out to be the stale-cache
+fallback, not fake data.** Queried World Bank's `VC.IHR.PSRC.P5` and
+`GOV_WGI_PV.SC` directly for GB to confirm — real, current data (UK's
+latest homicide rate: 1.12/100k, 2021; political stability: 70.3, 2024).
+The `0.0` on screen was purely `kpiRows.ts`'s `?? 0` fallback for cached
+rows that predate the field (see previous entry). Cleared production's
+`city_scores` cache via `POST /api/admin/clear-cache` (18 rows) so every
+city re-aggregates and shows real figures going forward — confirmed live
+locally afterwards (London: 1.1/100k, matching the API directly).
+
+**Removed the small precision glyphs** (country outline / skyline / pin)
+that sat next to every KPI value flagging its data tier — no longer
+wanted. Removed from the two places they rendered per-stat:
+`components/explore/SectionDetail.tsx`'s `StatCell` (dropped the
+`PrecisionMark` sub-component entirely) and `app/explore/report/page.tsx`'s
+`ReportStat` (dropped its `Icon`/`precision` prop and the explanatory
+footnote paragraph). `lib/kpiRows.ts`'s now-unused `PRECISION_LABEL`
+export went with it. Left alone: the Country-vs-City *grouping* (headed by
+the actual country/city name) that `splitKpiRowsByTier` drives — that's a
+separate, still-wanted layout decision, not a per-stat icon. Also left
+alone: `PrecisionCityIcon`/`PrecisionCountryIcon`/`PrecisionPinnedIcon` in
+`components/ui/icons.tsx` and their unrelated uses in
+`app/explore/discover/page.tsx` (the City/Country **scope** toggle buttons,
+and the "Nearby" category's icon) — different feature, same glyphs.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

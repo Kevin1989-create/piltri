@@ -1,49 +1,20 @@
 "use client";
 
 import { cn } from "@/lib/cn";
-import { PrecisionCityIcon, PrecisionCountryIcon, PrecisionPinnedIcon } from "@/components/ui/icons";
 import {
-  PRECISION_LABEL,
   buildCityEconomyTypeRows,
   buildKpiRows,
   buildLiveabilityTransportRows,
   splitKpiRowsByTier,
   type KpiRow,
-  type PrecisionTier,
 } from "@/lib/kpiRows";
 import { useUnitPreferences } from "@/lib/unitPreferences";
 import type { CityExploreData, SectionKey } from "@/lib/types";
 
-const PRECISION_ICON = {
-  country: PrecisionCountryIcon,
-  city: PrecisionCityIcon,
-  pinned: PrecisionPinnedIcon,
-} as const;
-
-/** Small, neutral (uncoloured) glyph disclosing how precisely a stat is
- *  actually known — see lib/kpiRows.ts PrecisionTier. Sits at the right
- *  edge of the cell rather than glued to the value, so icons line up in a
- *  clean vertical column per grid column regardless of how long each
- *  value's text is (a "72 / 100" next to a "Yes" used to leave icons
- *  scattered when they sat immediately after the value). */
-function PrecisionMark({ tier }: { tier: PrecisionTier }) {
-  const Icon = PRECISION_ICON[tier];
-  return (
-    <span className="inline-flex flex-shrink-0" title={PRECISION_LABEL[tier]}>
-      <Icon className="w-3 h-3 text-ink-300" />
-    </span>
-  );
-}
-
 function StatCell({ row, bold = false }: { row: KpiRow; bold?: boolean }) {
   return (
     <div className="min-w-0">
-      <div className="flex items-center justify-between gap-1.5">
-        <p className={cn("text-xs leading-tight", bold ? "font-semibold" : "font-medium", row.colorClass ?? "text-ink-900")}>
-          {row.value}
-        </p>
-        <PrecisionMark tier={row.precision} />
-      </div>
+      <p className={cn("text-xs leading-tight", bold ? "font-semibold" : "font-medium", row.colorClass ?? "text-ink-900")}>{row.value}</p>
       <p className="text-[10px] text-ink-500 leading-tight" title={row.hint}>
         {row.label}
       </p>

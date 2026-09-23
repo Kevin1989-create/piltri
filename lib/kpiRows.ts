@@ -29,16 +29,6 @@ export interface KpiRow {
   hint?: string;
 }
 
-/** Short hover-label shown on the precision icon next to each stat (see
- *  components/explore/SectionDetail.tsx and app/explore/report/page.tsx) —
- *  kept here as the single shared copy so the two never say something
- *  different for the same tier. */
-export const PRECISION_LABEL: Record<PrecisionTier, string> = {
-  country: "Country Data",
-  city: "City Data",
-  pinned: "Pinned Data",
-};
-
 // Same 3-tier colour language used in CityHeader.tsx for demographics -
 // duplicated here rather than imported since CityHeader's copy is a
 // component-local concern; this one is the shared KPI-row version used by
