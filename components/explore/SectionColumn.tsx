@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { SectionRow } from "./SectionRow";
 import { SectionDetail } from "./SectionDetail";
 import { ResourcesRow } from "./ResourcesRow";
@@ -29,6 +29,14 @@ interface SectionColumnProps {
   externalDetail?: boolean;
   onOpenSectionChange?: (key: OpenSectionKey | null) => void;
   onAnyExpandedChange?: (anyExpanded: boolean) => void;
+  /** Scrolls the row just opened to the top of the viewport (2026-09-23, on
+   *  request) - mobile results only, where this column's inline detail is
+   *  the only place a section's data ever shows, so opening a row several
+   *  rows down otherwise leaves its newly-revealed content mostly or
+   *  entirely below the fold. Left off by default: Compare page's columns
+   *  sit side by side, and auto-scrolling the whole page from one column's
+   *  click would fight whatever the other columns are showing. */
+  autoScrollOnOpen?: boolean;
 }
 
 /** Single-open accordion: only one section can be open at a time (a Set of
@@ -43,8 +51,18 @@ interface SectionColumnProps {
  *  does still kick off `prefetchResourceLinks` as soon as it mounts, purely
  *  so the request is already in flight (or done) by the time a user
  *  actually opens Resources, rather than starting fresh on click. */
-export function SectionColumn({ data, externalDetail = false, onOpenSectionChange, onAnyExpandedChange }: SectionColumnProps) {
+export function SectionColumn({
+  data,
+  externalDetail = false,
+  onOpenSectionChange,
+  onAnyExpandedChange,
+  autoScrollOnOpen = false,
+}: SectionColumnProps) {
   const [openKey, setOpenKey] = useState<OpenSectionKey | null>(null);
+  // The button that triggered the most recent toggle - only read when a
+  // section just opened (see the scroll effect below), so a plain ref
+  // rather than state is fine here; it doesn't need to trigger a render.
+  const lastToggledRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     onAnyExpandedChange?.(openKey !== null);
@@ -55,7 +73,26 @@ export function SectionColumn({ data, externalDetail = false, onOpenSectionChang
     prefetchResourceLinks(data.countryCode);
   }, [data.countryCode]);
 
-  function toggle(key: OpenSectionKey) {
+  // Runs after the open/close state has committed, so the clicked row's
+  // on-screen position already reflects the new layout (this section's
+  // detail added, whichever one was previously open removed) before
+  // scrolling to it. Delayed slightly past the results page's map-shrink
+  // transition (see `onAnyExpandedChange` there - it animates the map
+  // smaller over 300ms whenever any row is expanded, on mobile) rather
+  // than firing immediately: scrolling mid-transition raced against that
+  // animation and could land the page back at scrollY 0, since the target
+  // row's position kept moving for the next ~300ms after this effect's
+  // first frame.
+  useEffect(() => {
+    if (!autoScrollOnOpen || !openKey) return;
+    const el = lastToggledRef.current;
+    if (!el) return;
+    const timer = setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 320);
+    return () => clearTimeout(timer);
+  }, [openKey, autoScrollOnOpen]);
+
+  function toggle(key: OpenSectionKey, e: MouseEvent<HTMLButtonElement>) {
+    lastToggledRef.current = e.currentTarget;
     setOpenKey((cur) => (cur === key ? null : key));
   }
 
@@ -68,7 +105,7 @@ export function SectionColumn({ data, externalDetail = false, onOpenSectionChang
             score={data.sectionScores[key]}
             isOpen={openKey === key}
             compact={!externalDetail && openKey !== null && openKey !== key}
-            onToggle={() => toggle(key)}
+            onToggle={(e) => toggle(key, e)}
           />
           {!externalDetail && openKey === key && <SectionDetail section={key} data={data} />}
         </div>
@@ -77,7 +114,7 @@ export function SectionColumn({ data, externalDetail = false, onOpenSectionChang
         <ResourcesRow
           isOpen={openKey === "resources"}
           compact={!externalDetail && openKey !== null && openKey !== "resources"}
-          onToggle={() => toggle("resources")}
+          onToggle={(e) => toggle("resources", e)}
         />
         {!externalDetail && openKey === "resources" && <ResourcesDetail countryCode={data.countryCode} />}
       </div>

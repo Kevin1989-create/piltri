@@ -918,6 +918,55 @@ anything at all. `ReportSubBlock` gained the same `spacing` prop
 `ReportGroup` already had, so whichever piece renders first (grid or
 sub-block) gets the tighter "mt-3".
 
+## Mobile results page: compact-row icons, and less scrolling on open (2026-09-23, later same session)
+
+Two mobile-only issues raised after the City-first work above.
+
+**Bug: the other 4 rows' icons disappeared once one was open.**
+`SectionRow`/`ResourcesRow`'s `compact` state (the "thin, quiet line"
+the other rows drop to whenever a different one is open - the normal
+resting state for 4 of 5 rows any time one is expanded, especially on
+mobile where this is the *only* accordion, there's no separate desktop
+side panel) was hiding the icon along with the chevron and shrinking
+the text. Dropping the icon too made the collapsed rows unrecognisable
+at a glance - fixed by keeping the icon always, just a size down
+(`w-3.5 h-3.5` vs `w-4 h-4`) when compact.
+
+**"A lot of scrolling needed" once a section opened.** Three compounding
+causes, all fixed together:
+1. `CityHeader`'s "sticky top-0" was unconditional. It's only meant to
+   pin within the left column's own `overflow-y-auto` box, which only
+   exists at `md` and up (`results/page.tsx`) - below `md` the whole
+   page scrolls instead, so "sticky" was pinning the *entire* header
+   (name, both Demographics boxes, score) to the top of the screen the
+   moment you scrolled past it, permanently eating a few hundred px of
+   a phone's viewport. Now `md:sticky md:top-0`.
+2. The map (`h-[45vh]` fixed, always) now shrinks to `h-[18vh]` on
+   mobile whenever any of the 5 rows is expanded (`SectionColumn`'s
+   existing but previously-unused `onAnyExpandedChange` callback, now
+   wired up in `results/page.tsx` as `anySectionExpanded` state driving
+   the map wrapper's className, with a 300ms height transition) -
+   freeing real space back for the newly-opened detail instead of
+   pushing it further below the fold.
+3. New `SectionColumn` prop `autoScrollOnOpen` (passed as `!isDesktop`
+   from `results/page.tsx` only - Compare page's side-by-side columns
+   leave it off, since auto-scrolling the whole page from one column's
+   click would fight the others). `SectionRow`/`ResourcesRow`'s
+   `onToggle` now receives the click event so `SectionColumn` can capture
+   `e.currentTarget` and, once open, `scrollIntoView({block: "start"})`
+   it - delayed ~320ms past the map's own shrink transition, since
+   scrolling to a target mid-transition raced against it and could land
+   scrollY back at 0 (the target kept moving for the next ~300ms after
+   the scroll's first frame - confirmed live while testing this fix,
+   not just theorised).
+
+Together: opening any of the 5 rows on mobile now needs zero manual
+scrolling in the common case - the page auto-scrolls to put the newly-
+open row (and usually the rest of the list below it) on screen, with
+the map shrunk out of the way. Desktop is untouched (`md:h-full`
+already overrides the mobile map height at that breakpoint regardless
+of `anySectionExpanded`, and `autoScrollOnOpen` is never true there).
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new

@@ -152,7 +152,17 @@ export function CityHeader({
     : null;
 
   return (
-    <div className="px-4 pt-2 pb-1.5 sticky top-0 z-10 rounded-t-card bg-surface/95 backdrop-blur border-b border-surface-border">
+    // Sticky is desktop-only (2026-09-23, fixing a bug) - the left column
+    // is its own `overflow-y-auto` box only at `md` and up (see
+    // results/page.tsx), where "sticky top-0" keeps this pinned above the
+    // section rows scrolling underneath it *inside that small box*, as
+    // intended. Below `md`, the whole page scrolls instead (no scroll
+    // container of its own here), so unconditional "sticky" was pinning
+    // this entire block - name, both demographics stat boxes, score - to
+    // the top of the screen the moment you scrolled past it, permanently
+    // eating a few hundred px of a phone's viewport height and directly
+    // contributing to "a lot of scrolling needed" once a section opened.
+    <div className="px-4 pt-2 pb-1.5 md:sticky md:top-0 z-10 rounded-t-card bg-surface/95 backdrop-blur border-b border-surface-border">
       <div className="flex items-start justify-between gap-2">
         <h1 className="leading-tight">
           {/* Region/country eyebrow line removed (2026-09-23, on request) -

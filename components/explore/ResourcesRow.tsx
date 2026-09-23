@@ -1,12 +1,16 @@
 "use client";
 
+import type { MouseEvent } from "react";
 import { cn } from "@/lib/cn";
 import { ChevronDown, IconResources } from "@/components/ui/icons";
 
 interface ResourcesRowProps {
   isOpen: boolean;
   compact?: boolean;
-  onToggle: () => void;
+  /** Receives the click event (not just a plain callback) so the caller can
+   *  scroll the clicked button into view via `e.currentTarget` when opening
+   *  it - see SectionColumn's `autoScrollOnOpen`. */
+  onToggle: (e: MouseEvent<HTMLButtonElement>) => void;
 }
 
 /** Same row shell as SectionRow (icon + name + chevron, identical padding)
@@ -16,19 +20,20 @@ interface ResourcesRowProps {
  *  a permanent, very light amber-tint background rather than the plain/
  *  hover-only background the 4 scored rows use - the one deliberately
  *  subtle visual cue that this row is a different kind of thing, without
- *  needing a badge to say so. */
+ *  needing a badge to say so. The icon stays when compact (2026-09-23,
+ *  matching the same fix on SectionRow) - just a touch smaller. */
 export function ResourcesRow({ isOpen, compact = false, onToggle }: ResourcesRowProps) {
   return (
     <button
       onClick={onToggle}
       aria-expanded={isOpen}
       className={cn(
-        "flex items-center gap-2.5 w-full text-left transition-colors border-t border-surface-border first:border-t-0",
+        "flex items-center gap-2.5 w-full text-left transition-colors border-t border-surface-border first:border-t-0 scroll-mt-4",
         compact ? "px-4 py-1.5" : "px-4 py-2",
         isOpen ? "bg-piltri-amber-light/40" : "bg-piltri-amber-tint/50 hover:bg-piltri-amber-tint"
       )}
     >
-      {!compact && <IconResources className="w-4 h-4 text-ink-700 flex-shrink-0" />}
+      <IconResources className={cn("text-ink-700 flex-shrink-0", compact ? "w-3.5 h-3.5" : "w-4 h-4")} />
       <span className={cn("text-ink-900 flex-1 truncate", compact ? "text-xs" : "text-sm")}>Resources</span>
       {!compact && (
         <ChevronDown className={cn("w-3.5 h-3.5 text-ink-500 transition-transform flex-shrink-0", isOpen && "rotate-180")} />
