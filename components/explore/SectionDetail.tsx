@@ -70,10 +70,12 @@ function StatGrid({ rows, cols, bold = false }: { rows: KpiRow[]; cols: 2 | 3; b
  *
  *  Split into Country vs City groups (2026-09-23, mirrors CityHeader's
  *  Demographics split) using each row's precision tier - see
- *  lib/kpiRows.ts's splitKpiRowsByTier. A section with data at only one
- *  tier (Climate is 100% city/pinned, Safety & Stability is 100% country)
- *  renders only that one group, never a padded-out empty other one.
- *  Economy's "Economy Type" and Liveability's "Local Signals" are both
+ *  lib/kpiRows.ts's splitKpiRowsByTier. City renders before Country
+ *  (2026-09-23, on request) to match CityHeader's own City-before-Country
+ *  order. A section with data at only one tier (Climate is 100%
+ *  city/pinned, Safety & Stability is 100% country) renders only that one
+ *  group, never a padded-out empty other one. Economy's "Economy Type"
+ *  and Liveability's "Local Signals" are both
  *  genuinely city-tier (pinned to this city's exact coordinates), so they
  *  nest inside the City group as labeled sub-blocks rather than sitting
  *  beside it. Each group is headed by the actual country/city name (not
@@ -122,15 +124,8 @@ export function SectionDetail({
 
   return (
     <div className={cn("bg-piltri-amber-tint/40 px-4 py-2.5", bordered && "border-t border-piltri-amber/20")}>
-      {hasCountry && (
-        <div>
-          <p className="font-serif font-semibold text-xs text-black leading-tight mb-1">{data.country}</p>
-          <StatGrid rows={countryRows} cols={cols} />
-        </div>
-      )}
-
       {hasCity && (
-        <div className={cn(hasCountry && "mt-2 pt-1.5 border-t border-piltri-amber/20")}>
+        <div>
           <p className="font-serif font-semibold text-xs text-black leading-tight mb-1">{data.cityName}</p>
           {cityRows.length > 0 && <StatGrid rows={cityRows} cols={cols} />}
           {cityExtraBlocks.map((block, i) => (
@@ -139,6 +134,13 @@ export function SectionDetail({
               <StatGrid rows={block.rows} cols={cols} bold />
             </div>
           ))}
+        </div>
+      )}
+
+      {hasCountry && (
+        <div className={cn(hasCity && "mt-2 pt-1.5 border-t border-piltri-amber/20")}>
+          <p className="font-serif font-semibold text-xs text-black leading-tight mb-1">{data.country}</p>
+          <StatGrid rows={countryRows} cols={cols} />
         </div>
       )}
     </div>

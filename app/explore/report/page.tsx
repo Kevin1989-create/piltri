@@ -195,7 +195,15 @@ function ReportContent() {
               const cityEconomyTypeRows = section === "economy" ? buildCityEconomyTypeRows(data) : null;
               const localSignalRows = section === "liveability" ? buildLiveabilityTransportRows(data) : null;
               const { countryRows, cityRows } = splitKpiRowsByTier(rows);
-              const countryFirst = countryRows.length > 0;
+              // Economy Type / Local Signals are both city-tier (pinned to
+              // this city's exact coordinates, same as SectionDetail.tsx's
+              // cityExtraBlocks) - grouped with the City stat grid so they
+              // move together as one "City" section, ahead of "Country"
+              // whenever either has content (in practice cityEconomyTypeRows
+              // and localSignalRows are never actually empty once built).
+              const subBlockTitle = section === "economy" ? "Economy Type" : section === "liveability" ? "Local Signals" : null;
+              const subBlockRows = cityEconomyTypeRows ?? localSignalRows;
+              const cityTierHasContent = cityRows.length > 0 || !!subBlockRows?.length;
               return (
                 <section key={section} className="mt-8 break-inside-avoid">
                   <div className="flex items-baseline justify-between border-b border-surface-border pb-1.5">
@@ -204,10 +212,13 @@ function ReportContent() {
                       {Math.round(data.sectionScores[section])}
                     </span>
                   </div>
-                  <ReportGroup title={data.country} rows={countryRows} spacing={countryFirst ? "mt-3" : "mt-4"} />
-                  <ReportGroup title={data.cityName} rows={cityRows} spacing={countryFirst ? "mt-4" : "mt-3"} />
-                  <ReportSubBlock title="Economy Type" rows={cityEconomyTypeRows} />
-                  <ReportSubBlock title="Local Signals" rows={localSignalRows} />
+                  {cityTierHasContent && (
+                    <>
+                      <ReportGroup title={data.cityName} rows={cityRows} spacing="mt-3" />
+                      {subBlockTitle && <ReportSubBlock title={subBlockTitle} rows={subBlockRows} spacing={cityRows.length > 0 ? "mt-4" : "mt-3"} />}
+                    </>
+                  )}
+                  <ReportGroup title={data.country} rows={countryRows} spacing={cityTierHasContent ? "mt-4" : "mt-3"} />
                 </section>
               );
             })}
@@ -271,10 +282,10 @@ function ReportGroup({ title, rows, spacing = "mt-4" }: { title: string; rows: K
   );
 }
 
-function ReportSubBlock({ title, rows }: { title: string; rows: KpiRow[] | null }) {
+function ReportSubBlock({ title, rows, spacing = "mt-4" }: { title: string; rows: KpiRow[] | null; spacing?: string }) {
   if (!rows) return null;
   return (
-    <div className="mt-4">
+    <div className={spacing}>
       <p className="text-[11px] uppercase tracking-wide text-ink-500 mb-2">{title}</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
         {rows.map((row) => (

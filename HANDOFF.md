@@ -894,6 +894,30 @@ round's request, only the top Demographics header was.
 
 No `CityExploreData` shape change - no cache clear needed.
 
+## City-before-Country extended to the 4 scored sections too (2026-09-23, later same session)
+
+Follow-up to the header simplification above: once the top Demographics
+header led with City, the user asked whether the 4 scored sections'
+own Country/City KPI groups should match - they did, so
+`SectionDetail.tsx` and the report page's per-section groups now also
+render City before Country, same as CityHeader.
+
+While making this change on the report page, found and fixed a real
+inconsistency it exposed: Economy's "Economy Type" and Liveability's
+"Local Signals" are both city-tier (pinned to the exact coordinates,
+same as `cityRows`), but the report page rendered them as fully
+separate `ReportSubBlock`s *after* both Country/City groups regardless
+of order - so for Economy specifically, "United Kingdom" ended up
+first and "Economy Type" last even with the City-first swap applied,
+while the interactive `SectionDetail` panel (which nests these inside
+its City `<div>`) correctly showed Economy Type first. Fixed by
+computing a single `cityTierHasContent` flag (`cityRows.length > 0 ||
+subBlockRows?.length`) and rendering the whole city-tier bundle - stat
+grid plus its sub-block - together, ahead of Country whenever it has
+anything at all. `ReportSubBlock` gained the same `spacing` prop
+`ReportGroup` already had, so whichever piece renders first (grid or
+sub-block) gets the tighter "mt-3".
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new
