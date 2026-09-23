@@ -417,12 +417,30 @@ export function MapView({
     // the bottom score panel growing once data loads, or the container
     // shrinking to half-width when pin mode opens. Without this, the map
     // renders off-centre / cropped relative to its actual visible area.
-    const resizeObserver = new ResizeObserver(() => map.resize());
+    //
+    // Debounced (2026-09-23, on request - fixing a genuine jank bug) rather
+    // than calling map.resize() on every single firing: the results page's
+    // mobile map height now animates via a CSS transition (opening/closing
+    // a section), and ResizeObserver fires on essentially every frame of
+    // that transition - each firing was triggering a full, synchronous
+    // Mapbox resize (WebGL canvas resize + repaint), competing with the CSS
+    // transition's own rendering for the main thread and producing the
+    // stuttery "small movements" the animation was reported to have. Since
+    // nothing needs the map's canvas to track the container's size on every
+    // intermediate frame - only once the size has actually settled - this
+    // waits until resize events stop arriving for a beat (comfortably past
+    // the 300ms CSS transition) before doing the one resize that matters.
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    const resizeObserver = new ResizeObserver(() => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => map.resize(), 350);
+    });
     resizeObserver.observe(containerRef.current);
 
     mapRef.current = map;
 
     return () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;

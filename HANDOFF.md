@@ -1017,6 +1017,79 @@ transient Vercel/Supabase platform issue rather than an app bug -
 flagged to the user to check Vercel's dashboard/status page directly,
 since that's outside what's visible from here.
 
+## Three more mobile/perf fixes: cold-cache load time, dvh, resize jank (2026-09-23, later same session)
+
+**Cold-cache load time was the real "2-3s (or much worse) loading" cause.**
+The 6 data sources `aggregateCityData` calls already ran in parallel
+(`Promise.all`), so the theory that they were serialised was wrong - the
+actual problem was that two of them had deliberately generous timeouts to
+ride out documented tail latency on their free upstream APIs, and
+`Promise.all` is only as fast as its slowest member:
+- Wikidata's city population/area lookup: `POPULATION_TIMEOUT_MS` was
+  20000ms (`lib/data-sources/wikidata.ts`).
+- Overpass's combined amenity/transport/economy query
+  (`getCityOverpassData`, what `aggregate.ts` actually calls): its
+  `BATCH_CLIENT_TIMEOUT_MS` was 6000ms, but `overpassPost`'s two-phase
+  fallback (primary, then race the remaining mirrors if it fails) means
+  the real worst case for one call is ~2x that value - so ~12000ms, and
+  each of the 3 public mirrors can independently be slow or (confirmed
+  live, mid-testing) rate-limited (`429`).
+Measured live on production before touching anything: a genuinely
+uncached city (Ballarat, Australia - not touched all session, unlike
+London) took **17.2 seconds** end to end. Reduced both: Wikidata's
+timeout to 6000ms (matching `fetchWithTimeout`'s own default, used by
+every other source), Overpass's `BATCH_CLIENT_TIMEOUT_MS`/
+`BATCH_QUERY_TIMEOUT_S` to 3000ms/3s (worst case ~6s, brought in line
+with everything else rather than left as the one outlier). Re-measured
+live (locally, so includes some dev-only compile overhead the first
+hit doesn't pay in production) across two more fresh cities as the
+fix landed in two rounds: 17.2s → 11.6s → 7.4s. The general-purpose
+sources' own 6000ms default (`fetchWithTimeout.ts`) was left alone -
+only the two sources that were measurably the actual bottleneck got
+touched. This is a deliberate speed-over-completeness tradeoff:
+a cache-miss city may now show "Not available"/"Not enough Data" for
+Overpass- or Wikidata-city-sourced fields slightly more often (a
+genuinely slow-but-real response now sometimes gets cut off where it
+wouldn't have been before) - judged the right trade given the
+complaint was specifically about load time. Once a city is cached
+(Supabase `city_scores`, 30-day TTL), none of this matters - subsequent
+loads are ~100ms regardless, confirmed live (Whyalla's second identical
+request during testing: 128ms vs. the first request's 11.6s).
+
+**Resources wasn't visible without scrolling on a real phone**, despite
+the previous round measuring 0px overflow at 375×812 in this browser
+tooling. Root cause: that measurement used `vh` units and a desktop-
+style viewport with no address bar to account for - `vh` is defined
+against the *largest possible* viewport (address bar collapsed), not
+the *actual initially-visible* one (address bar showing), so a real
+phone's true usable height on arrival is meaningfully less than
+`100vh` reports. Switched the map's mobile height classes from
+`h-[26vh]`/`h-[18vh]` to `h-[26dvh]`/`h-[18dvh]` (dynamic viewport
+height - responds to the address bar actually showing or hidden,
+well-supported on real mobile browsers for years now) in
+`results/page.tsx`. Not fully verifiable from this tooling (no real
+address-bar simulation available here) - the theory is solid and the
+change is a strict improvement with no downside, but this one is worth
+the user confirming on an actual phone.
+
+**The expand/collapse animation was janky ("small movements").** Root
+cause: the map's mobile height already animates via a CSS transition
+(`transition-[height] duration-300`), and `MapView.tsx`'s
+`ResizeObserver` was calling `map.resize()` - a synchronous, expensive
+WebGL canvas resize + repaint - on *every single frame* of that
+transition (ResizeObserver fires on essentially every layout change,
+so ~18 times over a 300ms transition). Each call competed with the
+CSS transition's own rendering for the main thread, producing the
+stutter. Fixed by debouncing: the observer now waits 350ms (past the
+transition's own 300ms) since the last size change before calling
+`map.resize()` once, rather than on every frame. The map canvas may
+show a brief size mismatch (clipped or with a small gap at the edges)
+*during* the animation now instead of live-tracking it, but the CSS
+transition itself runs unobstructed - judged the right trade, since a
+briefly-clipped-but-smooth transition reads far better than a
+correctly-sized-but-stuttery one. Also added `ease-out` to the
+transition's timing function for a slightly more natural deceleration.
+
 ## Current data state — read this before doing anything data-related
 
 As of the end of the 2026-09-20 session: the shortlist is the new

@@ -26,8 +26,15 @@ const SPARQL_ENDPOINT = "https://query.wikidata.org/sparql";
 // tested live for several cities) but Wikidata's own query service has
 // real, well-documented tail latency - the identical query for Paris
 // measured 491ms once and 8000ms+ (timed out) minutes later with nothing
-// about the query changed - hence a generous timeout here.
-const POPULATION_TIMEOUT_MS = 20000;
+// about the query changed. This used to be a generous 20000ms specifically
+// to ride out that tail rather than give up on a slow-but-real answer -
+// reduced 2026-09-23 (on request: a cold-cache city taking 17s+ to load
+// was worse than this field occasionally falling back to "Not available")
+// since this runs in the same Promise.all as every other source in
+// aggregate.ts and is only as fast as its slowest member - a page load is
+// never faster than this timeout on a genuine miss, so a generous value
+// here directly becomes the page's own worst case.
+const POPULATION_TIMEOUT_MS = 6000;
 
 // Wikidata quantity-unit QIDs that P2046 (area) statements commonly use,
 // each mapped to its km² conversion factor. An area statement in any other

@@ -288,8 +288,8 @@ function ResultsContent() {
       <div ref={mapAreaRef} className="relative flex flex-col md:flex-1 md:overflow-hidden">
         <div
           className={cn(
-            "md:h-full md:flex-1 relative transition-[height] duration-300",
-            anySectionExpanded ? "h-[18vh]" : "h-[26vh]"
+            "md:h-full md:flex-1 relative transition-[height] duration-300 ease-out",
+            anySectionExpanded ? "h-[18dvh]" : "h-[26dvh]"
           )}
         >
           <MapView

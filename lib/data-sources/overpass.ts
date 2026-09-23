@@ -77,8 +77,16 @@ const AIRPORT_RADIUS_M = 40000;
 // own search server-side after this many seconds) plus a client-side
 // timeout below means a slow query fails fast into its fallback/default
 // rather than dragging out the whole Explore search or pin lookup.
-const OVERPASS_QUERY_TIMEOUT_S = 10;
-const CLIENT_TIMEOUT_MS = 9000;
+// Reduced from 10s/9000ms 2026-09-23 (on request, alongside Wikidata's
+// timeout - see that file's comment) - overpassPost's two-phase fallback
+// means the real worst case for ONE call is roughly 2x CLIENT_TIMEOUT_MS
+// (primary fully times out, then the mirror race also fully times out),
+// and this call sits in the same Promise.all as every other source in
+// aggregate.ts, so that worst case was directly the page's own worst
+// case too. 5000ms keeps a genuinely slow-but-alive mirror a fair chance
+// to answer while capping the total at ~10s instead of ~18s.
+const OVERPASS_QUERY_TIMEOUT_S = 4;
+const CLIENT_TIMEOUT_MS = 5000;
 
 // Wider than the 5km default: sector signals like an industrial estate or
 // out-of-town retail/office park are more spread out than restaurants/bars.
@@ -98,8 +106,28 @@ const SECTOR_RADIUS_M = 8000;
 // not just a nice-to-have. A city that genuinely needs longer than this
 // just retries on the next scheduled tick (see warmCache.ts) rather than
 // blocking everything after it.
-const BATCH_QUERY_TIMEOUT_S = 6;
-const BATCH_CLIENT_TIMEOUT_MS = 6000;
+//
+// Reduced again 2026-09-23 (on request, alongside Wikidata's population
+// timeout - see that file's comment): this is the actual call
+// aggregate.ts makes (getCityOverpassData, the "6 sources in parallel"
+// call in aggregateCityData), so its ~2x-this-value worst case was
+// directly showing up as the results page's own worst-case load time on
+// a cache miss (confirmed live: a cold Ballarat, Australia lookup took
+// 17.2s end to end, with this and Wikidata's population lookup as the
+// two plausible sources of most of that). A real-time Explore search
+// values a bounded, fast answer over this specific field's completeness
+// far more than the warm-cache cron (a background job with no one
+// waiting on it) ever did - hence a shorter timeout than even that job
+// needs, rather than sharing one "compromise" value between both.
+//
+// 3000ms (worst case ~6s) lines this up with every other source's own
+// ~6s ceiling (fetchWithTimeout's default, and Wikidata's
+// POPULATION_TIMEOUT_MS) rather than leaving Overpass as a taller outlier
+// on its own - confirmed live this was still the dominant cost even after
+// the first round of cuts (a cold Whyalla, Australia lookup hit an
+// Overpass mirror 429 and took 11.6s total).
+const BATCH_QUERY_TIMEOUT_S = 3;
+const BATCH_CLIENT_TIMEOUT_MS = 3000;
 
 interface TagGroup {
   tags: string[];
