@@ -51,6 +51,7 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
 
   const politicalStabilityScore = randInt(20, 95);
   const ruleOfLawScore = randInt(20, 95);
+  const homicideRatePer100k = randFloat(0, 15);
 
   const avgAnnualTemperatureC = randFloat(-5, 32);
   const avgAnnualRainfallMm = randInt(0, 2500);
@@ -105,6 +106,7 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
       politicalStabilityScore,
       ruleOfLawScore,
       safetyTrend: pick(TRENDS),
+      homicideRatePer100k,
     },
     climate: {
       avgAnnualTemperatureC,
@@ -136,7 +138,7 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
       100 - costOfLivingIndex,
       purchasingPowerIndex,
     ]),
-    safetyStability: averageScores([politicalStabilityScore, ruleOfLawScore]),
+    safetyStability: averageScores([politicalStabilityScore, ruleOfLawScore, normalise(homicideRatePer100k, 0, 30, true)]),
     climate: averageScores([
       normalise(Math.abs(avgAnnualTemperatureC - 20), 0, 20, true),
       normalise(Math.abs(avgAnnualRainfallMm - 1000), 0, 1000, true),

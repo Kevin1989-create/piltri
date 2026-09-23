@@ -72,6 +72,11 @@ export interface WorldBankIndicators {
   /** Derived from politicalStabilityScore's own multi-year trend — not a
    *  separate placeholder (see trendFromPctChange above). */
   politicalStabilityTrend: TrendDirection;
+  /** Intentional homicides per 100,000 people (VC.IHR.PSRC.P5, sourced from
+   *  UNODC via the same World Bank API) — added 2026-09-23 alongside the
+   *  Safety & Stability data review. A hard crime statistic, complementing
+   *  WGI's two perception-based governance scores above. */
+  homicideRatePer100k: number | null;
 }
 
 /**
@@ -81,18 +86,20 @@ export interface WorldBankIndicators {
  * Governance Indicators" — verified via https://api.worldbank.org/v2/sources).
  */
 export async function getWorldBankIndicators(countryCode: string): Promise<WorldBankIndicators> {
-  const [population, density, landArea, gdpGrowth, gni, unemployment, ppp, priceLevel, politicalStability, ruleOfLaw] = await Promise.all([
-    fetchIndicator(countryCode, "SP.POP.TOTL"),
-    fetchIndicator(countryCode, "EN.POP.DNST"),
-    fetchIndicator(countryCode, "AG.LND.TOTL.K2"),
-    fetchIndicator(countryCode, "NY.GDP.MKTP.KD.ZG"),
-    fetchIndicator(countryCode, "NY.GNP.PCAP.CD"),
-    fetchIndicator(countryCode, "SL.UEM.TOTL.ZS"),
-    fetchIndicator(countryCode, "NY.GDP.PCAP.PP.CD"),
-    fetchIndicator(countryCode, "PA.NUS.PRVT.PLI"),
-    fetchIndicator(countryCode, "GOV_WGI_PV.SC"),
-    fetchIndicator(countryCode, "GOV_WGI_RL.SC"),
-  ]);
+  const [population, density, landArea, gdpGrowth, gni, unemployment, ppp, priceLevel, politicalStability, ruleOfLaw, homicideRate] =
+    await Promise.all([
+      fetchIndicator(countryCode, "SP.POP.TOTL"),
+      fetchIndicator(countryCode, "EN.POP.DNST"),
+      fetchIndicator(countryCode, "AG.LND.TOTL.K2"),
+      fetchIndicator(countryCode, "NY.GDP.MKTP.KD.ZG"),
+      fetchIndicator(countryCode, "NY.GNP.PCAP.CD"),
+      fetchIndicator(countryCode, "SL.UEM.TOTL.ZS"),
+      fetchIndicator(countryCode, "NY.GDP.PCAP.PP.CD"),
+      fetchIndicator(countryCode, "PA.NUS.PRVT.PLI"),
+      fetchIndicator(countryCode, "GOV_WGI_PV.SC"),
+      fetchIndicator(countryCode, "GOV_WGI_RL.SC"),
+      fetchIndicator(countryCode, "VC.IHR.PSRC.P5"),
+    ]);
 
   return {
     population: latest(population),
@@ -107,5 +114,6 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     politicalStabilityScore: latest(politicalStability),
     ruleOfLawScore: latest(ruleOfLaw),
     politicalStabilityTrend: trendFromPctChange(pctChange(politicalStability)),
+    homicideRatePer100k: latest(homicideRate),
   };
 }

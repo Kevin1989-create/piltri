@@ -187,6 +187,17 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           colorClass: tierColorClass(s.ruleOfLawScore),
           hint: "World Bank Worldwide Governance Indicators",
         },
+        {
+          label: "Homicide rate",
+          // Falls back to 0 for rows cached before this field existed (the
+          // 30-day Supabase cache serves those as-is until they naturally
+          // re-aggregate) — same nullish-safe pattern as the rest of this
+          // file's cached/optional fields.
+          value: `${(s.homicideRatePer100k ?? 0).toFixed(1)} / 100k`,
+          precision: "country",
+          colorClass: tierColorClass(100 - Math.min(100, ((s.homicideRatePer100k ?? 0) / 30) * 100)), // lower = better
+          hint: "Intentional homicides per 100,000 people — UNODC via World Bank",
+        },
         { label: "Safety trend", value: s.safetyTrend, precision: "country", colorClass: trendColorClass(s.safetyTrend) },
       ];
     }

@@ -1243,6 +1243,50 @@ extension-ordering bug in `schema.sql`, among others).
    the first full warm sweep, adding `CRON_SECRET`/`ADMIN_PASSWORD` to
    Vercel).
 
+## Safety & Stability: added homicide rate, reviewed data quality (2026-09-23, later same session)
+
+Went through the "review each scored category" exercise for Safety &
+Stability first (user's own framing: work through the 4 scored categories
+one at a time). Findings, for the record:
+
+- All 3 existing fields (Political stability score, Rule of law score,
+  Safety trend) trace back to World Bank's Worldwide Governance Indicators
+  (`GOV_WGI_PV.SC` / `GOV_WGI_RL.SC`) — country-level only, and correctly
+  so: governance/rule-of-law describe national institutions, there's no
+  meaningful city-level equivalent. Safety trend isn't independent data —
+  it's derived from Political stability's own multi-year trend (see
+  `trendFromPctChange` in `lib/data-sources/worldbank.ts`).
+- WGI's quality/coverage are both good (~214 economies, internationally
+  respected composite indicator), so no change needed there.
+- Added one genuinely new field: **intentional homicide rate per 100k**
+  (`VC.IHR.PSRC.P5`, UNODC via the same World Bank API already in use —
+  zero new integration cost). It's a hard crime statistic, complementing
+  WGI's two perception-based governance scores. Still country-level —
+  looked for a free, reliable city-level crime source and found none worth
+  shipping (Numbeo's city Safety Index is crowdsourced and needs a paid
+  API, the same reason Real Estate skipped Numbeo earlier; an Overpass
+  police/fire-station-density proxy is free and city-level but too
+  ambiguous a signal — more stations could mean more crime or more
+  investment, no clean "higher = safer" read).
+
+Wired end to end: `lib/data-sources/worldbank.ts` fetches
+`VC.IHR.PSRC.P5`; `lib/types.ts`'s `SafetyStabilityFields` gained
+`homicideRatePer100k`; `lib/aggregation/aggregate.ts` normalises it
+(0-30 range, inverted — lower is better) into the Safety & Stability
+section score alongside the other two; `lib/kpiRows.ts` shows it as a new
+KPI row; `lib/advancedSearch/criteria.ts` and `lib/aggregation/randomSeed.ts`
+got the matching criterion/mock-data updates.
+
+**Cached rows predate this field.** Supabase's 30-day `city_scores` cache
+has rows serialized before `homicideRatePer100k` existed, so reading it off
+a cached row is `undefined` until that city naturally re-aggregates.
+Confirmed this crashes `kpiRows.ts`'s `.toFixed(1)` call on a real cached
+city (London) during verification — fixed with a `?? 0` fallback at the
+display site, same pattern as this file's other cached/optional fields.
+Worth remembering for any future "new field on an existing section" change:
+grep for anywhere the new field is read and nullish-guard it, since old
+cache rows won't have it for up to 30 days after the field ships.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

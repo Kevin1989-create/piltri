@@ -33,6 +33,11 @@ const RANGES = {
   // World Bank's Price Level Index (PA.NUS.PRVT.PLI) — verified real-world
   // spread runs from ~India (23) to ~Switzerland (128).
   priceLevel: { min: 15, max: 130 },
+  // Intentional homicides per 100k (UNODC/World Bank VC.IHR.PSRC.P5). Most
+  // countries sit under ~5; a handful of high-crime outliers run into the
+  // 20s-40s. 30 as the ceiling keeps those outliers meaningfully separated
+  // from the mid-range rather than all clamping to 0.
+  homicideRate: { min: 0, max: 30 },
   // Recalibrated 2026-09-21 after fixing the per10k population bug below
   // (was dividing by country population, not city - see per10k's own
   // comment). Tested live against real Overpass counts within 5km of a
@@ -173,6 +178,7 @@ export async function aggregateCityData(city: CitySearchResult, opts: { osmLandA
       politicalStabilityScore: wb?.politicalStabilityScore != null ? Math.round(wb.politicalStabilityScore) : 50,
       ruleOfLawScore: wb?.ruleOfLawScore != null ? Math.round(wb.ruleOfLawScore) : 50,
       safetyTrend: wb?.politicalStabilityTrend ?? "Stable",
+      homicideRatePer100k: wb?.homicideRatePer100k ?? RANGES.homicideRate.min,
     },
     climate: {
       avgAnnualTemperatureC: climate?.avgAnnualTemperatureC ?? 15,
@@ -211,7 +217,11 @@ export async function aggregateCityData(city: CitySearchResult, opts: { osmLandA
       100 - data.economy.costOfLivingIndex, // lower cost of living = better score
       data.economy.purchasingPowerIndex,
     ]),
-    safetyStability: averageScores([data.safetyStability.politicalStabilityScore, data.safetyStability.ruleOfLawScore]),
+    safetyStability: averageScores([
+      data.safetyStability.politicalStabilityScore,
+      data.safetyStability.ruleOfLawScore,
+      normalise(data.safetyStability.homicideRatePer100k, RANGES.homicideRate.min, RANGES.homicideRate.max, true), // lower homicide rate = better
+    ]),
     climate: averageScores([
       normalise(Math.abs(data.climate.avgAnnualTemperatureC - 20), RANGES.temperatureDistanceFrom20C.min, RANGES.temperatureDistanceFrom20C.max, true), // closer to 20C scores higher
       normalise(

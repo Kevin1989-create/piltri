@@ -176,6 +176,14 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.safetyStability.ruleOfLawScore,
   },
   {
+    key: "safetyStability.homicideRatePer100k",
+    category: "safetyStability",
+    label: "Homicide rate (per 100k)",
+    kind: "range",
+    suggestedRange: [0, 30],
+    getCityValue: (d) => d.safetyStability.homicideRatePer100k,
+  },
+  {
     key: "safetyStability.safetyTrend",
     category: "safetyStability",
     label: "Safety trend",

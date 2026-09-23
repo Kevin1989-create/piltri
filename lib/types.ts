@@ -97,16 +97,22 @@ export interface EconomyFields {
   purchasingPowerIndex: number; // 0-100
 }
 
-/** Both fields are World Bank Worldwide Governance Indicators — Political
- *  Stability (GOV_WGI_PV.SC) and Rule of Law (GOV_WGI_RL.SC), both already
- *  published on a 0-100 "governance score" scale, free and keyless via the
- *  same World Bank API already used for Economy/Demographics. `safetyTrend`
- *  is derived from Political Stability's own multi-year trend (see
- *  lib/data-sources/worldbank.ts), not a separate placeholder. */
+/** Political Stability and Rule of Law are World Bank Worldwide Governance
+ *  Indicators (GOV_WGI_PV.SC / GOV_WGI_RL.SC), both already published on a
+ *  0-100 "governance score" scale, free and keyless via the same World Bank
+ *  API already used for Economy/Demographics. `safetyTrend` is derived from
+ *  Political Stability's own multi-year trend (see
+ *  lib/data-sources/worldbank.ts), not a separate placeholder.
+ *  `homicideRatePer100k` (added 2026-09-23) is a hard crime statistic
+ *  (UNODC, via the same World Bank API) complementing the two perception-
+ *  based governance scores above. All 4 fields are inherently country-level
+ *  — governance and crime reporting are national concepts, there's no
+ *  meaningful city-level equivalent to source these from for free. */
 export interface SafetyStabilityFields {
   politicalStabilityScore: number; // 0-100
   ruleOfLawScore: number; // 0-100
   safetyTrend: TrendDirection;
+  homicideRatePer100k: number; // intentional homicides per 100k people
 }
 
 /** All 4 fields are Open-Meteo climate normals for this city's exact
