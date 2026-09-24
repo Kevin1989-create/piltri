@@ -1426,6 +1426,38 @@ colour, already used at country-name-heading size in `CityHeader.tsx`) —
 deliberately outside the red-green score spectrum other rows use, since
 both are plain descriptive labels, not good/bad values.
 
+## GDP sector: single "Dominant" row → full 1st/2nd/3rd ranking (2026-09-24, later same session)
+
+Following the coverage numbers above (94% of countries have all 3 of
+Agriculture/Industry/Services), the user asked for the full ranked
+breakdown instead of just the single largest sector.
+
+`lib/types.ts`: `DominantGdpSector` (a bare `"Agriculture"|"Industry"|
+"Services"` union) replaced by `GdpSector` (the same union, renamed) plus
+a new `GdpSectorShare { sector: GdpSector; sharePct: number }`.
+`EconomyFields.dominantGdpSector: DominantGdpSector | null` replaced by
+`gdpSectorRanking: GdpSectorShare[]` - always an array (0-3 entries),
+largest share first, never padded with a placeholder for a sector that
+didn't resolve.
+
+`lib/data-sources/worldbank.ts`: `pickDominantGdpSector` (returned one
+winner) replaced by `rankGdpSectors` (returns all resolved entries,
+sorted). Still the same 3 indicators (`NV.AGR/IND/SRV.TOTL.ZS`), no new
+API calls.
+
+`lib/kpiRows.ts`: renders one row per entry present -
+`e.gdpSectorRanking.slice(0, 3).map(...)` → "1st GDP sector" / "2nd GDP
+sector" / "3rd GDP sector", each showing `"Services (73%)"` style values.
+Genuinely 0-3 rows depending on what resolved for that country, not
+always 3.
+
+**Colour, changed again**: the previous round put both this and Main
+economy type in brand amber, to get them off black (which read as the
+same colour as the country/city heading above them). This round: grey
+instead (`text-ink-500`) - the same grey already used for every row's
+own label text underneath its value, on request. Both descriptive-label
+rows (`mainEconomyType`, and now each `gdpSectorRanking` entry) use it.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

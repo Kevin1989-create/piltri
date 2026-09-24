@@ -1,5 +1,5 @@
 import { averageScores, computePiltriScore, normalise } from "./scoring";
-import type { CityExploreData, CitySearchResult, DominantGdpSector, EconomyTypeProfile } from "@/lib/types";
+import type { CityExploreData, CitySearchResult, EconomyTypeProfile, GdpSector } from "@/lib/types";
 
 // Same ranges Advanced search itself shows as suggestedRange bounds (see
 // lib/advancedSearch/criteria.ts) - random data drawn from these ranges
@@ -15,7 +15,7 @@ const ECONOMY_TYPES: (keyof EconomyTypeProfile)[] = [
   "naturalResourcesAndAgriculture",
 ];
 const TRENDS = ["Improving", "Stable", "Worsening"] as const;
-const GDP_SECTORS: DominantGdpSector[] = ["Agriculture", "Industry", "Services"];
+const GDP_SECTORS: GdpSector[] = ["Agriculture", "Industry", "Services"];
 
 function randInt(min: number, max: number): number {
   return Math.round(min + Math.random() * (max - min));
@@ -100,7 +100,9 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
       averageSalaryGbp,
       unemploymentRatePct,
       mainEconomyType: chance(0.85) ? pick(ECONOMY_TYPES) : null,
-      dominantGdpSector: chance(0.97) ? pick(GDP_SECTORS) : null,
+      gdpSectorRanking: chance(0.97)
+        ? GDP_SECTORS.map((sector) => ({ sector, sharePct: randFloat(1, 80) })).sort((a, b) => b.sharePct - a.sharePct)
+        : [],
       costOfLivingIndex,
       purchasingPowerIndex,
     },

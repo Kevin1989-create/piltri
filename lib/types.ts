@@ -80,13 +80,17 @@ export interface DemographicsFields {
 }
 
 /** Broad national GDP composition (World Bank NV.AGR/IND/SRV.TOTL.ZS - value
- *  added by sector, % of GDP), whichever of the 3 is largest. A coarser
- *  classification than mainEconomyType below (3 buckets, not 6), but
- *  country-level with near-universal coverage, unlike OSM's patchy
- *  regional density - added 2026-09-24 as a genuinely reliable companion
- *  to mainEconomyType, not a replacement for it (see EconomyFields
- *  comment). Null only on a genuine per-country data gap. */
-export type DominantGdpSector = "Agriculture" | "Industry" | "Services";
+ *  added by sector, % of GDP). A coarser classification than
+ *  mainEconomyType below (3 buckets, not 6), but country-level with
+ *  near-universal coverage, unlike OSM's patchy regional density - added
+ *  2026-09-24 as a genuinely reliable companion to mainEconomyType, not a
+ *  replacement for it (see EconomyFields comment). */
+export type GdpSector = "Agriculture" | "Industry" | "Services";
+
+export interface GdpSectorShare {
+  sector: GdpSector;
+  sharePct: number; // 0-100, % of GDP
+}
 
 export interface EconomyFields {
   economicGrowth5yrGdpPct: number;
@@ -98,13 +102,17 @@ export interface EconomyFields {
    *  Null when the city has no local OSM signal at all (reported honestly,
    *  not guessed) - the row for this is simply omitted rather than shown as
    *  "Not enough Data" (2026-09-24, on request: show it only when both this
-   *  and dominantGdpSector below are genuinely solid, never a placeholder
+   *  and gdpSectorRanking below are genuinely solid, never a placeholder
    *  for either). */
   mainEconomyType: keyof EconomyTypeProfile | null;
-  /** Country-level companion to mainEconomyType above - see
-   *  DominantGdpSector's comment. Also omitted (not placeholder text) on a
-   *  genuine data gap. */
-  dominantGdpSector: DominantGdpSector | null;
+  /** Country-level companion to mainEconomyType above, ranked largest
+   *  share first - see GdpSector's comment. 0-3 entries: whichever of
+   *  Agriculture/Industry/Services actually resolved for this country
+   *  (World Bank coverage is ~94-96% but not universal - verified
+   *  2026-09-24 against all 217 real economies). Rendered as "1st/2nd/3rd
+   *  GDP sector" rows, one per entry present - never padded with a
+   *  placeholder for a sector that didn't resolve. */
+  gdpSectorRanking: GdpSectorShare[];
   /** World Bank's Price Level Index (households' final consumption
    *  expenditure, PA.NUS.PRVT.PLI) — ~100 tracks roughly US price levels;
    *  well above 100 reads as expensive, well below as cheap. A genuine,

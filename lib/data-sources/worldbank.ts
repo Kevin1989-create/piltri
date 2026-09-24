@@ -8,7 +8,7 @@
  */
 
 import { fetchWithTimeout } from "./fetchWithTimeout";
-import type { DominantGdpSector, TrendDirection } from "@/lib/types";
+import type { GdpSector, GdpSectorShare, TrendDirection } from "@/lib/types";
 
 const BASE = "https://api.worldbank.org/v2";
 
@@ -38,19 +38,20 @@ function pctChange(obs: WBObservation[]): number | null {
   return Number((((last - first) / Math.abs(first)) * 100).toFixed(1));
 }
 
-/** Picks whichever of the 3 broad GDP-composition sectors is largest -
- *  see lib/types.ts's DominantGdpSector for why this exists alongside
- *  mainEconomyType. Null only when none of the 3 resolved (a genuine
- *  per-country gap), never guessed from partial data. */
-function pickDominantGdpSector(agriculture: number | null, industry: number | null, services: number | null): DominantGdpSector | null {
-  const entries: [DominantGdpSector, number | null][] = [
+/** Ranks the 3 broad GDP-composition sectors largest-share-first - see
+ *  lib/types.ts's GdpSectorShare for why this exists alongside
+ *  mainEconomyType. Only includes whichever of the 3 actually resolved
+ *  (0-3 entries) - never padded with a guess for a sector that didn't. */
+function rankGdpSectors(agriculture: number | null, industry: number | null, services: number | null): GdpSectorShare[] {
+  const entries: [GdpSector, number | null][] = [
     ["Agriculture", agriculture],
     ["Industry", industry],
     ["Services", services],
   ];
-  const resolved = entries.filter((e): e is [DominantGdpSector, number] => e[1] != null);
-  if (resolved.length === 0) return null;
-  return resolved.reduce((best, cur) => (cur[1] > best[1] ? cur : best))[0];
+  return entries
+    .filter((e): e is [GdpSector, number] => e[1] != null)
+    .map(([sector, sharePct]) => ({ sector, sharePct: Number(sharePct.toFixed(1)) }))
+    .sort((a, b) => b.sharePct - a.sharePct);
 }
 
 /** Turns a multi-year % change into a plain trend label — used for Safety's
@@ -100,11 +101,11 @@ export interface WorldBankIndicators {
    *  Safety & Stability data review. A hard crime statistic, complementing
    *  WGI's two perception-based governance scores above. */
   homicideRatePer100k: number | null;
-  /** Whichever of Agriculture/Industry/Services (NV.AGR/IND/SRV.TOTL.ZS,
-   *  value added % of GDP) is largest — see lib/types.ts's
-   *  DominantGdpSector. Added 2026-09-24 as a country-level companion to
+  /** Agriculture/Industry/Services (NV.AGR/IND/SRV.TOTL.ZS, value added %
+   *  of GDP), ranked largest-share-first — see lib/types.ts's
+   *  GdpSectorShare. Added 2026-09-24 as a country-level companion to
    *  Economy's city-level mainEconomyType. */
-  dominantGdpSector: DominantGdpSector | null;
+  gdpSectorRanking: GdpSectorShare[];
 }
 
 /**
@@ -160,6 +161,6 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     ruleOfLawScore: latest(ruleOfLaw),
     politicalStabilityTrend: trendFromPctChange(pctChange(politicalStability)),
     homicideRatePer100k: latest(homicideRate),
-    dominantGdpSector: pickDominantGdpSector(latest(agriculture), latest(industry), latest(services)),
+    gdpSectorRanking: rankGdpSectors(latest(agriculture), latest(industry), latest(services)),
   };
 }

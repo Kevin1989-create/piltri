@@ -177,7 +177,7 @@ export async function aggregateCityData(city: CitySearchResult, opts: { osmLandA
       averageSalaryGbp: Math.round((wb?.gniPerCapitaUsd ?? 0) * 0.79), // rough USD->GBP
       unemploymentRatePct: wb?.unemploymentRatePct ?? 0,
       mainEconomyType,
-      dominantGdpSector: wb?.dominantGdpSector ?? null,
+      gdpSectorRanking: wb?.gdpSectorRanking ?? [],
       costOfLivingIndex,
       purchasingPowerIndex: normalise(wb?.purchasingPowerParityGdpPerCapita ?? 0, RANGES.ppp.min, RANGES.ppp.max),
     },

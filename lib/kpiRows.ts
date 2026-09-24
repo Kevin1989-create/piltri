@@ -1,6 +1,6 @@
 import { normalise } from "@/lib/aggregation/scoring";
 import { formatCurrency, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
-import type { CityExploreData, DominantGdpSector, EconomyTypeProfile, SectionKey, TrendDirection } from "@/lib/types";
+import type { CityExploreData, EconomyTypeProfile, SectionKey, TrendDirection } from "@/lib/types";
 
 /** How precisely a KPI's value is actually known, given its real current
  *  source — not aspirational, what's true today. "country" covers genuine
@@ -96,11 +96,7 @@ export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
   naturalResourcesAndAgriculture: "Natural Resources & Agriculture",
 };
 
-const DOMINANT_GDP_SECTOR_LABELS: Record<DominantGdpSector, string> = {
-  Agriculture: "Agriculture-driven",
-  Industry: "Industry-driven",
-  Services: "Services-driven",
-};
+const GDP_SECTOR_RANK_LABELS = ["1st GDP sector", "2nd GDP sector", "3rd GDP sector"] as const;
 
 /** Shared source of truth for each section's KPI list — used by the results
  *  page's SectionDetail panel and by the printable report page, so the two
@@ -118,21 +114,21 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         // getEconomySectorCounts / pickMainEconomyType), not a placeholder.
         // Omitted entirely rather than shown as "Not enough Data" when it
         // doesn't resolve (2026-09-24, on request: show it only when it's
-        // genuinely solid, same as dominantGdpSector below - never a
+        // genuinely solid, same as the GDP sector ranking below - never a
         // placeholder for either). Folded into this same list rather than
         // its own labeled "Economy Type" sub-block (the extra heading for
         // a single row read as confusing); precision "pinned" still routes
         // it into the City group automatically via splitKpiRowsByTier.
-        // Left in brand amber rather than black (2026-09-24, on request -
-        // black read as identical to the "London"/"United Kingdom" group
-        // heading directly above it) and rather than the usual red/green
-        // score spectrum, since this is a plain descriptive label, not a
-        // good/bad value.
+        // Grey (text-ink-500, same as every row's own label text below it)
+        // rather than black (2026-09-24, on request - black read as
+        // identical to the "London"/"United Kingdom" group heading above
+        // it) and rather than the usual red/green score spectrum, since
+        // this is a plain descriptive label, not a good/bad value.
         e.mainEconomyType && {
           label: "Main economy type",
           value: ECONOMY_TYPE_LABELS[e.mainEconomyType],
           precision: "pinned",
-          colorClass: "text-piltri-amber-dark",
+          colorClass: "text-ink-500",
         },
         {
           label: "Economic growth (5yr GDP)",
@@ -165,21 +161,27 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           precision: "country",
           colorClass: tierColorClass(e.purchasingPowerIndex), // already a 0-100 goodness score
         },
-        // Country-level companion to Main economy type above - whichever
-        // of Agriculture/Industry/Services is largest by share of GDP (see
-        // lib/data-sources/worldbank.ts pickDominantGdpSector). Coarser (3
-        // buckets vs 6) but near-universally available, unlike OSM's patchy
-        // regional density. Same "omit, don't placeholder" rule. Placed
-        // last, not right under the country-group heading (2026-09-24, on
-        // request - it used to sit first, directly below "United Kingdom",
-        // and its black text read as a continuation of that heading).
-        e.dominantGdpSector && {
-          label: "Dominant GDP sector",
-          value: DOMINANT_GDP_SECTOR_LABELS[e.dominantGdpSector],
-          precision: "country",
-          colorClass: "text-piltri-amber-dark",
-          hint: "World Bank national accounts — largest of Agriculture/Industry/Services as a share of GDP",
-        },
+        // Country-level companion to Main economy type above - Agriculture/
+        // Industry/Services ranked by share of GDP (see
+        // lib/data-sources/worldbank.ts rankGdpSectors). Coarser (3 buckets
+        // vs 6) but near-universally available, unlike OSM's patchy
+        // regional density - verified 2026-09-24 against all 217 real
+        // economies: at least one of the 3 resolves for ~96%, all 3 for
+        // ~94%. One row per sector that actually resolved (0-3 rows, "1st/
+        // 2nd/3rd GDP sector"), never padded to 3 with a placeholder.
+        // Placed last, not right under the country-group heading
+        // (2026-09-24, on request - a single "Dominant GDP sector" row
+        // used to sit first, directly below "United Kingdom", where its
+        // colour read as a continuation of that heading).
+        ...e.gdpSectorRanking.slice(0, 3).map(
+          (entry, i): KpiRow => ({
+            label: GDP_SECTOR_RANK_LABELS[i],
+            value: `${entry.sector} (${entry.sharePct}%)`,
+            precision: "country",
+            colorClass: "text-ink-500",
+            hint: "World Bank national accounts — share of GDP by sector",
+          })
+        ),
       ];
       return rows.filter((r): r is KpiRow => r != null);
     }
