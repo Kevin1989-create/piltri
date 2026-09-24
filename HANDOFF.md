@@ -1567,6 +1567,52 @@ enough to be usable - it was still failing trivial queries as of this
 entry) and someone with Supabase dashboard access to run the schema
 migration above.
 
+## Shortlist widened 6,277 -> 66,295 cities, plus two real bugs caught fixing London (2026-09-24, later same session)
+
+User asked why the shortlist was only ~6,300 when GeoNames (already the
+source, per `discoverCities.ts`'s own comment) covers far more - it was
+built from GeoNames' `cities15000` cut (population >= 15,000). Switched to
+`cities5000` (population >= 5,000, or a national capital regardless of
+size) - same free source, lower floor. New:
+`scripts/generateDiscoverCities.mjs` - downloads fresh cities5000.zip +
+admin1CodesASCII.txt + countryInfo.txt from GeoNames every run (not a
+one-off script that goes stale; re-run any time to refresh), parses and
+cross-references them into `data/static/discover-cities.json`'s
+`DiscoverCity[]` shape, de-duplicating same-named-city-in-same-country
+collisions by keeping the larger population (protects `cities.slug`'s
+unique constraint downstream). Result: 66,295 unique cities across 245
+countries/territories (up from 191), file size 14MB (server-only import -
+confirmed via grep that every `getDiscoverCities()` caller is an API route
+or aggregation module, never a client component, so this doesn't touch
+the browser bundle).
+
+**Real consequence worth knowing**: the daily warm-cache cron and both
+backfill jobs (land area, Wikidata population) process a bounded batch per
+run - the same per-tick throughput now has ~10.5x more cities to reach
+full coverage over. Nothing broke, but "how long until the whole shortlist
+is warm/backfilled" got proportionally longer in wall-clock terms. Worth
+factoring in before assuming the site's coverage stats are further along
+than they are.
+
+**Caught while chasing London's still-"Not available" population** (the
+Wikidata backfill from two entries up hadn't reached it yet - only ~30 of
+the OLD 6,277-city list had been checked, and WDQS's tail latency was
+still eating most attempts): manually backfilled London by hand (queried
+WDQS directly with a generous timeout - succeeded this time, 8,799,728
+people / 1,572 km² - then wrote it straight into Supabase's `cities` row
+via a direct REST PATCH, bypassing the slow general sweep for this one
+city) - a concrete, verifiable "does the pipeline actually work" proof
+before waiting on the full sweep. **Found and fixed a real bug in the
+process**: `backfillWikidataPopulation`'s per-call `DEADLINE_MS` (50s)
+didn't account for one more in-flight Wikidata lookup already being
+allowed to run up to its own `PER_CITY_TIMEOUT_MS` (20s) past that
+deadline check - worst-case wall time (70s) blew past
+`maxDuration=60`, so Vercel killed the function outright and the
+admin page reported "Request failed" with zero progress, even though
+individual lookups were succeeding. Fixed by reducing `DEADLINE_MS` to
+30s (30+20=50s, genuine margin under 60), same reasoning
+`backfill-land-area`'s own deadline already uses.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header
