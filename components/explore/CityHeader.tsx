@@ -41,7 +41,11 @@ interface CityHeaderProps {
 function formatCompactNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
-  return n.toLocaleString();
+  // Below 1000 this used to fall through to a plain toLocaleString(), which
+  // passes raw World Bank density precision straight through unrounded
+  // (e.g. "283.247/km²") - capped at 1 decimal (2026-09-24, on request:
+  // no field shows more than 1 decimal place).
+  return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
 /** Non-breaking space (as a   escape, not a literal character, so it

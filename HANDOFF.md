@@ -1458,6 +1458,52 @@ instead (`text-ink-500`) - the same grey already used for every row's
 own label text underneath its value, on request. Both descriptive-label
 rows (`mainEconomyType`, and now each `gdpSectorRanking` entry) use it.
 
+## GDP sector rows forced onto one line, app-wide 1-decimal-max rule (2026-09-24, later same session)
+
+**GDP sector rows now always render on one row together.** They used to
+be mixed into Economy's main flat KPI list, so where they landed depended
+on how many other rows came before them and what column count the shared
+grid picked - fragile, and in practice they weren't lining up as one row.
+Fixed by pulling them out into their own function,
+`buildGdpSectorRows` (`lib/kpiRows.ts`), rendered as a separate,
+always-3-column grid appended after the main country grid - in both
+`SectionDetail.tsx` (results page / Compare) and `report/page.tsx`
+(printable report, via a new `extraRows` prop on `ReportGroup`). Same
+pattern already established for Liveability's "Local Signals" sub-block,
+just without a heading of its own (three rows have no need for one, and
+the user had specifically asked to remove "Economy Type" the day before
+for exactly this "unnecessary heading" reason).
+
+**The % share is now visibly smaller than the sector name.** `KpiRow`
+gained an optional `valueSuffix` field - rendered in a smaller,
+`font-normal` span right after the main value, inheriting the row's own
+colour rather than getting one of its own. `buildGdpSectorRows` uses it:
+`value: "Services"`, `valueSuffix: "(73.1%)"`. Available for any future
+row that wants the same "big label + small detail" shape.
+
+**App-wide rule from here on: no field shows more than 1 decimal place.**
+Fixed 3 real violations found this round (there may be others not yet
+surfaced - watch for this pattern with any new field):
+- Unemployment rate showed raw World Bank precision, e.g. "4.746%" -
+  `lib/kpiRows.ts` now calls `.toFixed(1)` on it (the *stored* value stays
+  full precision in `EconomyFields.unemploymentRatePct`; only the display
+  rounds).
+- `CityHeader.tsx`'s `formatCompactNumber` fell through to a bare
+  `n.toLocaleString()` for any value under 1000 (its "abbreviate to k/M"
+  logic only kicks in at 1000+) - a population density like 283.247/km²
+  passed straight through with 3 decimals. Capped at
+  `maximumFractionDigits: 1`.
+- `lib/unitPreferences.ts`'s `formatAreaKm2` had the same bare
+  `toLocaleString()` gap on its metric branch (the imperial branch already
+  capped decimals) - a real OSM polygon area like 1,589.23 km² rendered
+  with 2 decimals on the printable report page. Same
+  `maximumFractionDigits` fix, matching the imperial branch's existing
+  pattern.
+
+Deliberately left alone: `PinPanel.tsx`'s dropped-pin lat/lng
+(`toFixed(4)`) - that's coordinate precision, not a KPI value, a different
+category from what this rule is about.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

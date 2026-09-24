@@ -1,14 +1,17 @@
 "use client";
 
 import { cn } from "@/lib/cn";
-import { buildKpiRows, buildLiveabilityTransportRows, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
+import { buildGdpSectorRows, buildKpiRows, buildLiveabilityTransportRows, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { useUnitPreferences } from "@/lib/unitPreferences";
 import type { CityExploreData, SectionKey } from "@/lib/types";
 
 function StatCell({ row, bold = false }: { row: KpiRow; bold?: boolean }) {
   return (
     <div className="min-w-0">
-      <p className={cn("text-xs leading-tight", bold ? "font-semibold" : "font-medium", row.colorClass ?? "text-ink-900")}>{row.value}</p>
+      <p className={cn("text-xs leading-tight", bold ? "font-semibold" : "font-medium", row.colorClass ?? "text-ink-900")}>
+        {row.value}
+        {row.valueSuffix && <span className="text-[10px] font-normal ml-1">{row.valueSuffix}</span>}
+      </p>
       <p className="text-[10px] text-ink-500 leading-tight" title={row.hint}>
         {row.label}
       </p>
@@ -74,6 +77,11 @@ export function SectionDetail({
   // to squeeze the panel's overall height, since this floating panel has
   // to share vertical space with a pinned location's info bar below it.
   const localSignalRows = section === "liveability" ? buildLiveabilityTransportRows(data) : null;
+  // GDP sector ranking ("1st/2nd/3rd GDP sector") is split out of the main
+  // row list and always rendered at a fixed 3 columns (below), not the
+  // shared `cols` this grid picks for everything else - see
+  // buildGdpSectorRows's own comment for why.
+  const gdpSectorRows = section === "economy" ? buildGdpSectorRows(data) : null;
   const totalItems = rows.length + (localSignalRows?.length ?? 0);
   const cols = totalItems > 6 ? 3 : 2;
 
@@ -82,7 +90,7 @@ export function SectionDetail({
     (b): b is { title: string; rows: KpiRow[] } => !!b
   );
 
-  const hasCountry = countryRows.length > 0;
+  const hasCountry = countryRows.length > 0 || !!gdpSectorRows?.length;
   const hasCity = cityRows.length > 0 || cityExtraBlocks.length > 0;
 
   return (
@@ -103,7 +111,12 @@ export function SectionDetail({
       {hasCountry && (
         <div className={cn(hasCity && "mt-2 pt-1.5 border-t border-piltri-amber/20")}>
           <p className="font-serif font-semibold text-xs text-black leading-tight mb-1">{data.country}</p>
-          <StatGrid rows={countryRows} cols={cols} />
+          {countryRows.length > 0 && <StatGrid rows={countryRows} cols={cols} />}
+          {!!gdpSectorRows?.length && (
+            <div className={cn(countryRows.length > 0 && "mt-2")}>
+              <StatGrid rows={gdpSectorRows} cols={3} />
+            </div>
+          )}
         </div>
       )}
     </div>

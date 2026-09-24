@@ -4,7 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ResourcesDetail } from "@/components/explore/ResourcesDetail";
-import { buildKpiRows, buildLiveabilityTransportRows, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
+import { buildGdpSectorRows, buildKpiRows, buildLiveabilityTransportRows, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
+import { cn } from "@/lib/cn";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { isCustomWeights, useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { formatAreaKm2, formatDensityPerKm2, useUnitPreferences } from "@/lib/unitPreferences";
@@ -178,6 +179,10 @@ function ReportContent() {
             {ORDER.map((section) => {
               const rows = buildKpiRows(section, data, prefs);
               const localSignalRows = section === "liveability" ? buildLiveabilityTransportRows(data) : null;
+              // Split out of the main row list into its own fixed-3-column
+              // block, same reasoning and same function as
+              // SectionDetail.tsx uses (see buildGdpSectorRows).
+              const gdpSectorRows = section === "economy" ? buildGdpSectorRows(data) : null;
               const { countryRows, cityRows } = splitKpiRowsByTier(rows);
               // Local Signals is city-tier (pinned to this city's exact
               // coordinates, same as SectionDetail.tsx's cityExtraBlocks) -
@@ -201,7 +206,12 @@ function ReportContent() {
                       {subBlockTitle && <ReportSubBlock title={subBlockTitle} rows={subBlockRows} spacing={cityRows.length > 0 ? "mt-4" : "mt-3"} />}
                     </>
                   )}
-                  <ReportGroup title={data.country} rows={countryRows} spacing={cityTierHasContent ? "mt-4" : "mt-3"} />
+                  <ReportGroup
+                    title={data.country}
+                    rows={countryRows}
+                    extraRows={gdpSectorRows}
+                    spacing={cityTierHasContent ? "mt-4" : "mt-3"}
+                  />
                 </section>
               );
             })}
@@ -240,16 +250,38 @@ function ReportContent() {
  *  lets the caller give whichever group lands first the tighter "mt-3"
  *  the original single grid used, since an empty group renders nothing
  *  and shouldn't leave a gap in its place. */
-function ReportGroup({ title, rows, spacing = "mt-4" }: { title: string; rows: KpiRow[]; spacing?: string }) {
-  if (rows.length === 0) return null;
+function ReportGroup({
+  title,
+  rows,
+  extraRows,
+  spacing = "mt-4",
+}: {
+  title: string;
+  rows: KpiRow[];
+  /** Rendered as its own fixed-3-column grid below the main one, always
+   *  together on one row - see buildGdpSectorRows' comment for why this
+   *  can't just share the main grid's rows/columns. */
+  extraRows?: KpiRow[] | null;
+  spacing?: string;
+}) {
+  if (rows.length === 0 && !extraRows?.length) return null;
   return (
     <div className={spacing}>
       <p className="font-serif font-semibold text-sm text-black mb-1.5">{title}</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
-        {rows.map((row) => (
-          <ReportStat key={row.label} label={row.label} value={row.value} colorClass={row.colorClass} hint={row.hint} />
-        ))}
-      </div>
+      {rows.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
+          {rows.map((row) => (
+            <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} hint={row.hint} />
+          ))}
+        </div>
+      )}
+      {!!extraRows?.length && (
+        <div className={cn("grid grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm", rows.length > 0 && "mt-2")}>
+          {extraRows.map((row) => (
+            <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} hint={row.hint} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -271,17 +303,22 @@ function ReportSubBlock({ title, rows, spacing = "mt-4" }: { title: string; rows
 function ReportStat({
   label,
   value,
+  valueSuffix,
   colorClass,
   hint,
 }: {
   label: string;
   value: string;
+  valueSuffix?: string;
   colorClass?: string;
   hint?: string;
 }) {
   return (
     <div className="min-w-0">
-      <p className={`font-medium leading-snug ${colorClass ?? "text-ink-900"}`}>{value}</p>
+      <p className={`font-medium leading-snug ${colorClass ?? "text-ink-900"}`}>
+        {value}
+        {valueSuffix && <span className="text-[11px] font-normal ml-1">{valueSuffix}</span>}
+      </p>
       <p className="text-[11px] text-ink-500 leading-snug" title={hint}>
         {label}
       </p>

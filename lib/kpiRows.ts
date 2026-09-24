@@ -27,6 +27,11 @@ export interface KpiRow {
   /** Optional hover definition shown on the label, for a metric whose name
    *  alone doesn't make clear what it measures. */
   hint?: string;
+  /** Optional smaller, secondary bit of text shown right after the main
+   *  value - e.g. a "(73.1%)" share next to a sector name (see
+   *  buildGdpSectorRows). Rendered visibly smaller than value itself,
+   *  never coloured independently (inherits the row's own colorClass). */
+  valueSuffix?: string;
 }
 
 // Same 3-tier colour language used in CityHeader.tsx for demographics -
@@ -143,8 +148,11 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           colorClass: tierColorClass(normalise(e.averageSalaryGbp, COLOR_RANGES.salaryGbp.min, COLOR_RANGES.salaryGbp.max)),
         },
         {
+          // toFixed(1) here (2026-09-24, on request - was showing raw,
+          // un-rounded World Bank precision like "4.746%") - app-wide rule
+          // going forward: no field shows more than 1 decimal place.
           label: "Unemployment rate",
-          value: `${e.unemploymentRatePct}%`,
+          value: `${e.unemploymentRatePct.toFixed(1)}%`,
           precision: "country",
           colorClass: tierColorClass(normalise(e.unemploymentRatePct, COLOR_RANGES.unemployment.min, COLOR_RANGES.unemployment.max, true)),
         },
@@ -161,27 +169,6 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           precision: "country",
           colorClass: tierColorClass(e.purchasingPowerIndex), // already a 0-100 goodness score
         },
-        // Country-level companion to Main economy type above - Agriculture/
-        // Industry/Services ranked by share of GDP (see
-        // lib/data-sources/worldbank.ts rankGdpSectors). Coarser (3 buckets
-        // vs 6) but near-universally available, unlike OSM's patchy
-        // regional density - verified 2026-09-24 against all 217 real
-        // economies: at least one of the 3 resolves for ~96%, all 3 for
-        // ~94%. One row per sector that actually resolved (0-3 rows, "1st/
-        // 2nd/3rd GDP sector"), never padded to 3 with a placeholder.
-        // Placed last, not right under the country-group heading
-        // (2026-09-24, on request - a single "Dominant GDP sector" row
-        // used to sit first, directly below "United Kingdom", where its
-        // colour read as a continuation of that heading).
-        ...e.gdpSectorRanking.slice(0, 3).map(
-          (entry, i): KpiRow => ({
-            label: GDP_SECTOR_RANK_LABELS[i],
-            value: `${entry.sector} (${entry.sharePct}%)`,
-            precision: "country",
-            colorClass: "text-ink-500",
-            hint: "World Bank national accounts — share of GDP by sector",
-          })
-        ),
       ];
       return rows.filter((r): r is KpiRow => r != null);
     }
@@ -330,5 +317,26 @@ export function buildLiveabilityTransportRows(data: CityExploreData): KpiRow[] {
     { label: "Tramway", value: l.hasTramway ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasTramway) },
     { label: "Airport", value: l.hasAirport ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasAirport) },
   ];
+}
+
+/** Economy's country-level GDP-sector ranking (Agriculture/Industry/
+ *  Services, see lib/data-sources/worldbank.ts rankGdpSectors), split out
+ *  of the main Economy row list into its own fixed-3-column block
+ *  (2026-09-24, on request - so "1st/2nd/3rd GDP sector" always render on
+ *  one row together left to right, regardless of how many other Economy
+ *  rows come before them and what column count the main grid happens to
+ *  use). One row per sector that actually resolved for this country (0-3
+ *  rows - World Bank coverage is ~94-96%, not universal), never padded to
+ *  3 with a placeholder. The % share renders via valueSuffix, visibly
+ *  smaller than the sector name (2026-09-24, on request). */
+export function buildGdpSectorRows(data: CityExploreData): KpiRow[] {
+  return data.economy.gdpSectorRanking.slice(0, 3).map((entry, i) => ({
+    label: GDP_SECTOR_RANK_LABELS[i],
+    value: entry.sector,
+    valueSuffix: `(${entry.sharePct.toFixed(1)}%)`,
+    precision: "country",
+    colorClass: "text-ink-500",
+    hint: "World Bank national accounts — share of GDP by sector",
+  }));
 }
 

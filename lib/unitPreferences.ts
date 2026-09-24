@@ -135,7 +135,11 @@ export function formatAreaKm2(km2: number, prefs: Pick<UnitPreferences, "distanc
     const sqMi = km2 * 0.386102;
     return `${sqMi.toLocaleString(undefined, { maximumFractionDigits: sqMi < 10 ? 1 : 0 })} sq mi`;
   }
-  return `${km2.toLocaleString()} km²`;
+  // maximumFractionDigits capped at 1 (2026-09-24, on request: no field
+  // shows more than 1 decimal place) - a plain toLocaleString() here used
+  // to pass OSM's real-valued polygon area straight through unrounded,
+  // e.g. "1,589.23 km²".
+  return `${km2.toLocaleString(undefined, { maximumFractionDigits: km2 < 10 ? 1 : 0 })} km²`;
 }
 
 /** Compact (abbreviated) km² -> imperial/metric string, e.g. "3.2k sq mi" /
