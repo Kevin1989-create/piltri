@@ -1,6 +1,6 @@
 import { normalise } from "@/lib/aggregation/scoring";
 import { formatCurrency, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
-import type { CityExploreData, EconomyTypeProfile, SectionKey, TrendDirection } from "@/lib/types";
+import type { CityExploreData, DominantGdpSector, EconomyTypeProfile, SectionKey, TrendDirection } from "@/lib/types";
 
 /** How precisely a KPI's value is actually known, given its real current
  *  source — not aspirational, what's true today. "country" covers genuine
@@ -96,6 +96,12 @@ export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
   naturalResourcesAndAgriculture: "Natural Resources & Agriculture",
 };
 
+const DOMINANT_GDP_SECTOR_LABELS: Record<DominantGdpSector, string> = {
+  Agriculture: "Agriculture-driven",
+  Industry: "Industry-driven",
+  Services: "Services-driven",
+};
+
 /** Shared source of truth for each section's KPI list — used by the results
  *  page's SectionDetail panel and by the printable report page, so the two
  *  never drift out of sync with each other. Precision tags reflect the
@@ -106,24 +112,32 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
   switch (section) {
     case "economy": {
       const e = data.economy;
-      return [
-        {
-          // Genuinely computed from OSM POI/land-use density within range
-          // of this city's exact coordinates (see lib/data-sources/overpass.ts
-          // getEconomySectorCounts / pickMainEconomyType), not a placeholder.
-          // A resolved category is left uncoloured - a plain label, not a
-          // good/bad value - but "Not enough Data" is muted grey, the same
-          // empty-state convention used for "Not available" elsewhere (see
-          // CityHeader.tsx) - an absence of data isn't a bad score, so it
-          // shouldn't read like one. Folded into this same list rather than
-          // its own labeled "Economy Type" sub-block (2026-09-24, on
-          // request - the extra heading for a single row read as
-          // confusing); precision "pinned" still routes it into the City
-          // group automatically via splitKpiRowsByTier.
+      const rows: (KpiRow | null)[] = [
+        // Genuinely computed from OSM POI/land-use density within range of
+        // this city's exact coordinates (see lib/data-sources/overpass.ts
+        // getEconomySectorCounts / pickMainEconomyType), not a placeholder.
+        // Omitted entirely rather than shown as "Not enough Data" when it
+        // doesn't resolve (2026-09-24, on request: show it only when it's
+        // genuinely solid, same as dominantGdpSector below - never a
+        // placeholder for either). Folded into this same list rather than
+        // its own labeled "Economy Type" sub-block (the extra heading for
+        // a single row read as confusing); precision "pinned" still routes
+        // it into the City group automatically via splitKpiRowsByTier.
+        e.mainEconomyType && {
           label: "Main economy type",
-          value: e.mainEconomyType ? ECONOMY_TYPE_LABELS[e.mainEconomyType] : "Not enough Data",
+          value: ECONOMY_TYPE_LABELS[e.mainEconomyType],
           precision: "pinned",
-          colorClass: e.mainEconomyType ? undefined : "text-ink-500",
+        },
+        // Country-level companion to Main economy type above - whichever
+        // of Agriculture/Industry/Services is largest by share of GDP (see
+        // lib/data-sources/worldbank.ts pickDominantGdpSector). Coarser (3
+        // buckets vs 6) but near-universally available, unlike OSM's patchy
+        // regional density. Same "omit, don't placeholder" rule.
+        e.dominantGdpSector && {
+          label: "Dominant GDP sector",
+          value: DOMINANT_GDP_SECTOR_LABELS[e.dominantGdpSector],
+          precision: "country",
+          hint: "World Bank national accounts — largest of Agriculture/Industry/Services as a share of GDP",
         },
         {
           label: "Economic growth (5yr GDP)",
@@ -157,6 +171,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           colorClass: tierColorClass(e.purchasingPowerIndex), // already a 0-100 goodness score
         },
       ];
+      return rows.filter((r): r is KpiRow => r != null);
     }
     case "safetyStability": {
       const s = data.safetyStability;

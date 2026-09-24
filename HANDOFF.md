@@ -1366,6 +1366,39 @@ Same "review each scored category" exercise, now for Economy. Findings:
   — user chose not to take this fix this round, so it's still broken as of
   this entry. Worth revisiting.
 
+## Added a country-level companion for Main economy type (2026-09-24, later same session)
+
+Follow-up to the Economy review above: asked whether any other economic
+classification exists, even at country level, given OSM's Main economy
+type keeps returning "Not enough Data" for well-mapped cities like London
+(that's the timeout issue, still unfixed - see previous entry).
+
+Found a genuine one: World Bank publishes GDP composition by sector
+(`NV.AGR.TOTL.ZS` / `NV.IND.TOTL.ZS` / `NV.SRV.TOTL.ZS` - Agriculture/
+Industry/Services, each % of GDP), same API already wired in everywhere
+else. Verified it's real and meaningfully differentiated before proposing
+it: UK is Services-dominant (73%), Saudi Arabia Industry-heavy (43%,
+oil-driven), Ethiopia has a notably high Agriculture share (33%).
+
+Added as `dominantGdpSector` (`lib/types.ts`'s new `DominantGdpSector` type)
+- whichever of the 3 sectors is largest, via
+`pickDominantGdpSector` in `lib/data-sources/worldbank.ts`. Explicitly a
+**companion** to `mainEconomyType`, not a replacement - coarser (3 buckets
+vs OSM's 6) but near-universally available where OSM's regional density
+isn't.
+
+**Both fields now follow an "omit, never placeholder" rule** (on request):
+previously `mainEconomyType` showed "Not enough Data" in muted grey when
+null; now the row for either field is simply left out of the list when it
+doesn't resolve, rather than shown with a placeholder. `buildKpiRows`'s
+economy case builds a `(KpiRow | null)[]` and filters nulls at the end -
+see that function for the pattern if another field needs the same
+treatment later. Both still route into their correct group automatically
+via `splitKpiRowsByTier` (`mainEconomyType` precision `"pinned"` → City
+group, `dominantGdpSector` precision `"country"` → Country group) - no
+component changes needed beyond kpiRows.ts and the usual
+types.ts/aggregate.ts/worldbank.ts/randomSeed.ts wiring.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

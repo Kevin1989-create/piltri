@@ -8,7 +8,7 @@
  */
 
 import { fetchWithTimeout } from "./fetchWithTimeout";
-import type { TrendDirection } from "@/lib/types";
+import type { DominantGdpSector, TrendDirection } from "@/lib/types";
 
 const BASE = "https://api.worldbank.org/v2";
 
@@ -36,6 +36,21 @@ function pctChange(obs: WBObservation[]): number | null {
   const last = obs[obs.length - 1].value as number;
   if (!first) return null;
   return Number((((last - first) / Math.abs(first)) * 100).toFixed(1));
+}
+
+/** Picks whichever of the 3 broad GDP-composition sectors is largest -
+ *  see lib/types.ts's DominantGdpSector for why this exists alongside
+ *  mainEconomyType. Null only when none of the 3 resolved (a genuine
+ *  per-country gap), never guessed from partial data. */
+function pickDominantGdpSector(agriculture: number | null, industry: number | null, services: number | null): DominantGdpSector | null {
+  const entries: [DominantGdpSector, number | null][] = [
+    ["Agriculture", agriculture],
+    ["Industry", industry],
+    ["Services", services],
+  ];
+  const resolved = entries.filter((e): e is [DominantGdpSector, number] => e[1] != null);
+  if (resolved.length === 0) return null;
+  return resolved.reduce((best, cur) => (cur[1] > best[1] ? cur : best))[0];
 }
 
 /** Turns a multi-year % change into a plain trend label — used for Safety's
@@ -85,6 +100,11 @@ export interface WorldBankIndicators {
    *  Safety & Stability data review. A hard crime statistic, complementing
    *  WGI's two perception-based governance scores above. */
   homicideRatePer100k: number | null;
+  /** Whichever of Agriculture/Industry/Services (NV.AGR/IND/SRV.TOTL.ZS,
+   *  value added % of GDP) is largest — see lib/types.ts's
+   *  DominantGdpSector. Added 2026-09-24 as a country-level companion to
+   *  Economy's city-level mainEconomyType. */
+  dominantGdpSector: DominantGdpSector | null;
 }
 
 /**
@@ -94,20 +114,37 @@ export interface WorldBankIndicators {
  * Governance Indicators" — verified via https://api.worldbank.org/v2/sources).
  */
 export async function getWorldBankIndicators(countryCode: string): Promise<WorldBankIndicators> {
-  const [population, density, landArea, gdpLevel, gni, unemployment, ppp, priceLevel, politicalStability, ruleOfLaw, homicideRate] =
-    await Promise.all([
-      fetchIndicator(countryCode, "SP.POP.TOTL"),
-      fetchIndicator(countryCode, "EN.POP.DNST"),
-      fetchIndicator(countryCode, "AG.LND.TOTL.K2"),
-      fetchIndicator(countryCode, "NY.GDP.MKTP.KD"),
-      fetchIndicator(countryCode, "NY.GNP.PCAP.CD"),
-      fetchIndicator(countryCode, "SL.UEM.TOTL.ZS"),
-      fetchIndicator(countryCode, "NY.GDP.PCAP.PP.CD"),
-      fetchIndicator(countryCode, "PA.NUS.PRVT.PLI"),
-      fetchIndicator(countryCode, "GOV_WGI_PV.SC"),
-      fetchIndicator(countryCode, "GOV_WGI_RL.SC"),
-      fetchIndicator(countryCode, "VC.IHR.PSRC.P5"),
-    ]);
+  const [
+    population,
+    density,
+    landArea,
+    gdpLevel,
+    gni,
+    unemployment,
+    ppp,
+    priceLevel,
+    politicalStability,
+    ruleOfLaw,
+    homicideRate,
+    agriculture,
+    industry,
+    services,
+  ] = await Promise.all([
+    fetchIndicator(countryCode, "SP.POP.TOTL"),
+    fetchIndicator(countryCode, "EN.POP.DNST"),
+    fetchIndicator(countryCode, "AG.LND.TOTL.K2"),
+    fetchIndicator(countryCode, "NY.GDP.MKTP.KD"),
+    fetchIndicator(countryCode, "NY.GNP.PCAP.CD"),
+    fetchIndicator(countryCode, "SL.UEM.TOTL.ZS"),
+    fetchIndicator(countryCode, "NY.GDP.PCAP.PP.CD"),
+    fetchIndicator(countryCode, "PA.NUS.PRVT.PLI"),
+    fetchIndicator(countryCode, "GOV_WGI_PV.SC"),
+    fetchIndicator(countryCode, "GOV_WGI_RL.SC"),
+    fetchIndicator(countryCode, "VC.IHR.PSRC.P5"),
+    fetchIndicator(countryCode, "NV.AGR.TOTL.ZS"),
+    fetchIndicator(countryCode, "NV.IND.TOTL.ZS"),
+    fetchIndicator(countryCode, "NV.SRV.TOTL.ZS"),
+  ]);
 
   return {
     population: latest(population),
@@ -123,5 +160,6 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     ruleOfLawScore: latest(ruleOfLaw),
     politicalStabilityTrend: trendFromPctChange(pctChange(politicalStability)),
     homicideRatePer100k: latest(homicideRate),
+    dominantGdpSector: pickDominantGdpSector(latest(agriculture), latest(industry), latest(services)),
   };
 }

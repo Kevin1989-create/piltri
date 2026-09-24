@@ -79,6 +79,15 @@ export interface DemographicsFields {
   cityPopulationDensityPerKm2: number | null;
 }
 
+/** Broad national GDP composition (World Bank NV.AGR/IND/SRV.TOTL.ZS - value
+ *  added by sector, % of GDP), whichever of the 3 is largest. A coarser
+ *  classification than mainEconomyType below (3 buckets, not 6), but
+ *  country-level with near-universal coverage, unlike OSM's patchy
+ *  regional density - added 2026-09-24 as a genuinely reliable companion
+ *  to mainEconomyType, not a replacement for it (see EconomyFields
+ *  comment). Null only on a genuine per-country data gap. */
+export type DominantGdpSector = "Agriculture" | "Industry" | "Services";
+
 export interface EconomyFields {
   economicGrowth5yrGdpPct: number;
   averageSalaryGbp: number;
@@ -87,8 +96,15 @@ export interface EconomyFields {
    *  density within range of its exact coordinates (see
    *  lib/data-sources/overpass.ts getEconomySectorCounts / pickMainEconomyType).
    *  Null when the city has no local OSM signal at all (reported honestly,
-   *  not guessed). */
+   *  not guessed) - the row for this is simply omitted rather than shown as
+   *  "Not enough Data" (2026-09-24, on request: show it only when both this
+   *  and dominantGdpSector below are genuinely solid, never a placeholder
+   *  for either). */
   mainEconomyType: keyof EconomyTypeProfile | null;
+  /** Country-level companion to mainEconomyType above - see
+   *  DominantGdpSector's comment. Also omitted (not placeholder text) on a
+   *  genuine data gap. */
+  dominantGdpSector: DominantGdpSector | null;
   /** World Bank's Price Level Index (households' final consumption
    *  expenditure, PA.NUS.PRVT.PLI) — ~100 tracks roughly US price levels;
    *  well above 100 reads as expensive, well below as cheap. A genuine,
