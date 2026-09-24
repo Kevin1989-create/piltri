@@ -4,12 +4,16 @@ import { isAdminRequest } from "@/lib/adminAuth";
 
 export const maxDuration = 60;
 
-// Paced at 800ms/request (see backfillWikidataPopulation.ts) - a bit less
-// conservative than backfill-land-area's DEADLINE_MS since Wikidata's
-// query service has no hard documented per-second policy the way
-// Nominatim's does, but still leaves real margin against Vercel's function
-// ceiling.
-const DEADLINE_MS = 50000;
+// The deadline check runs BEFORE starting each city's lookup, not after -
+// so the real worst-case wall time is DEADLINE_MS + one more in-flight
+// lookup's own timeout (PER_CITY_TIMEOUT_MS = 20s, see
+// backfillWikidataPopulation.ts). 50000 + 20000 = 70s blew straight past
+// maxDuration=60s, and Vercel killed the function outright rather than
+// letting it return a result - confirmed live 2026-09-24 ("Request failed"
+// with 0 progress, even though individual lookups were succeeding).
+// 30000 leaves a genuine ~10s margin (30 + 20 = 50, under 60) the same way
+// backfill-land-area's own DEADLINE_MS reasoning already describes.
+const DEADLINE_MS = 30000;
 
 /**
  * POST /api/admin/backfill-wikidata-population
