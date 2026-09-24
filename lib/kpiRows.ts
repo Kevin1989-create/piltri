@@ -95,6 +95,15 @@ const COLOR_RANGES = {
   // ceiling covers the world's most polluted major cities without
   // clamping every merely-average city to 0.
   pm25: { min: 5, max: 80 },
+  // Disclosed subjective judgment calls (2026-09-24, on request - "it's
+  // okay if we are subjective"), same "distance from an ideal centre"
+  // shape as temperature/rainfall above. Humidity: ~50% is the commonly
+  // cited human-comfort centre (drier or more humid both read as less
+  // comfortable). UV: ~3 (moderate) as the centre balances "some sun
+  // exposure" against sunburn/skin-cancer risk - reasonable people can
+  // disagree with either centre, happy to flip on request.
+  humidityDistanceFromIdeal: { min: 0, max: 50 }, // ideal centre: 50%
+  uvIndexDistanceFromIdeal: { min: 0, max: 8 }, // ideal centre: 3
 };
 
 export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
@@ -249,33 +258,11 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           precision: "pinned",
           colorClass: tierColorClass(normalise(c.avgAnnualSnowfallCm, COLOR_RANGES.snowfallCm.min, COLOR_RANGES.snowfallCm.max, true)),
         },
-        // Plain facts, grey (text-ink-500, same as every row's own label
+        // Plain fact, grey (text-ink-500, same as every row's own label
         // text below it) rather than black (2026-09-24, on request - same
         // treatment already applied to Main economy type/GDP sector rows
-        // in Economy, for the same reason: unlike temperature/rainfall/
-        // snowfall, there's no consensus "closer is better" direction for
-        // beach/mountain proximity or a climate type, so black read as an
-        // implied judgement these rows don't actually make). Omitted (not
-        // a placeholder) when the underlying lookup didn't resolve - see
-        // lib/aggregation/aggregate.ts's withTimeout comment for why a
-        // landlocked/far-inland city's beach/mountain distance can
-        // genuinely come back null.
-        c.distanceToBeachKm != null
-          ? {
-              label: "Distance to beach",
-              value: formatDistanceKm(c.distanceToBeachKm, prefs),
-              precision: "pinned",
-              colorClass: "text-ink-500",
-            }
-          : null,
-        c.distanceToMountainKm != null
-          ? {
-              label: "Distance to mountain",
-              value: formatDistanceKm(c.distanceToMountainKm, prefs),
-              precision: "pinned",
-              colorClass: "text-ink-500",
-            }
-          : null,
+        // in Economy: a climate type has no "good/bad" direction, so black
+        // read as an implied judgement this row doesn't actually make).
         c.koppenCode
           ? {
               label: "Climate type",
@@ -286,16 +273,26 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
             }
           : null,
         {
-          // No consensus "ideal" humidity the way temperature/rainfall
-          // have one - grey, not coloured, same as beach/mountain/climate
-          // type above.
+          // Coloured against a disclosed-subjective ideal centre (~50%,
+          // 2026-09-24 on request - see COLOR_RANGES.humidityDistanceFromIdeal),
+          // same "distance from an ideal" shape as temperature/rainfall.
           label: "Avg annual humidity",
           value: `${c.avgAnnualHumidityPct}%`,
           precision: "pinned",
-          colorClass: "text-ink-500",
+          colorClass: tierColorClass(
+            normalise(
+              Math.abs(c.avgAnnualHumidityPct - 50),
+              COLOR_RANGES.humidityDistanceFromIdeal.min,
+              COLOR_RANGES.humidityDistanceFromIdeal.max,
+              true
+            )
+          ),
         },
         c.elevationM != null
           ? {
+              // Not coloured - "higher/lower elevation is better" has no
+              // consensus direction, unlike humidity/UV where an ideal
+              // centre is at least a defensible subjective call.
               label: "Elevation",
               value: `${c.elevationM.toLocaleString()} m`,
               precision: "pinned",
@@ -308,21 +305,29 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               value: `${c.avgAnnualPm25} µg/m³`,
               precision: "pinned",
               // Lower is unambiguously healthier here (WHO guideline:
-              // annual mean under 5 µg/m³) - unlike humidity/UV, this one
-              // does get the usual colour treatment.
+              // annual mean under 5 µg/m³) - a monotonic direction, not an
+              // "ideal centre" the way humidity/UV get.
               colorClass: tierColorClass(normalise(c.avgAnnualPm25, COLOR_RANGES.pm25.min, COLOR_RANGES.pm25.max, true)),
               hint: "Annual mean PM2.5 (fine particulate matter) — WHO guideline: under 5 µg/m³",
             }
           : null,
         c.avgAnnualUvIndexMax != null
           ? {
+              // Coloured against a disclosed-subjective ideal centre (~3,
+              // "moderate" - 2026-09-24 on request), balancing some sun
+              // exposure against sunburn/skin-cancer risk - see
+              // COLOR_RANGES.uvIndexDistanceFromIdeal.
               label: "Avg UV index",
               value: `${c.avgAnnualUvIndexMax}`,
               precision: "pinned",
-              // Not coloured - higher UV reads as a health caution to some,
-              // a sunny-climate plus to others, same ambiguity as
-              // beach/mountain proximity above.
-              colorClass: "text-ink-500",
+              colorClass: tierColorClass(
+                normalise(
+                  Math.abs(c.avgAnnualUvIndexMax - 3),
+                  COLOR_RANGES.uvIndexDistanceFromIdeal.min,
+                  COLOR_RANGES.uvIndexDistanceFromIdeal.max,
+                  true
+                )
+              ),
               hint: "Average of each day's peak UV index over the trailing year",
             }
           : null,
@@ -331,7 +336,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
     }
     case "liveability": {
       const l = data.liveability;
-      return [
+      const rows: (KpiRow | null)[] = [
         {
           label: "Restaurants & bars density",
           value: `${l.restaurantsBarsDensityPer10k} / 10k`,
@@ -369,7 +374,44 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           precision: "country",
           colorClass: tierColorClass(l.healthcareQualityScore),
         },
+        // "What's nearby" distances (2026-09-24, moved here from
+        // Environment/Climate on request - proximity reads as a Quality
+        // of Life question). Grey, not coloured - no consensus "closer is
+        // better" direction for any of these (unlike restaurant/green-
+        // space density above, which do have one). Omitted, not
+        // placeholdered, when unresolved - see aggregate.ts's withTimeout
+        // comment (beach/mountain/forest) and capitals.ts's own comment
+        // (capital - only null for a handful of countries with no
+        // GeoNames capital on file).
+        l.distanceToBeachKm != null
+          ? { label: "Distance to beach", value: formatDistanceKm(l.distanceToBeachKm, prefs), precision: "pinned", colorClass: "text-ink-500" }
+          : null,
+        l.distanceToMountainKm != null
+          ? {
+              label: "Distance to mountain",
+              value: formatDistanceKm(l.distanceToMountainKm, prefs),
+              precision: "pinned",
+              colorClass: "text-ink-500",
+            }
+          : null,
+        l.distanceToForestKm != null
+          ? {
+              label: "Distance to forest",
+              value: formatDistanceKm(l.distanceToForestKm, prefs),
+              precision: "pinned",
+              colorClass: "text-ink-500",
+            }
+          : null,
+        l.distanceToCapitalKm != null
+          ? {
+              label: "Distance to capital city",
+              value: formatDistanceKm(l.distanceToCapitalKm, prefs),
+              precision: "country",
+              colorClass: "text-ink-500",
+            }
+          : null,
       ];
+      return rows.filter((r): r is KpiRow => r != null);
     }
   }
 }

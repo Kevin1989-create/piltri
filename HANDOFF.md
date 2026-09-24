@@ -1742,6 +1742,44 @@ UV index are independently-fetched (one API call can fail without the
 other), nullable, omitted rather than placeholdered on a genuine miss -
 same convention as everything else added this round.
 
+## "What's nearby" moved Environment -> Quality of Life, +forest/capital distance, humidity/UV get colour (2026-09-24, later same session)
+
+User's own instinct, and a good one: `distanceToBeachKm`/`distanceToMountainKm`
+were on `ClimateFields`, but "what's nearby" is a Quality of Life question
+(same bucket as restaurant density, transport presence), not a climate/
+geography fact about the place itself. Moved both to `LiveabilityFields`,
+updated `kpiRows.ts` (rows now render under Quality of Life, not
+Environment), `criteria.ts` (category + key both changed from
+`climate.*` to `liveability.*`), `randomSeed.ts`, `aggregate.ts`.
+
+**Added 2 more distances while moving these**, both landing straight in
+Quality of Life from the start:
+
+- **Distance to forest** - same Overpass pattern as mountain
+  (`nearestFeatureWithDetails`, tags `natural=wood` + `landuse=forest`,
+  same `withTimeout`/`FAR_LOOKUP_TIMEOUT_MS` cap).
+- **Distance to capital city** - genuinely different shape: pure geometry
+  (haversine), never a live API call. New file
+  `lib/data-sources/capitals.ts` reads a static
+  `data/static/country-capitals.json` (239 countries), generated
+  alongside the city shortlist itself -
+  `scripts/generateDiscoverCities.mjs` now also extracts GeoNames feature
+  code `PPLC` ("seat of a primary state/national capital") rows from the
+  same already-downloaded `cities5000.txt`, no new download. Null only for
+  the handful of countries GeoNames has no PPLC row for - never a timeout
+  case the way the 3 Overpass-based distances are.
+
+**Humidity and UV now get the usual colour treatment** (were grey/
+uncoloured) - user explicitly said "it's okay if we are subjective" when
+asked. Both use the same "distance from a disclosed-subjective ideal
+centre" shape temperature/rainfall already use: humidity centred on ~50%
+(common HVAC comfort figure), UV centred on ~3/"moderate" (balances sun-
+exposure benefit against sunburn/skin-cancer risk). Reasonable people can
+disagree with either centre - flip on request, same as temperature/
+rainfall's own disclosed judgment calls. PM2.5 stays a plain monotonic
+"lower is healthier" colour (WHO guideline), not an ideal-centre shape -
+there's no amount of particulate pollution that's "too little".
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

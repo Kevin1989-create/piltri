@@ -24,6 +24,11 @@ import { execSync } from "child_process";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TMP_DIR = path.join(__dirname, ".tmp-geonames");
 const OUT_PATH = path.join(__dirname, "..", "data", "static", "discover-cities.json");
+// Capitals are pulled from this same cities5000.txt download (GeoNames
+// feature code PPLC = "seat of a primary state/national capital") rather
+// than a separate fetch - added 2026-09-24 for Quality of Life's
+// "Distance to capital city" field (lib/data-sources/capitals.ts).
+const CAPITALS_OUT_PATH = path.join(__dirname, "..", "data", "static", "country-capitals.json");
 
 if (!existsSync(TMP_DIR)) mkdirSync(TMP_DIR, { recursive: true });
 
@@ -70,8 +75,9 @@ async function main() {
   console.log(`  ${cityRows.length} raw rows`);
 
   const bySlug = new Map();
+  const capitalsByCountry = new Map();
   for (const cols of cityRows) {
-    const [, name, , , latStr, lngStr, , , countryCode, , admin1Code, , , , populationStr] = cols;
+    const [, name, , , latStr, lngStr, , featureCode, countryCode, , admin1Code, , , , populationStr] = cols;
     const population = Number(populationStr);
     if (!name || !countryCode || !Number.isFinite(population) || population <= 0) continue;
     const lat = Number(latStr);
@@ -91,6 +97,12 @@ async function main() {
     if (existing && existing.population >= population) continue;
 
     bySlug.set(cityId, { cityId, cityName: name, region, country, countryCode, lat, lng, population });
+
+    // PPLC = "seat of a primary state/national capital" - GeoNames' own
+    // feature-code convention. A handful of countries have no PPLC row at
+    // all (disputed/unusual capital arrangements) - those are simply
+    // absent from the output rather than guessed at.
+    if (featureCode === "PPLC") capitalsByCountry.set(countryCode, { name, lat, lng });
   }
 
   const cities = Array.from(bySlug.values()).sort((a, b) => b.population - a.population);
@@ -98,6 +110,10 @@ async function main() {
 
   writeFileSync(OUT_PATH, JSON.stringify(cities, null, 2) + "\n");
   console.log(`Wrote ${cities.length} cities to ${OUT_PATH}`);
+
+  const capitals = Object.fromEntries(capitalsByCountry);
+  writeFileSync(CAPITALS_OUT_PATH, JSON.stringify(capitals, null, 2) + "\n");
+  console.log(`Wrote ${Object.keys(capitals).length} country capitals to ${CAPITALS_OUT_PATH}`);
 }
 
 main().catch((err) => {

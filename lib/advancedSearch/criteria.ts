@@ -240,24 +240,8 @@ export const CRITERIA: CriterionDef[] = [
     suggestedRange: [0, 200],
     getCityValue: (d) => d.climate.avgAnnualSnowfallCm,
   },
-  {
-    key: "climate.distanceToBeachKm",
-    category: "climate",
-    label: "Distance to beach",
-    unit: "km",
-    kind: "range",
-    suggestedRange: [0, 400],
-    getCityValue: (d) => d.climate.distanceToBeachKm,
-  },
-  {
-    key: "climate.distanceToMountainKm",
-    category: "climate",
-    label: "Distance to mountain",
-    unit: "km",
-    kind: "range",
-    suggestedRange: [0, 300],
-    getCityValue: (d) => d.climate.distanceToMountainKm,
-  },
+  // Distance to beach/mountain/forest/capital moved to Quality of Life
+  // (2026-09-24, on request) - see that section below.
   // Climate type (Köppen) isn't a filter criterion here - ~30 possible
   // codes is too many for a clean select dropdown, and it's a descriptive
   // fact rather than a natural filter dimension, same reasoning
@@ -381,6 +365,44 @@ export const CRITERIA: CriterionDef[] = [
     label: "Has airport",
     kind: "boolean",
     getCityValue: (d) => d.liveability.hasAirport,
+  },
+  // "What's nearby" distances (2026-09-24, moved here from Environment/
+  // Climate on request - proximity reads as a Quality of Life question).
+  {
+    key: "liveability.distanceToBeachKm",
+    category: "liveability",
+    label: "Distance to beach",
+    unit: "km",
+    kind: "range",
+    suggestedRange: [0, 400],
+    getCityValue: (d) => d.liveability.distanceToBeachKm,
+  },
+  {
+    key: "liveability.distanceToMountainKm",
+    category: "liveability",
+    label: "Distance to mountain",
+    unit: "km",
+    kind: "range",
+    suggestedRange: [0, 300],
+    getCityValue: (d) => d.liveability.distanceToMountainKm,
+  },
+  {
+    key: "liveability.distanceToForestKm",
+    category: "liveability",
+    label: "Distance to forest",
+    unit: "km",
+    kind: "range",
+    suggestedRange: [0, 200],
+    getCityValue: (d) => d.liveability.distanceToForestKm,
+  },
+  {
+    key: "liveability.distanceToCapitalKm",
+    category: "liveability",
+    label: "Distance to capital city",
+    unit: "km",
+    kind: "range",
+    suggestedRange: [0, 1000],
+    getCityValue: (d) => d.liveability.distanceToCapitalKm,
   },
 
   // ---- Demographics (reference info, not scored) ---------------------------

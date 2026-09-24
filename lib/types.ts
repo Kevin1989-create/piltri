@@ -149,25 +149,16 @@ export interface SafetyStabilityFields {
  *  "a country isn't one climate" reasoning applies to temperature/
  *  rainfall/sunshine/snowfall too, and a capital-city stand-in was
  *  considered and rejected as misleadingly precise-looking, 2026-09-24).
- *  distanceToBeachKm/distanceToMountainKm and koppenCode were added the
- *  same day - see lib/aggregation/aggregate.ts and lib/data-sources/
- *  koppen.ts for where each comes from. */
+ *  koppenCode was added the same day - see lib/aggregation/aggregate.ts
+ *  and lib/data-sources/koppen.ts. distanceToBeachKm/distanceToMountainKm
+ *  used to live here too, but moved to LiveabilityFields 2026-09-24 (on
+ *  request) - "what's nearby" reads as a Quality of Life question, not an
+ *  Environment/climate one; see LiveabilityFields' own comment. */
 export interface ClimateFields {
   avgAnnualTemperatureC: number;
   avgAnnualRainfallMm: number;
   avgAnnualSunshineHrs: number;
   avgAnnualSnowfallCm: number;
-  /** Straight-line distance to the nearest genuine sea/lake beach or
-   *  coastline (Overpass, vetted - see overpass.ts's nearestVerifiedBeach).
-   *  Null when none resolved within the search radius or the search timed
-   *  out (a landlocked city far from any coast, or Overpass being slow) -
-   *  never guessed, and not distinguished from each other in the UI (both
-   *  honestly mean "we don't have a number"). */
-  distanceToBeachKm: number | null;
-  /** Straight-line distance to the nearest OSM-tagged mountain peak
-   *  (`natural=peak`). Same null-means-"no resolved answer" convention as
-   *  distanceToBeachKm. */
-  distanceToMountainKm: number | null;
   /** Köppen-Geiger climate type (e.g. "Cfb" = temperate oceanic) - computed
    *  from a 10-year Open-Meteo monthly climate normal, not a separate
    *  dataset (see lib/data-sources/koppen.ts's file header for why no
@@ -217,6 +208,20 @@ export interface LiveabilityFields {
   hasSubway: boolean;
   hasTramway: boolean;
   hasAirport: boolean;
+  // "What's nearby" distances (2026-09-24, moved here from ClimateFields
+  // on request - proximity to a beach/mountain/forest/capital reads as a
+  // Quality of Life question, not a climate/geography fact about the
+  // place itself). distanceToBeachKm/distanceToMountainKm/
+  // distanceToForestKm are Overpass lookups (see aggregate.ts's
+  // withTimeout comment for why they can genuinely come back null - a
+  // landlocked/far city, or Overpass being slow); distanceToCapitalKm is
+  // pure geometry against a static GeoNames capital-coordinates table
+  // (lib/data-sources/capitals.ts) - never a live call, so it's null only
+  // for the handful of countries GeoNames has no capital on file for.
+  distanceToBeachKm: number | null;
+  distanceToMountainKm: number | null;
+  distanceToForestKm: number | null;
+  distanceToCapitalKm: number | null;
 }
 
 /** The 4 SCORED sections. Demographics is deliberately not here — it's

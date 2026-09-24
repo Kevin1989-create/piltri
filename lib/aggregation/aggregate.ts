@@ -7,6 +7,7 @@ import { getCityOverpassData, nearestFeatureWithDetails, nearestVerifiedBeach, p
 import { getHealthcareQualityScore } from "@/lib/data-sources/who";
 import { getCityPopulationAndArea } from "@/lib/data-sources/wikidata";
 import { toIso3 } from "@/lib/data-sources/country-codes";
+import { distanceToCapitalKm } from "@/lib/data-sources/capitals";
 import { memoize } from "./memoryCache";
 import { averageScores, computePiltriScore, normalise } from "./scoring";
 import type { CityExploreData, CitySearchResult } from "@/lib/types";
@@ -116,7 +117,7 @@ export async function aggregateCityData(
   const wikidataChecked = opts.wikidataChecked ?? false;
   const iso3 = toIso3(city.countryCode);
 
-  const [wb, languages, climate, overpassData, healthcare, cityDemo, koppenCode, beach, mountain, airQuality] = await Promise.all([
+  const [wb, languages, climate, overpassData, healthcare, cityDemo, koppenCode, beach, mountain, forest, airQuality] = await Promise.all([
     safely(() => memoize(`wb:${city.countryCode}`, COUNTRY_LEVEL_TTL_MS, () => getWorldBankIndicators(city.countryCode)), null),
     safely(() => getCountryLanguages(city.countryCode), { officialLanguages: [], mostWidelySpokenLanguage: "Unknown" }),
     safely(() => getClimateAverages(city.lat, city.lng), null),
@@ -134,6 +135,15 @@ export async function aggregateCityData(
     safely(() => withTimeout(nearestVerifiedBeach(city.lat, city.lng), FAR_LOOKUP_TIMEOUT_MS, null), null),
     safely(
       () => withTimeout(nearestFeatureWithDetails(city.lat, city.lng, '"natural"="peak"', 40000), FAR_LOOKUP_TIMEOUT_MS, null),
+      null
+    ),
+    safely(
+      () =>
+        withTimeout(
+          nearestFeatureWithDetails(city.lat, city.lng, ['"natural"="wood"', '"landuse"="forest"'], 20000),
+          FAR_LOOKUP_TIMEOUT_MS,
+          null
+        ),
       null
     ),
     safely(() => getAirQualityAverages(city.lat, city.lng), null),
@@ -231,8 +241,6 @@ export async function aggregateCityData(
       avgAnnualRainfallMm: climate?.avgAnnualRainfallMm ?? 700,
       avgAnnualSunshineHrs: climate?.avgAnnualSunshineHrs ?? 1800,
       avgAnnualSnowfallCm: climate?.avgAnnualSnowfallCm ?? 0,
-      distanceToBeachKm: beach?.km != null ? Number(beach.km.toFixed(1)) : null,
-      distanceToMountainKm: mountain?.km != null ? Number(mountain.km.toFixed(1)) : null,
       koppenCode,
       avgAnnualHumidityPct: climate?.avgAnnualHumidityPct ?? 60,
       elevationM: climate?.elevationM ?? null,
@@ -251,6 +259,10 @@ export async function aggregateCityData(
       hasSubway: transportPresence.hasSubway,
       hasTramway: transportPresence.hasTramway,
       hasAirport: transportPresence.hasAirport,
+      distanceToBeachKm: beach?.km != null ? Number(beach.km.toFixed(1)) : null,
+      distanceToMountainKm: mountain?.km != null ? Number(mountain.km.toFixed(1)) : null,
+      distanceToForestKm: forest?.km != null ? Number(forest.km.toFixed(1)) : null,
+      distanceToCapitalKm: distanceToCapitalKm(city.lat, city.lng, city.countryCode),
     },
     sectionScores: {
       economy: 0,
