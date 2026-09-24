@@ -4,13 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ResourcesDetail } from "@/components/explore/ResourcesDetail";
-import {
-  buildCityEconomyTypeRows,
-  buildKpiRows,
-  buildLiveabilityTransportRows,
-  splitKpiRowsByTier,
-  type KpiRow,
-} from "@/lib/kpiRows";
+import { buildKpiRows, buildLiveabilityTransportRows, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { isCustomWeights, useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { formatAreaKm2, formatDensityPerKm2, useUnitPreferences } from "@/lib/unitPreferences";
@@ -183,17 +177,15 @@ function ReportContent() {
 
             {ORDER.map((section) => {
               const rows = buildKpiRows(section, data, prefs);
-              const cityEconomyTypeRows = section === "economy" ? buildCityEconomyTypeRows(data) : null;
               const localSignalRows = section === "liveability" ? buildLiveabilityTransportRows(data) : null;
               const { countryRows, cityRows } = splitKpiRowsByTier(rows);
-              // Economy Type / Local Signals are both city-tier (pinned to
-              // this city's exact coordinates, same as SectionDetail.tsx's
-              // cityExtraBlocks) - grouped with the City stat grid so they
-              // move together as one "City" section, ahead of "Country"
-              // whenever either has content (in practice cityEconomyTypeRows
-              // and localSignalRows are never actually empty once built).
-              const subBlockTitle = section === "economy" ? "Economy Type" : section === "liveability" ? "Local Signals" : null;
-              const subBlockRows = cityEconomyTypeRows ?? localSignalRows;
+              // Local Signals is city-tier (pinned to this city's exact
+              // coordinates, same as SectionDetail.tsx's cityExtraBlocks) -
+              // grouped with the City stat grid so it moves together as one
+              // "City" section, ahead of "Country" whenever either has
+              // content.
+              const subBlockTitle = section === "liveability" ? "Local Signals" : null;
+              const subBlockRows = localSignalRows;
               const cityTierHasContent = cityRows.length > 0 || !!subBlockRows?.length;
               return (
                 <section key={section} className="mt-8 break-inside-avoid">

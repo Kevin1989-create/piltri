@@ -96,26 +96,6 @@ export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
   naturalResourcesAndAgriculture: "Natural Resources & Agriculture",
 };
 
-/** The city's likely dominant local sector — genuinely computed from OSM
- *  POI/land-use density within range of its exact coordinates (see
- *  lib/data-sources/overpass.ts getEconomySectorCounts / pickMainEconomyType),
- *  not a placeholder. A resolved category is left uncoloured - a plain
- *  label, not a good/bad value - but "Not enough Data" is muted grey
- *  (2026-09-23, on request), the same empty-state convention used for
- *  "Not available" elsewhere (see CityHeader.tsx) - an absence of data
- *  isn't a bad score, so it shouldn't read like one. */
-export function buildCityEconomyTypeRows(data: CityExploreData): KpiRow[] {
-  const e = data.economy;
-  return [
-    {
-      label: "Main economy type",
-      value: e.mainEconomyType ? ECONOMY_TYPE_LABELS[e.mainEconomyType] : "Not enough Data",
-      precision: "pinned",
-      colorClass: e.mainEconomyType ? undefined : "text-ink-500",
-    },
-  ];
-}
-
 /** Shared source of truth for each section's KPI list — used by the results
  *  page's SectionDetail panel and by the printable report page, so the two
  *  never drift out of sync with each other. Precision tags reflect the
@@ -127,6 +107,24 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
     case "economy": {
       const e = data.economy;
       return [
+        {
+          // Genuinely computed from OSM POI/land-use density within range
+          // of this city's exact coordinates (see lib/data-sources/overpass.ts
+          // getEconomySectorCounts / pickMainEconomyType), not a placeholder.
+          // A resolved category is left uncoloured - a plain label, not a
+          // good/bad value - but "Not enough Data" is muted grey, the same
+          // empty-state convention used for "Not available" elsewhere (see
+          // CityHeader.tsx) - an absence of data isn't a bad score, so it
+          // shouldn't read like one. Folded into this same list rather than
+          // its own labeled "Economy Type" sub-block (2026-09-24, on
+          // request - the extra heading for a single row read as
+          // confusing); precision "pinned" still routes it into the City
+          // group automatically via splitKpiRowsByTier.
+          label: "Main economy type",
+          value: e.mainEconomyType ? ECONOMY_TYPE_LABELS[e.mainEconomyType] : "Not enough Data",
+          precision: "pinned",
+          colorClass: e.mainEconomyType ? undefined : "text-ink-500",
+        },
         {
           label: "Economic growth (5yr GDP)",
           value: `${e.economicGrowth5yrGdpPct > 0 ? "+" : ""}${e.economicGrowth5yrGdpPct}%`,

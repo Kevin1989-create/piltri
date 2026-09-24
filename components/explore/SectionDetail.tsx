@@ -1,13 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/cn";
-import {
-  buildCityEconomyTypeRows,
-  buildKpiRows,
-  buildLiveabilityTransportRows,
-  splitKpiRowsByTier,
-  type KpiRow,
-} from "@/lib/kpiRows";
+import { buildKpiRows, buildLiveabilityTransportRows, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { useUnitPreferences } from "@/lib/unitPreferences";
 import type { CityExploreData, SectionKey } from "@/lib/types";
 
@@ -45,20 +39,20 @@ function StatGrid({ rows, cols, bold = false }: { rows: KpiRow[]; cols: 2 | 3; b
  *  (2026-09-23, on request) to match CityHeader's own City-before-Country
  *  order. A section with data at only one tier (Climate is 100%
  *  city/pinned, Safety & Stability is 100% country) renders only that one
- *  group, never a padded-out empty other one. Economy's "Economy Type"
- *  and Liveability's "Local Signals" are both
- *  genuinely city-tier (pinned to this city's exact coordinates), so they
- *  nest inside the City group as labeled sub-blocks rather than sitting
- *  beside it. Each group is headed by the actual country/city name (not
- *  the generic word "Country"/"City"), serif like CityHeader's
- *  Demographics block - but plain black and bold here (2026-09-23, on
- *  request), not the darker amber CityHeader itself settled on, since
- *  these smaller per-section panels don't have a separate amber-vs-black
- *  title of their own for the amber to contrast against the way
- *  CityHeader's does. Bold matches the weight already used for a missing-
- *  data row like "Not enough Data" (see buildCityEconomyTypeRows in
- *  lib/kpiRows.ts), so the group header doesn't read as lighter than its
- *  own content.
+ *  group, never a padded-out empty other one. Liveability's "Local
+ *  Signals" is genuinely city-tier (pinned to this city's exact
+ *  coordinates), so it nests inside the City group as a labeled sub-block
+ *  rather than sitting beside it - Economy's single city-tier row ("Main
+ *  economy type") used to get the same treatment under an "Economy Type"
+ *  heading, but that extra heading for one row read as confusing
+ *  (2026-09-24, on request), so it's now just a plain row in the City
+ *  group's main grid instead. Each group is headed by the actual
+ *  country/city name (not the generic word "Country"/"City"), serif like
+ *  CityHeader's Demographics block - but plain black and bold here
+ *  (2026-09-23, on request), not the darker amber CityHeader itself
+ *  settled on, since these smaller per-section panels don't have a
+ *  separate amber-vs-black title of their own for the amber to contrast
+ *  against.
  *
  *  `bordered` controls the top divider: on (default) when this renders
  *  inline directly under its own SectionRow (Compare page); off when it's
@@ -75,20 +69,18 @@ export function SectionDetail({
 }) {
   const { prefs } = useUnitPreferences();
   const rows = buildKpiRows(section, data, prefs);
-  const cityEconomyTypeRows = section === "economy" ? buildCityEconomyTypeRows(data) : null;
   // Transport Access + Notable Institutions merged into one "Local
   // Signals" sub-block (was 2 separate labeled blocks) - one less header
   // to squeeze the panel's overall height, since this floating panel has
   // to share vertical space with a pinned location's info bar below it.
   const localSignalRows = section === "liveability" ? buildLiveabilityTransportRows(data) : null;
-  const totalItems = rows.length + (cityEconomyTypeRows?.length ?? 0) + (localSignalRows?.length ?? 0);
+  const totalItems = rows.length + (localSignalRows?.length ?? 0);
   const cols = totalItems > 6 ? 3 : 2;
 
   const { countryRows, cityRows } = splitKpiRowsByTier(rows);
-  const cityExtraBlocks = [
-    cityEconomyTypeRows && { title: "Economy Type", rows: cityEconomyTypeRows },
-    localSignalRows && { title: "Local Signals", rows: localSignalRows },
-  ].filter((b): b is { title: string; rows: KpiRow[] } => !!b);
+  const cityExtraBlocks = [localSignalRows && { title: "Local Signals", rows: localSignalRows }].filter(
+    (b): b is { title: string; rows: KpiRow[] } => !!b
+  );
 
   const hasCountry = countryRows.length > 0;
   const hasCity = cityRows.length > 0 || cityExtraBlocks.length > 0;
