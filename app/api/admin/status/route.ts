@@ -7,6 +7,11 @@ import type { CitySearchResult } from "@/lib/types";
 
 const IN_CLAUSE_CHUNK_SIZE = 300;
 
+// ~221 chunks at the ~66,300-city shortlist's current size (2026-09-24) -
+// explicit ceiling as a safety net against Vercel's route default, same
+// as the backfill routes already declare.
+export const maxDuration = 60;
+
 /**
  * GET /api/admin/status — coverage snapshot for the /admin back-office
  * page: how many of the shortlisted cities currently have a fresh
@@ -40,12 +45,24 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = getSupabaseServiceClient();
     const slugs = cityInputs.map((c) => citySlug(c));
-    for (let i = 0; i < slugs.length; i += IN_CLAUSE_CHUNK_SIZE) {
-      const slice = slugs.slice(i, i + IN_CLAUSE_CHUNK_SIZE);
-      const { data, error } = await supabase
-        .from("cities")
-        .select("osm_land_area_km2, osm_land_area_checked_at, wikidata_population, wikidata_area_km2, wikidata_checked_at")
-        .in("slug", slice);
+    const slugChunks: string[][] = [];
+    for (let i = 0; i < slugs.length; i += IN_CLAUSE_CHUNK_SIZE) slugChunks.push(slugs.slice(i, i + IN_CLAUSE_CHUNK_SIZE));
+
+    // Parallel (Promise.all), not sequential - same fix as
+    // getCachedCityDataBatch's own chunks already apply (see cache.ts's
+    // comment: ~21 chunks sequential measured ~2.7s total). This endpoint
+    // used to award one at a time, fine at the old ~21-chunk shortlist
+    // size but not at ~221 chunks after the shortlist widened to ~66,300
+    // cities (2026-09-24) - confirmed live it was taking 20s+ per call.
+    const chunkResults = await Promise.all(
+      slugChunks.map((slice) =>
+        supabase
+          .from("cities")
+          .select("osm_land_area_km2, osm_land_area_checked_at, wikidata_population, wikidata_area_km2, wikidata_checked_at")
+          .in("slug", slice)
+      )
+    );
+    for (const { data, error } of chunkResults) {
       if (error) {
         console.error("admin/status: coverage chunk read failed:", error);
         continue;
