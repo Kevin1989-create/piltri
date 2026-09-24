@@ -43,7 +43,7 @@ function chance(p: number): boolean {
  * sensibly relative to the raw field values shown on a city's report.
  */
 export function randomCityData(city: CitySearchResult): CityExploreData {
-  const economicGrowth5yrGdpPct = randFloat(-5, 8);
+  const economicGrowth5yrGdpPct = randFloat(-10, 40); // cumulative ~6yr growth, matches aggregate.ts's RANGES.gdpGrowth
   const unemploymentRatePct = randFloat(0, 25);
   const averageSalaryGbp = randInt(5000, 100000);
   const costOfLivingIndex = randInt(20, 90);
@@ -132,7 +132,7 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
 
   data.sectionScores = {
     economy: averageScores([
-      normalise(economicGrowth5yrGdpPct, -5, 8),
+      normalise(economicGrowth5yrGdpPct, -10, 40),
       normalise(unemploymentRatePct, 0, 25, true),
       normalise(averageSalaryGbp, 5000, 100000),
       100 - costOfLivingIndex,

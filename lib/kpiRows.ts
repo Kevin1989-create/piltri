@@ -56,7 +56,7 @@ function trendColorClass(trend: TrendDirection): string {
 // politicalStabilityScore), this file colours it directly instead of
 // re-deriving a range for it.
 const COLOR_RANGES = {
-  gdpGrowth: { min: -5, max: 8 },
+  gdpGrowth: { min: -10, max: 40 }, // matches aggregate.ts's RANGES.gdpGrowth (cumulative ~6yr growth, not annual)
   // averageSalaryGbp is gniPerCapitaUsd * 0.79 (see aggregate.ts) - range
   // scaled by the same factor so this stays consistent with the raw-USD
   // range actually used for scoring, even though the displayed figure is

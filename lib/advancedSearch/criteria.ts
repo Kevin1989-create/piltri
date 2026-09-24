@@ -108,7 +108,7 @@ export const CRITERIA: CriterionDef[] = [
     label: "5yr GDP growth",
     unit: "%",
     kind: "range",
-    suggestedRange: [-25, 25],
+    suggestedRange: [-10, 40], // matches aggregate.ts's RANGES.gdpGrowth (cumulative ~6yr growth, not annual)
     getCityValue: (d) => d.economy.economicGrowth5yrGdpPct,
   },
   {

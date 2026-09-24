@@ -26,7 +26,13 @@ const COUNTRY_LEVEL_TTL_MS = 24 * 60 * 60 * 1000;
 // stats with, so the KPI display and the actual score always agree on
 // what counts as "good" for a given city.
 const RANGES = {
-  gdpGrowth: { min: -5, max: 8 },
+  // Recalibrated 2026-09-24 alongside the gdpGrowth5yrPct calc fix (see
+  // lib/data-sources/worldbank.ts) - this now measures cumulative real GDP
+  // growth over ~6 years (a LEVEL change), not an annual rate, so the old
+  // -5/8 range (sized for a single year's %) no longer matches its scale.
+  // -10 covers a genuine multi-year contraction; 40 covers a fast-growing
+  // emerging economy compounding ~6%/yr over the window.
+  gdpGrowth: { min: -10, max: 40 },
   unemployment: { min: 0, max: 25 },
   salary: { min: 2000, max: 90000 }, // GNI per capita, USD
   ppp: { min: 2000, max: 120000 },

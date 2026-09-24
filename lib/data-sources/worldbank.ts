@@ -56,6 +56,14 @@ export interface WorldBankIndicators {
   /** Country land area, km² (AG.LND.TOTL.K2) — added 2026-09-22 alongside
    *  the country/city demographics split (see lib/types.ts). */
   landAreaKm2: number | null;
+  /** Cumulative real GDP growth over the ~6-year window (from NY.GDP.MKTP.KD,
+   *  GDP at constant 2015 US$ — a LEVEL series, not a rate), same pctChange
+   *  pattern already used correctly for population above. Fixed 2026-09-24:
+   *  this used to take a % change of NY.GDP.MKTP.KD.ZG, the annual growth
+   *  RATE itself — mathematically unstable once that window's base year is
+   *  small or negative (every current window includes 2020's COVID crash),
+   *  which is what produced a nonsensical "+113.8%" for the UK. A % change
+   *  of a % is not a meaningful number; % change of the actual GDP level is. */
   gdpGrowth5yrPct: number | null;
   gniPerCapitaUsd: number | null; // used as average salary proxy
   unemploymentRatePct: number | null;
@@ -86,12 +94,12 @@ export interface WorldBankIndicators {
  * Governance Indicators" — verified via https://api.worldbank.org/v2/sources).
  */
 export async function getWorldBankIndicators(countryCode: string): Promise<WorldBankIndicators> {
-  const [population, density, landArea, gdpGrowth, gni, unemployment, ppp, priceLevel, politicalStability, ruleOfLaw, homicideRate] =
+  const [population, density, landArea, gdpLevel, gni, unemployment, ppp, priceLevel, politicalStability, ruleOfLaw, homicideRate] =
     await Promise.all([
       fetchIndicator(countryCode, "SP.POP.TOTL"),
       fetchIndicator(countryCode, "EN.POP.DNST"),
       fetchIndicator(countryCode, "AG.LND.TOTL.K2"),
-      fetchIndicator(countryCode, "NY.GDP.MKTP.KD.ZG"),
+      fetchIndicator(countryCode, "NY.GDP.MKTP.KD"),
       fetchIndicator(countryCode, "NY.GNP.PCAP.CD"),
       fetchIndicator(countryCode, "SL.UEM.TOTL.ZS"),
       fetchIndicator(countryCode, "NY.GDP.PCAP.PP.CD"),
@@ -106,7 +114,7 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     populationDensityPerKm2: latest(density),
     populationTrend5yrPct: pctChange(population),
     landAreaKm2: latest(landArea),
-    gdpGrowth5yrPct: pctChange(gdpGrowth) ?? latest(gdpGrowth),
+    gdpGrowth5yrPct: pctChange(gdpLevel),
     gniPerCapitaUsd: latest(gni),
     unemploymentRatePct: latest(unemployment),
     purchasingPowerParityGdpPerCapita: latest(ppp),

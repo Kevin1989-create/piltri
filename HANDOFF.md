@@ -1316,6 +1316,56 @@ alone: `PrecisionCityIcon`/`PrecisionCountryIcon`/`PrecisionPinnedIcon` in
 `app/explore/discover/page.tsx` (the City/Country **scope** toggle buttons,
 and the "Nearby" category's icon) — different feature, same glyphs.
 
+## Economy review: dropped "Economy Type" heading, fixed a real GDP-growth bug (2026-09-24)
+
+Same "review each scored category" exercise, now for Economy. Findings:
+
+- **Tier review**: of the 6 fields, only Main economy type is genuinely
+  city-level (OSM sector-density, see overpass.ts). The other 5 (growth,
+  salary, unemployment, cost of living, purchasing power) have no viable
+  free/global/reliable city-level alternative — same recurring Numbeo/paid-
+  API wall as Real Estate and Safety's crime data. Nothing added on this
+  front; OSM sector-density already is the best available option, it just
+  needed fixing (below).
+- **Removed the "ECONOMY TYPE" sub-heading** (on request — confusing for a
+  single row). "Main economy type" is now just a plain row in `buildKpiRows`
+  (precision `"pinned"`), routed into the City group automatically via
+  `splitKpiRowsByTier` instead of through its own labeled sub-block.
+  `buildCityEconomyTypeRows` (the special-cased helper that used to build
+  it) is gone from `lib/kpiRows.ts`, along with its `cityExtraBlocks` wiring
+  in `SectionDetail.tsx` and `report/page.tsx` (Liveability's "Local
+  Signals" sub-block mechanism stays — it still groups several rows).
+- **Found and fixed a real bug**: "Economic growth (5yr GDP)" showed
+  `+113.8%` for the UK — obviously wrong. Traced it to
+  `gdpGrowth5yrPct: pctChange(gdpGrowth) ?? latest(gdpGrowth)` in
+  `lib/data-sources/worldbank.ts` taking a % change of `NY.GDP.MKTP.KD.ZG`,
+  which is *already* an annual growth RATE, not a level — a "% change of a
+  %" is mathematically unstable, and every current 6-year window includes
+  2020's COVID crash as its base year, blowing the number up. Confirmed
+  this affects every country, not just the UK (verified UK's raw WB series
+  directly: 2020 -10.0%, 2021 +8.5%, ..., 2025 +1.4% — pctChange of that
+  series is meaningless). Fixed by switching to `NY.GDP.MKTP.KD` (GDP,
+  constant 2015 US$ — a LEVEL series) and taking `pctChange` of *that*,
+  the same pattern already used correctly for population. UK now shows a
+  sane `+17.3%` cumulative 6-year growth, matching the World Bank API
+  directly. Recalibrated `RANGES.gdpGrowth`/`COLOR_RANGES.gdpGrowth` from
+  the old annual-rate scale (-5/8) to a cumulative-growth scale (-10/40) in
+  `aggregate.ts` and `kpiRows.ts`, plus `randomSeed.ts`'s mock generator and
+  `criteria.ts`'s Advanced Search suggested range, so nothing was left
+  pointing at the old, now-wrong scale. Cleared the production cache
+  afterwards (`POST /api/admin/clear-cache`) so this isn't stuck behind the
+  30-day TTL — same "shape/semantics changed, invalidate the cache" pattern
+  as the homicide-rate addition above.
+- **Known, not yet fixed (user declined this round)**: Main economy type
+  still shows "Not enough Data" for London — traced to this session's own
+  earlier 3s Overpass timeout cut (see "Three more mobile/perf fixes"
+  above) very likely being too tight for this specific 14-tag-group query,
+  which is heavier than any other Overpass call in the app. Confirmed live
+  on both localhost and piltri.me. Proposed giving this one call its own
+  longer timeout, separate from the lighter general-purpose Overpass calls
+  — user chose not to take this fix this round, so it's still broken as of
+  this entry. Worth revisiting.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header
