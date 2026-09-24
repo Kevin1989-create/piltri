@@ -1399,6 +1399,33 @@ group, `dominantGdpSector` precision `"country"` → Country group) - no
 component changes needed beyond kpiRows.ts and the usual
 types.ts/aggregate.ts/worldbank.ts/randomSeed.ts wiring.
 
+## Dominant GDP sector: coverage check, colour/position fix (2026-09-24, later same session)
+
+Two follow-ups on the field added above.
+
+**Coverage, checked directly against the World Bank API** (not assumed):
+queried all 3 indicators (`NV.AGR/IND/SRV.TOTL.ZS`) for every real economy
+World Bank tracks (217, excluding aggregate regions like "Arab World").
+At least one of the 3 resolves for 208/217 (~96%) — the 9 with none at all
+are small territories with no WB reporting (American Samoa, Gibraltar,
+Guam, etc.) plus North Korea. All 3 resolve simultaneously for 203/217
+(~94%), so a fuller "Agriculture X% / Industry Y% / Services Z%" breakdown
+(the "top 3" idea floated) would cost only ~2 points of coverage versus
+just picking the largest — genuinely worth doing if a richer breakdown is
+wanted later; not implemented this round since only the colour/position
+fix was asked for.
+
+**Colour and position fix**: the row rendered in plain black
+(`text-ink-900`, this file's default when no `colorClass` is set), which
+read as a continuation of the "United Kingdom" country-group heading
+directly above it — that heading is also near-black. Two fixes: moved
+`dominantGdpSector` from first to last in the economy case's row array (so
+it's no longer immediately under the heading), and gave both it and
+`mainEconomyType` `text-piltri-amber-dark` (the existing brand accent
+colour, already used at country-name-heading size in `CityHeader.tsx`) —
+deliberately outside the red-green score spectrum other rows use, since
+both are plain descriptive labels, not good/bad values.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

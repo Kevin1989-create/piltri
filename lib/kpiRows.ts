@@ -123,21 +123,16 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         // its own labeled "Economy Type" sub-block (the extra heading for
         // a single row read as confusing); precision "pinned" still routes
         // it into the City group automatically via splitKpiRowsByTier.
+        // Left in brand amber rather than black (2026-09-24, on request -
+        // black read as identical to the "London"/"United Kingdom" group
+        // heading directly above it) and rather than the usual red/green
+        // score spectrum, since this is a plain descriptive label, not a
+        // good/bad value.
         e.mainEconomyType && {
           label: "Main economy type",
           value: ECONOMY_TYPE_LABELS[e.mainEconomyType],
           precision: "pinned",
-        },
-        // Country-level companion to Main economy type above - whichever
-        // of Agriculture/Industry/Services is largest by share of GDP (see
-        // lib/data-sources/worldbank.ts pickDominantGdpSector). Coarser (3
-        // buckets vs 6) but near-universally available, unlike OSM's patchy
-        // regional density. Same "omit, don't placeholder" rule.
-        e.dominantGdpSector && {
-          label: "Dominant GDP sector",
-          value: DOMINANT_GDP_SECTOR_LABELS[e.dominantGdpSector],
-          precision: "country",
-          hint: "World Bank national accounts — largest of Agriculture/Industry/Services as a share of GDP",
+          colorClass: "text-piltri-amber-dark",
         },
         {
           label: "Economic growth (5yr GDP)",
@@ -169,6 +164,21 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           value: `${e.purchasingPowerIndex}`,
           precision: "country",
           colorClass: tierColorClass(e.purchasingPowerIndex), // already a 0-100 goodness score
+        },
+        // Country-level companion to Main economy type above - whichever
+        // of Agriculture/Industry/Services is largest by share of GDP (see
+        // lib/data-sources/worldbank.ts pickDominantGdpSector). Coarser (3
+        // buckets vs 6) but near-universally available, unlike OSM's patchy
+        // regional density. Same "omit, don't placeholder" rule. Placed
+        // last, not right under the country-group heading (2026-09-24, on
+        // request - it used to sit first, directly below "United Kingdom",
+        // and its black text read as a continuation of that heading).
+        e.dominantGdpSector && {
+          label: "Dominant GDP sector",
+          value: DOMINANT_GDP_SECTOR_LABELS[e.dominantGdpSector],
+          precision: "country",
+          colorClass: "text-piltri-amber-dark",
+          hint: "World Bank national accounts — largest of Agriculture/Industry/Services as a share of GDP",
         },
       ];
       return rows.filter((r): r is KpiRow => r != null);
