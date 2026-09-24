@@ -113,7 +113,11 @@ export function SectionDetail({
           <p className="font-serif font-semibold text-xs text-black leading-tight mb-1">{data.country}</p>
           {countryRows.length > 0 && <StatGrid rows={countryRows} cols={cols} />}
           {!!gdpSectorRows?.length && (
-            <div className={cn(countryRows.length > 0 && "mt-2")}>
+            // mt-3, not mt-2 (2026-09-24, on request - the main grid's own
+            // row-to-row gap is gap-y-3 (12px); mt-2 (8px) made this block
+            // sit visibly closer to the row above it than rows within the
+            // grid sit to each other).
+            <div className={cn(countryRows.length > 0 && "mt-3")}>
               <StatGrid rows={gdpSectorRows} cols={3} />
             </div>
           )}

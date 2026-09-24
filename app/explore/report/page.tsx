@@ -276,7 +276,7 @@ function ReportGroup({
         </div>
       )}
       {!!extraRows?.length && (
-        <div className={cn("grid grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm", rows.length > 0 && "mt-2")}>
+        <div className={cn("grid grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm", rows.length > 0 && "mt-3")}>
           {extraRows.map((row) => (
             <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} hint={row.hint} />
           ))}
