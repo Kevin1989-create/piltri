@@ -121,6 +121,10 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
       distanceToBeachKm: chance(0.85) ? randFloat(1, 400) : null,
       distanceToMountainKm: chance(0.85) ? randFloat(1, 300) : null,
       koppenCode: chance(0.95) ? pick(KOPPEN_CODES) : null,
+      avgAnnualHumidityPct: randInt(30, 90),
+      elevationM: chance(0.95) ? randInt(0, 2500) : null,
+      avgAnnualPm25: chance(0.9) ? randFloat(3, 60) : null,
+      avgAnnualUvIndexMax: chance(0.9) ? randFloat(2, 11) : null,
     },
     liveability: {
       restaurantsBarsDensityPer10k,

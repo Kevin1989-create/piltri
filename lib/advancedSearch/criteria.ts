@@ -262,6 +262,41 @@ export const CRITERIA: CriterionDef[] = [
   // codes is too many for a clean select dropdown, and it's a descriptive
   // fact rather than a natural filter dimension, same reasoning
   // mainEconomyType/gdpSectorRanking are also left out of this file.
+  {
+    key: "climate.avgAnnualHumidityPct",
+    category: "climate",
+    label: "Avg. annual humidity",
+    unit: "%",
+    kind: "range",
+    suggestedRange: [0, 100],
+    getCityValue: (d) => d.climate.avgAnnualHumidityPct,
+  },
+  {
+    key: "climate.elevationM",
+    category: "climate",
+    label: "Elevation",
+    unit: "m",
+    kind: "range",
+    suggestedRange: [0, 4000],
+    getCityValue: (d) => d.climate.elevationM,
+  },
+  {
+    key: "climate.avgAnnualPm25",
+    category: "climate",
+    label: "Air quality (PM2.5)",
+    unit: "µg/m³",
+    kind: "range",
+    suggestedRange: [0, 80],
+    getCityValue: (d) => d.climate.avgAnnualPm25,
+  },
+  {
+    key: "climate.avgAnnualUvIndexMax",
+    category: "climate",
+    label: "Avg UV index",
+    kind: "range",
+    suggestedRange: [0, 12],
+    getCityValue: (d) => d.climate.avgAnnualUvIndexMax,
+  },
 
   // ---- Quality of Life --------------------------------------------------------
   {

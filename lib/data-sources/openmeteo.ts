@@ -13,6 +13,11 @@ export interface ClimateAverages {
   avgAnnualRainfallMm: number;
   avgAnnualSunshineHrs: number;
   avgAnnualSnowfallCm: number;
+  avgAnnualHumidityPct: number;
+  /** Metres above sea level - free, already returned as top-level response
+   *  metadata on this same call (`json.elevation`), not a separate request
+   *  or data source. */
+  elevationM: number | null;
 }
 
 /** Buckets daily values by calendar month (Jan=0) and averages
@@ -46,7 +51,7 @@ export async function getClimateAverages(lat: number, lng: number): Promise<Clim
   const url =
     `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}` +
     `&start_date=${start}&end_date=${end}` +
-    `&daily=temperature_2m_mean,precipitation_sum,sunshine_duration,snowfall_sum` +
+    `&daily=temperature_2m_mean,precipitation_sum,sunshine_duration,snowfall_sum,relative_humidity_2m_mean` +
     `&timezone=auto`;
 
   const res = await fetchWithTimeout(url, { cache: "no-store" });
@@ -59,17 +64,21 @@ export async function getClimateAverages(lat: number, lng: number): Promise<Clim
   const precip: number[] = daily.precipitation_sum ?? [];
   const sunshineSeconds: number[] = daily.sunshine_duration ?? [];
   const snowfall: number[] = daily.snowfall_sum ?? [];
+  const humidity: number[] = (daily.relative_humidity_2m_mean ?? []).filter((v: number | null) => v !== null);
 
   const avgTemp = temps.reduce((a, b) => a + b, 0) / (temps.length || 1);
   const totalRain = precip.reduce((a: number, b: number) => a + (b ?? 0), 0);
   const totalSunshineHrs = sunshineSeconds.reduce((a: number, b: number) => a + (b ?? 0), 0) / 3600;
   const totalSnowCm = snowfall.reduce((a: number, b: number) => a + (b ?? 0), 0) * 100; // metres -> cm
+  const avgHumidity = humidity.reduce((a, b) => a + b, 0) / (humidity.length || 1);
 
   return {
     avgAnnualTemperatureC: Number(avgTemp.toFixed(1)),
     avgAnnualRainfallMm: Math.round(totalRain),
     avgAnnualSunshineHrs: Math.round(totalSunshineHrs),
     avgAnnualSnowfallCm: Math.round(totalSnowCm),
+    avgAnnualHumidityPct: Math.round(avgHumidity),
+    elevationM: typeof json?.elevation === "number" ? Math.round(json.elevation) : null,
   };
 }
 

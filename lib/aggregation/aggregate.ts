@@ -2,6 +2,7 @@ import { getWorldBankIndicators } from "@/lib/data-sources/worldbank";
 import { getCountryLanguages } from "@/lib/data-sources/languages";
 import { getCountryMedianAge } from "@/lib/data-sources/medianAge";
 import { getClimateAverages, getKoppenClimateType } from "@/lib/data-sources/openmeteo";
+import { getAirQualityAverages } from "@/lib/data-sources/airQuality";
 import { getCityOverpassData, nearestFeatureWithDetails, nearestVerifiedBeach, pickMainEconomyType } from "@/lib/data-sources/overpass";
 import { getHealthcareQualityScore } from "@/lib/data-sources/who";
 import { getCityPopulationAndArea } from "@/lib/data-sources/wikidata";
@@ -115,7 +116,7 @@ export async function aggregateCityData(
   const wikidataChecked = opts.wikidataChecked ?? false;
   const iso3 = toIso3(city.countryCode);
 
-  const [wb, languages, climate, overpassData, healthcare, cityDemo, koppenCode, beach, mountain] = await Promise.all([
+  const [wb, languages, climate, overpassData, healthcare, cityDemo, koppenCode, beach, mountain, airQuality] = await Promise.all([
     safely(() => memoize(`wb:${city.countryCode}`, COUNTRY_LEVEL_TTL_MS, () => getWorldBankIndicators(city.countryCode)), null),
     safely(() => getCountryLanguages(city.countryCode), { officialLanguages: [], mostWidelySpokenLanguage: "Unknown" }),
     safely(() => getClimateAverages(city.lat, city.lng), null),
@@ -135,6 +136,7 @@ export async function aggregateCityData(
       () => withTimeout(nearestFeatureWithDetails(city.lat, city.lng, '"natural"="peak"', 40000), FAR_LOOKUP_TIMEOUT_MS, null),
       null
     ),
+    safely(() => getAirQualityAverages(city.lat, city.lng), null),
   ]);
 
   const transportPresence = overpassData?.transport ?? { hasTrainStation: false, hasSubway: false, hasTramway: false, hasAirport: false };
@@ -232,6 +234,10 @@ export async function aggregateCityData(
       distanceToBeachKm: beach?.km != null ? Number(beach.km.toFixed(1)) : null,
       distanceToMountainKm: mountain?.km != null ? Number(mountain.km.toFixed(1)) : null,
       koppenCode,
+      avgAnnualHumidityPct: climate?.avgAnnualHumidityPct ?? 60,
+      elevationM: climate?.elevationM ?? null,
+      avgAnnualPm25: airQuality?.avgAnnualPm25 ?? null,
+      avgAnnualUvIndexMax: airQuality?.avgAnnualUvIndexMax ?? null,
     },
     liveability: {
       restaurantsBarsDensityPer10k: overpassData ? per10k(overpassData.raw.restaurantsBars) : 0,

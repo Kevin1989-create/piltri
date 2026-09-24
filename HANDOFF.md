@@ -1708,6 +1708,40 @@ many for a clean dropdown, same reasoning `mainEconomyType`/
 fields feed the Environment score - descriptive facts, not judged
 good/bad, same treatment as `mainEconomyType`.
 
+## 4 more Environment fields: humidity, elevation, PM2.5, UV index (2026-09-24, later same session)
+
+Also fixed: Distance to beach/mountain/Climate type were rendering in
+black - now grey (`text-ink-500`), same fix already applied to Economy's
+descriptive rows, same reasoning (no consensus good/bad direction, so
+black read as an implied judgement these rows don't make).
+
+User asked for more candidate fields; proposed and verified 4 before
+building anything:
+
+- **Avg annual humidity** - zero extra cost, same `getClimateAverages`
+  call as the original 4 fields (`relative_humidity_2m_mean` added to its
+  existing `daily=` param list).
+- **Elevation** - zero extra cost, free response metadata
+  (`json.elevation`) already present on that same call, never read before.
+- **Air quality (PM2.5)** and **Avg UV index** - new file
+  `lib/data-sources/airQuality.ts`, Open-Meteo's companion Air Quality API
+  (CAMS atmospheric reanalysis - same free/keyless provider family as the
+  weather archive, separate host/dataset). Verified globally reliable
+  before building: London, remote Pacific Nauru, and McMurdo Station/
+  Antarctica all returned real data, and a full 1-year historical window
+  works (`hourly=pm2_5` averaged across the year; `daily=uv_index_max`
+  averaged - a daily max, not raw hourly, since night-time zeros would
+  otherwise dilute UV into a meaningless number).
+
+All 4 are city/pinned-tier only (same "no meaningful country-level value"
+reasoning as the rest of Environment) and don't feed the section score
+except PM2.5, which does get the usual colour treatment (WHO guideline:
+under 5 µg/m³ is "good") since lower is unambiguously healthier - humidity/
+elevation/UV stay grey/uncoloured, no consensus direction. Both PM2.5 and
+UV index are independently-fetched (one API call can fail without the
+other), nullable, omitted rather than placeholdered on a genuine miss -
+same convention as everything else added this round.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

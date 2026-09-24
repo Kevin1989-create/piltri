@@ -91,6 +91,10 @@ const COLOR_RANGES = {
   rainfallDistanceFromIdeal: { min: 0, max: 1000 }, // ideal centre: 1000mm/yr
   sunshineHrs: { min: 1200, max: 3800 },
   snowfallCm: { min: 0, max: 300 },
+  // WHO guideline: annual mean PM2.5 under 5 µg/m³ is "good". 80 as the
+  // ceiling covers the world's most polluted major cities without
+  // clamping every merely-average city to 0.
+  pm25: { min: 5, max: 80 },
 };
 
 export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
@@ -245,20 +249,23 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           precision: "pinned",
           colorClass: tierColorClass(normalise(c.avgAnnualSnowfallCm, COLOR_RANGES.snowfallCm.min, COLOR_RANGES.snowfallCm.max, true)),
         },
-        // Plain facts, not coloured (2026-09-24, added alongside the
-        // Safety/Economy/Quality of Life section renames) - unlike
-        // temperature/rainfall/snowfall, there's no consensus "closer is
-        // better" direction for beach/mountain proximity or a climate
-        // type, so these stay uncoloured like mainEconomyType elsewhere.
-        // Omitted (not a placeholder) when the underlying lookup didn't
-        // resolve - see lib/aggregation/aggregate.ts's withTimeout comment
-        // for why a landlocked/far-inland city's beach/mountain distance
-        // can genuinely come back null.
+        // Plain facts, grey (text-ink-500, same as every row's own label
+        // text below it) rather than black (2026-09-24, on request - same
+        // treatment already applied to Main economy type/GDP sector rows
+        // in Economy, for the same reason: unlike temperature/rainfall/
+        // snowfall, there's no consensus "closer is better" direction for
+        // beach/mountain proximity or a climate type, so black read as an
+        // implied judgement these rows don't actually make). Omitted (not
+        // a placeholder) when the underlying lookup didn't resolve - see
+        // lib/aggregation/aggregate.ts's withTimeout comment for why a
+        // landlocked/far-inland city's beach/mountain distance can
+        // genuinely come back null.
         c.distanceToBeachKm != null
           ? {
               label: "Distance to beach",
               value: formatDistanceKm(c.distanceToBeachKm, prefs),
               precision: "pinned",
+              colorClass: "text-ink-500",
             }
           : null,
         c.distanceToMountainKm != null
@@ -266,6 +273,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               label: "Distance to mountain",
               value: formatDistanceKm(c.distanceToMountainKm, prefs),
               precision: "pinned",
+              colorClass: "text-ink-500",
             }
           : null,
         c.koppenCode
@@ -273,7 +281,49 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               label: "Climate type",
               value: KOPPEN_LABELS[c.koppenCode] ?? c.koppenCode,
               precision: "pinned",
+              colorClass: "text-ink-500",
               hint: `Köppen-Geiger classification: ${c.koppenCode} — computed from a 10-year Open-Meteo climate normal`,
+            }
+          : null,
+        {
+          // No consensus "ideal" humidity the way temperature/rainfall
+          // have one - grey, not coloured, same as beach/mountain/climate
+          // type above.
+          label: "Avg annual humidity",
+          value: `${c.avgAnnualHumidityPct}%`,
+          precision: "pinned",
+          colorClass: "text-ink-500",
+        },
+        c.elevationM != null
+          ? {
+              label: "Elevation",
+              value: `${c.elevationM.toLocaleString()} m`,
+              precision: "pinned",
+              colorClass: "text-ink-500",
+            }
+          : null,
+        c.avgAnnualPm25 != null
+          ? {
+              label: "Air quality (PM2.5)",
+              value: `${c.avgAnnualPm25} µg/m³`,
+              precision: "pinned",
+              // Lower is unambiguously healthier here (WHO guideline:
+              // annual mean under 5 µg/m³) - unlike humidity/UV, this one
+              // does get the usual colour treatment.
+              colorClass: tierColorClass(normalise(c.avgAnnualPm25, COLOR_RANGES.pm25.min, COLOR_RANGES.pm25.max, true)),
+              hint: "Annual mean PM2.5 (fine particulate matter) — WHO guideline: under 5 µg/m³",
+            }
+          : null,
+        c.avgAnnualUvIndexMax != null
+          ? {
+              label: "Avg UV index",
+              value: `${c.avgAnnualUvIndexMax}`,
+              precision: "pinned",
+              // Not coloured - higher UV reads as a health caution to some,
+              // a sunny-climate plus to others, same ambiguity as
+              // beach/mountain proximity above.
+              colorClass: "text-ink-500",
+              hint: "Average of each day's peak UV index over the trailing year",
             }
           : null,
       ];

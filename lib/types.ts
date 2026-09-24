@@ -177,6 +177,25 @@ export interface ClimateFields {
    *  assign a whole country - this isn't a data-availability gap, it's
    *  not a meaningful question at that level. */
   koppenCode: string | null;
+  /** Same trailing-365-day Open-Meteo call as the first 4 fields above -
+   *  zero extra requests. */
+  avgAnnualHumidityPct: number;
+  /** Metres above sea level - free response metadata on that same call,
+   *  not a separate lookup. Null only if Open-Meteo genuinely didn't
+   *  return one (hasn't been observed in testing, kept nullable to be
+   *  honest about the theoretical gap rather than assume it never
+   *  happens). */
+  elevationM: number | null;
+  /** PM2.5 (fine particulate matter, µg/m³) and UV index - Open-Meteo's
+   *  companion Air Quality API (CAMS reanalysis, same free/keyless family
+   *  as the weather archive but a separate host/dataset, fetched
+   *  independently - see lib/data-sources/airQuality.ts) so either can
+   *  resolve without the other. Verified globally reliable 2026-09-24
+   *  (tested London, remote Pacific Nauru, McMurdo Station/Antarctica).
+   *  Nullable, not defaulted, on a genuine fetch failure - same "omit,
+   *  don't guess" convention as distanceToBeachKm etc. above. */
+  avgAnnualPm25: number | null;
+  avgAnnualUvIndexMax: number | null;
 }
 
 export interface LiveabilityFields {
