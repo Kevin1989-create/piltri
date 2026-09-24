@@ -1504,6 +1504,69 @@ Deliberately left alone: `PinPanel.tsx`'s dropped-pin lat/lng
 (`toFixed(4)`) - that's coordinate precision, not a KPI value, a different
 category from what this rule is about.
 
+## Wikidata population/area: shortlist backfill, no more live per-search calls (2026-09-24, later same session)
+
+Triggered by a Supabase email about Data API grants changing Oct 30
+(unrelated - see below), which led to a real conversation about *why*
+"Not available" kept showing up for city population/density (London,
+specifically). Traced it to Wikidata's query service (WDQS) itself:
+confirmed live that even a trivial `ASK { ?s ?p ?o }` query timed out
+after 30s, while Wikidata's own wiki pages loaded fine - WDQS
+specifically, not Wikidata/Wikimedia broadly. `getCityPopulationAndArea`
+(lib/data-sources/wikidata.ts) was being called live on every cache miss,
+so any city not already cached depended on WDQS answering within
+POPULATION_TIMEOUT_MS (6s) - a bad bet given what was just observed.
+
+**The Supabase email is unrelated to any of this** - it's about Data API
+grants for *new tables Piltri itself creates* from Oct 30 onward (existing
+tables keep their current grants, no action needed there). Worth
+remembering for any future migration that creates a new table: add
+`grant select on public.<table> to anon;` /
+`grant select, insert, update, delete ... to authenticated, service_role;`
+in the same migration, or PostgREST returns permission denied. Not
+relevant to Wikidata/Overpass/World Bank - those are external APIs called
+directly from server code, nothing to do with Supabase's own Data API.
+
+**What shipped**: a true global bulk mirror (every settlement on Earth) was
+considered and explicitly rejected - large paginated WDQS queries would
+hit the exact same fragility as the trivial query above, worse. Instead,
+scoped to what's actually buildable and high-value: a resumable backfill
+of the existing ~6,300-city shortlist, exact same shape as
+`backfillLandArea.ts` (see that file - this is its Wikidata-population
+sibling):
+
+- `schema.sql`: `cities` gains `wikidata_population`, `wikidata_area_km2`,
+  `wikidata_checked_at` (same "not attempted vs. real checked negative"
+  distinction `osm_land_area_checked_at` already makes). **This needs to be
+  run manually in the Supabase SQL editor before this code goes live** - no
+  direct DB connection available to this session, only the REST API keys
+  (which can't run DDL) - see the `alter table ... add column if not
+  exists` block schema.sql now has, safe to run against the already-
+  provisioned production database at any time.
+- `lib/aggregation/backfillWikidataPopulation.ts` /
+  `POST /api/admin/backfill-wikidata-population` / a matching button and
+  coverage stats on `/admin` - all mirroring the land-area backfill's
+  existing pattern exactly (paced, resumable, stop/resume from the admin
+  page).
+- `aggregate.ts`: `getCityPopulationAndArea` is now ONLY called live for a
+  city the backfill hasn't reached yet (new search, or backfill still in
+  progress) - `opts.wikidataChecked` (threaded through from `cache.ts`'s
+  read of the `cities` row) skips straight to the stored value otherwise.
+  Explore's "search any place on Earth" behaviour is unchanged for a
+  genuinely new/unlisted city - only shortlisted, already-backfilled
+  cities stop depending on WDQS at request time.
+
+No population floor, no "Less than 1,000" placeholder text - each
+shortlisted city gets its real Wikidata figure once backfilled (whatever
+it is), and "Not available" stays reserved for a genuine data gap (same
+honesty convention as everywhere else), not a stand-in for "we didn't
+bother downloading it."
+
+**Not yet done**: the actual backfill run itself (needs WDQS to recover
+enough to be usable - it was still failing trivial queries as of this
+entry) and someone with Supabase dashboard access to run the schema
+migration above.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

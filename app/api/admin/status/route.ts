@@ -35,26 +35,34 @@ export async function GET(req: NextRequest) {
 
   let landAreaChecked = 0;
   let landAreaFound = 0;
+  let wikidataChecked = 0;
+  let wikidataFound = 0;
   try {
     const supabase = getSupabaseServiceClient();
     const slugs = cityInputs.map((c) => citySlug(c));
     for (let i = 0; i < slugs.length; i += IN_CLAUSE_CHUNK_SIZE) {
+      const slice = slugs.slice(i, i + IN_CLAUSE_CHUNK_SIZE);
       const { data, error } = await supabase
         .from("cities")
-        .select("osm_land_area_km2, osm_land_area_checked_at")
-        .in("slug", slugs.slice(i, i + IN_CLAUSE_CHUNK_SIZE))
-        .not("osm_land_area_checked_at", "is", null);
+        .select("osm_land_area_km2, osm_land_area_checked_at, wikidata_population, wikidata_area_km2, wikidata_checked_at")
+        .in("slug", slice);
       if (error) {
-        console.error("admin/status: land-area chunk read failed:", error);
+        console.error("admin/status: coverage chunk read failed:", error);
         continue;
       }
       for (const row of data ?? []) {
-        landAreaChecked++;
-        if (row.osm_land_area_km2 != null) landAreaFound++;
+        if (row.osm_land_area_checked_at != null) {
+          landAreaChecked++;
+          if (row.osm_land_area_km2 != null) landAreaFound++;
+        }
+        if (row.wikidata_checked_at != null) {
+          wikidataChecked++;
+          if (row.wikidata_population != null || row.wikidata_area_km2 != null) wikidataFound++;
+        }
       }
     }
   } catch (err) {
-    console.error("admin/status: land-area coverage read failed:", err);
+    console.error("admin/status: coverage read failed:", err);
   }
 
   return NextResponse.json({
@@ -65,5 +73,7 @@ export async function GET(req: NextRequest) {
     cacheTtlDays: Number(process.env.CACHE_TTL_DAYS ?? 30),
     landAreaChecked,
     landAreaFound,
+    wikidataChecked,
+    wikidataFound,
   });
 }

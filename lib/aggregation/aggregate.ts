@@ -83,9 +83,26 @@ const RANGES = {
  * call impractical, and a city's boundary essentially never changes
  * anyway. When present, it's preferred over Wikidata's stated area for
  * `cityAreaKm2` - see this function's `demographics` block below.
+ *
+ * `opts.wikidataChecked`/`wikidataPopulation`/`wikidataAreaKm2` are the
+ * same idea for city-level population - see
+ * lib/aggregation/backfillWikidataPopulation.ts. getCityPopulationAndArea
+ * used to be called live here on every cache miss; Wikidata's query
+ * service proved too unreliable to depend on at request time (confirmed
+ * live 2026-09-24 - see that file's doc comment), so a shortlisted city
+ * that's already been checked by the backfill uses its stored value
+ * (population/area both null is a real, checked negative, not "not
+ * attempted") and skips the live call entirely. A city NOT yet reached by
+ * the backfill (wikidataChecked false - a brand new search, or the
+ * backfill hasn't gotten there yet) still falls back to the live call, so
+ * Explore's "search anywhere" behaviour is unchanged for those.
  */
-export async function aggregateCityData(city: CitySearchResult, opts: { osmLandAreaKm2?: number | null } = {}): Promise<CityExploreData> {
+export async function aggregateCityData(
+  city: CitySearchResult,
+  opts: { osmLandAreaKm2?: number | null; wikidataChecked?: boolean; wikidataPopulation?: number | null; wikidataAreaKm2?: number | null } = {}
+): Promise<CityExploreData> {
   const osmLandAreaKm2 = opts.osmLandAreaKm2 ?? null;
+  const wikidataChecked = opts.wikidataChecked ?? false;
   const iso3 = toIso3(city.countryCode);
 
   const [wb, languages, climate, overpassData, healthcare, cityDemo] = await Promise.all([
@@ -97,7 +114,9 @@ export async function aggregateCityData(city: CitySearchResult, opts: { osmLandA
     // getCityOverpassData's doc comment).
     safely(() => getCityOverpassData(city.lat, city.lng), null),
     safely(() => memoize(`who:${iso3}`, COUNTRY_LEVEL_TTL_MS, () => getHealthcareQualityScore(iso3)), null),
-    safely(() => getCityPopulationAndArea(city.lat, city.lng, city.cityName), { population: null, areaKm2: null }),
+    wikidataChecked
+      ? Promise.resolve({ population: opts.wikidataPopulation ?? null, areaKm2: opts.wikidataAreaKm2 ?? null })
+      : safely(() => getCityPopulationAndArea(city.lat, city.lng, city.cityName), { population: null, areaKm2: null }),
   ]);
 
   const transportPresence = overpassData?.transport ?? { hasTrainStation: false, hasSubway: false, hasTramway: false, hasAirport: false };

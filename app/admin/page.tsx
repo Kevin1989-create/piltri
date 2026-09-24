@@ -14,6 +14,8 @@ interface Status {
   cacheTtlDays: number;
   landAreaChecked: number;
   landAreaFound: number;
+  wikidataChecked: number;
+  wikidataFound: number;
 }
 
 interface WarmResult {
@@ -38,6 +40,11 @@ interface BackfillLandAreaResult {
   stoppedReason: "exhausted" | "deadline";
 }
 
+// Same shape as BackfillLandAreaResult - kept as its own type rather than
+// reused, since the two backfills are unrelated and a shared type would
+// just be a coincidence waiting to drift.
+type BackfillWikidataPopulationResult = BackfillLandAreaResult;
+
 /** Back-office status page: how much of the city shortlist currently has
  *  real, fresh data cached, plus manual triggers for the same warm/clear
  *  actions the scheduled cron job (vercel.json → /api/cron/warm-cache-tick)
@@ -50,10 +57,11 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
-  const [busy, setBusy] = useState<"warm" | "sweep" | "clear" | "landArea" | null>(null);
+  const [busy, setBusy] = useState<"warm" | "sweep" | "clear" | "landArea" | "wikidataPopulation" | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [sweepProgress, setSweepProgress] = useState<{ warmed: number; failed: number } | null>(null);
   const [landAreaProgress, setLandAreaProgress] = useState<{ found: number; notFound: number; failed: number } | null>(null);
+  const [wikidataProgress, setWikidataProgress] = useState<{ found: number; notFound: number; failed: number } | null>(null);
   // A plain ref, not state - flipping it doesn't need a re-render, it's
   // only read at the top of runSweep's loop between calls to decide
   // whether to keep going, same pattern as an AbortController but simpler
@@ -61,6 +69,7 @@ export default function AdminPage() {
   // cancelling an in-flight request.
   const stopRequested = useRef(false);
   const stopLandAreaRequested = useRef(false);
+  const stopWikidataRequested = useRef(false);
 
   async function loadStatus() {
     const res = await fetch("/api/admin/status");
@@ -194,6 +203,47 @@ export default function AdminPage() {
     }
   }
 
+  /** Wikidata population/area backfill - same repeat-until-done pattern as
+   *  the land-area backfill above, replacing the live per-search Wikidata
+   *  call (see aggregate.ts) with a one-time paced sweep of the shortlist,
+   *  since Wikidata's query service has real, demonstrated reliability
+   *  problems at request time (see backfillWikidataPopulation.ts's doc
+   *  comment). Safe to stop and resume any time - cities.wikidata_checked_at
+   *  just tracks what's already been attempted. */
+  async function triggerWikidataBackfill() {
+    setBusy("wikidataPopulation");
+    setLastResult(null);
+    stopWikidataRequested.current = false;
+    let totalFound = 0;
+    let totalNotFound = 0;
+    let totalFailed = 0;
+    setWikidataProgress({ found: 0, notFound: 0, failed: 0 });
+
+    try {
+      while (!stopWikidataRequested.current) {
+        const res = await fetch("/api/admin/backfill-wikidata-population", { method: "POST" });
+        const body: BackfillWikidataPopulationResult = await res.json();
+        totalFound += body.found;
+        totalNotFound += body.notFound;
+        totalFailed += body.failed;
+        setWikidataProgress({ found: totalFound, notFound: totalNotFound, failed: totalFailed });
+        await loadStatus();
+        if (body.remaining <= 0) {
+          setLastResult(`Wikidata population backfill complete — ${totalFound} found, ${totalNotFound} had no Wikidata match, ${totalFailed} failed.`);
+          break;
+        }
+      }
+      if (stopWikidataRequested.current) {
+        setLastResult(`Stopped — ${totalFound} found, ${totalNotFound} not found this run. Resume any time.`);
+      }
+    } catch {
+      setLastResult(`Request failed after ${totalFound} found this run — see server logs.`);
+    } finally {
+      setBusy(null);
+      setWikidataProgress(null);
+    }
+  }
+
   async function triggerClear() {
     if (!confirm("Clear every cached city score? Nothing is lost (it's all re-derivable), but the site will read slower until re-warmed.")) {
       return;
@@ -274,6 +324,16 @@ export default function AdminPage() {
                     </p>
                     <p className="text-ink-500 text-xs mt-0.5">Land area backfill checked</p>
                   </div>
+                  <div>
+                    <p className="font-serif text-2xl text-ink-900 tabular-nums">{status.wikidataFound}</p>
+                    <p className="text-ink-500 text-xs mt-0.5">City population found (Wikidata)</p>
+                  </div>
+                  <div>
+                    <p className="font-serif text-2xl text-ink-900 tabular-nums">
+                      {status.wikidataChecked}/{status.totalCities}
+                    </p>
+                    <p className="text-ink-500 text-xs mt-0.5">Wikidata backfill checked</p>
+                  </div>
                 </div>
               </Card>
 
@@ -309,6 +369,21 @@ export default function AdminPage() {
                 ) : (
                   <Button variant="secondary" onClick={triggerLandAreaBackfill} disabled={busy !== null} className="w-full">
                     Backfill city land area (OSM) — one-time, paced at 1/sec, can take a while
+                  </Button>
+                )}
+                {busy === "wikidataPopulation" ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      stopWikidataRequested.current = true;
+                    }}
+                    className="w-full"
+                  >
+                    Stop backfill{wikidataProgress ? ` (${wikidataProgress.found} found so far)` : ""}
+                  </Button>
+                ) : (
+                  <Button variant="secondary" onClick={triggerWikidataBackfill} disabled={busy !== null} className="w-full">
+                    Backfill city population (Wikidata) — one-time, paced, can take a while
                   </Button>
                 )}
                 <Button variant="ghost" onClick={triggerClear} disabled={busy !== null} className="w-full">

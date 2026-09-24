@@ -30,8 +30,32 @@ create table if not exists cities (
   -- from "attempted, no boundary found" so a resumed backfill doesn't keep
   -- re-querying cities with a real, checked, negative result.
   osm_land_area_km2 double precision,
-  osm_land_area_checked_at timestamptz
+  osm_land_area_checked_at timestamptz,
+  -- City-level population/area from Wikidata (P1082/P2046), backfilled
+  -- once per shortlisted city via the same resumable pattern as
+  -- osm_land_area_km2 above - see lib/aggregation/backfillWikidataPopulation.ts
+  -- and POST /api/admin/backfill-wikidata-population. Added 2026-09-24
+  -- after Wikidata's live query service (WDQS) proved too unreliable to
+  -- depend on at request time (getCityPopulationAndArea in
+  -- lib/data-sources/wikidata.ts used to be called live on every cache
+  -- miss - now only as a fallback for a city that isn't in the shortlist
+  -- yet, see aggregate.ts). wikidata_checked_at is what distinguishes
+  -- "not attempted yet" from "attempted, Wikidata genuinely has no
+  -- population statement for this place" (population/area both null but
+  -- checked_at set) - same "not attempted vs. real negative" distinction
+  -- osm_land_area_checked_at already makes.
+  wikidata_population integer,
+  wikidata_area_km2 double precision,
+  wikidata_checked_at timestamptz
 );
+
+-- Run this against an ALREADY-PROVISIONED database (the create table above
+-- is a no-op there) - safe to run any time, including before the code that
+-- uses these columns ships, since they start out null (same as any other
+-- unbackfilled city).
+alter table cities add column if not exists wikidata_population integer;
+alter table cities add column if not exists wikidata_area_km2 double precision;
+alter table cities add column if not exists wikidata_checked_at timestamptz;
 
 create extension if not exists pg_trgm;
 create index if not exists cities_name_trgm_idx on cities using gin (city_name gin_trgm_ops);
