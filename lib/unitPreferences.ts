@@ -142,6 +142,18 @@ export function formatAreaKm2(km2: number, prefs: Pick<UnitPreferences, "distanc
   return `${km2.toLocaleString(undefined, { maximumFractionDigits: km2 < 10 ? 1 : 0 })} km²`;
 }
 
+/** km -> formatted string in the chosen distance unit, e.g. "12.4 mi" /
+ *  "20 km" - used for distanceToBeachKm/distanceToMountainKm (see
+ *  lib/types.ts's ClimateFields). Capped at 1 decimal under 10, whole
+ *  numbers above, same convention formatAreaKm2 already uses. */
+export function formatDistanceKm(km: number, prefs: Pick<UnitPreferences, "distance">): string {
+  if (prefs.distance === "imperial") {
+    const mi = km * 0.621371;
+    return `${mi.toLocaleString(undefined, { maximumFractionDigits: mi < 10 ? 1 : 0 })} mi`;
+  }
+  return `${km.toLocaleString(undefined, { maximumFractionDigits: km < 10 ? 1 : 0 })} km`;
+}
+
 /** Compact (abbreviated) km² -> imperial/metric string, e.g. "3.2k sq mi" /
  *  "8.9k km²" — used where space is tight (CityHeader's stat grid). */
 export function formatAreaKm2Compact(km2: number, prefs: Pick<UnitPreferences, "distance">, compact: (n: number) => string): string {

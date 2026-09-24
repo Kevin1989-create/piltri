@@ -1,8 +1,8 @@
 import { getWorldBankIndicators } from "@/lib/data-sources/worldbank";
 import { getCountryLanguages } from "@/lib/data-sources/languages";
 import { getCountryMedianAge } from "@/lib/data-sources/medianAge";
-import { getClimateAverages } from "@/lib/data-sources/openmeteo";
-import { getCityOverpassData, pickMainEconomyType } from "@/lib/data-sources/overpass";
+import { getClimateAverages, getKoppenClimateType } from "@/lib/data-sources/openmeteo";
+import { getCityOverpassData, nearestFeatureWithDetails, nearestVerifiedBeach, pickMainEconomyType } from "@/lib/data-sources/overpass";
 import { getHealthcareQualityScore } from "@/lib/data-sources/who";
 import { getCityPopulationAndArea } from "@/lib/data-sources/wikidata";
 import { toIso3 } from "@/lib/data-sources/country-codes";
@@ -64,6 +64,10 @@ const RANGES = {
   snowfallCm: { min: 0, max: 300 },
 };
 
+// See withTimeout's comment for why beach/mountain need their own hard
+// cap, separate from each source's own internal fetchWithTimeout budget.
+const FAR_LOOKUP_TIMEOUT_MS = 8000;
+
 /**
  * Orchestrates every data source into the full CityExploreData payload +
  * computed section scores + weighted Piltri score. This is the function the
@@ -105,7 +109,7 @@ export async function aggregateCityData(
   const wikidataChecked = opts.wikidataChecked ?? false;
   const iso3 = toIso3(city.countryCode);
 
-  const [wb, languages, climate, overpassData, healthcare, cityDemo] = await Promise.all([
+  const [wb, languages, climate, overpassData, healthcare, cityDemo, koppenCode, beach, mountain] = await Promise.all([
     safely(() => memoize(`wb:${city.countryCode}`, COUNTRY_LEVEL_TTL_MS, () => getWorldBankIndicators(city.countryCode)), null),
     safely(() => getCountryLanguages(city.countryCode), { officialLanguages: [], mostWidelySpokenLanguage: "Unknown" }),
     safely(() => getClimateAverages(city.lat, city.lng), null),
@@ -117,6 +121,14 @@ export async function aggregateCityData(
     wikidataChecked
       ? Promise.resolve({ population: opts.wikidataPopulation ?? null, areaKm2: opts.wikidataAreaKm2 ?? null })
       : safely(() => getCityPopulationAndArea(city.lat, city.lng, city.cityName), { population: null, areaKm2: null }),
+    safely(() => getKoppenClimateType(city.lat, city.lng), null),
+    // withTimeout, not just safely - see that helper's own comment for why
+    // beach/mountain specifically need a hard outer cap.
+    safely(() => withTimeout(nearestVerifiedBeach(city.lat, city.lng), FAR_LOOKUP_TIMEOUT_MS, null), null),
+    safely(
+      () => withTimeout(nearestFeatureWithDetails(city.lat, city.lng, '"natural"="peak"', 40000), FAR_LOOKUP_TIMEOUT_MS, null),
+      null
+    ),
   ]);
 
   const transportPresence = overpassData?.transport ?? { hasTrainStation: false, hasSubway: false, hasTramway: false, hasAirport: false };
@@ -211,6 +223,9 @@ export async function aggregateCityData(
       avgAnnualRainfallMm: climate?.avgAnnualRainfallMm ?? 700,
       avgAnnualSunshineHrs: climate?.avgAnnualSunshineHrs ?? 1800,
       avgAnnualSnowfallCm: climate?.avgAnnualSnowfallCm ?? 0,
+      distanceToBeachKm: beach?.km != null ? Number(beach.km.toFixed(1)) : null,
+      distanceToMountainKm: mountain?.km != null ? Number(mountain.km.toFixed(1)) : null,
+      koppenCode,
     },
     liveability: {
       restaurantsBarsDensityPer10k: overpassData ? per10k(overpassData.raw.restaurantsBars) : 0,
@@ -280,5 +295,24 @@ async function safely<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
     console.error("Data source failed, using fallback:", err);
     return fallback;
   }
+}
+
+/** Races a promise against a plain timer, resolving to `fallback` if the
+ *  timer wins - unlike fetchWithTimeout's AbortController-based timeouts
+ *  used everywhere else in this codebase, this doesn't cancel the
+ *  underlying request (nearestVerifiedBeach/nearestFeatureWithDetails
+ *  don't accept an AbortSignal), it just stops this aggregation from
+ *  waiting on it. Needed specifically for distance-to-beach/mountain:
+ *  nearestVerifiedBeach tries up to 4 widening search radii sequentially
+ *  for a landlocked city, each with its own internal ~15s budget - a
+ *  genuine worst case of over a minute, wildly out of step with every
+ *  other source in this Promise.all (all bounded to a ~6s ceiling this
+ *  session already tuned everything else to, see Wikidata/Overpass
+ *  comments elsewhere in this file's siblings). A landlocked city that
+ *  can't resolve a beach distance in time gets a null (same honest
+ *  "no answer in time" convention as everything else) rather than
+ *  dragging the whole page down with it. */
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([promise, new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))]);
 }
 

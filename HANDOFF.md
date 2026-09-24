@@ -1641,6 +1641,73 @@ copies of the old names: `app/explore/discover/results/page.tsx`'s
 one dropdown even after this rename. Now derives them from
 `SECTION_LABELS` directly so a future rename can't drift there again.
 
+## Environment: distance to beach/mountain, Köppen climate type (2026-09-24, later same session)
+
+Reviewed Environment's 4 existing fields (asked: are these reliable for
+every city, and could we have a country-level equivalent). Confirmed live
+against extreme cases (Svalbard, McMurdo Station/Antarctica, Nauru, high-
+altitude La Paz) that Open-Meteo's reanalysis-based archive has genuine
+global coverage - no gaps to worry about. Looked into a country-level
+equivalent (World Bank's Climate Change Knowledge Portal API) but couldn't
+get clean results from it in testing; the fallback of using each country's
+capital-city climate as a stand-in was explicitly proposed and explicitly
+rejected on request - too easy to misread as a real national average.
+**No country-level climate fields exist, by design, not by gap.**
+
+**Added 3 new city-level fields**, all city/pinned-tier only (see
+`lib/types.ts`'s `ClimateFields` comment for why none of these have -or
+should have- a country-level equivalent either):
+
+- **`distanceToBeachKm`** / **`distanceToMountainKm`** - genuinely not new
+  data engineering: `nearestVerifiedBeach` and `nearestFeatureWithDetails`
+  (`natural=peak`) already existed in `overpass.ts`, built and proven for
+  the Pin/"Nearby" Advanced Search feature (`lib/aggregation/pin.ts`).
+  Reused directly, skipping the Mapbox-POI-name-resolution half of that
+  feature (Environment wants a distance, not a place name) - just the
+  Overpass path. **Needed a new safety mechanism**: `nearestVerifiedBeach`
+  can try up to 4 widening search radii sequentially, each with its own
+  ~15s internal budget - a landlocked city's worst case is well over a
+  minute, wildly out of step with every other source in `aggregateCityData`
+  (already tuned to a ~6s ceiling this session). Added `withTimeout()` (a
+  plain `Promise.race` against a timer - doesn't cancel the underlying
+  request, just stops the aggregation waiting on it) capping both lookups
+  at `FAR_LOOKUP_TIMEOUT_MS` (8s). A city where it can't resolve in time
+  gets `null` (row omitted, not a placeholder - same convention as
+  `mainEconomyType`), not a wrong answer.
+- **`koppenCode`** (Köppen-Geiger climate type, e.g. "Cfb" = temperate
+  oceanic) - new file `lib/data-sources/koppen.ts`, a deterministic
+  classification formula (Peel/Finlayson/McMahon 2007 formulation) run
+  against monthly temperature/precipitation, **not a separate downloaded
+  dataset**. The standard alternative (a static Köppen-Geiger raster,
+  e.g. Beck et al. 2018) would've meant parsing a large GeoTIFF - computing
+  it from data already being fetched is both less work and zero new
+  external dependency. **Real methodological catch found while validating**:
+  tested against 8 reference cities with known classifications: a 1-year
+  window (the same window `getClimateAverages` already uses for the other
+  4 fields) misclassified London ("Csa" instead of "Cfb") and Phoenix
+  ("BSh" instead of "BWh") - single-year weather noise flipping a
+  borderline monthly threshold, when Köppen is properly defined over
+  long-term climate normals. Fixed by giving `koppenCode` its own separate
+  Open-Meteo call over a 10-year window (`getKoppenClimateType`, not
+  `getClimateAverages` - the existing 4 fields' 1-year window is
+  unchanged, still "this past year's actual weather", not a climate
+  normal) - re-tested, London and Phoenix both corrected. Measured live:
+  10 years of daily data is ~83KB/~0.3s, not a latency concern on its own.
+  One known-imprecise case remains (Nairobi comes back "Cfb", real-world
+  Köppen maps show "Cwb" - a well-documented genuinely borderline case in
+  the literature, high-altitude equatorial climates are hard to classify
+  cleanly), disclosed as a formula-precision limitation, not chased
+  further this round.
+
+Also added: `formatDistanceKm` (`lib/unitPreferences.ts`, metric/imperial
+toggle, same 1-decimal-max convention as `formatAreaKm2`), 2 new Advanced
+Search range criteria (`climate.distanceToBeachKm`/`distanceToMountainKm`
+- climate type itself isn't a filter criterion, ~30 possible codes is too
+many for a clean dropdown, same reasoning `mainEconomyType`/
+`gdpSectorRanking` are also left out of `criteria.ts`). None of the 3 new
+fields feed the Environment score - descriptive facts, not judged
+good/bad, same treatment as `mainEconomyType`.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

@@ -16,6 +16,7 @@ const ECONOMY_TYPES: (keyof EconomyTypeProfile)[] = [
 ];
 const TRENDS = ["Improving", "Stable", "Worsening"] as const;
 const GDP_SECTORS: GdpSector[] = ["Agriculture", "Industry", "Services"];
+const KOPPEN_CODES = ["Af", "Am", "Aw", "BWh", "BWk", "BSh", "BSk", "Csa", "Csb", "Cfa", "Cfb", "Dfa", "Dfb", "Dfc", "ET"];
 
 function randInt(min: number, max: number): number {
   return Math.round(min + Math.random() * (max - min));
@@ -117,6 +118,9 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
       avgAnnualRainfallMm,
       avgAnnualSunshineHrs,
       avgAnnualSnowfallCm,
+      distanceToBeachKm: chance(0.85) ? randFloat(1, 400) : null,
+      distanceToMountainKm: chance(0.85) ? randFloat(1, 300) : null,
+      koppenCode: chance(0.95) ? pick(KOPPEN_CODES) : null,
     },
     liveability: {
       restaurantsBarsDensityPer10k,

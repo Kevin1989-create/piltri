@@ -240,6 +240,28 @@ export const CRITERIA: CriterionDef[] = [
     suggestedRange: [0, 200],
     getCityValue: (d) => d.climate.avgAnnualSnowfallCm,
   },
+  {
+    key: "climate.distanceToBeachKm",
+    category: "climate",
+    label: "Distance to beach",
+    unit: "km",
+    kind: "range",
+    suggestedRange: [0, 400],
+    getCityValue: (d) => d.climate.distanceToBeachKm,
+  },
+  {
+    key: "climate.distanceToMountainKm",
+    category: "climate",
+    label: "Distance to mountain",
+    unit: "km",
+    kind: "range",
+    suggestedRange: [0, 300],
+    getCityValue: (d) => d.climate.distanceToMountainKm,
+  },
+  // Climate type (Köppen) isn't a filter criterion here - ~30 possible
+  // codes is too many for a clean select dropdown, and it's a descriptive
+  // fact rather than a natural filter dimension, same reasoning
+  // mainEconomyType/gdpSectorRanking are also left out of this file.
 
   // ---- Quality of Life --------------------------------------------------------
   {

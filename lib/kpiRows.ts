@@ -1,5 +1,6 @@
 import { normalise } from "@/lib/aggregation/scoring";
-import { formatCurrency, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
+import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
+import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
 import type { CityExploreData, EconomyTypeProfile, SectionKey, TrendDirection } from "@/lib/types";
 
 /** How precisely a KPI's value is actually known, given its real current
@@ -205,7 +206,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
     }
     case "climate": {
       const c = data.climate;
-      return [
+      const rows: (KpiRow | null)[] = [
         {
           label: "Avg annual temperature",
           value: formatTemperature(c.avgAnnualTemperatureC, prefs),
@@ -244,7 +245,39 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           precision: "pinned",
           colorClass: tierColorClass(normalise(c.avgAnnualSnowfallCm, COLOR_RANGES.snowfallCm.min, COLOR_RANGES.snowfallCm.max, true)),
         },
+        // Plain facts, not coloured (2026-09-24, added alongside the
+        // Safety/Economy/Quality of Life section renames) - unlike
+        // temperature/rainfall/snowfall, there's no consensus "closer is
+        // better" direction for beach/mountain proximity or a climate
+        // type, so these stay uncoloured like mainEconomyType elsewhere.
+        // Omitted (not a placeholder) when the underlying lookup didn't
+        // resolve - see lib/aggregation/aggregate.ts's withTimeout comment
+        // for why a landlocked/far-inland city's beach/mountain distance
+        // can genuinely come back null.
+        c.distanceToBeachKm != null
+          ? {
+              label: "Distance to beach",
+              value: formatDistanceKm(c.distanceToBeachKm, prefs),
+              precision: "pinned",
+            }
+          : null,
+        c.distanceToMountainKm != null
+          ? {
+              label: "Distance to mountain",
+              value: formatDistanceKm(c.distanceToMountainKm, prefs),
+              precision: "pinned",
+            }
+          : null,
+        c.koppenCode
+          ? {
+              label: "Climate type",
+              value: KOPPEN_LABELS[c.koppenCode] ?? c.koppenCode,
+              precision: "pinned",
+              hint: `Köppen-Geiger classification: ${c.koppenCode} — computed from a 10-year Open-Meteo climate normal`,
+            }
+          : null,
       ];
+      return rows.filter((r): r is KpiRow => r != null);
     }
     case "liveability": {
       const l = data.liveability;

@@ -143,13 +143,40 @@ export interface SafetyStabilityFields {
   homicideRatePer100k: number; // intentional homicides per 100k people
 }
 
-/** All 4 fields are Open-Meteo climate normals for this city's exact
- *  coordinates — genuinely live, not country-level averages. */
+/** The first 4 fields are Open-Meteo climate normals for this city's exact
+ *  coordinates — genuinely live, not country-level averages (no country-
+ *  level equivalent is offered - see koppenCode's comment, the same
+ *  "a country isn't one climate" reasoning applies to temperature/
+ *  rainfall/sunshine/snowfall too, and a capital-city stand-in was
+ *  considered and rejected as misleadingly precise-looking, 2026-09-24).
+ *  distanceToBeachKm/distanceToMountainKm and koppenCode were added the
+ *  same day - see lib/aggregation/aggregate.ts and lib/data-sources/
+ *  koppen.ts for where each comes from. */
 export interface ClimateFields {
   avgAnnualTemperatureC: number;
   avgAnnualRainfallMm: number;
   avgAnnualSunshineHrs: number;
   avgAnnualSnowfallCm: number;
+  /** Straight-line distance to the nearest genuine sea/lake beach or
+   *  coastline (Overpass, vetted - see overpass.ts's nearestVerifiedBeach).
+   *  Null when none resolved within the search radius or the search timed
+   *  out (a landlocked city far from any coast, or Overpass being slow) -
+   *  never guessed, and not distinguished from each other in the UI (both
+   *  honestly mean "we don't have a number"). */
+  distanceToBeachKm: number | null;
+  /** Straight-line distance to the nearest OSM-tagged mountain peak
+   *  (`natural=peak`). Same null-means-"no resolved answer" convention as
+   *  distanceToBeachKm. */
+  distanceToMountainKm: number | null;
+  /** Köppen-Geiger climate type (e.g. "Cfb" = temperate oceanic) - computed
+   *  from a 10-year Open-Meteo monthly climate normal, not a separate
+   *  dataset (see lib/data-sources/koppen.ts's file header for why no
+   *  static geospatial dataset was needed). City/pinned-tier only,
+   *  deliberately no country-level version: most countries span several
+   *  Köppen zones (the US has 8+), so there's no single honest value to
+   *  assign a whole country - this isn't a data-availability gap, it's
+   *  not a meaningful question at that level. */
+  koppenCode: string | null;
 }
 
 export interface LiveabilityFields {
