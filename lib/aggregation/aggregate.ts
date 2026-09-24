@@ -66,7 +66,13 @@ const RANGES = {
 
 // See withTimeout's comment for why beach/mountain need their own hard
 // cap, separate from each source's own internal fetchWithTimeout budget.
-const FAR_LOOKUP_TIMEOUT_MS = 8000;
+// 12s, not the app's usual ~6s ceiling - measured live 2026-09-24 that
+// even the narrowest 20km beach-search tier alone took 13s under that
+// day's Overpass load (a slow day for the service generally, not specific
+// to this query - same kind of rough day WDQS had earlier that session).
+// Still bounded, still falls back to null honestly rather than blocking
+// indefinitely - just a fairer shot than 8s gives it on a normal day.
+const FAR_LOOKUP_TIMEOUT_MS = 12000;
 
 /**
  * Orchestrates every data source into the full CityExploreData payload +
