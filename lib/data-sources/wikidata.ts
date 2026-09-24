@@ -33,7 +33,12 @@ const SPARQL_ENDPOINT = "https://query.wikidata.org/sparql";
 // since this runs in the same Promise.all as every other source in
 // aggregate.ts and is only as fast as its slowest member - a page load is
 // never faster than this timeout on a genuine miss, so a generous value
-// here directly becomes the page's own worst case.
+// here directly becomes the page's own worst case. This is the default
+// for a live, user-facing lookup only - getCityPopulationAndArea takes an
+// optional override (see backfillWikidataPopulation.ts, which passes a
+// much more generous budget: a background admin job with nobody waiting
+// synchronously on any single city can afford to wait out WDQS's tail
+// latency rather than give up, the opposite tradeoff from a page load.
 const POPULATION_TIMEOUT_MS = 6000;
 
 // Wikidata quantity-unit QIDs that P2046 (area) statements commonly use,
@@ -115,7 +120,12 @@ const WKT_POINT_RE = /^Point\(([-\d.]+)\s+([-\d.]+)\)$/;
  *  above): tested live, it pushed a single London lookup from ~500ms to
  *  a 502 from Wikidata's own gateway. Not worth it for a heuristic that's
  *  already "good enough, not guaranteed" either way. */
-export async function getCityPopulationAndArea(lat: number, lng: number, cityName: string): Promise<CityPopulationAndArea> {
+export async function getCityPopulationAndArea(
+  lat: number,
+  lng: number,
+  cityName: string,
+  timeoutMs: number = POPULATION_TIMEOUT_MS
+): Promise<CityPopulationAndArea> {
   const escapedName = cityName.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   const query = `
     SELECT ?item ?location ?population ?areaAmount ?areaUnit WHERE {
@@ -140,7 +150,7 @@ export async function getCityPopulationAndArea(lat: number, lng: number, cityNam
       },
       cache: "no-store",
     },
-    POPULATION_TIMEOUT_MS
+    timeoutMs
   );
   if (!res.ok) throw new Error(`Wikidata SPARQL request failed: ${res.status}`);
   const json = await res.json();

@@ -11,6 +11,15 @@ import { citySlug } from "./cache";
 // number differs.
 const REQUEST_PACE_MS = 800;
 
+// A background job with nobody waiting synchronously on any single city
+// can afford to ride out WDQS's tail latency rather than give up after 6s
+// the way a live page load has to (see POPULATION_TIMEOUT_MS's comment in
+// wikidata.ts) - confirmed live 2026-09-24 that a real, successful lookup
+// for London took 14.4s while WDQS was still recovering from a broader
+// slowdown. 20s covers that comfortably without being so long a single
+// stuck request could meaningfully eat into DEADLINE_MS.
+const PER_CITY_TIMEOUT_MS = 20000;
+
 // Same silent-failure class of bug backfillLandArea.ts's own comment
 // documents for cache.ts's IN_CLAUSE_CHUNK_SIZE - an unchunked `.in()`
 // across the full ~6,300-city shortlist risks the request URL exceeding
@@ -113,7 +122,7 @@ export async function backfillWikidataPopulation(options: { deadlineMs?: number 
     const row = candidates[i];
     attempted++;
     try {
-      const { population, areaKm2 } = await getCityPopulationAndArea(row.lat, row.lng, row.city_name);
+      const { population, areaKm2 } = await getCityPopulationAndArea(row.lat, row.lng, row.city_name, PER_CITY_TIMEOUT_MS);
       await supabase
         .from("cities")
         .update({ wikidata_population: population, wikidata_area_km2: areaKm2, wikidata_checked_at: new Date().toISOString() })
