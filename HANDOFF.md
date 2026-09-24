@@ -1613,6 +1613,34 @@ individual lookups were succeeding. Fixed by reducing `DEADLINE_MS` to
 30s (30+20=50s, genuine margin under 60), same reasoning
 `backfill-land-area`'s own deadline already uses.
 
+## Renamed the 4 scored sections (display labels only) (2026-09-24, later same session)
+
+User wanted better names ahead of adding new fields to two of them
+(geography/coastal-proximity to Climate, healthcare/education to
+Liveability - not yet built, just planned). Renamed:
+
+- Safety & Stability -> **Safety**
+- Climate -> **Environment** (broader, ahead of adding terrain/coastal fields)
+- Liveability -> **Quality of Life** (matches the term other city-comparison
+  tools, e.g. Numbeo's Quality of Life Index, already use for this bucket)
+- Economy unchanged
+
+**Display-only, deliberately.** The underlying `SectionKey` identifiers
+(`safetyStability`/`climate`/`liveability`) and every JSONB field name in
+already-cached Supabase rows are untouched - renaming those would be a much
+bigger, riskier refactor (every cached city_scores row, every criteria.ts
+key, every component prop) for what was asked as a naming/copy change.
+Updated `SECTION_LABELS` (`lib/types.ts`) and `CATEGORY_LABELS` +
+individual criterion labels/section-comments (`lib/advancedSearch/criteria.ts`).
+
+Found and fixed one real drift bug while checking for other hardcoded
+copies of the old names: `app/explore/discover/results/page.tsx`'s
+`SORT_LABELS` had its own separate hardcoded `"Safety & Stability score"` /
+`"Climate score"` / `"Liveability score"` strings instead of reusing
+`SECTION_LABELS` - would have silently kept showing the old names in that
+one dropdown even after this rename. Now derives them from
+`SECTION_LABELS` directly so a future rename can't drift there again.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

@@ -18,9 +18,9 @@ const SORT_LABELS: Record<SortKey, string> = {
   piltri: "Piltri Score",
   alpha: "Alphabetical",
   economy: "Economy score",
-  safetyStability: "Safety & Stability score",
-  climate: "Climate score",
-  liveability: "Liveability score",
+  safetyStability: `${SECTION_LABELS.safetyStability} score`,
+  climate: `${SECTION_LABELS.climate} score`,
+  liveability: `${SECTION_LABELS.liveability} score`,
 };
 const SORT_ORDER: SortKey[] = ["piltri", ...SECTION_KEYS, "alpha"];
 

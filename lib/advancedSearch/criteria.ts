@@ -22,12 +22,15 @@ export type CategoryKey = "overall" | "economy" | "safetyStability" | "climate" 
 
 export const CATEGORY_ORDER: CategoryKey[] = ["overall", "economy", "safetyStability", "climate", "liveability", "demographics", "nearby"];
 
+// Matches lib/types.ts's SECTION_LABELS renaming (2026-09-24) - see that
+// file's comment for why. CategoryKey itself is unchanged (still
+// safetyStability/climate/liveability), display labels only.
 export const CATEGORY_LABELS: Record<CategoryKey, string> = {
   overall: "Overall",
   economy: "Economy",
-  safetyStability: "Safety & Stability",
-  climate: "Climate",
-  liveability: "Liveability",
+  safetyStability: "Safety",
+  climate: "Environment",
+  liveability: "Quality of Life",
   demographics: "Demographics",
   nearby: "Distance from city centre",
 };
@@ -150,11 +153,11 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.economy.purchasingPowerIndex,
   },
 
-  // ---- Safety & Stability ---------------------------------------------------
+  // ---- Safety ---------------------------------------------------------------
   {
     key: "safetyStability.sectionScore",
     category: "safetyStability",
-    label: "Safety & Stability score",
+    label: "Safety score",
     kind: "range",
     suggestedRange: [0, 100],
     getCityValue: (d) => d.sectionScores.safetyStability,
@@ -192,11 +195,11 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.safetyStability.safetyTrend,
   },
 
-  // ---- Climate ------------------------------------------------------------
+  // ---- Environment ----------------------------------------------------------
   {
     key: "climate.sectionScore",
     category: "climate",
-    label: "Climate score",
+    label: "Environment score",
     kind: "range",
     suggestedRange: [0, 100],
     getCityValue: (d) => d.sectionScores.climate,
@@ -238,11 +241,11 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.climate.avgAnnualSnowfallCm,
   },
 
-  // ---- Liveability --------------------------------------------------------
+  // ---- Quality of Life --------------------------------------------------------
   {
     key: "liveability.sectionScore",
     category: "liveability",
-    label: "Liveability score",
+    label: "Quality of Life score",
     kind: "range",
     suggestedRange: [0, 100],
     getCityValue: (d) => d.sectionScores.liveability,

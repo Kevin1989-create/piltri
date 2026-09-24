@@ -1,7 +1,11 @@
 /**
  * Piltri — Explore data model
  *
- * 4 scored sections (Economy, Safety & Stability, Climate, Liveability) +
+ * 4 scored sections (Economy, Safety, Environment, Quality of Life - see
+ * SECTION_LABELS; the underlying SectionKey identifiers/JSONB field names
+ * below are unchanged from their original economy/safetyStability/climate/
+ * liveability naming, deliberately - renaming those would touch every
+ * already-cached Supabase row's stored shape, for a display-only ask) +
  * Demographics as supplementary info (not scored). There is no Real Estate
  * section — no free, reliable, globally-open pricing data source exists
  * (the one viable option, Numbeo, is a paid API); rather than fabricate
@@ -221,11 +225,21 @@ export const SECTION_WEIGHTS: Record<SectionKey, number> = {
   liveability: 0.2,
 };
 
+// Renamed 2026-09-24, on request - "Safety" reads better than "Safety &
+// Stability" while still covering the same fields (political stability,
+// rule of law, homicide rate); "Environment" replaces "Climate" ahead of
+// adding geography/terrain/coastal-proximity fields, which are broader
+// than weather alone; "Quality of Life" replaces "Liveability" ahead of
+// adding healthcare and education, matching the term other city-comparison
+// tools (e.g. Numbeo's Quality of Life Index) already use for this same
+// bucket. Display-only - the SectionKey identifiers themselves
+// (safetyStability/climate/liveability) are unchanged, see this file's
+// header comment.
 export const SECTION_LABELS: Record<SectionKey, string> = {
-  safetyStability: "Safety & Stability",
+  safetyStability: "Safety",
   economy: "Economy",
-  climate: "Climate",
-  liveability: "Liveability",
+  climate: "Environment",
+  liveability: "Quality of Life",
 };
 
 export interface SectionScores {
