@@ -655,9 +655,16 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           : null,
         l.distanceToCapitalKm != null
           ? {
+              // "pinned" (2026-09-26, on request) not "country" - this is
+              // a fact about THIS city's own position relative to the
+              // capital, same City-group placement as distanceToBeachKm/
+              // distanceToMountainKm/distanceToForestKm right above it,
+              // even though the capital's coordinate itself comes from a
+              // static country-level lookup table (lib/data-sources/
+              // capitals.ts) rather than a live per-city API.
               label: "Distance to capital city",
               value: formatDistanceKm(l.distanceToCapitalKm, prefs),
-              precision: "country",
+              precision: "pinned",
               colorClass: "text-ink-500",
             }
           : null,

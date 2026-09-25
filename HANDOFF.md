@@ -1986,6 +1986,10 @@ Coverage caveat, verified live: only the ~80 countries that actually sit the PIS
 
 Added `pisaMathScore`/`pisaReadingScore`/`pisaScienceScore` to `LiveabilityFields` - shown as 3 separate rows (not a single composite), coloured on a `{min: 350, max: 590}` range matching the real observed global spread. **Unlike GDP/life expectancy/internet access, these DO feed the Liveability section score** (`aggregate.ts`'s new `pisaAverage` - mean of whichever subjects resolved, defaulting to ~470/the OECD-wide average for a non-participating country so non-participation neither rewards nor penalises a score). Verified live: London/UK math 502, reading 504, science 505, Quality of Life score moved 28 -> 34 with PISA included.
 
+## Distance to capital city moved to the City group (2026-09-26, later same session)
+
+`kpiRows.ts`'s "Distance to capital city" row was `precision: "country"`, grouping it with United Kingdom-level facts even though it's genuinely a statement about THIS city's own position (same conceptual group as Distance to beach/mountain/forest right above it) - just sourced from a static country-level lookup table rather than a live per-city API, which shouldn't determine its display group. Changed to `precision: "pinned"` so it renders under the City heading. Verified live: for London, "Distance to capital city — 0 km" now sits under "London", not "United Kingdom".
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header
