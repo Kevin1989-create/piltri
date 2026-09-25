@@ -219,6 +219,16 @@ export interface ClimateFields {
    *  city-data gap - same category as Safety's WGI governance scores.
    *  Added 2026-09-24 alongside the other 3 hazard fields above. */
   climateReadinessScore: number | null;
+  /** Sunrise-to-sunset hours on the summer/winter solstice - pure
+   *  astronomy from this city's latitude (see lib/data-sources/daylight.ts),
+   *  not fetched from anywhere, so never null. Deliberately NOT an
+   *  average: averaged over a full year every location gets almost
+   *  exactly 12 hours of daylight (orbital mechanics), which wouldn't
+   *  differentiate any two cities - the seasonal swing is what actually
+   *  varies (equatorial ~12h both times; high-latitude cities can see a
+   *  12+ hour gap). Added 2026-09-25. */
+  longestDayHours: number;
+  shortestDayHours: number;
 }
 
 export interface LiveabilityFields {

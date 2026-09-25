@@ -314,6 +314,24 @@ export const CRITERIA: CriterionDef[] = [
     suggestedRange: [0, 100],
     getCityValue: (d) => d.climate.climateReadinessScore,
   },
+  {
+    key: "climate.longestDayHours",
+    category: "climate",
+    label: "Longest day",
+    unit: "hrs",
+    kind: "range",
+    suggestedRange: [12, 24],
+    getCityValue: (d) => d.climate.longestDayHours,
+  },
+  {
+    key: "climate.shortestDayHours",
+    category: "climate",
+    label: "Shortest day",
+    unit: "hrs",
+    kind: "range",
+    suggestedRange: [0, 12],
+    getCityValue: (d) => d.climate.shortestDayHours,
+  },
 
   // ---- Quality of Life --------------------------------------------------------
   {

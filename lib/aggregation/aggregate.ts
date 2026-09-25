@@ -10,6 +10,7 @@ import { toIso3 } from "@/lib/data-sources/country-codes";
 import { distanceToCapitalKm } from "@/lib/data-sources/capitals";
 import { getEarthquakeCount } from "@/lib/data-sources/usgs";
 import { getClimateReadiness } from "@/lib/data-sources/climateReadiness";
+import { getDaylightRange } from "@/lib/data-sources/daylight";
 import { memoize } from "./memoryCache";
 import { averageScores, computePiltriScore, normalise } from "./scoring";
 import type { CityExploreData, CitySearchResult } from "@/lib/types";
@@ -277,6 +278,7 @@ export async function aggregateCityData(
       distanceToVolcanoKm: volcano?.km != null ? Number(volcano.km.toFixed(1)) : null,
       coastalFloodExposure,
       climateReadinessScore: getClimateReadiness(city.countryCode)?.gainScore ?? null,
+      ...getDaylightRange(city.lat),
     },
     liveability: {
       restaurantsBarsDensityPer10k: overpassData ? per10k(overpassData.raw.restaurantsBars) : 0,

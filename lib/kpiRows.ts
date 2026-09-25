@@ -55,6 +55,27 @@ function trendColorClass(trend: TrendDirection): string {
   return "text-score-moderate";
 }
 
+/** Plain-language reading of PM2.5 (2026-09-25, on request - a raw
+ *  "8 µg/m³" figure read as too technical). WHO's own guideline (under 5
+ *  is "good") anchors the low end; the rest are round, easy-to-remember
+ *  thresholds, not a formal AQI standard. */
+function airQualityLabel(pm25: number): string {
+  if (pm25 <= 5) return "Good";
+  if (pm25 <= 15) return "Moderate";
+  if (pm25 <= 35) return "Poor";
+  return "Very poor";
+}
+
+/** Plain-language reading of the USGS earthquake count (2026-09-25, on
+ *  request - "0 quakes (M5+)" read as unclear). Thresholds calibrated
+ *  against real tested cities: London 0 (Low), Los Angeles 16 (Moderate),
+ *  Tokyo 500-800+ (High). */
+function seismicActivityLabel(count: number): string {
+  if (count <= 5) return "Low";
+  if (count <= 100) return "Moderate";
+  return "High";
+}
+
 // Reference ranges used only for KPI-row colour coding - kept in sync by
 // hand with the equivalent ranges in lib/aggregation/aggregate.ts (which
 // feed the actual section scores). Where a field is already stored as a
@@ -268,20 +289,6 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           precision: "pinned",
           colorClass: tierColorClass(normalise(c.avgAnnualSnowfallCm, COLOR_RANGES.snowfallCm.min, COLOR_RANGES.snowfallCm.max, true)),
         },
-        // Plain fact, grey (text-ink-500, same as every row's own label
-        // text below it) rather than black (2026-09-24, on request - same
-        // treatment already applied to Main economy type/GDP sector rows
-        // in Economy: a climate type has no "good/bad" direction, so black
-        // read as an implied judgement this row doesn't actually make).
-        c.koppenCode
-          ? {
-              label: "Climate type",
-              value: KOPPEN_LABELS[c.koppenCode] ?? c.koppenCode,
-              precision: "pinned",
-              colorClass: "text-ink-500",
-              hint: `Köppen-Geiger classification: ${c.koppenCode} — computed from a 10-year Open-Meteo climate normal`,
-            }
-          : null,
         {
           // Coloured against a disclosed-subjective ideal centre (~50%,
           // 2026-09-24 on request - see COLOR_RANGES.humidityDistanceFromIdeal),
@@ -298,27 +305,16 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
             )
           ),
         },
-        c.elevationM != null
-          ? {
-              // Not coloured - "higher/lower elevation is better" has no
-              // consensus direction, unlike humidity/UV where an ideal
-              // centre is at least a defensible subjective call.
-              label: "Elevation",
-              value: `${c.elevationM.toLocaleString()} m`,
-              precision: "pinned",
-              colorClass: "text-ink-500",
-            }
-          : null,
         c.avgAnnualPm25 != null
           ? {
-              label: "Air quality (PM2.5)",
-              value: `${c.avgAnnualPm25} µg/m³`,
+              // Plain "Good/Moderate/Poor/Very poor" reading (2026-09-25,
+              // on request - a raw "8 µg/m³ (PM2.5)" value read as too
+              // technical). Real µg/m³ figure moved to the hint, not lost.
+              label: "Air quality",
+              value: airQualityLabel(c.avgAnnualPm25),
               precision: "pinned",
-              // Lower is unambiguously healthier here (WHO guideline:
-              // annual mean under 5 µg/m³) - a monotonic direction, not an
-              // "ideal centre" the way humidity/UV get.
               colorClass: tierColorClass(normalise(c.avgAnnualPm25, COLOR_RANGES.pm25.min, COLOR_RANGES.pm25.max, true)),
-              hint: "Annual mean PM2.5 (fine particulate matter) — WHO guideline: under 5 µg/m³",
+              hint: `Annual mean PM2.5 (fine particulate matter): ${c.avgAnnualPm25} µg/m³ — WHO guideline: under 5 µg/m³ is "Good"`,
             }
           : null,
         c.avgAnnualUvIndexMax != null
@@ -343,13 +339,16 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           : null,
         c.earthquakeCount50yr != null
           ? {
+              // Plain "Low/Moderate/High" reading (2026-09-25, on request
+              // - "0 quakes (M5+)" read as too technical/unclear). Real
+              // count moved to the hint.
               label: "Seismic activity",
-              value: `${c.earthquakeCount50yr} quakes (M5+)`,
+              value: seismicActivityLabel(c.earthquakeCount50yr),
               precision: "pinned",
               colorClass: tierColorClass(
                 normalise(c.earthquakeCount50yr, COLOR_RANGES.earthquakeCount50yr.min, COLOR_RANGES.earthquakeCount50yr.max, true)
               ),
-              hint: "USGS: magnitude-5+ earthquakes within 200km since 1970 — a real historical count, not a modelled risk score",
+              hint: `USGS: ${c.earthquakeCount50yr} magnitude-5+ earthquakes within 200km since 1970 — a real historical count, not a modelled risk score`,
             }
           : null,
         c.distanceToVolcanoKm != null
@@ -374,6 +373,47 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
                     ? "text-score-moderate"
                     : "text-score-weak",
               hint: "A simple proxy (elevation + coastline distance), not a real flood model — see the app's data notes",
+            }
+          : null,
+        // Pure astronomy (lib/data-sources/daylight.ts), never null - see
+        // that file's header for why "avg annual daylight" isn't shown
+        // instead (averages to ~12h almost everywhere, not differentiating).
+        {
+          label: "Longest day",
+          value: `${c.longestDayHours} hrs`,
+          precision: "pinned",
+          colorClass: "text-ink-500", // no "more daylight is better" consensus
+          hint: "Sunrise-to-sunset hours on the summer solstice",
+        },
+        {
+          label: "Shortest day",
+          value: `${c.shortestDayHours} hrs`,
+          precision: "pinned",
+          colorClass: "text-ink-500",
+          hint: "Sunrise-to-sunset hours on the winter solstice",
+        },
+        // Climate type + Elevation deliberately last (2026-09-25, on
+        // request - these 2 used to sit mid-list; moved to the end of the
+        // City group so the more "human" comparative stats read first).
+        // Grey (text-ink-500, same as every row's own label text below
+        // it) rather than black - both are plain facts, no "good/bad"
+        // direction, same treatment already applied to Main economy
+        // type/GDP sector rows in Economy.
+        c.koppenCode
+          ? {
+              label: "Climate type",
+              value: KOPPEN_LABELS[c.koppenCode] ?? c.koppenCode,
+              precision: "pinned",
+              colorClass: "text-ink-500",
+              hint: `Köppen-Geiger classification: ${c.koppenCode} — computed from a 10-year Open-Meteo climate normal`,
+            }
+          : null,
+        c.elevationM != null
+          ? {
+              label: "Elevation",
+              value: `${c.elevationM.toLocaleString()} m`,
+              precision: "pinned",
+              colorClass: "text-ink-500",
             }
           : null,
         c.climateReadinessScore != null

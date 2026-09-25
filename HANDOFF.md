@@ -1823,6 +1823,42 @@ building anything - findings and what shipped:
 None of the 4 feed the Environment score (descriptive facts, same
 treatment as Köppen/mainEconomyType) - only affects display.
 
+## Longest/shortest day, label simplification, City-group reorder (2026-09-25)
+
+User asked about "hours of light" - clarified into Longest Day/Shortest
+Day (day length swing) vs light pollution before building either.
+
+**Longest Day / Shortest Day** - new file `lib/data-sources/daylight.ts`,
+pure astronomy (solar declination/hour-angle formula), zero external
+dependency, computed from latitude alone. Deliberately NOT an "avg annual
+daylight" field - averaged over a full year every location gets almost
+exactly 12 hours (orbital mechanics), which wouldn't differentiate any
+two cities. Shows the summer/winter solstice day length instead (the
+actual seasonal swing). Verified against known reference values before
+shipping: London 16.4h/7.6h (real ~16.5/~7.7), Singapore 12.1h/11.9h,
+Oslo 18.5h/5.5h, Longyearbyen (Arctic) 24.0h/0.0h (correct polar-day/
+polar-night clamping) - all within expected precision of the
+approximation formula.
+
+**Light pollution - not built, no free source found.** Checked
+lightpollutionmap.info's point-query API - requires a paid/registered key,
+unlike every other source in this app. Flagged to the user rather than
+silently skip or ship a weak proxy; no further action unless they want to
+register for a key themselves or accept a disclosed proxy (e.g. population
+density, which we already have per city).
+
+**Label simplification** (on request - raw values read as too technical):
+- Seismic activity: was "0 quakes (M5+)" -> now "Low"/"Moderate"/"High"
+  (thresholds calibrated against real tested cities: London 0 = Low, LA 16
+  = Moderate, Tokyo 500-800+ = High). Real count moved to the hint.
+- Air quality: was "8 µg/m³ (PM2.5)" -> now "Good"/"Moderate"/"Poor"/"Very
+  poor" (WHO's own <5 µg/m³ = "Good" guideline anchors the low end). Real
+  µg/m³ figure moved to the hint.
+
+**Reorder**: Climate type and Elevation moved to the end of Environment's
+City group (were mid-list) - on request, so the more comparative/human
+stats (temperature, air quality, daylight, hazards) read first.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header
