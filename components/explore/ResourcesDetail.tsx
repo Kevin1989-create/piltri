@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
 import { prefetchResourceLinks } from "@/lib/resourceLinksCache";
-import { RESOURCE_LINK_CATEGORIES, RESOURCE_LINK_CATEGORY_LABELS, type ResourceLinksByCategory } from "@/lib/types";
+import { DISPLAYED_RESOURCE_LINK_CATEGORIES, RESOURCE_LINK_CATEGORY_LABELS, type ResourceLinksByCategory } from "@/lib/types";
 
 /** Expanded Resources detail - reads this country's curated links via
  *  `prefetchResourceLinks` rather than fetching them itself, since Resources
@@ -34,7 +34,7 @@ export function ResourcesDetail({
     };
   }, [countryCode]);
 
-  const totalCount = links ? RESOURCE_LINK_CATEGORIES.reduce((sum, c) => sum + links[c].length, 0) : null;
+  const totalCount = links ? DISPLAYED_RESOURCE_LINK_CATEGORIES.reduce((sum, c) => sum + links[c].length, 0) : null;
 
   return (
     <div className={cn("bg-piltri-amber-tint/40 px-4 py-2.5", bordered && "border-t border-piltri-amber/20")}>
@@ -46,7 +46,7 @@ export function ResourcesDetail({
 
       {links != null &&
         totalCount !== 0 &&
-        RESOURCE_LINK_CATEGORIES.map((category) => {
+        DISPLAYED_RESOURCE_LINK_CATEGORIES.map((category) => {
           const rows = links[category];
           if (rows.length === 0) return null;
           return (

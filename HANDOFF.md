@@ -2016,6 +2016,16 @@ Fixed in all 3: `backfillLandArea.ts`, `backfillWikidataPopulation.ts`, `backfil
 
 **Important caveat, told to the user directly**: this batch is built from general knowledge, not independently verified live (no site-by-site check that every URL still resolves and is still the current market leader) - the other ~130 shortlisted countries were deliberately NOT touched in this pass, since fabricating plausible-sounding site names for markets without solid confidence would violate this app's own "never guess/fabricate" standard applied everywhere else. Worth a spot-check pass, and a follow-up session to extend coverage to more countries with real per-country research rather than from-memory recall.
 
+## Root domain now goes straight to Explore; old marketing home moved to /home; Resources drops Health System; mobile search-bar centering fixed (2026-09-26, later same session)
+
+Three separate requests, all shipped together:
+
+1. **Resources: removed the Health System section from display** - `DISPLAYED_RESOURCE_LINK_CATEGORIES` (new, `lib/types.ts`) excludes "health", used only by `ResourcesDetail.tsx`. Deliberately did NOT touch `ResourceLinkCategory`/`RESOURCE_LINK_CATEGORIES`, the DB CHECK constraint, or the `/admin` curation UI - existing curated health links and the ability to manage them both stay intact, same "kept around, not deleted" treatment as point 2 below, in case this section is wanted back.
+
+2. **`piltri.me` now goes straight to Explore, not the old 3-card marketing page** - `app/page.tsx` is now a one-line re-export of `app/explore/page.tsx` (`export { default } from "./explore/page"`), not a duplicate copy, so the two can never drift apart. The original marketing home (logo + Explore/Assess/Invest cards) moved intact to `app/home/page.tsx` - unlinked from anywhere in the app now, but fully preserved for later (e.g. once Assess/Invest actually ship) rather than deleted, per explicit request ("keep it in mind for later though").
+
+3. **Mobile search-bar centering fix** - `app/explore/page.tsx`'s search block had an unconditional `-mt-12` to visually center against the desktop NavBar's height/whitespace; on a tall phone viewport that overcorrected, pushing the search bar noticeably above true centre with a large empty gap below. Scoped to `sm:-mt-12` (desktop/tablet only) - verified live at 375×812: was sitting in the top third of the viewport, now sits close to true vertical centre.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

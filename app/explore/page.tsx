@@ -16,7 +16,14 @@ export default function ExploreLandingPage() {
     <main className="min-h-screen flex flex-col">
       <NavBar logoSide="left" border={false} />
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 -mt-12">
+      {/* -mt-12 only from sm: up (2026-09-26, on request - "the search bar
+          is not fully centered right now on the phone"): this offset nudges
+          the block up to visually center against the desktop NavBar's own
+          height/whitespace, but on a tall phone viewport it overcorrected,
+          pushing the search bar noticeably above true centre with a big
+          empty gap below - unscoped, it was making every mobile visit look
+          off, not just a one-off. */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 sm:-mt-12">
         <h1 className="font-serif text-4xl sm:text-5xl text-ink-900 text-center">Find your Piltri.</h1>
 
         <div className="mt-8 w-full max-w-xl">

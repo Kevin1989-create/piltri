@@ -382,6 +382,15 @@ export type ResourceLinkCategory = "home" | "immigration" | "health" | "jobs";
 
 export const RESOURCE_LINK_CATEGORIES: ResourceLinkCategory[] = ["home", "immigration", "health", "jobs"];
 
+/** The subset actually shown to end users on the results/report pages
+ *  (see ResourcesDetail.tsx) - "health" removed 2026-09-26 on request.
+ *  Deliberately NOT removed from ResourceLinkCategory/RESOURCE_LINK_CATEGORIES
+ *  above or the DB CHECK constraint - existing curated health links and the
+ *  /admin curation UI both stay intact, same "kept around, not deleted"
+ *  treatment as the old marketing home page (see app/home/page.tsx) in
+ *  case this section comes back later. */
+export const DISPLAYED_RESOURCE_LINK_CATEGORIES: ResourceLinkCategory[] = ["home", "immigration", "jobs"];
+
 /** Display labels only — the underlying category keys (and the
  *  `country_resource_links.category` CHECK constraint in schema.sql) stay
  *  "home"/"immigration"/"health"/"jobs" regardless of copy changes here. */
