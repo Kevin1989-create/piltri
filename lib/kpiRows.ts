@@ -55,27 +55,6 @@ function trendColorClass(trend: TrendDirection): string {
   return "text-score-moderate";
 }
 
-/** Plain-language reading of PM2.5 (2026-09-25, on request - a raw
- *  "8 µg/m³" figure read as too technical). WHO's own guideline (under 5
- *  is "good") anchors the low end; the rest are round, easy-to-remember
- *  thresholds, not a formal AQI standard. */
-function airQualityLabel(pm25: number): string {
-  if (pm25 <= 5) return "Good";
-  if (pm25 <= 15) return "Moderate";
-  if (pm25 <= 35) return "Poor";
-  return "Very poor";
-}
-
-/** Plain-language reading of the USGS earthquake count (2026-09-25, on
- *  request - "0 quakes (M5+)" read as unclear). Thresholds calibrated
- *  against real tested cities: London 0 (Low), Los Angeles 16 (Moderate),
- *  Tokyo 500-800+ (High). */
-function seismicActivityLabel(count: number): string {
-  if (count <= 5) return "Low";
-  if (count <= 100) return "Moderate";
-  return "High";
-}
-
 // Reference ranges used only for KPI-row colour coding - kept in sync by
 // hand with the equivalent ranges in lib/aggregation/aggregate.ts (which
 // feed the actual section scores). Where a field is already stored as a
@@ -307,14 +286,16 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         },
         c.avgAnnualPm25 != null
           ? {
-              // Plain "Good/Moderate/Poor/Very poor" reading (2026-09-25,
-              // on request - a raw "8 µg/m³ (PM2.5)" value read as too
-              // technical). Real µg/m³ figure moved to the hint, not lost.
+              // Reverted to the actual number (2026-09-25 - the
+              // Good/Moderate/Poor wording read as inconsistent with
+              // every other row here showing a real figure). Just the
+              // "(PM2.5)" label suffix dropped as unnecessary detail;
+              // still in the hint for anyone who wants it.
               label: "Air quality",
-              value: airQualityLabel(c.avgAnnualPm25),
+              value: `${c.avgAnnualPm25} µg/m³`,
               precision: "pinned",
               colorClass: tierColorClass(normalise(c.avgAnnualPm25, COLOR_RANGES.pm25.min, COLOR_RANGES.pm25.max, true)),
-              hint: `Annual mean PM2.5 (fine particulate matter): ${c.avgAnnualPm25} µg/m³ — WHO guideline: under 5 µg/m³ is "Good"`,
+              hint: "Annual mean PM2.5 (fine particulate matter) — WHO guideline: under 5 µg/m³",
             }
           : null,
         c.avgAnnualUvIndexMax != null
@@ -339,16 +320,18 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           : null,
         c.earthquakeCount50yr != null
           ? {
-              // Plain "Low/Moderate/High" reading (2026-09-25, on request
-              // - "0 quakes (M5+)" read as too technical/unclear). Real
-              // count moved to the hint.
+              // Reverted to the actual number (2026-09-25 - the
+              // Low/Moderate/High wording read as inconsistent with every
+              // other row here showing a real figure). Just the "(M5+)"
+              // value suffix dropped as unnecessary detail; still in the
+              // hint for anyone who wants it.
               label: "Seismic activity",
-              value: seismicActivityLabel(c.earthquakeCount50yr),
+              value: `${c.earthquakeCount50yr} quakes`,
               precision: "pinned",
               colorClass: tierColorClass(
                 normalise(c.earthquakeCount50yr, COLOR_RANGES.earthquakeCount50yr.min, COLOR_RANGES.earthquakeCount50yr.max, true)
               ),
-              hint: `USGS: ${c.earthquakeCount50yr} magnitude-5+ earthquakes within 200km since 1970 — a real historical count, not a modelled risk score`,
+              hint: "USGS: magnitude-5+ earthquakes within 200km since 1970 — a real historical count, not a modelled risk score",
             }
           : null,
         c.distanceToVolcanoKm != null

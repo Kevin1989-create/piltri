@@ -1859,6 +1859,17 @@ density, which we already have per city).
 City group (were mid-list) - on request, so the more comparative/human
 stats (temperature, air quality, daylight, hazards) read first.
 
+## Reverted seismic/air-quality labels back to real numbers (2026-09-25)
+
+The Low/Moderate/High and Good/Moderate/Poor wording from the previous
+entry read as inconsistent with every other Environment row showing an
+actual figure (temperature, rainfall, UV index, etc.) - reverted. Seismic
+activity now shows "N quakes" again, air quality "N µg/m³" again - just
+the unnecessary "(M5+)"/"(PM2.5)" bracket suffixes dropped from the
+label/value themselves (still in each row's hint for anyone who wants the
+technical detail). Removed the now-unused `airQualityLabel`/
+`seismicActivityLabel` helpers from `lib/kpiRows.ts`.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header
