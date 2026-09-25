@@ -51,16 +51,15 @@ export function ResourcesDetail({
           if (rows.length === 0) return null;
           return (
             <div key={category} className="mb-3 last:mb-0">
-              <p className="text-[10px] text-ink-500 uppercase tracking-wide mb-1">{RESOURCE_LINK_CATEGORY_LABELS[category]}</p>
+              {/* Bold black section titles / non-bold grey site names
+                  (2026-09-26, on request) - was uppercase grey for the
+                  title and medium-weight amber for each link; titles now
+                  read as the stronger element, links as plain secondary
+                  text (still a real link - hover underline kept). */}
+              <p className="text-[10px] font-bold text-ink-900 uppercase tracking-wide mb-1">{RESOURCE_LINK_CATEGORY_LABELS[category]}</p>
               <div className="flex flex-col gap-1">
                 {rows.map((link) => (
-                  <a
-                    key={link.id}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-medium text-piltri-amber-dark hover:underline leading-snug"
-                  >
+                  <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="text-xs font-normal text-ink-500 hover:underline leading-snug">
                     {link.title}
                   </a>
                 ))}

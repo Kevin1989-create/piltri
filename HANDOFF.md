@@ -2008,6 +2008,14 @@ First live run of the new Overpass amenities backfill (previous entry) came back
 
 Fixed in all 3: `backfillLandArea.ts`, `backfillWikidataPopulation.ts`, `backfillOverpassAmenities.ts` now `Promise.all` their upsert chunks instead of awaiting one at a time.
 
+## Resources: section titles bold/black, site names non-bold/grey; top-5 job board + real estate sites pushed for ~40 major countries (2026-09-26, later same session)
+
+**Styling** (`components/explore/ResourcesDetail.tsx`, used by both `ResourcesDetailPanel` and the printable report page) - section titles ("Property"/"Visa and Immigration"/"Health System"/"Jobs") were grey/uppercase; site name links were amber/medium-weight. Swapped: titles now `font-bold text-ink-900` (black), links now `font-normal text-ink-500` (grey) - titles read as the stronger element, links as plain secondary text (hover-underline kept).
+
+**Content**: user asked for the top 5 job board sites and top 5 real estate sites pushed per country. The existing `home`/`jobs` categories (already in `ResourceLinkCategory`, no new category needed) had exactly 1 curated link each from an earlier "curate all 171 shortlisted countries" pass (2026-09-23) - mostly a government job portal + one property portal. Added up to 4 more of each for **~40 major countries** (US, UK, Canada, Australia, most of Western/Northern/Central Europe, Japan, India, UAE, Brazil, Mexico, Argentina, South Africa, New Zealand, Singapore, Malaysia, Philippines, Thailand, Turkey, Israel, Greece, Czechia, Hungary, Romania, South Korea) via the existing `POST /api/admin/resource-links/bulk` endpoint, reaching 5 per category for most of them - a few countries only reached 3-4 where a confidently-accurate 5th site wasn't available from general knowledge (Norway, Sweden, Hungary in particular - real estate markets there are dominated by 1-2 portals, no fabricated site was added to force the count).
+
+**Important caveat, told to the user directly**: this batch is built from general knowledge, not independently verified live (no site-by-site check that every URL still resolves and is still the current market leader) - the other ~130 shortlisted countries were deliberately NOT touched in this pass, since fabricating plausible-sounding site names for markets without solid confidence would violate this app's own "never guess/fabricate" standard applied everywhere else. Worth a spot-check pass, and a follow-up session to extend coverage to more countries with real per-country research rather than from-memory recall.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header
