@@ -234,7 +234,9 @@ export function CityHeader({
           <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
             {cityStats.map((stat) => (
               <div key={stat.label} className="min-w-0">
-                <p className={`text-[11px] font-medium leading-snug truncate ${stat.colorClass}`}>{stat.value}</p>
+                <p className={`text-[11px] font-medium leading-snug truncate ${stat.colorClass}`} title={stat.value}>
+                  {stat.value}
+                </p>
                 <p className="text-[9px] text-ink-500 uppercase tracking-wide leading-snug truncate" title={stat.label}>
                   {stat.label}
                 </p>
@@ -250,7 +252,9 @@ export function CityHeader({
           <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
             {countryStats.map((stat) => (
               <div key={stat.label} className="min-w-0">
-                <p className={`text-[11px] font-medium leading-snug truncate ${stat.colorClass}`}>{stat.value}</p>
+                <p className={`text-[11px] font-medium leading-snug truncate ${stat.colorClass}`} title={stat.value}>
+                  {stat.value}
+                </p>
                 <p className="text-[9px] text-ink-500 uppercase tracking-wide leading-snug truncate" title={stat.label}>
                   {stat.label}
                 </p>

@@ -8,7 +8,10 @@ import type { CityExploreData, SectionKey } from "@/lib/types";
 function StatCell({ row, bold = false }: { row: KpiRow; bold?: boolean }) {
   return (
     <div className="min-w-0">
-      <p className={cn("text-xs leading-tight truncate", bold ? "font-semibold" : "font-medium", row.colorClass ?? "text-ink-900")}>
+      <p
+        className={cn("text-xs leading-tight truncate", bold ? "font-semibold" : "font-medium", row.colorClass ?? "text-ink-900")}
+        title={row.valueSuffix ? `${row.value} ${row.valueSuffix}` : row.value}
+      >
         {row.value}
         {row.valueSuffix && <span className="text-[10px] font-normal ml-1">{row.valueSuffix}</span>}
       </p>

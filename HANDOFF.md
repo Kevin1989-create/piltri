@@ -2036,6 +2036,10 @@ User: "inside each category + resource, I can see the space between fields is no
 
 Fixed by truncating every stat label to exactly 1 line (`truncate`, both the value line and the label line) in `SectionDetail.tsx`'s `StatCell` and `CityHeader.tsx`'s 2 Demographics grids - confirmed live: every cell in a Quality of Life row now measures identically 28px tall, where before "Distance to capital city" wrapped to 40px against neighbours at 28px. The full untruncated text is still available via the native `title` tooltip on hover, falling back to the label itself when a row has no dedicated `hint`. Resources (`ResourcesDetail.tsx`) deliberately left untouched - it's a single-column flex list, not a multi-column grid, so it was never susceptible to this specific bug (confirmed by measurement, not assumption).
 
+## Truncated value lines now also show a hover tooltip (2026-09-26, later same session)
+
+Follow-up to the previous entry's truncation fix - the label line already had a `title` tooltip, but the VALUE line (top row of each stat cell) truncated too without one, so a cut-off value had no way to reveal its full text on hover. Added `title` to the value `<p>` in `SectionDetail.tsx`'s `StatCell` (value + valueSuffix combined) and both of `CityHeader.tsx`'s Demographics grids.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header
