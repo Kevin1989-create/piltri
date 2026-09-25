@@ -281,6 +281,39 @@ export const CRITERIA: CriterionDef[] = [
     suggestedRange: [0, 12],
     getCityValue: (d) => d.climate.avgAnnualUvIndexMax,
   },
+  {
+    key: "climate.earthquakeCount50yr",
+    category: "climate",
+    label: "Seismic activity (M5+ quakes since 1970)",
+    kind: "range",
+    suggestedRange: [0, 100],
+    getCityValue: (d) => d.climate.earthquakeCount50yr,
+  },
+  {
+    key: "climate.distanceToVolcanoKm",
+    category: "climate",
+    label: "Distance to volcano",
+    unit: "km",
+    kind: "range",
+    suggestedRange: [0, 100],
+    getCityValue: (d) => d.climate.distanceToVolcanoKm,
+  },
+  {
+    key: "climate.coastalFloodExposure",
+    category: "climate",
+    label: "Coastal flood exposure",
+    kind: "select",
+    selectOptions: ["Low", "Moderate", "High"],
+    getCityValue: (d) => d.climate.coastalFloodExposure,
+  },
+  {
+    key: "climate.climateReadinessScore",
+    category: "climate",
+    label: "Climate change readiness (ND-GAIN)",
+    kind: "range",
+    suggestedRange: [0, 100],
+    getCityValue: (d) => d.climate.climateReadinessScore,
+  },
 
   // ---- Quality of Life --------------------------------------------------------
   {

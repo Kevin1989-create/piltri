@@ -8,6 +8,8 @@ import { getHealthcareQualityScore } from "@/lib/data-sources/who";
 import { getCityPopulationAndArea } from "@/lib/data-sources/wikidata";
 import { toIso3 } from "@/lib/data-sources/country-codes";
 import { distanceToCapitalKm } from "@/lib/data-sources/capitals";
+import { getEarthquakeCount } from "@/lib/data-sources/usgs";
+import { getClimateReadiness } from "@/lib/data-sources/climateReadiness";
 import { memoize } from "./memoryCache";
 import { averageScores, computePiltriScore, normalise } from "./scoring";
 import type { CityExploreData, CitySearchResult } from "@/lib/types";
@@ -117,7 +119,8 @@ export async function aggregateCityData(
   const wikidataChecked = opts.wikidataChecked ?? false;
   const iso3 = toIso3(city.countryCode);
 
-  const [wb, languages, climate, overpassData, healthcare, cityDemo, koppenCode, beach, mountain, forest, airQuality] = await Promise.all([
+  const [wb, languages, climate, overpassData, healthcare, cityDemo, koppenCode, beach, mountain, forest, airQuality, earthquakeCount, volcano] =
+    await Promise.all([
     safely(() => memoize(`wb:${city.countryCode}`, COUNTRY_LEVEL_TTL_MS, () => getWorldBankIndicators(city.countryCode)), null),
     safely(() => getCountryLanguages(city.countryCode), { officialLanguages: [], mostWidelySpokenLanguage: "Unknown" }),
     safely(() => getClimateAverages(city.lat, city.lng), null),
@@ -147,6 +150,11 @@ export async function aggregateCityData(
       null
     ),
     safely(() => getAirQualityAverages(city.lat, city.lng), null),
+    safely(() => getEarthquakeCount(city.lat, city.lng), null),
+    safely(
+      () => withTimeout(nearestFeatureWithDetails(city.lat, city.lng, '"natural"="volcano"', 100000), FAR_LOOKUP_TIMEOUT_MS, null),
+      null
+    ),
   ]);
 
   const transportPresence = overpassData?.transport ?? { hasTrainStation: false, hasSubway: false, hasTramway: false, hasAirport: false };
@@ -175,6 +183,25 @@ export async function aggregateCityData(
   // read as artificially "sparse" purely from the country's size, nothing
   // to do with the city itself).
   const per10k = (count: number) => (bestEffortPopulation > 0 ? Number(((count / bestEffortPopulation) * 10000).toFixed(2)) : 0);
+
+  // Coastal flood exposure - a disclosed, simple PROXY (elevation + real
+  // coastline distance), not a scientific flood model - see
+  // ClimateFields.coastalFloodExposure's own comment in lib/types.ts for
+  // why. Only computed when BOTH inputs genuinely resolved - a landlocked
+  // city that's simply far from any coast (beach search exhausted all
+  // tiers, found nothing) is honestly "Low", but a beach lookup that
+  // timed out (see withTimeout above) must never silently read the same
+  // way, so this stays null rather than guess "Low" for a real unknown.
+  const elevationForFloodCheck = climate?.elevationM;
+  const beachKmForFloodCheck = beach?.km;
+  const coastalFloodExposure: "High" | "Moderate" | "Low" | null =
+    elevationForFloodCheck == null || beachKmForFloodCheck == null
+      ? null
+      : elevationForFloodCheck <= 5 && beachKmForFloodCheck <= 2
+        ? "High"
+        : elevationForFloodCheck <= 15 && beachKmForFloodCheck <= 10
+          ? "Moderate"
+          : "Low";
 
   // Cost of living: World Bank's real Price Level Index, normalised onto
   // the same 0-100 "index" scale the UI has always shown (see
@@ -246,6 +273,10 @@ export async function aggregateCityData(
       elevationM: climate?.elevationM ?? null,
       avgAnnualPm25: airQuality?.avgAnnualPm25 ?? null,
       avgAnnualUvIndexMax: airQuality?.avgAnnualUvIndexMax ?? null,
+      earthquakeCount50yr: earthquakeCount,
+      distanceToVolcanoKm: volcano?.km != null ? Number(volcano.km.toFixed(1)) : null,
+      coastalFloodExposure,
+      climateReadinessScore: getClimateReadiness(city.countryCode)?.gainScore ?? null,
     },
     liveability: {
       restaurantsBarsDensityPer10k: overpassData ? per10k(overpassData.raw.restaurantsBars) : 0,

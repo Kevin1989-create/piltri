@@ -104,6 +104,16 @@ const COLOR_RANGES = {
   // disagree with either centre, happy to flip on request.
   humidityDistanceFromIdeal: { min: 0, max: 50 }, // ideal centre: 50%
   uvIndexDistanceFromIdeal: { min: 0, max: 8 }, // ideal centre: 3
+  // Real, verifiable USGS counts, not a modelled score - most places have
+  // 0-5 M5+ quakes within 200km since 1970; genuinely active zones (Tokyo,
+  // Jakarta) run into the hundreds. 100 as the ceiling separates those
+  // extremes without clamping every moderate-risk city to 0.
+  earthquakeCount50yr: { min: 0, max: 100 },
+  // Farther from a volcano reads as safer, not closer - no "invert" flag
+  // needed here (unlike earthquakeCount above), the raw distance itself
+  // is already the "good" direction. 50km covers most cities' realistic
+  // range; a handful within a few km of an active volcano are the extreme.
+  distanceToVolcanoKm: { min: 0, max: 50 },
 };
 
 export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
@@ -329,6 +339,50 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
                 )
               ),
               hint: "Average of each day's peak UV index over the trailing year",
+            }
+          : null,
+        c.earthquakeCount50yr != null
+          ? {
+              label: "Seismic activity",
+              value: `${c.earthquakeCount50yr} quakes (M5+)`,
+              precision: "pinned",
+              colorClass: tierColorClass(
+                normalise(c.earthquakeCount50yr, COLOR_RANGES.earthquakeCount50yr.min, COLOR_RANGES.earthquakeCount50yr.max, true)
+              ),
+              hint: "USGS: magnitude-5+ earthquakes within 200km since 1970 — a real historical count, not a modelled risk score",
+            }
+          : null,
+        c.distanceToVolcanoKm != null
+          ? {
+              label: "Distance to volcano",
+              value: formatDistanceKm(c.distanceToVolcanoKm, prefs),
+              precision: "pinned",
+              colorClass: tierColorClass(
+                normalise(c.distanceToVolcanoKm, COLOR_RANGES.distanceToVolcanoKm.min, COLOR_RANGES.distanceToVolcanoKm.max)
+              ),
+            }
+          : null,
+        c.coastalFloodExposure
+          ? {
+              label: "Coastal flood exposure",
+              value: c.coastalFloodExposure,
+              precision: "pinned",
+              colorClass:
+                c.coastalFloodExposure === "Low"
+                  ? "text-score-strong"
+                  : c.coastalFloodExposure === "Moderate"
+                    ? "text-score-moderate"
+                    : "text-score-weak",
+              hint: "A simple proxy (elevation + coastline distance), not a real flood model — see the app's data notes",
+            }
+          : null,
+        c.climateReadinessScore != null
+          ? {
+              label: "Climate change readiness",
+              value: `${c.climateReadinessScore}`,
+              precision: "country",
+              colorClass: tierColorClass(c.climateReadinessScore),
+              hint: "Notre Dame Global Adaptation Initiative (ND-GAIN) — country-level readiness + resilience, 0-100, higher is better",
             }
           : null,
       ];

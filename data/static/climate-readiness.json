@@ -1,0 +1,937 @@
+{
+  "AF": {
+    "gainScore": 33,
+    "readinessScore": 0.272,
+    "vulnerabilityScore": 0.612
+  },
+  "AL": {
+    "gainScore": 52.6,
+    "readinessScore": 0.468,
+    "vulnerabilityScore": 0.416
+  },
+  "DZ": {
+    "gainScore": 47.4,
+    "readinessScore": 0.378,
+    "vulnerabilityScore": 0.43
+  },
+  "AD": {
+    "gainScore": 63,
+    "readinessScore": 0.611,
+    "vulnerabilityScore": 0.351
+  },
+  "AO": {
+    "gainScore": 36.4,
+    "readinessScore": 0.257,
+    "vulnerabilityScore": 0.528
+  },
+  "AG": {
+    "gainScore": 47.8,
+    "readinessScore": 0.441,
+    "vulnerabilityScore": 0.485
+  },
+  "AR": {
+    "gainScore": 50.4,
+    "readinessScore": 0.415,
+    "vulnerabilityScore": 0.408
+  },
+  "AM": {
+    "gainScore": 53.2,
+    "readinessScore": 0.457,
+    "vulnerabilityScore": 0.394
+  },
+  "AU": {
+    "gainScore": 67.9,
+    "readinessScore": 0.658,
+    "vulnerabilityScore": 0.3
+  },
+  "AT": {
+    "gainScore": 67.8,
+    "readinessScore": 0.679,
+    "vulnerabilityScore": 0.323
+  },
+  "AZ": {
+    "gainScore": 50.1,
+    "readinessScore": 0.43,
+    "vulnerabilityScore": 0.428
+  },
+  "BS": {
+    "gainScore": 48.7,
+    "readinessScore": 0.422,
+    "vulnerabilityScore": 0.447
+  },
+  "BH": {
+    "gainScore": 48.3,
+    "readinessScore": 0.466,
+    "vulnerabilityScore": 0.499
+  },
+  "BD": {
+    "gainScore": 37,
+    "readinessScore": 0.284,
+    "vulnerabilityScore": 0.544
+  },
+  "BB": {
+    "gainScore": 58.6,
+    "readinessScore": 0.569,
+    "vulnerabilityScore": 0.397
+  },
+  "BY": {
+    "gainScore": 54,
+    "readinessScore": 0.434,
+    "vulnerabilityScore": 0.355
+  },
+  "BE": {
+    "gainScore": 62,
+    "readinessScore": 0.605,
+    "vulnerabilityScore": 0.366
+  },
+  "BZ": {
+    "gainScore": 44.2,
+    "readinessScore": 0.366,
+    "vulnerabilityScore": 0.483
+  },
+  "BJ": {
+    "gainScore": 39.4,
+    "readinessScore": 0.372,
+    "vulnerabilityScore": 0.584
+  },
+  "BT": {
+    "gainScore": 44.3,
+    "readinessScore": 0.414,
+    "vulnerabilityScore": 0.528
+  },
+  "BO": {
+    "gainScore": 43.2,
+    "readinessScore": 0.318,
+    "vulnerabilityScore": 0.453
+  },
+  "BA": {
+    "gainScore": 50,
+    "readinessScore": 0.38,
+    "vulnerabilityScore": 0.38
+  },
+  "BW": {
+    "gainScore": 45,
+    "readinessScore": 0.384,
+    "vulnerabilityScore": 0.484
+  },
+  "BR": {
+    "gainScore": 50.7,
+    "readinessScore": 0.381,
+    "vulnerabilityScore": 0.366
+  },
+  "BN": {
+    "gainScore": 49.6,
+    "readinessScore": 0.417,
+    "vulnerabilityScore": 0.424
+  },
+  "BG": {
+    "gainScore": 56.3,
+    "readinessScore": 0.486,
+    "vulnerabilityScore": 0.361
+  },
+  "BF": {
+    "gainScore": 37.4,
+    "readinessScore": 0.27,
+    "vulnerabilityScore": 0.523
+  },
+  "BI": {
+    "gainScore": 32,
+    "readinessScore": 0.25,
+    "vulnerabilityScore": 0.61
+  },
+  "KH": {
+    "gainScore": 42.4,
+    "readinessScore": 0.321,
+    "vulnerabilityScore": 0.472
+  },
+  "CM": {
+    "gainScore": 39.9,
+    "readinessScore": 0.276,
+    "vulnerabilityScore": 0.478
+  },
+  "CA": {
+    "gainScore": 68,
+    "readinessScore": 0.643,
+    "vulnerabilityScore": 0.282
+  },
+  "CV": {
+    "gainScore": 45.1,
+    "readinessScore": 0.381,
+    "vulnerabilityScore": 0.478
+  },
+  "CF": {
+    "gainScore": 27.4,
+    "readinessScore": 0.137,
+    "vulnerabilityScore": 0.588
+  },
+  "TD": {
+    "gainScore": 26.4,
+    "readinessScore": 0.166,
+    "vulnerabilityScore": 0.638
+  },
+  "CL": {
+    "gainScore": 60.1,
+    "readinessScore": 0.548,
+    "vulnerabilityScore": 0.347
+  },
+  "CN": {
+    "gainScore": 53,
+    "readinessScore": 0.455,
+    "vulnerabilityScore": 0.394
+  },
+  "CO": {
+    "gainScore": 50.5,
+    "readinessScore": 0.416,
+    "vulnerabilityScore": 0.407
+  },
+  "KM": {
+    "gainScore": 38.5,
+    "readinessScore": 0.259,
+    "vulnerabilityScore": 0.49
+  },
+  "CG": {
+    "gainScore": 33.7,
+    "readinessScore": 0.224,
+    "vulnerabilityScore": 0.549
+  },
+  "CD": {
+    "gainScore": 30.5,
+    "readinessScore": 0.181,
+    "vulnerabilityScore": 0.571
+  },
+  "CR": {
+    "gainScore": 54.5,
+    "readinessScore": 0.477,
+    "vulnerabilityScore": 0.387
+  },
+  "CI": {
+    "gainScore": 41,
+    "readinessScore": 0.307,
+    "vulnerabilityScore": 0.488
+  },
+  "HR": {
+    "gainScore": 57.1,
+    "readinessScore": 0.542,
+    "vulnerabilityScore": 0.399
+  },
+  "CU": {
+    "gainScore": 43.4,
+    "readinessScore": 0.326,
+    "vulnerabilityScore": 0.457
+  },
+  "CY": {
+    "gainScore": 57.5,
+    "readinessScore": 0.504,
+    "vulnerabilityScore": 0.355
+  },
+  "CZ": {
+    "gainScore": 65.1,
+    "readinessScore": 0.607,
+    "vulnerabilityScore": 0.305
+  },
+  "DK": {
+    "gainScore": 68.3,
+    "readinessScore": 0.707,
+    "vulnerabilityScore": 0.342
+  },
+  "DJ": {
+    "gainScore": 36.4,
+    "readinessScore": 0.327,
+    "vulnerabilityScore": 0.598
+  },
+  "DM": {
+    "gainScore": 58.5,
+    "readinessScore": 0.612,
+    "vulnerabilityScore": 0.442
+  },
+  "DO": {
+    "gainScore": 46.7,
+    "readinessScore": 0.405,
+    "vulnerabilityScore": 0.47
+  },
+  "EC": {
+    "gainScore": 43.6,
+    "readinessScore": 0.348,
+    "vulnerabilityScore": 0.476
+  },
+  "EG": {
+    "gainScore": 45.4,
+    "readinessScore": 0.377,
+    "vulnerabilityScore": 0.469
+  },
+  "SV": {
+    "gainScore": 43.8,
+    "readinessScore": 0.328,
+    "vulnerabilityScore": 0.452
+  },
+  "GQ": {
+    "gainScore": 35.6,
+    "readinessScore": 0.161,
+    "vulnerabilityScore": 0.45
+  },
+  "ER": {
+    "gainScore": 27.4,
+    "readinessScore": 0.176,
+    "vulnerabilityScore": 0.629
+  },
+  "EE": {
+    "gainScore": 62.4,
+    "readinessScore": 0.609,
+    "vulnerabilityScore": 0.361
+  },
+  "ET": {
+    "gainScore": 37.7,
+    "readinessScore": 0.262,
+    "vulnerabilityScore": 0.508
+  },
+  "FJ": {
+    "gainScore": 47.5,
+    "readinessScore": 0.438,
+    "vulnerabilityScore": 0.489
+  },
+  "FI": {
+    "gainScore": 71.1,
+    "readinessScore": 0.727,
+    "vulnerabilityScore": 0.306
+  },
+  "FR": {
+    "gainScore": 65.9,
+    "readinessScore": 0.639,
+    "vulnerabilityScore": 0.321
+  },
+  "GA": {
+    "gainScore": 42.6,
+    "readinessScore": 0.302,
+    "vulnerabilityScore": 0.45
+  },
+  "GM": {
+    "gainScore": 36.1,
+    "readinessScore": 0.273,
+    "vulnerabilityScore": 0.551
+  },
+  "GE": {
+    "gainScore": 55.3,
+    "readinessScore": 0.519,
+    "vulnerabilityScore": 0.413
+  },
+  "DE": {
+    "gainScore": 69.2,
+    "readinessScore": 0.68,
+    "vulnerabilityScore": 0.296
+  },
+  "GH": {
+    "gainScore": 45.1,
+    "readinessScore": 0.357,
+    "vulnerabilityScore": 0.455
+  },
+  "GR": {
+    "gainScore": 60.4,
+    "readinessScore": 0.564,
+    "vulnerabilityScore": 0.356
+  },
+  "GD": {
+    "gainScore": 55.2,
+    "readinessScore": 0.528,
+    "vulnerabilityScore": 0.425
+  },
+  "GT": {
+    "gainScore": 43.6,
+    "readinessScore": 0.328,
+    "vulnerabilityScore": 0.455
+  },
+  "GN": {
+    "gainScore": 40.7,
+    "readinessScore": 0.288,
+    "vulnerabilityScore": 0.474
+  },
+  "GW": {
+    "gainScore": 32.7,
+    "readinessScore": 0.276,
+    "vulnerabilityScore": 0.622
+  },
+  "GY": {
+    "gainScore": 45.9,
+    "readinessScore": 0.385,
+    "vulnerabilityScore": 0.467
+  },
+  "HT": {
+    "gainScore": 33.3,
+    "readinessScore": 0.2,
+    "vulnerabilityScore": 0.534
+  },
+  "HN": {
+    "gainScore": 41.3,
+    "readinessScore": 0.298,
+    "vulnerabilityScore": 0.471
+  },
+  "HU": {
+    "gainScore": 57.4,
+    "readinessScore": 0.529,
+    "vulnerabilityScore": 0.38
+  },
+  "IS": {
+    "gainScore": 64.7,
+    "readinessScore": 0.609,
+    "vulnerabilityScore": 0.315
+  },
+  "IN": {
+    "gainScore": 44.4,
+    "readinessScore": 0.362,
+    "vulnerabilityScore": 0.475
+  },
+  "ID": {
+    "gainScore": 48.3,
+    "readinessScore": 0.398,
+    "vulnerabilityScore": 0.431
+  },
+  "IR": {
+    "gainScore": 47.8,
+    "readinessScore": 0.384,
+    "vulnerabilityScore": 0.428
+  },
+  "IQ": {
+    "gainScore": 35.6,
+    "readinessScore": 0.21,
+    "vulnerabilityScore": 0.497
+  },
+  "IE": {
+    "gainScore": 64.4,
+    "readinessScore": 0.605,
+    "vulnerabilityScore": 0.317
+  },
+  "IL": {
+    "gainScore": 59.8,
+    "readinessScore": 0.54,
+    "vulnerabilityScore": 0.344
+  },
+  "IT": {
+    "gainScore": 62.2,
+    "readinessScore": 0.601,
+    "vulnerabilityScore": 0.357
+  },
+  "JM": {
+    "gainScore": 47.5,
+    "readinessScore": 0.402,
+    "vulnerabilityScore": 0.451
+  },
+  "JP": {
+    "gainScore": 65.7,
+    "readinessScore": 0.667,
+    "vulnerabilityScore": 0.353
+  },
+  "JO": {
+    "gainScore": 49.9,
+    "readinessScore": 0.427,
+    "vulnerabilityScore": 0.429
+  },
+  "KZ": {
+    "gainScore": 56.4,
+    "readinessScore": 0.484,
+    "vulnerabilityScore": 0.355
+  },
+  "KE": {
+    "gainScore": 39.3,
+    "readinessScore": 0.268,
+    "vulnerabilityScore": 0.482
+  },
+  "KI": {
+    "gainScore": 42.3,
+    "readinessScore": 0.373,
+    "vulnerabilityScore": 0.528
+  },
+  "KP": {
+    "gainScore": 43.4,
+    "readinessScore": 0.38,
+    "vulnerabilityScore": 0.513
+  },
+  "KR": {
+    "gainScore": 68.4,
+    "readinessScore": 0.724,
+    "vulnerabilityScore": 0.356
+  },
+  "KW": {
+    "gainScore": 49.2,
+    "readinessScore": 0.418,
+    "vulnerabilityScore": 0.435
+  },
+  "KG": {
+    "gainScore": 51.4,
+    "readinessScore": 0.372,
+    "vulnerabilityScore": 0.344
+  },
+  "LA": {
+    "gainScore": 42.4,
+    "readinessScore": 0.299,
+    "vulnerabilityScore": 0.452
+  },
+  "LV": {
+    "gainScore": 60.1,
+    "readinessScore": 0.589,
+    "vulnerabilityScore": 0.387
+  },
+  "LB": {
+    "gainScore": 43.7,
+    "readinessScore": 0.33,
+    "vulnerabilityScore": 0.455
+  },
+  "LS": {
+    "gainScore": 38.4,
+    "readinessScore": 0.274,
+    "vulnerabilityScore": 0.507
+  },
+  "LR": {
+    "gainScore": 35.7,
+    "readinessScore": 0.296,
+    "vulnerabilityScore": 0.582
+  },
+  "LY": {
+    "gainScore": 40,
+    "readinessScore": 0.29,
+    "vulnerabilityScore": 0.49
+  },
+  "LT": {
+    "gainScore": 60.2,
+    "readinessScore": 0.579,
+    "vulnerabilityScore": 0.374
+  },
+  "LU": {
+    "gainScore": 66,
+    "readinessScore": 0.661,
+    "vulnerabilityScore": 0.341
+  },
+  "MK": {
+    "gainScore": 52.4,
+    "readinessScore": 0.459,
+    "vulnerabilityScore": 0.41
+  },
+  "MG": {
+    "gainScore": 35,
+    "readinessScore": 0.25,
+    "vulnerabilityScore": 0.55
+  },
+  "MW": {
+    "gainScore": 35.7,
+    "readinessScore": 0.281,
+    "vulnerabilityScore": 0.567
+  },
+  "MY": {
+    "gainScore": 55,
+    "readinessScore": 0.465,
+    "vulnerabilityScore": 0.365
+  },
+  "MV": {
+    "gainScore": 43.6,
+    "readinessScore": 0.405,
+    "vulnerabilityScore": 0.534
+  },
+  "ML": {
+    "gainScore": 34.1,
+    "readinessScore": 0.266,
+    "vulnerabilityScore": 0.585
+  },
+  "MT": {
+    "gainScore": 56.8,
+    "readinessScore": 0.487,
+    "vulnerabilityScore": 0.351
+  },
+  "MH": {
+    "gainScore": 46.1,
+    "readinessScore": 0.42,
+    "vulnerabilityScore": 0.499
+  },
+  "MR": {
+    "gainScore": 31.9,
+    "readinessScore": 0.293,
+    "vulnerabilityScore": 0.655
+  },
+  "MU": {
+    "gainScore": 51.2,
+    "readinessScore": 0.478,
+    "vulnerabilityScore": 0.455
+  },
+  "MX": {
+    "gainScore": 47.6,
+    "readinessScore": 0.364,
+    "vulnerabilityScore": 0.412
+  },
+  "FM": {
+    "gainScore": 36.6,
+    "readinessScore": 0.354,
+    "vulnerabilityScore": 0.622
+  },
+  "MD": {
+    "gainScore": 51.7,
+    "readinessScore": 0.483,
+    "vulnerabilityScore": 0.449
+  },
+  "MC": {
+    "gainScore": 66.2,
+    "readinessScore": 0.715,
+    "vulnerabilityScore": 0.39
+  },
+  "MN": {
+    "gainScore": 49.7,
+    "readinessScore": 0.39,
+    "vulnerabilityScore": 0.396
+  },
+  "ME": {
+    "gainScore": 52.1,
+    "readinessScore": 0.463,
+    "vulnerabilityScore": 0.421
+  },
+  "MA": {
+    "gainScore": 47.7,
+    "readinessScore": 0.403,
+    "vulnerabilityScore": 0.45
+  },
+  "MZ": {
+    "gainScore": 36.1,
+    "readinessScore": 0.234,
+    "vulnerabilityScore": 0.511
+  },
+  "MM": {
+    "gainScore": 36.5,
+    "readinessScore": 0.217,
+    "vulnerabilityScore": 0.488
+  },
+  "NA": {
+    "gainScore": 41.9,
+    "readinessScore": 0.348,
+    "vulnerabilityScore": 0.511
+  },
+  "NR": {
+    "gainScore": 53.4,
+    "readinessScore": 0.571,
+    "vulnerabilityScore": 0.502
+  },
+  "NP": {
+    "gainScore": 41.1,
+    "readinessScore": 0.327,
+    "vulnerabilityScore": 0.504
+  },
+  "NL": {
+    "gainScore": 64.4,
+    "readinessScore": 0.659,
+    "vulnerabilityScore": 0.371
+  },
+  "NZ": {
+    "gainScore": 66.2,
+    "readinessScore": 0.622,
+    "vulnerabilityScore": 0.297
+  },
+  "NI": {
+    "gainScore": 44.1,
+    "readinessScore": 0.305,
+    "vulnerabilityScore": 0.423
+  },
+  "NE": {
+    "gainScore": 35.4,
+    "readinessScore": 0.295,
+    "vulnerabilityScore": 0.587
+  },
+  "NG": {
+    "gainScore": 37.6,
+    "readinessScore": 0.242,
+    "vulnerabilityScore": 0.49
+  },
+  "NO": {
+    "gainScore": 71.8,
+    "readinessScore": 0.7,
+    "vulnerabilityScore": 0.263
+  },
+  "OM": {
+    "gainScore": 49.3,
+    "readinessScore": 0.436,
+    "vulnerabilityScore": 0.45
+  },
+  "PK": {
+    "gainScore": 39.3,
+    "readinessScore": 0.31,
+    "vulnerabilityScore": 0.525
+  },
+  "PW": {
+    "gainScore": 55,
+    "readinessScore": 0.582,
+    "vulnerabilityScore": 0.482
+  },
+  "PA": {
+    "gainScore": 47.5,
+    "readinessScore": 0.378,
+    "vulnerabilityScore": 0.428
+  },
+  "PG": {
+    "gainScore": 33.7,
+    "readinessScore": 0.223,
+    "vulnerabilityScore": 0.549
+  },
+  "PY": {
+    "gainScore": 47.8,
+    "readinessScore": 0.336,
+    "vulnerabilityScore": 0.38
+  },
+  "PE": {
+    "gainScore": 48.3,
+    "readinessScore": 0.383,
+    "vulnerabilityScore": 0.418
+  },
+  "PH": {
+    "gainScore": 47.1,
+    "readinessScore": 0.372,
+    "vulnerabilityScore": 0.43
+  },
+  "PL": {
+    "gainScore": 62.8,
+    "readinessScore": 0.57,
+    "vulnerabilityScore": 0.314
+  },
+  "PT": {
+    "gainScore": 61,
+    "readinessScore": 0.572,
+    "vulnerabilityScore": 0.352
+  },
+  "QA": {
+    "gainScore": 52.2,
+    "readinessScore": 0.462,
+    "vulnerabilityScore": 0.418
+  },
+  "RO": {
+    "gainScore": 56,
+    "readinessScore": 0.518,
+    "vulnerabilityScore": 0.398
+  },
+  "RU": {
+    "gainScore": 56.3,
+    "readinessScore": 0.437,
+    "vulnerabilityScore": 0.31
+  },
+  "RW": {
+    "gainScore": 40.6,
+    "readinessScore": 0.422,
+    "vulnerabilityScore": 0.61
+  },
+  "WS": {
+    "gainScore": 40.1,
+    "readinessScore": 0.34,
+    "vulnerabilityScore": 0.538
+  },
+  "ST": {
+    "gainScore": 41.6,
+    "readinessScore": 0.359,
+    "vulnerabilityScore": 0.527
+  },
+  "SA": {
+    "gainScore": 51.1,
+    "readinessScore": 0.494,
+    "vulnerabilityScore": 0.471
+  },
+  "SN": {
+    "gainScore": 42.3,
+    "readinessScore": 0.376,
+    "vulnerabilityScore": 0.529
+  },
+  "RS": {
+    "gainScore": 50.5,
+    "readinessScore": 0.479,
+    "vulnerabilityScore": 0.47
+  },
+  "SC": {
+    "gainScore": 48.7,
+    "readinessScore": 0.402,
+    "vulnerabilityScore": 0.428
+  },
+  "SL": {
+    "gainScore": 33.2,
+    "readinessScore": 0.266,
+    "vulnerabilityScore": 0.602
+  },
+  "SG": {
+    "gainScore": 68.5,
+    "readinessScore": 0.749,
+    "vulnerabilityScore": 0.379
+  },
+  "SK": {
+    "gainScore": 58.3,
+    "readinessScore": 0.533,
+    "vulnerabilityScore": 0.367
+  },
+  "SI": {
+    "gainScore": 63.2,
+    "readinessScore": 0.607,
+    "vulnerabilityScore": 0.344
+  },
+  "SB": {
+    "gainScore": 38,
+    "readinessScore": 0.382,
+    "vulnerabilityScore": 0.622
+  },
+  "SO": {
+    "gainScore": 27,
+    "readinessScore": 0.178,
+    "vulnerabilityScore": 0.638
+  },
+  "ZA": {
+    "gainScore": 44,
+    "readinessScore": 0.316,
+    "vulnerabilityScore": 0.436
+  },
+  "ES": {
+    "gainScore": 61.7,
+    "readinessScore": 0.557,
+    "vulnerabilityScore": 0.323
+  },
+  "LK": {
+    "gainScore": 45.5,
+    "readinessScore": 0.346,
+    "vulnerabilityScore": 0.436
+  },
+  "SD": {
+    "gainScore": 28.3,
+    "readinessScore": 0.194,
+    "vulnerabilityScore": 0.629
+  },
+  "SR": {
+    "gainScore": 46.4,
+    "readinessScore": 0.37,
+    "vulnerabilityScore": 0.442
+  },
+  "SZ": {
+    "gainScore": 40.9,
+    "readinessScore": 0.301,
+    "vulnerabilityScore": 0.482
+  },
+  "SE": {
+    "gainScore": 67.9,
+    "readinessScore": 0.681,
+    "vulnerabilityScore": 0.323
+  },
+  "CH": {
+    "gainScore": 68.9,
+    "readinessScore": 0.674,
+    "vulnerabilityScore": 0.296
+  },
+  "SY": {
+    "gainScore": 38,
+    "readinessScore": 0.281,
+    "vulnerabilityScore": 0.521
+  },
+  "TJ": {
+    "gainScore": 47.4,
+    "readinessScore": 0.316,
+    "vulnerabilityScore": 0.367
+  },
+  "TZ": {
+    "gainScore": 41.9,
+    "readinessScore": 0.344,
+    "vulnerabilityScore": 0.506
+  },
+  "TH": {
+    "gainScore": 45.4,
+    "readinessScore": 0.351,
+    "vulnerabilityScore": 0.443
+  },
+  "TL": {
+    "gainScore": 37,
+    "readinessScore": 0.286,
+    "vulnerabilityScore": 0.545
+  },
+  "TG": {
+    "gainScore": 42.2,
+    "readinessScore": 0.354,
+    "vulnerabilityScore": 0.509
+  },
+  "TO": {
+    "gainScore": 37.9,
+    "readinessScore": 0.353,
+    "vulnerabilityScore": 0.595
+  },
+  "TT": {
+    "gainScore": 47.1,
+    "readinessScore": 0.327,
+    "vulnerabilityScore": 0.386
+  },
+  "TN": {
+    "gainScore": 45,
+    "readinessScore": 0.34,
+    "vulnerabilityScore": 0.441
+  },
+  "TR": {
+    "gainScore": 53.8,
+    "readinessScore": 0.472,
+    "vulnerabilityScore": 0.396
+  },
+  "TM": {
+    "gainScore": 39.4,
+    "readinessScore": 0.235,
+    "vulnerabilityScore": 0.448
+  },
+  "TV": {
+    "gainScore": 43.9,
+    "readinessScore": 0.45,
+    "vulnerabilityScore": 0.573
+  },
+  "UG": {
+    "gainScore": 35.9,
+    "readinessScore": 0.255,
+    "vulnerabilityScore": 0.536
+  },
+  "UA": {
+    "gainScore": 53.5,
+    "readinessScore": 0.455,
+    "vulnerabilityScore": 0.385
+  },
+  "AE": {
+    "gainScore": 53.7,
+    "readinessScore": 0.49,
+    "vulnerabilityScore": 0.416
+  },
+  "GB": {
+    "gainScore": 68.6,
+    "readinessScore": 0.653,
+    "vulnerabilityScore": 0.282
+  },
+  "US": {
+    "gainScore": 65.7,
+    "readinessScore": 0.632,
+    "vulnerabilityScore": 0.317
+  },
+  "UY": {
+    "gainScore": 54.7,
+    "readinessScore": 0.488,
+    "vulnerabilityScore": 0.394
+  },
+  "UZ": {
+    "gainScore": 52.5,
+    "readinessScore": 0.442,
+    "vulnerabilityScore": 0.393
+  },
+  "VU": {
+    "gainScore": 37.7,
+    "readinessScore": 0.301,
+    "vulnerabilityScore": 0.547
+  },
+  "VE": {
+    "gainScore": 43,
+    "readinessScore": 0.246,
+    "vulnerabilityScore": 0.386
+  },
+  "VN": {
+    "gainScore": 45.9,
+    "readinessScore": 0.417,
+    "vulnerabilityScore": 0.499
+  },
+  "YE": {
+    "gainScore": 31.3,
+    "readinessScore": 0.256,
+    "vulnerabilityScore": 0.629
+  },
+  "ZM": {
+    "gainScore": 39.1,
+    "readinessScore": 0.274,
+    "vulnerabilityScore": 0.492
+  },
+  "ZW": {
+    "gainScore": 35.4,
+    "readinessScore": 0.22,
+    "vulnerabilityScore": 0.511
+  }
+}

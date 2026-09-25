@@ -123,6 +123,10 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
       elevationM: chance(0.95) ? randInt(0, 2500) : null,
       avgAnnualPm25: chance(0.9) ? randFloat(3, 60) : null,
       avgAnnualUvIndexMax: chance(0.9) ? randFloat(2, 11) : null,
+      earthquakeCount50yr: chance(0.95) ? randInt(0, 100) : null,
+      distanceToVolcanoKm: chance(0.7) ? randFloat(1, 50) : null,
+      coastalFloodExposure: chance(0.6) ? (pick(["High", "Moderate", "Low"]) as "High" | "Moderate" | "Low") : null,
+      climateReadinessScore: chance(0.9) ? randFloat(30, 75) : null,
     },
     liveability: {
       restaurantsBarsDensityPer10k,

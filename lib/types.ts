@@ -187,6 +187,38 @@ export interface ClimateFields {
    *  don't guess" convention as distanceToBeachKm etc. above. */
   avgAnnualPm25: number | null;
   avgAnnualUvIndexMax: number | null;
+  /** Count of magnitude-5+ earthquakes within 200km since 1970 (USGS,
+   *  see lib/data-sources/usgs.ts) - a real, verifiable seismic-activity
+   *  count, not a modelled risk score. City-level (computed from exact
+   *  coordinates), globally available. Null only on a genuine fetch
+   *  failure. */
+  earthquakeCount50yr: number | null;
+  /** Straight-line distance to the nearest OSM-tagged volcano
+   *  (`natural=volcano`) - same Overpass pattern and null-means-"no
+   *  resolved answer" convention as LiveabilityFields' distance fields
+   *  (see aggregate.ts's withTimeout comment). Grouped here with
+   *  earthquakeCount50yr as a hazard-exposure fact about the place
+   *  itself, not a "what's nearby" lifestyle amenity - see
+   *  LiveabilityFields' comment for that distinction. */
+  distanceToVolcanoKm: number | null;
+  /** A disclosed, simple PROXY, not a real flood model - genuine coastal
+   *  flood/sea-level-rise exposure needs high-resolution inundation
+   *  mapping (e.g. NOAA Digital Coast, Climate Central) that's real
+   *  geospatial engineering to ingest, not built here. This is just
+   *  elevationM + the same beach/coastline distance used for
+   *  distanceToBeachKm, bucketed into "High" (≤5m elevation, ≤2km from
+   *  coast) / "Moderate" (≤15m, ≤10km) / "Low" (neither). Null (not
+   *  "Low") when either input didn't resolve - a real "far from any
+   *  coast" reads as Low, but an unresolved/timed-out lookup should never
+   *  silently read as "safe". */
+  coastalFloodExposure: "High" | "Moderate" | "Low" | null;
+  /** Notre Dame Global Adaptation Initiative (ND-GAIN) composite score,
+   *  0-100 (higher = more climate-resilient and ready to adapt) - see
+   *  lib/data-sources/climateReadiness.ts. Genuinely, inherently
+   *  country-level (national institutional/economic capacity), not a
+   *  city-data gap - same category as Safety's WGI governance scores.
+   *  Added 2026-09-24 alongside the other 3 hazard fields above. */
+  climateReadinessScore: number | null;
 }
 
 export interface LiveabilityFields {

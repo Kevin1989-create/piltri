@@ -1780,6 +1780,49 @@ rainfall's own disclosed judgment calls. PM2.5 stays a plain monotonic
 "lower is healthier" colour (WHO guideline), not an ideal-centre shape -
 there's no amount of particulate pollution that's "too little".
 
+## 4 hazard/readiness fields: seismic, volcanic, coastal flood proxy, ND-GAIN (2026-09-24, later same session)
+
+User asked to research sea-level-rise exposure, climate-change
+preparedness, and geological risk for Environment. Researched before
+building anything - findings and what shipped:
+
+- **Seismic activity** - real data, not modelled. New file
+  `lib/data-sources/usgs.ts`: USGS's free `/count` endpoint, magnitude-5+
+  earthquakes within 200km since 1970 (a fixed 55-year window - a
+  geological property of the place, not something that should visibly
+  change year to year the way a rolling window would). Verified live:
+  Tokyo 500, Los Angeles 16, London 0 (5 at magnitude-4+) - real,
+  meaningfully differentiated. City-level.
+- **Volcanic risk (distance to nearest volcano)** - turned out not to need
+  a new dataset at all: OSM directly tags volcanoes (`natural=volcano`,
+  even with a `volcano:status` field) - confirmed live via Mt Fuji.
+  Reused the exact same `nearestFeatureWithDetails`/`withTimeout` pattern
+  already built for mountain/forest, just a different tag and a 100km
+  radius (volcanoes are rarer than mountains). City-level.
+- **Coastal flood exposure** - explicitly a PROXY, disclosed as one (see
+  `ClimateFields.coastalFloodExposure`'s comment and its KPI row's hint).
+  A real flood model (NOAA Digital Coast, Climate Central) needs
+  high-resolution inundation mapping - real geospatial engineering, not
+  attempted here. What shipped instead: bucket `elevationM` +
+  `nearestVerifiedBeach`'s own distance (reused, not a second lookup) into
+  High (≤5m elevation, ≤2km from coast) / Moderate (≤15m, ≤10km) / Low.
+  Only computed when BOTH inputs genuinely resolved - null (not "Low")
+  when either is unresolved, since a real "far from any coast" and a
+  timed-out lookup must never look the same. City-level.
+- **Climate change readiness (ND-GAIN)** - genuinely, inherently
+  country-level (national institutional/economic adaptive capacity), not
+  a city-data gap - same category as Safety's WGI scores. New script
+  `scripts/generateClimateReadiness.mjs` downloads Notre Dame's free,
+  annually-updated country index (a zip of CSVs, not a live API - the
+  download link needs browser-like headers, a plain curl gets 403) and
+  writes `data/static/climate-readiness.json` (187 countries). New reader
+  `lib/data-sources/climateReadiness.ts`. Sanity-checked the real numbers
+  before shipping: Norway 71.8 (most ready), UK 68.6, US 65.7, Bangladesh
+  37 (much more vulnerable) - matches well-known reality.
+
+None of the 4 feed the Environment score (descriptive facts, same
+treatment as Köppen/mainEconomyType) - only affects display.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header
