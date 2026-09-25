@@ -2026,6 +2026,10 @@ Three separate requests, all shipped together:
 
 3. **Mobile search-bar centering fix** - `app/explore/page.tsx`'s search block had an unconditional `-mt-12` to visually center against the desktop NavBar's height/whitespace; on a tall phone viewport that overcorrected, pushing the search bar noticeably above true centre with a large empty gap below. Scoped to `sm:-mt-12` (desktop/tablet only) - verified live at 375×812: was sitting in the top third of the viewport, now sits close to true vertical centre.
 
+## Resources: swapped Property and Visa and Immigration section order (2026-09-26, later same session)
+
+`DISPLAYED_RESOURCE_LINK_CATEGORIES` (lib/types.ts) reordered from `["home", "immigration", "jobs"]` to `["immigration", "home", "jobs"]` - Visa and Immigration now renders first, Property second, Jobs still last.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

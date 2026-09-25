@@ -389,7 +389,7 @@ export const RESOURCE_LINK_CATEGORIES: ResourceLinkCategory[] = ["home", "immigr
  *  /admin curation UI both stay intact, same "kept around, not deleted"
  *  treatment as the old marketing home page (see app/home/page.tsx) in
  *  case this section comes back later. */
-export const DISPLAYED_RESOURCE_LINK_CATEGORIES: ResourceLinkCategory[] = ["home", "immigration", "jobs"];
+export const DISPLAYED_RESOURCE_LINK_CATEGORIES: ResourceLinkCategory[] = ["immigration", "home", "jobs"];
 
 /** Display labels only — the underlying category keys (and the
  *  `country_resource_links.category` CHECK constraint in schema.sql) stay
