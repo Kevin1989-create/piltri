@@ -224,11 +224,20 @@ export function CityHeader({
       {cityStats && (
         <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
           <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{cityName}</p>
+          {/* truncate on both lines (2026-09-26, on request - same fix as
+           *  SectionDetail.tsx's StatCell): a longer label like
+           *  "Population trend (5 yr)" wrapping to 2 lines made its whole
+           *  grid row taller than a row of single-line labels, leaving
+           *  uneven blank space below the shorter cells before the next
+           *  row's fixed gap-y-0.5 started - every cell now has the same
+           *  1-line footprint regardless of label length. */}
           <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
             {cityStats.map((stat) => (
               <div key={stat.label} className="min-w-0">
-                <p className={`text-[11px] font-medium leading-snug ${stat.colorClass}`}>{stat.value}</p>
-                <p className="text-[9px] text-ink-500 uppercase tracking-wide leading-snug">{stat.label}</p>
+                <p className={`text-[11px] font-medium leading-snug truncate ${stat.colorClass}`}>{stat.value}</p>
+                <p className="text-[9px] text-ink-500 uppercase tracking-wide leading-snug truncate" title={stat.label}>
+                  {stat.label}
+                </p>
               </div>
             ))}
           </div>
@@ -241,8 +250,10 @@ export function CityHeader({
           <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
             {countryStats.map((stat) => (
               <div key={stat.label} className="min-w-0">
-                <p className={`text-[11px] font-medium leading-snug ${stat.colorClass}`}>{stat.value}</p>
-                <p className="text-[9px] text-ink-500 uppercase tracking-wide leading-snug">{stat.label}</p>
+                <p className={`text-[11px] font-medium leading-snug truncate ${stat.colorClass}`}>{stat.value}</p>
+                <p className="text-[9px] text-ink-500 uppercase tracking-wide leading-snug truncate" title={stat.label}>
+                  {stat.label}
+                </p>
               </div>
             ))}
           </div>

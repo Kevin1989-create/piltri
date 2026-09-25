@@ -8,11 +8,23 @@ import type { CityExploreData, SectionKey } from "@/lib/types";
 function StatCell({ row, bold = false }: { row: KpiRow; bold?: boolean }) {
   return (
     <div className="min-w-0">
-      <p className={cn("text-xs leading-tight", bold ? "font-semibold" : "font-medium", row.colorClass ?? "text-ink-900")}>
+      <p className={cn("text-xs leading-tight truncate", bold ? "font-semibold" : "font-medium", row.colorClass ?? "text-ink-900")}>
         {row.value}
         {row.valueSuffix && <span className="text-[10px] font-normal ml-1">{row.valueSuffix}</span>}
       </p>
-      <p className="text-[10px] text-ink-500 leading-tight" title={row.hint}>
+      {/* truncate to a single line, not the default wrap (2026-09-26, on
+       *  request - "the space between fields is not always the same"): a
+       *  longer label (e.g. "Family & kids activities density") wrapping
+       *  to 2 lines made its whole grid ROW taller than a row of
+       *  single-line labels, which left uneven blank space below the
+       *  shorter cells in that same row before the next row's fixed
+       *  gap-y-3 started - every row's own gap was actually constant, but
+       *  cells of visibly different heights read as inconsistent spacing.
+       *  Every label is now exactly 1 line, so every cell has the same
+       *  footprint - the full text is still available via this same
+       *  native title tooltip on hover, falling back to the label itself
+       *  when a row has no dedicated hint. */}
+      <p className="text-[10px] text-ink-500 leading-tight truncate" title={row.hint ?? row.label}>
         {row.label}
       </p>
     </div>

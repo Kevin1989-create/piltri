@@ -2030,6 +2030,12 @@ Three separate requests, all shipped together:
 
 `DISPLAYED_RESOURCE_LINK_CATEGORIES` (lib/types.ts) reordered from `["home", "immigration", "jobs"]` to `["immigration", "home", "jobs"]` - Visa and Immigration now renders first, Property second, Jobs still last.
 
+## Fixed inconsistent field spacing: root cause was label wrapping, not the gap itself (2026-09-26, later same session)
+
+User: "inside each category + resource, I can see the space between fields is not always the same." Measured precisely via computed DOM rects before touching anything (Resources' own gaps came back exactly consistent - 4.0px between links, 31.0px between categories, both places checked twice) - the real bug was in the KPI stat grids (`SectionDetail.tsx`, `CityHeader.tsx`'s Demographics blocks): a longer label like "Family & kids activities density" or "Population trend (5 yr)" wraps onto 2 lines in a narrow grid column, which makes that entire grid ROW taller than a row where every label fits on 1 line - the `gap-y` between rows was always a constant value, but cells of visibly different heights within the same row read as "the spacing isn't consistent."
+
+Fixed by truncating every stat label to exactly 1 line (`truncate`, both the value line and the label line) in `SectionDetail.tsx`'s `StatCell` and `CityHeader.tsx`'s 2 Demographics grids - confirmed live: every cell in a Quality of Life row now measures identically 28px tall, where before "Distance to capital city" wrapped to 40px against neighbours at 28px. The full untruncated text is still available via the native `title` tooltip on hover, falling back to the label itself when a row has no dedicated `hint`. Resources (`ResourcesDetail.tsx`) deliberately left untouched - it's a single-column flex list, not a multi-column grid, so it was never susceptible to this specific bug (confirmed by measurement, not assumption).
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header
