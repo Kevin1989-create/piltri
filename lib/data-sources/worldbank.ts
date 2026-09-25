@@ -125,6 +125,18 @@ export interface WorldBankIndicators {
   /** Tax revenue, % of GDP (GC.TAX.TOTL.GD.ZS) - a standard, widely-used
    *  measure of a country's overall taxation level. Added 2026-09-25. */
   taxRevenuePctGdp: number | null;
+  /** Life expectancy at birth, years (SP.DYN.LE00.IN) - added 2026-09-26
+   *  as a Quality of Life field that doesn't depend on Overpass (verified
+   *  live: UK 81.4, US 78.9, India 72.2 - globally covered, unlike
+   *  SE.ADT.LITR.ZS literacy rate, which came back empty for both the UK
+   *  and US - most developed countries simply don't report it, so it was
+   *  ruled out despite also being considered). */
+  lifeExpectancyYears: number | null;
+  /** Individuals using the Internet, % of population (IT.NET.USER.ZS) -
+   *  added 2026-09-26 alongside lifeExpectancyYears, same reasoning: a
+   *  real, globally-covered Quality of Life signal from the same API
+   *  already used everywhere else in this file, zero new integration. */
+  internetUsersPct: number | null;
 }
 
 /**
@@ -151,6 +163,8 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     services,
     gdpCurrent,
     taxRevenue,
+    lifeExpectancy,
+    internetUsers,
   ] = await Promise.all([
     fetchIndicator(countryCode, "SP.POP.TOTL"),
     fetchIndicator(countryCode, "EN.POP.DNST"),
@@ -168,6 +182,8 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     fetchIndicator(countryCode, "NV.SRV.TOTL.ZS"),
     fetchIndicator(countryCode, "NY.GDP.MKTP.CD"),
     fetchIndicator(countryCode, "GC.TAX.TOTL.GD.ZS"),
+    fetchIndicator(countryCode, "SP.DYN.LE00.IN"),
+    fetchIndicator(countryCode, "IT.NET.USER.ZS"),
   ]);
 
   return {
@@ -187,6 +203,8 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     gdpSectorRanking: rankGdpSectors(latest(agriculture), latest(industry), latest(services)),
     gdpCurrentUsd: latest(gdpCurrent),
     taxRevenuePctGdp: latest(taxRevenue),
+    lifeExpectancyYears: latest(lifeExpectancy),
+    internetUsersPct: latest(internetUsers),
   };
 }
 

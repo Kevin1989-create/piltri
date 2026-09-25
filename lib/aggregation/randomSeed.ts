@@ -148,6 +148,8 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
       distanceToMountainKm: chance(0.85) ? randFloat(1, 300) : null,
       distanceToForestKm: chance(0.85) ? randFloat(1, 200) : null,
       distanceToCapitalKm: chance(0.97) ? randFloat(0, 1000) : null,
+      lifeExpectancyYears: chance(0.97) ? randFloat(50, 85) : null,
+      internetUsersPct: chance(0.97) ? randFloat(10, 99) : null,
     },
     sectionScores: { economy: 0, safetyStability: 0, climate: 0, liveability: 0 },
     piltriScore: 0,

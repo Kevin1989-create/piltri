@@ -1962,6 +1962,22 @@ User reported "most of the fields aren't working at the moment" in Quality of Li
 
 Given how much of this section leans on one single point of failure (Overpass), also reviewed for new, more reliable Quality of Life data to propose - see the conversation for that writeup (not yet built, pending the user's choice of which to pursue).
 
+## Quality of Life resilience: stale-cache fallback + 2 new World-Bank-only fields (2026-09-26, later same session)
+
+Followed up on the previous entry's proposal with both parts the user asked for:
+
+**A. Cache resilience** - `lib/aggregation/cache.ts`'s `getOrAggregateCityData` now has `preserveStaleOverpassFields()`, called on every stale-cache REFRESH (not a brand-new city). Reasoning: these Overpass-derived facts (restaurant/green-space/cultural/family density, transport presence flags, distance to beach/mountain/forest, plus Environment's distanceToVolcanoKm/coastalFloodExposure/seaLevelRiseExposure) don't actually change on a 30-day timescale - a freshly-null field on a refresh is far more likely to be "Overpass didn't answer this time" than "this city moved". So a null on refresh now falls back field-by-field to whatever the previous cache row had, instead of overwriting up to CACHE_TTL_DAYS of good data with a null the moment Overpass has a bad minute. A genuinely improved/changed value on any field that DID resolve still overwrites as normal - this only fills gaps.
+
+**B. Two new Overpass-independent fields** - added to `LiveabilityFields`/Quality of Life, both from World Bank (same reliable API already powering Economy/Safety, zero new integration):
+- **Life expectancy** (`SP.DYN.LE00.IN`, years)
+- **Internet access** (`IT.NET.USER.ZS`, % of population)
+
+Also considered and rejected: literacy rate (`SE.ADT.LITR.ZS`) - verified live that the UK and US both come back with an empty series (most developed countries simply don't report it), too patchy to be reliable. World Happiness Report (a genuinely good fit) was also considered but needs a heavier one-time CSV ingestion (like ND-GAIN) - not done in this pass, flagged as a possible follow-up.
+
+Both new fields are country-tier, coloured (higher = better), and deliberately NOT fed into the Liveability section score (informational only, same as GDP/GDP world rank/tax revenue in Economy) - adding them to the score would be a scoring-weight decision, not a data-reliability one. Verified live: UK 81.4yrs/95.5% internet, US 78.9yrs/94.7%, India 72.2yrs/70%.
+
+Net effect, verified live during an actual Overpass outage: Quality of Life for London now shows Healthcare quality score, Life expectancy, Internet access, and Distance to capital city - real content instead of an almost-empty card.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

@@ -317,6 +317,16 @@ export interface LiveabilityFields {
   distanceToMountainKm: number | null;
   distanceToForestKm: number | null;
   distanceToCapitalKm: number | null;
+  /** Life expectancy at birth, years (World Bank SP.DYN.LE00.IN) and
+   *  Internet users, % of population (IT.NET.USER.ZS) - added 2026-09-26
+   *  specifically because they're country-level World Bank data (same
+   *  reliable API already powering Economy/Safety), not Overpass - real
+   *  content for this section on days Overpass is down, which the rest of
+   *  it leans on heavily (see this file's own header note on
+   *  hasTrainStation etc. above). Verified live: UK 81.4yrs/95.5%
+   *  internet, US 78.9yrs/94.7%, India 72.2yrs/70% internet. */
+  lifeExpectancyYears: number | null;
+  internetUsersPct: number | null;
 }
 
 /** The 4 SCORED sections. Demographics is deliberately not here — it's

@@ -123,6 +123,12 @@ const COLOR_RANGES = {
   // (see worldbank.ts) - rank 1 is the best possible outcome, hence
   // `invert: true` at the call site rather than swapping min/max here.
   gdpWorldRank: { min: 1, max: 214 },
+  // Real global range is roughly 50-85 years (lowest-ranked countries sit
+  // near 50-55, top of the range ~84-85) - verified live 2026-09-26 (UK
+  // 81.4, US 78.9, India 72.2).
+  lifeExpectancyYears: { min: 50, max: 85 },
+  // 0-100 already, World Bank's own %.
+  internetUsersPct: { min: 0, max: 100 },
 };
 
 export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
@@ -563,6 +569,28 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           precision: "country",
           colorClass: tierColorClass(l.healthcareQualityScore),
         },
+        // World Bank, not Overpass (2026-09-26, added specifically to give
+        // this section real country-level content on days Overpass is
+        // down - see LiveabilityFields' own comment in lib/types.ts).
+        l.lifeExpectancyYears != null
+          ? {
+              label: "Life expectancy",
+              value: `${l.lifeExpectancyYears.toFixed(1)} yrs`,
+              precision: "country",
+              colorClass: tierColorClass(
+                normalise(l.lifeExpectancyYears, COLOR_RANGES.lifeExpectancyYears.min, COLOR_RANGES.lifeExpectancyYears.max)
+              ),
+            }
+          : null,
+        l.internetUsersPct != null
+          ? {
+              label: "Internet access",
+              value: `${l.internetUsersPct.toFixed(1)}%`,
+              precision: "country",
+              colorClass: tierColorClass(normalise(l.internetUsersPct, COLOR_RANGES.internetUsersPct.min, COLOR_RANGES.internetUsersPct.max)),
+              hint: "Share of the population using the Internet (World Bank)",
+            }
+          : null,
         // "What's nearby" distances (2026-09-24, moved here from
         // Environment/Climate on request - proximity reads as a Quality
         // of Life question). Grey, not coloured - no consensus "closer is

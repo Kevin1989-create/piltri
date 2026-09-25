@@ -332,6 +332,8 @@ export async function aggregateCityData(
       distanceToMountainKm: mountain?.km != null ? Number(mountain.km.toFixed(1)) : null,
       distanceToForestKm: forest?.km != null ? Number(forest.km.toFixed(1)) : null,
       distanceToCapitalKm: distanceToCapitalKm(city.lat, city.lng, city.countryCode),
+      lifeExpectancyYears: wb?.lifeExpectancyYears ?? null,
+      internetUsersPct: wb?.internetUsersPct ?? null,
     },
     sectionScores: {
       economy: 0,

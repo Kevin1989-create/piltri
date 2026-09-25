@@ -2,7 +2,55 @@ import { getSupabaseServiceClient } from "@/lib/supabase/server";
 import { aggregateCityData } from "./aggregate";
 import { aggregatePinData } from "./pin";
 import { memoize } from "./memoryCache";
-import type { CityExploreData, CitySearchResult, PinnedLocationData } from "@/lib/types";
+import type { CityExploreData, CitySearchResult, ClimateFields, LiveabilityFields, PinnedLocationData } from "@/lib/types";
+
+// Fields that all come from Overpass (OSM) - the least reliable data
+// source this app calls, and prone to going down for everyone, not just
+// this app, for stretches at a time (see overpass.ts's 3-mirror fallback
+// comment, and the null-vs-false Quality of Life fix in kpiRows.ts/
+// aggregate.ts). Listed here so a stale-cache REFRESH can fall back to the
+// previous cached value instead of overwriting up to CACHE_TTL_DAYS of
+// good data with a null the moment Overpass has a bad minute.
+const OVERPASS_LIVEABILITY_FIELDS: (keyof LiveabilityFields)[] = [
+  "restaurantsBarsDensityPer10k",
+  "greenSpaceScore",
+  "culturalVenuesDensityPer10k",
+  "familyKidsActivitiesDensityPer10k",
+  "hasTrainStation",
+  "hasSubway",
+  "hasTramway",
+  "hasAirport",
+  "distanceToBeachKm",
+  "distanceToMountainKm",
+  "distanceToForestKm",
+];
+const OVERPASS_CLIMATE_FIELDS: (keyof ClimateFields)[] = ["distanceToVolcanoKm", "coastalFloodExposure", "seaLevelRiseExposure"];
+
+/** On a stale-cache refresh, a freshly null Overpass-derived field is far
+ *  more likely to be "Overpass didn't answer this time" than "this city's
+ *  proximity to a beach changed in the last 30 days" - these facts don't
+ *  actually change on that timescale. So: keep the previous cached value
+ *  for any field that resolved before but came back null on this refresh,
+ *  field by field (a genuinely improved/changed value on ANY field that DID
+ *  resolve this time still overwrites the old one as normal - this only
+ *  fills gaps, never blocks a real update). Only called on a genuine
+ *  refresh of an existing row - a brand-new city has nothing to fall back
+ *  to and correctly shows nulls until its own first successful fetch. */
+function preserveStaleOverpassFields(fresh: CityExploreData, existing: CityExploreData): CityExploreData {
+  const liveability = { ...fresh.liveability };
+  for (const key of OVERPASS_LIVEABILITY_FIELDS) {
+    if (liveability[key] == null && existing.liveability[key] != null) {
+      (liveability as any)[key] = existing.liveability[key];
+    }
+  }
+  const climate = { ...fresh.climate };
+  for (const key of OVERPASS_CLIMATE_FIELDS) {
+    if (climate[key] == null && existing.climate[key] != null) {
+      (climate as any)[key] = existing.climate[key];
+    }
+  }
+  return { ...fresh, liveability, climate };
+}
 
 const CACHE_TTL_DAYS = Number(process.env.CACHE_TTL_DAYS ?? 30);
 // Exported so other callers writing into the same in-memory fallback cache
@@ -116,7 +164,7 @@ export async function getOrAggregateCityData(city: CitySearchResult): Promise<Ci
     wikidataCheckedAt = cityRow.wikidata_checked_at as string | null;
   }
 
-  const fresh = await aggregateCityData(
+  let fresh = await aggregateCityData(
     { ...city, cityId },
     {
       osmLandAreaKm2: osmLandAreaKm2 ?? null,
@@ -125,6 +173,9 @@ export async function getOrAggregateCityData(city: CitySearchResult): Promise<Ci
       wikidataAreaKm2: wikidataAreaKm2 ?? null,
     }
   );
+  if (existing?.data) {
+    fresh = preserveStaleOverpassFields(fresh, existing.data as CityExploreData);
+  }
 
   await supabase.from("city_scores").upsert({
     city_id: cityId,
