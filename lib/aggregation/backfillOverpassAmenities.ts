@@ -90,8 +90,20 @@ export async function backfillOverpassAmenities(options: { deadlineMs?: number }
     lat: c.lat,
     lng: c.lng,
   }));
-  for (const rowsChunk of chunk(upsertRows, IN_CLAUSE_CHUNK_SIZE)) {
-    const { error } = await supabase.from("cities").upsert(rowsChunk, { onConflict: "slug", ignoreDuplicates: true });
+  // Parallel (Promise.all), not sequential - at the shortlist's current
+  // ~66,300-city size that's ~221 chunks; a sequential loop here measured
+  // live 2026-09-26 as eating the ENTIRE 30s deadline before a single
+  // city's actual Overpass lookup even started (attempted: 0 on the first
+  // real run) - same class of regression cache.ts's getCachedCityDataBatch
+  // and admin/status already hit and fixed after the shortlist widened
+  // from ~6,300 (see HANDOFF.md), just not yet applied here since this
+  // backfill didn't exist until after that widening.
+  const upsertResults = await Promise.all(
+    chunk(upsertRows, IN_CLAUSE_CHUNK_SIZE).map((rowsChunk) =>
+      supabase.from("cities").upsert(rowsChunk, { onConflict: "slug", ignoreDuplicates: true })
+    )
+  );
+  for (const { error } of upsertResults) {
     if (error) console.error("backfillOverpassAmenities: cities upsert chunk failed:", error);
   }
 

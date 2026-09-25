@@ -2002,6 +2002,12 @@ Directly followed up on "digging" into why Distance to beach/green space/transpo
 
 The stale-cache-fallback resilience fix from 2 entries up and the cache-resilience Overpass field list in `cache.ts` were both extended to cover these 3 new flags automatically.
 
+## Fixed a real bug: all 3 backfills' cities-upsert step was sequential at 66k-city scale (2026-09-26, later same session)
+
+First live run of the new Overpass amenities backfill (previous entry) came back `attempted: 0, remaining: 66295, stoppedReason: "deadline"` - the whole 30s deadline was eaten before a single city's actual Overpass lookup even started. Root cause: the "ensure every shortlisted city has a `cities` row" upsert step (shared code shape across all 3 backfills) looped through ~221 chunks of 300 cities each with a plain sequential `for...await`, not `Promise.all` - fine at the original ~6,300-city shortlist size, but the shortlist widened to ~66,300 cities (2026-09-24 entry above) and nobody had re-run any backfill against it since. Same exact regression class `cache.ts`'s `getCachedCityDataBatch` and `admin/status` already hit and fixed after that widening - just not yet applied to the 3 backfill files, since 2 of them predate the widening and the 3rd (Overpass) was only just built.
+
+Fixed in all 3: `backfillLandArea.ts`, `backfillWikidataPopulation.ts`, `backfillOverpassAmenities.ts` now `Promise.all` their upsert chunks instead of awaiting one at a time.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

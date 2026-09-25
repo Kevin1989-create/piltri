@@ -82,8 +82,18 @@ export async function backfillWikidataPopulation(options: { deadlineMs?: number 
     lat: c.lat,
     lng: c.lng,
   }));
-  for (const rowsChunk of chunk(upsertRows, IN_CLAUSE_CHUNK_SIZE)) {
-    const { error } = await supabase.from("cities").upsert(rowsChunk, { onConflict: "slug", ignoreDuplicates: true });
+  // Parallel (Promise.all), not sequential - at ~221 chunks (the
+  // shortlist's current ~66,300-city size), a sequential loop here can eat
+  // the whole deadline before a single city's real lookup even starts
+  // (confirmed live in backfillOverpassAmenities.ts, same code shape - see
+  // that file's comment) - same fix already applied to cache.ts's
+  // getCachedCityDataBatch and admin/status after the shortlist widened.
+  const upsertResults = await Promise.all(
+    chunk(upsertRows, IN_CLAUSE_CHUNK_SIZE).map((rowsChunk) =>
+      supabase.from("cities").upsert(rowsChunk, { onConflict: "slug", ignoreDuplicates: true })
+    )
+  );
+  for (const { error } of upsertResults) {
     if (error) console.error("backfillWikidataPopulation: cities upsert chunk failed:", error);
   }
 
