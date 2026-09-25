@@ -178,26 +178,23 @@ function ReportContent() {
 
             {ORDER.map((section) => {
               const rows = buildKpiRows(section, data, prefs);
+              // Transport Access + Notable Institutions - folded directly
+              // into the main City group below, no separate "Local
+              // Signals" sub-heading (2026-09-26, on request).
               const localSignalRows = section === "liveability" ? buildLiveabilityTransportRows(data) : null;
               // Split out of the main row list into its own fixed-3-column
               // block, same reasoning and same function as
               // SectionDetail.tsx uses (see buildGdpSectorRows).
               const gdpSectorRows = section === "economy" ? buildGdpSectorRows(data) : null;
-              const { countryRows: allCountryRows, cityRows } = splitKpiRowsByTier(rows);
+              const { countryRows: allCountryRows, cityRows: cityRowsOwn } = splitKpiRowsByTier(rows);
+              const cityRows = localSignalRows ? [...cityRowsOwn, ...localSignalRows] : cityRowsOwn;
               // See SectionDetail.tsx's same split - Economy's first 3
               // country rows (GDP/GDP world rank/Economic growth) lead,
               // GDP sector ranking is spliced in right after, then the
               // remaining country rows.
               const countryRows = section === "economy" ? allCountryRows.slice(0, 3) : allCountryRows;
               const countryRowsAfterSectors = section === "economy" ? allCountryRows.slice(3) : [];
-              // Local Signals is city-tier (pinned to this city's exact
-              // coordinates, same as SectionDetail.tsx's cityExtraBlocks) -
-              // grouped with the City stat grid so it moves together as one
-              // "City" section, ahead of "Country" whenever either has
-              // content.
-              const subBlockTitle = section === "liveability" ? "Local Signals" : null;
-              const subBlockRows = localSignalRows;
-              const cityTierHasContent = cityRows.length > 0 || !!subBlockRows?.length;
+              const cityTierHasContent = cityRows.length > 0;
               return (
                 <section key={section} className="mt-8 break-inside-avoid">
                   <div className="flex items-baseline justify-between border-b border-surface-border pb-1.5">
@@ -206,12 +203,7 @@ function ReportContent() {
                       {Math.round(data.sectionScores[section])}
                     </span>
                   </div>
-                  {cityTierHasContent && (
-                    <>
-                      <ReportGroup title={data.cityName} rows={cityRows} spacing="mt-3" />
-                      {subBlockTitle && <ReportSubBlock title={subBlockTitle} rows={subBlockRows} spacing={cityRows.length > 0 ? "mt-4" : "mt-3"} />}
-                    </>
-                  )}
+                  {cityTierHasContent && <ReportGroup title={data.cityName} rows={cityRows} spacing="mt-3" />}
                   <ReportGroup
                     title={data.country}
                     rows={countryRows}
@@ -301,20 +293,6 @@ function ReportGroup({
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function ReportSubBlock({ title, rows, spacing = "mt-4" }: { title: string; rows: KpiRow[] | null; spacing?: string }) {
-  if (!rows) return null;
-  return (
-    <div className={spacing}>
-      <p className="text-[11px] uppercase tracking-wide text-ink-500 mb-2">{title}</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
-        {rows.map((row) => (
-          <ReportStat key={row.label} label={row.label} value={row.value} colorClass={row.colorClass} hint={row.hint} />
-        ))}
-      </div>
     </div>
   );
 }

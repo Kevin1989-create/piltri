@@ -28,11 +28,21 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+// Snapped to exactly 0 under this threshold (2026-09-26, on request - a
+// search on the capital itself was showing "0.2 km" instead of "0 km"):
+// the searched city's own coordinate (from Mapbox geocoding) and this
+// static table's GeoNames PPLC point are two independent geocodes of the
+// same real-world city centre, so a small sub-km gap between them is
+// noise from that mismatch, not a genuine distance.
+const SAME_CITY_THRESHOLD_KM = 1;
+
 /** Straight-line distance from (lat, lng) to countryCode's national
- *  capital - 0 for a search on the capital city itself, null when
- *  GeoNames has no capital on file for that country code. */
+ *  capital - 0 for a search on the capital city itself (or anywhere within
+ *  SAME_CITY_THRESHOLD_KM of it), null when GeoNames has no capital on
+ *  file for that country code. */
 export function distanceToCapitalKm(lat: number, lng: number, countryCode: string): number | null {
   const capital = CAPITALS[countryCode.toUpperCase()];
   if (!capital) return null;
-  return Number(haversineKm(lat, lng, capital.lat, capital.lng).toFixed(1));
+  const km = haversineKm(lat, lng, capital.lat, capital.lng);
+  return km < SAME_CITY_THRESHOLD_KM ? 0 : Number(km.toFixed(1));
 }

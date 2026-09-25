@@ -513,38 +513,50 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
     }
     case "liveability": {
       const l = data.liveability;
+      // restaurantsBarsDensityPer10k/greenSpaceScore/culturalVenuesDensityPer10k/
+      // familyKidsActivitiesDensityPer10k are one combined Overpass call
+      // (see LiveabilityFields' header comment in lib/types.ts) - omitted,
+      // not shown as a misleading "0", when that call didn't resolve.
       const rows: (KpiRow | null)[] = [
-        {
-          label: "Restaurants & bars density",
-          value: `${l.restaurantsBarsDensityPer10k} / 10k`,
-          precision: "pinned",
-          colorClass: tierColorClass(
-            normalise(l.restaurantsBarsDensityPer10k, COLOR_RANGES.restaurantsBarsPer10k.min, COLOR_RANGES.restaurantsBarsPer10k.max)
-          ),
-        },
-        {
-          label: "Green space score",
-          value: `${l.greenSpaceScore}`,
-          precision: "pinned",
-          colorClass: tierColorClass(l.greenSpaceScore),
-          hint: "Parks & gardens density within 5km of centre, normalised 0-100 - not a literal % of the city's land area",
-        },
-        {
-          label: "Cultural venues density",
-          value: `${l.culturalVenuesDensityPer10k} / 10k`,
-          precision: "pinned",
-          colorClass: tierColorClass(
-            normalise(l.culturalVenuesDensityPer10k, COLOR_RANGES.culturalVenuesPer10k.min, COLOR_RANGES.culturalVenuesPer10k.max)
-          ),
-        },
-        {
-          label: "Family & kids activities density",
-          value: `${l.familyKidsActivitiesDensityPer10k} / 10k`,
-          precision: "pinned",
-          colorClass: tierColorClass(
-            normalise(l.familyKidsActivitiesDensityPer10k, COLOR_RANGES.familyActivitiesPer10k.min, COLOR_RANGES.familyActivitiesPer10k.max)
-          ),
-        },
+        l.restaurantsBarsDensityPer10k != null
+          ? {
+              label: "Restaurants & bars density",
+              value: `${l.restaurantsBarsDensityPer10k} / 10k`,
+              precision: "pinned",
+              colorClass: tierColorClass(
+                normalise(l.restaurantsBarsDensityPer10k, COLOR_RANGES.restaurantsBarsPer10k.min, COLOR_RANGES.restaurantsBarsPer10k.max)
+              ),
+            }
+          : null,
+        l.greenSpaceScore != null
+          ? {
+              label: "Green space score",
+              value: `${l.greenSpaceScore}`,
+              precision: "pinned",
+              colorClass: tierColorClass(l.greenSpaceScore),
+              hint: "Parks & gardens density within 5km of centre, normalised 0-100 - not a literal % of the city's land area",
+            }
+          : null,
+        l.culturalVenuesDensityPer10k != null
+          ? {
+              label: "Cultural venues density",
+              value: `${l.culturalVenuesDensityPer10k} / 10k`,
+              precision: "pinned",
+              colorClass: tierColorClass(
+                normalise(l.culturalVenuesDensityPer10k, COLOR_RANGES.culturalVenuesPer10k.min, COLOR_RANGES.culturalVenuesPer10k.max)
+              ),
+            }
+          : null,
+        l.familyKidsActivitiesDensityPer10k != null
+          ? {
+              label: "Family & kids activities density",
+              value: `${l.familyKidsActivitiesDensityPer10k} / 10k`,
+              precision: "pinned",
+              colorClass: tierColorClass(
+                normalise(l.familyKidsActivitiesDensityPer10k, COLOR_RANGES.familyActivitiesPer10k.min, COLOR_RANGES.familyActivitiesPer10k.max)
+              ),
+            }
+          : null,
         {
           label: "Healthcare quality score",
           value: `${l.healthcareQualityScore}`,
@@ -607,18 +619,30 @@ export function splitKpiRowsByTier(rows: KpiRow[]): { countryRows: KpiRow[]; cit
   };
 }
 
-/** The 4 Overpass-sourced transport presence flags, split out of the main
- *  Liveability row list into their own "Transport Access" sub-block -
- *  keeping the main grid tighter than one flat wall of rows. Coloured
- *  Yes=green/No=red as a simple presence-is-positive read. */
+/** The 4 Overpass-sourced transport presence flags, folded directly into
+ *  the main Liveability City grid (no separate "Local Signals"/"Transport
+ *  Access" sub-heading - 2026-09-26, on request). Coloured Yes=green/
+ *  No=red as a simple presence-is-positive read. Each flag is null, not
+ *  false, when the whole Overpass call didn't resolve (see
+ *  LiveabilityFields' header comment) - omitted rather than shown as a
+ *  misleading "No" for a city Overpass simply couldn't be reached for. */
 export function buildLiveabilityTransportRows(data: CityExploreData): KpiRow[] {
   const l = data.liveability;
-  return [
-    { label: "Train station", value: l.hasTrainStation ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasTrainStation) },
-    { label: "Subway", value: l.hasSubway ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasSubway) },
-    { label: "Tramway", value: l.hasTramway ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasTramway) },
-    { label: "Airport", value: l.hasAirport ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasAirport) },
+  const rows: (KpiRow | null)[] = [
+    l.hasTrainStation != null
+      ? { label: "Train station", value: l.hasTrainStation ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasTrainStation) }
+      : null,
+    l.hasSubway != null
+      ? { label: "Subway", value: l.hasSubway ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasSubway) }
+      : null,
+    l.hasTramway != null
+      ? { label: "Tramway", value: l.hasTramway ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasTramway) }
+      : null,
+    l.hasAirport != null
+      ? { label: "Airport", value: l.hasAirport ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasAirport) }
+      : null,
   ];
+  return rows.filter((r): r is KpiRow => r != null);
 }
 
 /** Economy's country-level GDP-sector ranking (Agriculture/Industry/

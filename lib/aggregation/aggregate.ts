@@ -177,7 +177,7 @@ export async function aggregateCityData(
     safely(() => memoize("gdp-world-ranking", COUNTRY_LEVEL_TTL_MS, () => getGdpWorldRanking()), null),
   ]);
 
-  const transportPresence = overpassData?.transport ?? { hasTrainStation: false, hasSubway: false, hasTramway: false, hasAirport: false };
+  const transportPresence = overpassData?.transport ?? null;
   const mainEconomyType = overpassData ? pickMainEconomyType(overpassData.economySectors) : null;
 
   // Demographics used to silently prefer the city-level Wikidata figure
@@ -317,17 +317,17 @@ export async function aggregateCityData(
       ...getDaylightRange(city.lat),
     },
     liveability: {
-      restaurantsBarsDensityPer10k: overpassData ? per10k(overpassData.raw.restaurantsBars) : 0,
+      restaurantsBarsDensityPer10k: overpassData ? per10k(overpassData.raw.restaurantsBars) : null,
       greenSpaceScore: overpassData
         ? normalise(overpassData.raw.greenSpaceCount, RANGES.greenSpaceCount.min, RANGES.greenSpaceCount.max)
-        : 50,
-      culturalVenuesDensityPer10k: overpassData ? per10k(overpassData.raw.culturalVenues) : 0,
-      familyKidsActivitiesDensityPer10k: overpassData ? per10k(overpassData.raw.familyKidsActivities) : 0,
+        : null,
+      culturalVenuesDensityPer10k: overpassData ? per10k(overpassData.raw.culturalVenues) : null,
+      familyKidsActivitiesDensityPer10k: overpassData ? per10k(overpassData.raw.familyKidsActivities) : null,
       healthcareQualityScore: healthcare ?? 55,
-      hasTrainStation: transportPresence.hasTrainStation,
-      hasSubway: transportPresence.hasSubway,
-      hasTramway: transportPresence.hasTramway,
-      hasAirport: transportPresence.hasAirport,
+      hasTrainStation: transportPresence?.hasTrainStation ?? null,
+      hasSubway: transportPresence?.hasSubway ?? null,
+      hasTramway: transportPresence?.hasTramway ?? null,
+      hasAirport: transportPresence?.hasAirport ?? null,
       distanceToBeachKm: beach?.km != null ? Number(beach.km.toFixed(1)) : null,
       distanceToMountainKm: mountain?.km != null ? Number(mountain.km.toFixed(1)) : null,
       distanceToForestKm: forest?.km != null ? Number(forest.km.toFixed(1)) : null,
@@ -367,11 +367,19 @@ export async function aggregateCityData(
       normalise(data.climate.avgAnnualSunshineHrs, RANGES.sunshineHrs.min, RANGES.sunshineHrs.max),
       normalise(data.climate.avgAnnualSnowfallCm, RANGES.snowfallCm.min, RANGES.snowfallCm.max, true),
     ]),
+    // The 4 Overpass-sourced inputs below can now genuinely be null (see
+    // LiveabilityFields' header comment) - the score still needs *some*
+    // number, so it falls back to the same neutral defaults this file
+    // used unconditionally before that field-level fix (0 for the 3
+    // density counts, 50 - a neutral midpoint, not "good" or "bad" - for
+    // greenSpaceScore, which is already a 0-100 score rather than a raw
+    // count). This fallback is scoring-only and never leaks into what's
+    // actually displayed.
     liveability: averageScores([
-      normalise(data.liveability.restaurantsBarsDensityPer10k, RANGES.restaurantsBarsPer10k.min, RANGES.restaurantsBarsPer10k.max),
-      data.liveability.greenSpaceScore,
-      normalise(data.liveability.culturalVenuesDensityPer10k, RANGES.culturalVenuesPer10k.min, RANGES.culturalVenuesPer10k.max),
-      normalise(data.liveability.familyKidsActivitiesDensityPer10k, RANGES.familyActivitiesPer10k.min, RANGES.familyActivitiesPer10k.max),
+      normalise(data.liveability.restaurantsBarsDensityPer10k ?? 0, RANGES.restaurantsBarsPer10k.min, RANGES.restaurantsBarsPer10k.max),
+      data.liveability.greenSpaceScore ?? 50,
+      normalise(data.liveability.culturalVenuesDensityPer10k ?? 0, RANGES.culturalVenuesPer10k.min, RANGES.culturalVenuesPer10k.max),
+      normalise(data.liveability.familyKidsActivitiesDensityPer10k ?? 0, RANGES.familyActivitiesPer10k.min, RANGES.familyActivitiesPer10k.max),
       data.liveability.healthcareQualityScore,
     ]),
   };

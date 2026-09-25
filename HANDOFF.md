@@ -1950,6 +1950,18 @@ Added `seaLevelRiseExposure: "High" | "Moderate" | "Low" | null` to `ClimateFiel
 
 Both stay null (not "Low") when either input didn't resolve - same "unresolved ≠ safe" convention as every proxy field this session. Wired into `kpiRows.ts` (Low=green/Moderate=amber/High=red, same colour pattern as coastalFloodExposure), `randomSeed.ts` mock, and a new `climate.seaLevelRiseExposure` select criterion in `criteria.ts`.
 
+## Quality of Life: removed "Local Signals" heading, fixed capital-distance rounding, stopped hiding Overpass outages as fake zeros (2026-09-26, later same session)
+
+User reported "most of the fields aren't working at the moment" in Quality of Life. Investigation found 3 separate issues, all fixed:
+
+1. **"Local Signals" sub-heading removed** - read as confusing, not clarifying. Transport Access rows (Train station/Subway/Tramway/Airport) now fold directly into the main City grid in `SectionDetail.tsx` and `report/page.tsx` - no separate labeled sub-block. `ReportSubBlock` (now unused) removed from `report/page.tsx`.
+
+2. **Distance to capital city showed "0.2 km" for London itself, not "0 km"** - the searched city's coordinate (from Mapbox geocoding) and this app's own static GeoNames capital-coordinate table are two independent geocodes of the same real-world point, so a small sub-km gap between them is noise, not a genuine distance. `distanceToCapitalKm` (`lib/data-sources/capitals.ts`) now snaps to exactly 0 under a 1km threshold.
+
+3. **The real "most fields aren't working" cause**: `restaurantsBarsDensityPer10k`/`greenSpaceScore`/`culturalVenuesDensityPer10k`/`familyKidsActivitiesDensityPer10k`/`hasTrainStation`/`hasSubway`/`hasTramway`/`hasAirport` all come from ONE combined Overpass call (`getCityOverpassData`). When that single call fails - which Overpass has been doing on and off all session (see the seismic/coastal-flood/volcano entries above) - these 8 fields were silently defaulting to `0`/`50`/`false` instead of `null`, so a live Overpass outage showed as confidently wrong data ("0 restaurants", "No train station" - for London). Fixed: all 8 fields are now genuinely nullable in `LiveabilityFields` (`lib/types.ts`), default to `null` (not a fake value) in `aggregate.ts` when `overpassData` is null, and are **omitted** from the KPI list in `kpiRows.ts`/`buildLiveabilityTransportRows` rather than rendered as misleading zeros - same "omit, don't guess" convention `distanceToBeachKm` etc. already used. The Liveability section *score* still needs a number to average, so `aggregate.ts`'s score calculation keeps its own internal 0/50 fallback for scoring only - never exposed to what's displayed. Verified live during an actual Overpass outage: Quality of Life for London correctly showed only Healthcare quality score + Distance to capital city (0 km), nothing fabricated.
+
+Given how much of this section leans on one single point of failure (Overpass), also reviewed for new, more reliable Quality of Life data to propose - see the conversation for that writeup (not yet built, pending the user's choice of which to pursue).
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

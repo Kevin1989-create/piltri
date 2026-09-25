@@ -72,10 +72,10 @@ export function SectionDetail({
 }) {
   const { prefs } = useUnitPreferences();
   const rows = buildKpiRows(section, data, prefs);
-  // Transport Access + Notable Institutions merged into one "Local
-  // Signals" sub-block (was 2 separate labeled blocks) - one less header
-  // to squeeze the panel's overall height, since this floating panel has
-  // to share vertical space with a pinned location's info bar below it.
+  // Transport Access + Notable Institutions - folded directly into the
+  // main City grid below, no separate "Local Signals" sub-heading
+  // (2026-09-26, on request - the extra label read as confusing, not
+  // clarifying).
   const localSignalRows = section === "liveability" ? buildLiveabilityTransportRows(data) : null;
   // GDP sector ranking ("1st/2nd/3rd GDP sector") is split out of the main
   // row list and always rendered at a fixed 3 columns (below), not the
@@ -85,7 +85,8 @@ export function SectionDetail({
   const totalItems = rows.length + (localSignalRows?.length ?? 0);
   const cols = totalItems > 6 ? 3 : 2;
 
-  const { countryRows: allCountryRows, cityRows } = splitKpiRowsByTier(rows);
+  const { countryRows: allCountryRows, cityRows: cityRowsOwn } = splitKpiRowsByTier(rows);
+  const cityRows = localSignalRows ? [...cityRowsOwn, ...localSignalRows] : cityRowsOwn;
   // Economy's Country group interleaves GDP sector ranking as its own line
   // right after GDP/GDP world rank/Economic growth (2026-09-25, on request
   // - "second line the 3 GDP sector") rather than always trailing every
@@ -93,25 +94,16 @@ export function SectionDetail({
   // buildKpiRows) and the remainder split around it.
   const countryRows = section === "economy" ? allCountryRows.slice(0, 3) : allCountryRows;
   const countryRowsAfterSectors = section === "economy" ? allCountryRows.slice(3) : [];
-  const cityExtraBlocks = [localSignalRows && { title: "Local Signals", rows: localSignalRows }].filter(
-    (b): b is { title: string; rows: KpiRow[] } => !!b
-  );
 
   const hasCountry = countryRows.length > 0 || !!gdpSectorRows?.length;
-  const hasCity = cityRows.length > 0 || cityExtraBlocks.length > 0;
+  const hasCity = cityRows.length > 0;
 
   return (
     <div className={cn("bg-piltri-amber-tint/40 px-4 py-2.5", bordered && "border-t border-piltri-amber/20")}>
       {hasCity && (
         <div>
           <p className="font-serif font-semibold text-xs text-black leading-tight mb-1">{data.cityName}</p>
-          {cityRows.length > 0 && <StatGrid rows={cityRows} cols={cols} />}
-          {cityExtraBlocks.map((block, i) => (
-            <div key={block.title} className={cn((i > 0 || cityRows.length > 0) && "mt-2 pt-1.5 border-t border-piltri-amber/20")}>
-              <p className="text-[10px] text-ink-500 uppercase tracking-wide mb-1">{block.title}</p>
-              <StatGrid rows={block.rows} cols={cols} bold />
-            </div>
-          ))}
+          <StatGrid rows={cityRows} cols={cols} />
         </div>
       )}
 
