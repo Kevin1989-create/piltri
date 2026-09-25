@@ -1978,6 +1978,14 @@ Both new fields are country-tier, coloured (higher = better), and deliberately N
 
 Net effect, verified live during an actual Overpass outage: Quality of Life for London now shows Healthcare quality score, Life expectancy, Internet access, and Distance to capital city - real content instead of an almost-empty card.
 
+## PISA schooling-quality scores added to Quality of Life AND the score (2026-09-26, later same session)
+
+User asked whether real school-system rankings exist and, if so, to count them in the Piltri Score (not just display them - unlike every other field added this session). They do: **OECD PISA** mean scores (mathematics/reading/science, 15-year-olds), and it's mirrored directly into World Bank's own API (`LO.PISA.MAT`/`LO.PISA.REA`/`LO.PISA.SCI`) - same reliable source already used for Economy/Safety/the other new Quality of Life fields, zero new integration.
+
+Coverage caveat, verified live: only the ~80 countries that actually sit the PISA test have any value (Nigeria/India/South Africa genuinely have none - not a data gap, non-participation) and the latest cycle World Bank has mirrored is **2018** - PISA has run newer 2022 and 2025 cycles, but World Bank hasn't picked those up yet. Still a legitimate, consistent cross-country comparison, just not current-year (flagged to the user as a known limitation of this integration path vs. a heavier direct-OECD ingestion).
+
+Added `pisaMathScore`/`pisaReadingScore`/`pisaScienceScore` to `LiveabilityFields` - shown as 3 separate rows (not a single composite), coloured on a `{min: 350, max: 590}` range matching the real observed global spread. **Unlike GDP/life expectancy/internet access, these DO feed the Liveability section score** (`aggregate.ts`'s new `pisaAverage` - mean of whichever subjects resolved, defaulting to ~470/the OECD-wide average for a non-participating country so non-participation neither rewards nor penalises a score). Verified live: London/UK math 502, reading 504, science 505, Quality of Life score moved 28 -> 34 with PISA included.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

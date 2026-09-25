@@ -67,6 +67,11 @@ const RANGES = {
   rainfallDistanceFromIdeal: { min: 0, max: 1000 }, // ideal centre: 1000mm/yr
   sunshineHrs: { min: 1200, max: 3800 },
   snowfallCm: { min: 0, max: 300 },
+  // OECD PISA mean scores - real observed global spread runs roughly
+  // 350 (lowest-performing participating countries) to 590 (Singapore/
+  // China at the top) - see WorldBankIndicators.pisaMathScore's own
+  // comment for the coverage/recency caveats.
+  pisaScore: { min: 350, max: 590 },
 };
 
 // See withTimeout's comment for why beach/mountain need their own hard
@@ -334,6 +339,9 @@ export async function aggregateCityData(
       distanceToCapitalKm: distanceToCapitalKm(city.lat, city.lng, city.countryCode),
       lifeExpectancyYears: wb?.lifeExpectancyYears ?? null,
       internetUsersPct: wb?.internetUsersPct ?? null,
+      pisaMathScore: wb?.pisaMathScore ?? null,
+      pisaReadingScore: wb?.pisaReadingScore ?? null,
+      pisaScienceScore: wb?.pisaScienceScore ?? null,
     },
     sectionScores: {
       economy: 0,
@@ -344,6 +352,16 @@ export async function aggregateCityData(
     piltriScore: 0,
     lastUpdated: new Date().toISOString(),
   };
+
+  // Mean of whichever PISA subjects resolved (0-3 of math/reading/science -
+  // see WorldBankIndicators.pisaMathScore's coverage caveat), used by the
+  // Liveability score below. Not stored on `data` itself - the 3 raw
+  // subject scores are what's displayed (lib/kpiRows.ts), this average is
+  // scoring-only.
+  const pisaSubjects = [data.liveability.pisaMathScore, data.liveability.pisaReadingScore, data.liveability.pisaScienceScore].filter(
+    (v): v is number => v != null
+  );
+  const pisaAverage = pisaSubjects.length > 0 ? pisaSubjects.reduce((a, b) => a + b, 0) / pisaSubjects.length : null;
 
   data.sectionScores = {
     economy: averageScores([
@@ -383,6 +401,15 @@ export async function aggregateCityData(
       normalise(data.liveability.culturalVenuesDensityPer10k ?? 0, RANGES.culturalVenuesPer10k.min, RANGES.culturalVenuesPer10k.max),
       normalise(data.liveability.familyKidsActivitiesDensityPer10k ?? 0, RANGES.familyActivitiesPer10k.min, RANGES.familyActivitiesPer10k.max),
       data.liveability.healthcareQualityScore,
+      // PISA (schooling-system quality) counts toward the score, unlike
+      // GDP/life expectancy/internet access above - added 2026-09-26 on
+      // explicit request ("let's add it to the score"). Averages whichever
+      // of the 3 subjects resolved (not padded to 3 with a guess); a
+      // non-participating country (no PISA data at all - see
+      // WorldBankIndicators.pisaMathScore's coverage caveat) falls back to
+      // ~470, roughly the OECD-wide average, so not sitting the test
+      // neither rewards nor penalises a country's score.
+      normalise(pisaAverage ?? 470, RANGES.pisaScore.min, RANGES.pisaScore.max),
     ]),
   };
 

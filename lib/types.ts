@@ -327,6 +327,18 @@ export interface LiveabilityFields {
    *  internet, US 78.9yrs/94.7%, India 72.2yrs/70% internet. */
   lifeExpectancyYears: number | null;
   internetUsersPct: number | null;
+  /** OECD PISA mean scores (mirrored via World Bank, see
+   *  WorldBankIndicators.pisaMathScore's own comment for the coverage/
+   *  recency caveats - ~80 participating countries, latest World Bank has
+   *  is the 2018 cycle). Added 2026-09-26, on request ("are there world
+   *  ranking about best schooling systems... let's add it to the score").
+   *  Unlike every other field added this session, these 3 DO feed into
+   *  the Liveability section score (see aggregate.ts) - the user
+   *  explicitly asked for a schooling-quality ranking to count, not just
+   *  display. */
+  pisaMathScore: number | null;
+  pisaReadingScore: number | null;
+  pisaScienceScore: number | null;
 }
 
 /** The 4 SCORED sections. Demographics is deliberately not here — it's

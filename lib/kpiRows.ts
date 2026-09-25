@@ -129,6 +129,9 @@ const COLOR_RANGES = {
   lifeExpectancyYears: { min: 50, max: 85 },
   // 0-100 already, World Bank's own %.
   internetUsersPct: { min: 0, max: 100 },
+  // Matches aggregate.ts's RANGES.pisaScore exactly - see that file's
+  // comment for the observed global spread.
+  pisaScore: { min: 350, max: 590 },
 };
 
 export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
@@ -589,6 +592,37 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               precision: "country",
               colorClass: tierColorClass(normalise(l.internetUsersPct, COLOR_RANGES.internetUsersPct.min, COLOR_RANGES.internetUsersPct.max)),
               hint: "Share of the population using the Internet (World Bank)",
+            }
+          : null,
+        // PISA (2026-09-26, added on request, counts toward the section
+        // score - see aggregate.ts's pisaAverage). Mirrored via World
+        // Bank, not a live OECD call - see WorldBankIndicators.pisaMathScore's
+        // own comment for the ~80-country coverage/2018-vintage caveats.
+        l.pisaMathScore != null
+          ? {
+              label: "PISA maths score",
+              value: `${Math.round(l.pisaMathScore)}`,
+              precision: "country",
+              colorClass: tierColorClass(normalise(l.pisaMathScore, COLOR_RANGES.pisaScore.min, COLOR_RANGES.pisaScore.max)),
+              hint: "OECD PISA mean mathematics score for 15-year-olds — only countries that sit the test have a value",
+            }
+          : null,
+        l.pisaReadingScore != null
+          ? {
+              label: "PISA reading score",
+              value: `${Math.round(l.pisaReadingScore)}`,
+              precision: "country",
+              colorClass: tierColorClass(normalise(l.pisaReadingScore, COLOR_RANGES.pisaScore.min, COLOR_RANGES.pisaScore.max)),
+              hint: "OECD PISA mean reading score for 15-year-olds — only countries that sit the test have a value",
+            }
+          : null,
+        l.pisaScienceScore != null
+          ? {
+              label: "PISA science score",
+              value: `${Math.round(l.pisaScienceScore)}`,
+              precision: "country",
+              colorClass: tierColorClass(normalise(l.pisaScienceScore, COLOR_RANGES.pisaScore.min, COLOR_RANGES.pisaScore.max)),
+              hint: "OECD PISA mean science score for 15-year-olds — only countries that sit the test have a value",
             }
           : null,
         // "What's nearby" distances (2026-09-24, moved here from

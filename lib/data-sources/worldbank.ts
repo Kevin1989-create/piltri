@@ -137,6 +137,20 @@ export interface WorldBankIndicators {
    *  real, globally-covered Quality of Life signal from the same API
    *  already used everywhere else in this file, zero new integration. */
   internetUsersPct: number | null;
+  /** OECD PISA mean scores (LO.PISA.MAT/REA/SCI) - a real, widely-cited
+   *  measure of schooling-system quality, mirrored into World Bank's own
+   *  API (same source used for everything else here, zero new
+   *  integration). Coverage caveat, verified live 2026-09-26: only the
+   *  ~80 countries that actually sit the PISA test have any value at all
+   *  (Nigeria/India/South Africa genuinely have none - not a data gap,
+   *  they don't participate) and the latest year World Bank has mirrored
+   *  is 2018 (UK 501.8/503.9/504.7 math/reading/science) - PISA runs a
+   *  newer 2022 and 2025 cycle, but World Bank hasn't picked those up yet.
+   *  Still a legitimate, consistent, cross-country comparison; just not
+   *  current-year. */
+  pisaMathScore: number | null;
+  pisaReadingScore: number | null;
+  pisaScienceScore: number | null;
 }
 
 /**
@@ -165,6 +179,9 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     taxRevenue,
     lifeExpectancy,
     internetUsers,
+    pisaMath,
+    pisaReading,
+    pisaScience,
   ] = await Promise.all([
     fetchIndicator(countryCode, "SP.POP.TOTL"),
     fetchIndicator(countryCode, "EN.POP.DNST"),
@@ -184,6 +201,9 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     fetchIndicator(countryCode, "GC.TAX.TOTL.GD.ZS"),
     fetchIndicator(countryCode, "SP.DYN.LE00.IN"),
     fetchIndicator(countryCode, "IT.NET.USER.ZS"),
+    fetchIndicator(countryCode, "LO.PISA.MAT"),
+    fetchIndicator(countryCode, "LO.PISA.REA"),
+    fetchIndicator(countryCode, "LO.PISA.SCI"),
   ]);
 
   return {
@@ -205,6 +225,9 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     taxRevenuePctGdp: latest(taxRevenue),
     lifeExpectancyYears: latest(lifeExpectancy),
     internetUsersPct: latest(internetUsers),
+    pisaMathScore: latest(pisaMath),
+    pisaReadingScore: latest(pisaReading),
+    pisaScienceScore: latest(pisaScience),
   };
 }
 
