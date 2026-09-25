@@ -129,6 +129,7 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
       earthquakeCount50yr: chance(0.95) ? randInt(0, 100) : null,
       distanceToVolcanoKm: chance(0.7) ? randFloat(1, 50) : null,
       coastalFloodExposure: chance(0.6) ? (pick(["High", "Moderate", "Low"]) as "High" | "Moderate" | "Low") : null,
+      seaLevelRiseExposure: chance(0.6) ? (pick(["High", "Moderate", "Low"]) as "High" | "Moderate" | "Low") : null,
       climateReadinessScore: chance(0.9) ? randFloat(30, 75) : null,
       longestDayHours: randFloat(12, 20),
       shortestDayHours: randFloat(4, 12),

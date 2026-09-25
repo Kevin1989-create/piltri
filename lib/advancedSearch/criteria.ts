@@ -336,6 +336,14 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.climate.coastalFloodExposure,
   },
   {
+    key: "climate.seaLevelRiseExposure",
+    category: "climate",
+    label: "Sea level rise exposure",
+    kind: "select",
+    selectOptions: ["Low", "Moderate", "High"],
+    getCityValue: (d) => d.climate.seaLevelRiseExposure,
+  },
+  {
     key: "climate.climateReadinessScore",
     category: "climate",
     label: "Climate change readiness (ND-GAIN)",

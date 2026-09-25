@@ -444,6 +444,20 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               hint: "A simple proxy (elevation + coastline distance), not a real flood model — see the app's data notes",
             }
           : null,
+        c.seaLevelRiseExposure
+          ? {
+              label: "Sea level rise exposure",
+              value: c.seaLevelRiseExposure,
+              precision: "pinned",
+              colorClass:
+                c.seaLevelRiseExposure === "Low"
+                  ? "text-score-strong"
+                  : c.seaLevelRiseExposure === "Moderate"
+                    ? "text-score-moderate"
+                    : "text-score-weak",
+              hint: "A simple proxy (elevation + coastline distance against IPCC's ~1m high-end 2100 sea rise projection), not a real inundation model — a longer-horizon read than Coastal flood exposure above, not a duplicate of it",
+            }
+          : null,
         // Pure astronomy (lib/data-sources/daylight.ts), never null - see
         // that file's header for why "avg annual daylight" isn't shown
         // instead (averages to ~12h almost everywhere, not differentiating).

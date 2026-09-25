@@ -223,6 +223,19 @@ export async function aggregateCityData(
           ? "Moderate"
           : "Low";
 
+  // Sea level rise exposure - same 2 inputs as coastalFloodExposure above,
+  // deliberately wider thresholds (see ClimateFields.seaLevelRiseExposure's
+  // own comment) so this reads as the longer-horizon question it's meant
+  // to be, not a duplicate of the storm-surge-style flood proxy.
+  const seaLevelRiseExposure: "High" | "Moderate" | "Low" | null =
+    elevationForFloodCheck == null || beachKmForFloodCheck == null
+      ? null
+      : elevationForFloodCheck <= 2 && beachKmForFloodCheck <= 10
+        ? "High"
+        : elevationForFloodCheck <= 10 && beachKmForFloodCheck <= 25
+          ? "Moderate"
+          : "Low";
+
   // Cost of living: World Bank's real Price Level Index, normalised onto
   // the same 0-100 "index" scale the UI has always shown (see
   // RANGES.priceLevel). Falls back to a neutral 50 only when the country
@@ -299,6 +312,7 @@ export async function aggregateCityData(
       earthquakeCount50yr: earthquakeCount,
       distanceToVolcanoKm: volcano?.km != null ? Number(volcano.km.toFixed(1)) : null,
       coastalFloodExposure,
+      seaLevelRiseExposure,
       climateReadinessScore: getClimateReadiness(city.countryCode)?.gainScore ?? null,
       ...getDaylightRange(city.lat),
     },

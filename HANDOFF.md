@@ -1936,6 +1936,20 @@ colour to 2 of the 3 new fields from the previous entry:
 returns rows in this final order (bar GDP sectors, which is a separate
 function/grid) - the components no longer reorder anything, only split.
 
+## Sea level rise exposure: researched real datasets, shipped as a second disclosed proxy (2026-09-25, later same session)
+
+User asked specifically about sea-level-rise exposure at city level. Researched real free global datasets first (on request, before building anything):
+- **[Young & Kirezci 2024 extreme sea levels dataset](https://doi.org/10.26188/25874179)** (Univ. Melbourne, CC BY 4.0, free) - 574MB zip, NetCDF extreme-sea-level grid + flood-extent polygons, but its socioeconomic impact numbers are only aggregated to national/regional level - wouldn't actually deliver city-level answers.
+- **[DeltaDTM](https://research.tudelft.nl/en/datasets/deltadtm-a-global-coastal-digital-terrain-model/)** (TU Delft, public domain) - genuinely city-precise 30m coastal elevation model, but ships as multi-GB-per-continent GeoTIFF tiles - needs raster-reading tooling (GDAL-equivalent) this Node stack doesn't have, a materially bigger lift than every other data source here (all fetch-and-parse JSON/CSV).
+
+Conclusion: no free, lightweight, per-city API/dataset exists the way every other field here has one. Shipped the disclosed-proxy option instead (agreed with the user to revisit if/when GeoTIFF support is worth adding).
+
+Added `seaLevelRiseExposure: "High" | "Moderate" | "Low" | null` to `ClimateFields` (`lib/types.ts`) - reuses the exact same 2 inputs as the existing `coastalFloodExposure` (elevationM + beach/coastline distance from Overpass, computed in `aggregate.ts`), but with deliberately different, wider thresholds so the 2 fields don't read as duplicates of each other:
+- `coastalFloodExposure` asks "could a storm surge/high tide flood this place today" (≤5m elev/≤2km coast = High, ≤15m/≤10km = Moderate) - a short-range flood proxy.
+- `seaLevelRiseExposure` asks "is this place low-lying enough near the coast to be a long-term concern" (≤2m elev/≤10km coast = High, ≤10m/≤25km = Moderate) - thresholds referenced against IPCC AR6's published ~1m high-end 2100 sea-rise projection, not a storm event.
+
+Both stay null (not "Low") when either input didn't resolve - same "unresolved ≠ safe" convention as every proxy field this session. Wired into `kpiRows.ts` (Low=green/Moderate=amber/High=red, same colour pattern as coastalFloodExposure), `randomSeed.ts` mock, and a new `climate.seaLevelRiseExposure` select criterion in `criteria.ts`.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

@@ -231,6 +231,26 @@ export interface ClimateFields {
    *  coast" reads as Low, but an unresolved/timed-out lookup should never
    *  silently read as "safe". */
   coastalFloodExposure: "High" | "Moderate" | "Low" | null;
+  /** A second, longer-horizon disclosed PROXY - same 2 inputs as
+   *  coastalFloodExposure (elevationM + beach/coastline distance) but
+   *  wider, sea-rise-specific thresholds instead of storm-surge-style
+   *  ones, so the two intentionally don't read the same for a given city.
+   *  coastalFloodExposure asks "could a storm surge/high tide flood this
+   *  place today"; this asks "is this place low-lying enough near the
+   *  coast to be a long-term sea-level-rise concern", using IPCC AR6's
+   *  published high-end 2100 projection (~1m, extending past 2100 under
+   *  continued warming) as the elevation reference point rather than a
+   *  short-range flood event: "High" (≤2m elevation, ≤10km from coast) /
+   *  "Moderate" (≤10m, ≤25km) / "Low" (neither). Same null-means-
+   *  "unresolved, not safe" convention as coastalFloodExposure - added
+   *  2026-09-25 after researching real global sea-level-rise datasets
+   *  (Young & Kirezci 2024 extreme-sea-levels dataset, TU Delft's
+   *  DeltaDTM) and finding neither ships as a simple per-city API/small
+   *  file the way this app's other sources do - DeltaDTM in particular is
+   *  a genuinely precise coastal DEM, but as multi-GB-per-continent
+   *  GeoTIFF tiles needing raster-reading tooling this stack doesn't have,
+   *  not a fetch-and-parse job like every other field here. */
+  seaLevelRiseExposure: "High" | "Moderate" | "Low" | null;
   /** Notre Dame Global Adaptation Initiative (ND-GAIN) composite score,
    *  0-100 (higher = more climate-resilient and ready to adapt) - see
    *  lib/data-sources/climateReadiness.ts. Genuinely, inherently
