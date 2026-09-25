@@ -114,6 +114,15 @@ const COLOR_RANGES = {
   // is already the "good" direction. 50km covers most cities' realistic
   // range; a handful within a few km of an active volcano are the extreme.
   distanceToVolcanoKm: { min: 0, max: 50 },
+  // log10($1bn) to log10($30tn) - covers the real observed World Bank
+  // range (smallest real economies run ~$1bn, the US tops out ~$30.8tn as
+  // of the 2026-09-25 live check) - see the GDP row's own comment for why
+  // this is log-scale rather than linear.
+  gdpUsdLog10: { min: 9, max: 13.5 },
+  // 214 is the real count of countries getGdpWorldRanking ranks against
+  // (see worldbank.ts) - rank 1 is the best possible outcome, hence
+  // `invert: true` at the call site rather than swapping min/max here.
+  gdpWorldRank: { min: 1, max: 214 },
 };
 
 export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
@@ -189,17 +198,64 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           precision: "pinned",
           colorClass: "text-ink-500",
         },
+        // GDP, GDP world rank, and Economic growth lead the Country group
+        // (2026-09-25, on request - "please on the first line have GDP,
+        // GDP World rank, Economic growth"). GDP sector ranking renders as
+        // its own line right after these 3 (see SectionDetail.tsx /
+        // report/page.tsx, which now splice gdpSectorRows in after the
+        // first 3 country rows specifically for economy), then Tax
+        // revenue/Average salary/Unemployment rate, then Cost of
+        // living/Purchasing power.
+        e.gdpUsd != null
+          ? {
+              label: "GDP",
+              value: formatGdpUsd(e.gdpUsd),
+              precision: "country",
+              // Log-scale (2026-09-25, on request: "GDP world rank and GDP
+              // must have colours (higher the better)") - GDP spans ~$1bn
+              // to ~$30tn across countries, a linear 0-100 scale would
+              // clamp almost everything below the US/China to the same
+              // "weak" bucket. log10 spreads that range out evenly instead.
+              colorClass: tierColorClass(normalise(Math.log10(e.gdpUsd), COLOR_RANGES.gdpUsdLog10.min, COLOR_RANGES.gdpUsdLog10.max)),
+              hint: "Gross domestic product, current US dollars (World Bank)",
+            }
+          : null,
+        e.gdpWorldRank != null
+          ? {
+              label: "GDP world rank",
+              value: ordinal(e.gdpWorldRank),
+              precision: "country",
+              // Rank 1 (largest economy) is the best outcome, so this is
+              // inverted - rank counts up as GDP goes down.
+              colorClass: tierColorClass(normalise(e.gdpWorldRank, COLOR_RANGES.gdpWorldRank.min, COLOR_RANGES.gdpWorldRank.max, true)),
+              hint: "Rank among 214 countries by GDP, current US dollars (World Bank)",
+            }
+          : null,
         {
           label: "Economic growth (5yr GDP)",
           value: `${e.economicGrowth5yrGdpPct > 0 ? "+" : ""}${e.economicGrowth5yrGdpPct}%`,
           precision: "country",
           colorClass: tierColorClass(normalise(e.economicGrowth5yrGdpPct, COLOR_RANGES.gdpGrowth.min, COLOR_RANGES.gdpGrowth.max)),
         },
+        // Tax revenue is grey/descriptive - a country's tax take is a
+        // policy choice, not a good/bad outcome, same reasoning as Main
+        // economy type above (unlike GDP/rank/growth, which do have a
+        // clear "bigger economy is better" direction).
+        e.taxRevenuePctGdp != null
+          ? {
+              label: "Tax revenue",
+              value: `${e.taxRevenuePctGdp.toFixed(1)}% of GDP`,
+              precision: "country",
+              colorClass: "text-ink-500",
+              hint: "Total tax revenue collected by government, as a share of GDP (World Bank)",
+            }
+          : null,
         {
           label: "Average salary",
           value: formatCurrency(e.averageSalaryGbp, prefs),
           precision: "country",
           colorClass: tierColorClass(normalise(e.averageSalaryGbp, COLOR_RANGES.salaryGbp.min, COLOR_RANGES.salaryGbp.max)),
+          valueSuffix: "/ year",
         },
         {
           // toFixed(1) here (2026-09-24, on request - was showing raw,
@@ -223,41 +279,6 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           precision: "country",
           colorClass: tierColorClass(e.purchasingPowerIndex), // already a 0-100 goodness score
         },
-        // GDP size, world rank, and tax revenue % - added 2026-09-25 on
-        // request. Grey/descriptive like Main economy type above: a
-        // country's total GDP, its rank among 214 others, and its tax
-        // revenue share of GDP are all plain facts with no universal
-        // "better" direction (a small country isn't worse for having a
-        // smaller economy; tax revenue % reflects policy choice, not
-        // national performance) - same reasoning already applied to
-        // Main economy type and GDP sector ranking above.
-        e.gdpUsd != null
-          ? {
-              label: "GDP",
-              value: formatGdpUsd(e.gdpUsd),
-              precision: "country",
-              colorClass: "text-ink-500",
-              hint: "Gross domestic product, current US dollars (World Bank)",
-            }
-          : null,
-        e.gdpWorldRank != null
-          ? {
-              label: "GDP world rank",
-              value: ordinal(e.gdpWorldRank),
-              precision: "country",
-              colorClass: "text-ink-500",
-              hint: "Rank among 214 countries by GDP, current US dollars (World Bank)",
-            }
-          : null,
-        e.taxRevenuePctGdp != null
-          ? {
-              label: "Tax revenue",
-              value: `${e.taxRevenuePctGdp.toFixed(1)}% of GDP`,
-              precision: "country",
-              colorClass: "text-ink-500",
-              hint: "Total tax revenue collected by government, as a share of GDP (World Bank)",
-            }
-          : null,
       ];
       return rows.filter((r): r is KpiRow => r != null);
     }

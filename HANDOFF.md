@@ -1903,6 +1903,39 @@ direction, not a red/green judgement. Added to `EconomyFields`
 revenue %), following the exact pattern every other field addition this
 session has used.
 
+## Economy row reorder + colour for GDP/rank + salary "/ year" (2026-09-25, later same session)
+
+On request, restructured the Economy Country group's row order and added
+colour to 2 of the 3 new fields from the previous entry:
+- **Line 1: GDP, GDP world rank, Economic growth** - the 3 lead. GDP and
+  GDP world rank are now coloured (they were plain grey before) - "higher
+  the better": GDP uses a **log10** scale in `COLOR_RANGES.gdpUsdLog10`
+  ($1bn-$30tn, `lib/kpiRows.ts`) rather than linear, since GDP spans ~4
+  orders of magnitude across countries and a linear 0-100 scale would
+  clamp almost every country below the US/China into the same "weak"
+  bucket. GDP world rank uses `normalise(rank, 1, 214, invert: true)` -
+  rank 1 (largest economy) is the best outcome, so the colour direction is
+  inverted relative to the raw number. Tax revenue stays grey/descriptive
+  (a policy choice, not a good/bad outcome).
+- **Line 2: the 3 GDP sectors** (Services/Industry/Agriculture) - this
+  block already existed as its own always-3-column grid
+  (`buildGdpSectorRows`), rendered unconditionally AFTER all country rows.
+  To land it as line 2 specifically (between GDP/rank/growth and the rest)
+  rather than always-last, `SectionDetail.tsx` and `report/page.tsx` now
+  split Economy's country rows at index 3 (`countryRows` /
+  `countryRowsAfterSectors`) and render: first 3 -> GDP sectors -> the
+  remaining country rows. Every other section is untouched - this split
+  only activates when `section === "economy"`.
+- **Line 3: Tax revenue, Average salary, Unemployment rate.**
+- **Line 4: Cost of living index, Purchasing power index.**
+- **Average salary** now shows a small `/ year` suffix (new `valueSuffix`
+  on that row) - it was previously an unlabelled annual figure, easy to
+  misread as monthly.
+
+`buildKpiRows`'s economy row array in `lib/kpiRows.ts` now literally
+returns rows in this final order (bar GDP sectors, which is a separate
+function/grid) - the components no longer reorder anything, only split.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

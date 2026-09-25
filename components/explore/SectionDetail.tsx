@@ -85,7 +85,14 @@ export function SectionDetail({
   const totalItems = rows.length + (localSignalRows?.length ?? 0);
   const cols = totalItems > 6 ? 3 : 2;
 
-  const { countryRows, cityRows } = splitKpiRowsByTier(rows);
+  const { countryRows: allCountryRows, cityRows } = splitKpiRowsByTier(rows);
+  // Economy's Country group interleaves GDP sector ranking as its own line
+  // right after GDP/GDP world rank/Economic growth (2026-09-25, on request
+  // - "second line the 3 GDP sector") rather than always trailing every
+  // other country row, so the first 3 rows (built in that exact order by
+  // buildKpiRows) and the remainder split around it.
+  const countryRows = section === "economy" ? allCountryRows.slice(0, 3) : allCountryRows;
+  const countryRowsAfterSectors = section === "economy" ? allCountryRows.slice(3) : [];
   const cityExtraBlocks = [localSignalRows && { title: "Local Signals", rows: localSignalRows }].filter(
     (b): b is { title: string; rows: KpiRow[] } => !!b
   );
@@ -119,6 +126,11 @@ export function SectionDetail({
             // grid sit to each other).
             <div className={cn(countryRows.length > 0 && "mt-3")}>
               <StatGrid rows={gdpSectorRows} cols={3} />
+            </div>
+          )}
+          {countryRowsAfterSectors.length > 0 && (
+            <div className="mt-3">
+              <StatGrid rows={countryRowsAfterSectors} cols={cols} />
             </div>
           )}
         </div>

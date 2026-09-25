@@ -183,7 +183,13 @@ function ReportContent() {
               // block, same reasoning and same function as
               // SectionDetail.tsx uses (see buildGdpSectorRows).
               const gdpSectorRows = section === "economy" ? buildGdpSectorRows(data) : null;
-              const { countryRows, cityRows } = splitKpiRowsByTier(rows);
+              const { countryRows: allCountryRows, cityRows } = splitKpiRowsByTier(rows);
+              // See SectionDetail.tsx's same split - Economy's first 3
+              // country rows (GDP/GDP world rank/Economic growth) lead,
+              // GDP sector ranking is spliced in right after, then the
+              // remaining country rows.
+              const countryRows = section === "economy" ? allCountryRows.slice(0, 3) : allCountryRows;
+              const countryRowsAfterSectors = section === "economy" ? allCountryRows.slice(3) : [];
               // Local Signals is city-tier (pinned to this city's exact
               // coordinates, same as SectionDetail.tsx's cityExtraBlocks) -
               // grouped with the City stat grid so it moves together as one
@@ -210,6 +216,7 @@ function ReportContent() {
                     title={data.country}
                     rows={countryRows}
                     extraRows={gdpSectorRows}
+                    rowsAfterExtra={countryRowsAfterSectors}
                     spacing={cityTierHasContent ? "mt-4" : "mt-3"}
                   />
                 </section>
@@ -254,6 +261,7 @@ function ReportGroup({
   title,
   rows,
   extraRows,
+  rowsAfterExtra,
   spacing = "mt-4",
 }: {
   title: string;
@@ -262,9 +270,13 @@ function ReportGroup({
    *  together on one row - see buildGdpSectorRows' comment for why this
    *  can't just share the main grid's rows/columns. */
   extraRows?: KpiRow[] | null;
+  /** Economy-only: the remaining country rows (Tax revenue/Average
+   *  salary/... onward), rendered after extraRows instead of before it -
+   *  see SectionDetail.tsx's countryRowsAfterSectors for the same split. */
+  rowsAfterExtra?: KpiRow[];
   spacing?: string;
 }) {
-  if (rows.length === 0 && !extraRows?.length) return null;
+  if (rows.length === 0 && !extraRows?.length && !rowsAfterExtra?.length) return null;
   return (
     <div className={spacing}>
       <p className="font-serif font-semibold text-sm text-black mb-1.5">{title}</p>
@@ -278,6 +290,13 @@ function ReportGroup({
       {!!extraRows?.length && (
         <div className={cn("grid grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm", rows.length > 0 && "mt-3")}>
           {extraRows.map((row) => (
+            <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} hint={row.hint} />
+          ))}
+        </div>
+      )}
+      {!!rowsAfterExtra?.length && (
+        <div className={cn("grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm", (rows.length > 0 || !!extraRows?.length) && "mt-3")}>
+          {rowsAfterExtra.map((row) => (
             <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} hint={row.hint} />
           ))}
         </div>
