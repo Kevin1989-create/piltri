@@ -106,6 +106,9 @@ export function randomCityData(city: CitySearchResult): CityExploreData {
         : [],
       costOfLivingIndex,
       purchasingPowerIndex,
+      gdpUsd: chance(0.97) ? randFloat(2e9, 2.5e13) : null,
+      gdpWorldRank: chance(0.97) ? Math.round(randFloat(1, 214)) : null,
+      taxRevenuePctGdp: chance(0.9) ? randFloat(8, 45) : null,
     },
     safetyStability: {
       politicalStabilityScore,

@@ -1870,6 +1870,39 @@ label/value themselves (still in each row's hint for anyone who wants the
 technical detail). Removed the now-unused `airQualityLabel`/
 `seismicActivityLabel` helpers from `lib/kpiRows.ts`.
 
+## Economy: GDP (current US$), GDP world rank, tax revenue % of GDP (2026-09-25, later same session)
+
+Three new country-level Economy fields, all from World Bank (already the
+Economy/Safety country-data provider, no new integration needed):
+- **GDP** (`NY.GDP.MKTP.CD`, current US$) - shown headline-style, e.g.
+  "$4.0 trillion" / "$312.5 billion" (new `formatGdpUsd` helper in
+  `lib/kpiRows.ts`). Deliberately a separate World Bank series from the
+  existing `economicGrowth5yrGdpPct`, which uses constant-2015-$ GDP
+  (`NY.GDP.MKTP.KD`) to isolate real growth from inflation/FX noise - this
+  one wants the actual current-dollar size people recognise.
+- **GDP world rank** (e.g. "5th") - NOT a per-country World Bank call.
+  `getGdpWorldRanking()` in `lib/data-sources/worldbank.ts` does ONE bulk
+  request for every country's current-$ GDP, filters out the aggregate
+  regions World Bank mixes into that endpoint (World, OECD members, Euro
+  area, ...) via a new `REAL_ISO3_CODES` set (cross-referenced against the
+  app's existing `ISO2_TO_ISO3` map, zero extra requests), sorts
+  descending, returns an ISO3->rank Map. Wrapped in `memoize()` with a
+  fixed shared key (`"gdp-world-ranking"`, not per-country) in
+  `aggregate.ts` - same result for every city, no reason to refetch per
+  country. Verified live: 214 real countries, US #1 (~$30.8tn), China #2,
+  ..., UK #5 (~$4.0tn) - matches known reality.
+- **Tax revenue** (`GC.TAX.TOTL.GD.ZS`, % of GDP) - standard taxation-level
+  measure, shown as "N.N% of GDP".
+
+All 3 are grey/descriptive (`text-ink-500`), same reasoning as Main
+economy type and GDP sector ranking above them: a country's GDP size,
+world rank, and tax share are plain facts with no universal "better"
+direction, not a red/green judgement. Added to `EconomyFields`
+(`lib/types.ts`), `randomSeed.ts` mocks, and 3 new range criteria in
+`lib/advancedSearch/criteria.ts` (GDP in billions, world rank 1-214, tax
+revenue %), following the exact pattern every other field addition this
+session has used.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

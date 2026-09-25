@@ -152,6 +152,35 @@ export const CRITERIA: CriterionDef[] = [
     suggestedRange: [0, 100],
     getCityValue: (d) => d.economy.purchasingPowerIndex,
   },
+  {
+    key: "economy.gdpUsd",
+    category: "economy",
+    label: "GDP (billions)",
+    unit: "B",
+    kind: "range",
+    suggestedRange: [0, 30000],
+    // Underlying field is raw current-US$ (see aggregate.ts) - divided by
+    // 1e9 for the same "value in B" convention as other large-number
+    // criteria in this file (e.g. Population's "K" convention above).
+    getCityValue: (d) => (d.economy.gdpUsd != null ? Math.round(d.economy.gdpUsd / 1e9) : null),
+  },
+  {
+    key: "economy.gdpWorldRank",
+    category: "economy",
+    label: "GDP world rank",
+    kind: "range",
+    suggestedRange: [1, 214],
+    getCityValue: (d) => d.economy.gdpWorldRank,
+  },
+  {
+    key: "economy.taxRevenuePctGdp",
+    category: "economy",
+    label: "Tax revenue (% of GDP)",
+    unit: "%",
+    kind: "range",
+    suggestedRange: [0, 50],
+    getCityValue: (d) => d.economy.taxRevenuePctGdp,
+  },
 
   // ---- Safety ---------------------------------------------------------------
   {

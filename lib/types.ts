@@ -123,6 +123,25 @@ export interface EconomyFields {
    *  free, globally-covered proxy for cost of living, not a placeholder. */
   costOfLivingIndex: number; // 0-100+ (rarely exceeds ~150 for the most expensive countries)
   purchasingPowerIndex: number; // 0-100
+  /** GDP in current US$ (World Bank NY.GDP.MKTP.CD) - the "headline"
+   *  figure, e.g. "$4.0 trillion" for the UK. A different series from
+   *  economicGrowth5yrGdpPct above (that one deliberately uses constant
+   *  2015 US$ to isolate real growth from inflation/FX noise - this one
+   *  wants the actual current-dollar size). Country-level, added
+   *  2026-09-25. Null on a genuine fetch gap. */
+  gdpUsd: number | null;
+  /** This country's rank by gdpUsd among all ~214 real economies World
+   *  Bank tracks (1 = largest) - see
+   *  lib/data-sources/worldbank.ts's getGdpWorldRanking. One bulk request
+   *  shared across every city in a batch (memoized - see aggregate.ts),
+   *  not fetched per-country. Null on a genuine fetch gap. */
+  gdpWorldRank: number | null;
+  /** Tax revenue, % of GDP (World Bank GC.TAX.TOTL.GD.ZS) - a standard,
+   *  widely-used measure of a country's overall taxation level. Country-
+   *  level (a national tax system, not something that varies meaningfully
+   *  within a country's cities - same reasoning as the rest of Economy's
+   *  country-tier fields). Added 2026-09-25. Null on a genuine fetch gap. */
+  taxRevenuePctGdp: number | null;
 }
 
 /** Political Stability and Rule of Law are World Bank Worldwide Governance

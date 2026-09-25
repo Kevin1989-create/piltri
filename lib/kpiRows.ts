@@ -127,6 +127,36 @@ export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
 
 const GDP_SECTOR_RANK_LABELS = ["1st GDP sector", "2nd GDP sector", "3rd GDP sector"] as const;
 
+/** Formats a current-US$ GDP figure the way headlines do ("$4.0 trillion",
+ *  "$312.5 billion") rather than a raw number - added 2026-09-25 alongside
+ *  Economy's GDP fields. Always USD, unlike formatCurrency elsewhere in
+ *  this file - GDP is quoted in dollars everywhere regardless of the
+ *  viewer's own unit preference, matching how every other GDP figure in
+ *  the app (economicGrowth5yrGdpPct, gdpSectorRanking) is already sourced
+ *  directly from World Bank's dollar-denominated series with no conversion. */
+function formatGdpUsd(value: number): string {
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(1)} trillion`;
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(1)} billion`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(1)} million`;
+  return `$${value.toFixed(0)}`;
+}
+
+/** "5th" / "21st" / "112th" ordinal suffix for the GDP world-rank row. */
+function ordinal(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
 /** Shared source of truth for each section's KPI list — used by the results
  *  page's SectionDetail panel and by the printable report page, so the two
  *  never drift out of sync with each other. Precision tags reflect the
@@ -193,6 +223,41 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           precision: "country",
           colorClass: tierColorClass(e.purchasingPowerIndex), // already a 0-100 goodness score
         },
+        // GDP size, world rank, and tax revenue % - added 2026-09-25 on
+        // request. Grey/descriptive like Main economy type above: a
+        // country's total GDP, its rank among 214 others, and its tax
+        // revenue share of GDP are all plain facts with no universal
+        // "better" direction (a small country isn't worse for having a
+        // smaller economy; tax revenue % reflects policy choice, not
+        // national performance) - same reasoning already applied to
+        // Main economy type and GDP sector ranking above.
+        e.gdpUsd != null
+          ? {
+              label: "GDP",
+              value: formatGdpUsd(e.gdpUsd),
+              precision: "country",
+              colorClass: "text-ink-500",
+              hint: "Gross domestic product, current US dollars (World Bank)",
+            }
+          : null,
+        e.gdpWorldRank != null
+          ? {
+              label: "GDP world rank",
+              value: ordinal(e.gdpWorldRank),
+              precision: "country",
+              colorClass: "text-ink-500",
+              hint: "Rank among 214 countries by GDP, current US dollars (World Bank)",
+            }
+          : null,
+        e.taxRevenuePctGdp != null
+          ? {
+              label: "Tax revenue",
+              value: `${e.taxRevenuePctGdp.toFixed(1)}% of GDP`,
+              precision: "country",
+              colorClass: "text-ink-500",
+              hint: "Total tax revenue collected by government, as a share of GDP (World Bank)",
+            }
+          : null,
       ];
       return rows.filter((r): r is KpiRow => r != null);
     }

@@ -1,4 +1,4 @@
-import { getWorldBankIndicators } from "@/lib/data-sources/worldbank";
+import { getGdpWorldRanking, getWorldBankIndicators } from "@/lib/data-sources/worldbank";
 import { getCountryLanguages } from "@/lib/data-sources/languages";
 import { getCountryMedianAge } from "@/lib/data-sources/medianAge";
 import { getClimateAverages, getKoppenClimateType } from "@/lib/data-sources/openmeteo";
@@ -120,8 +120,22 @@ export async function aggregateCityData(
   const wikidataChecked = opts.wikidataChecked ?? false;
   const iso3 = toIso3(city.countryCode);
 
-  const [wb, languages, climate, overpassData, healthcare, cityDemo, koppenCode, beach, mountain, forest, airQuality, earthquakeCount, volcano] =
-    await Promise.all([
+  const [
+    wb,
+    languages,
+    climate,
+    overpassData,
+    healthcare,
+    cityDemo,
+    koppenCode,
+    beach,
+    mountain,
+    forest,
+    airQuality,
+    earthquakeCount,
+    volcano,
+    gdpWorldRanking,
+  ] = await Promise.all([
     safely(() => memoize(`wb:${city.countryCode}`, COUNTRY_LEVEL_TTL_MS, () => getWorldBankIndicators(city.countryCode)), null),
     safely(() => getCountryLanguages(city.countryCode), { officialLanguages: [], mostWidelySpokenLanguage: "Unknown" }),
     safely(() => getClimateAverages(city.lat, city.lng), null),
@@ -156,6 +170,11 @@ export async function aggregateCityData(
       () => withTimeout(nearestFeatureWithDetails(city.lat, city.lng, '"natural"="volcano"', 100000), FAR_LOOKUP_TIMEOUT_MS, null),
       null
     ),
+    // Shared across every city in a batch (fixed memoize key, not keyed
+    // by country) - same bulk result regardless of which city is being
+    // aggregated, see getGdpWorldRanking's own comment for why this is
+    // one request, not 190+.
+    safely(() => memoize("gdp-world-ranking", COUNTRY_LEVEL_TTL_MS, () => getGdpWorldRanking()), null),
   ]);
 
   const transportPresence = overpassData?.transport ?? { hasTrainStation: false, hasSubway: false, hasTramway: false, hasAirport: false };
@@ -257,6 +276,9 @@ export async function aggregateCityData(
       gdpSectorRanking: wb?.gdpSectorRanking ?? [],
       costOfLivingIndex,
       purchasingPowerIndex: normalise(wb?.purchasingPowerParityGdpPerCapita ?? 0, RANGES.ppp.min, RANGES.ppp.max),
+      gdpUsd: wb?.gdpCurrentUsd ?? null,
+      gdpWorldRank: gdpWorldRanking?.get(iso3) ?? null,
+      taxRevenuePctGdp: wb?.taxRevenuePctGdp ?? null,
     },
     safetyStability: {
       politicalStabilityScore: wb?.politicalStabilityScore != null ? Math.round(wb.politicalStabilityScore) : 50,

@@ -8,9 +8,19 @@
  */
 
 import { fetchWithTimeout } from "./fetchWithTimeout";
+import { ISO2_TO_ISO3 } from "./country-codes";
 import type { GdpSector, GdpSectorShare, TrendDirection } from "@/lib/types";
 
 const BASE = "https://api.worldbank.org/v2";
+// The full set of genuine ISO3 country codes this app already tracks (see
+// country-codes.ts) - used to filter World Bank's "country/all" bulk
+// results down to real countries, since that endpoint also returns
+// aggregate regions ("World", "OECD members", "Euro area", ...) mixed in
+// with actual countries, with no field distinguishing them from this
+// endpoint alone (confirmed live 2026-09-25 - had to cross-reference
+// against the separate /country list endpoint, which does carry a
+// region.value of "Aggregates" for those rows, to filter cleanly).
+const REAL_ISO3_CODES = new Set(Object.values(ISO2_TO_ISO3));
 
 interface WBObservation {
   date: string;
@@ -106,6 +116,15 @@ export interface WorldBankIndicators {
    *  GdpSectorShare. Added 2026-09-24 as a country-level companion to
    *  Economy's city-level mainEconomyType. */
   gdpSectorRanking: GdpSectorShare[];
+  /** GDP in current US$ (NY.GDP.MKTP.CD - the "headline" figure people
+   *  recognise, e.g. "$4.0 trillion"), NOT the same series as
+   *  gdpGrowth5yrPct above (that one deliberately uses constant 2015 US$
+   *  to isolate real growth from inflation/exchange-rate noise - this one
+   *  wants the actual current-dollar size). Added 2026-09-25. */
+  gdpCurrentUsd: number | null;
+  /** Tax revenue, % of GDP (GC.TAX.TOTL.GD.ZS) - a standard, widely-used
+   *  measure of a country's overall taxation level. Added 2026-09-25. */
+  taxRevenuePctGdp: number | null;
 }
 
 /**
@@ -130,6 +149,8 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     agriculture,
     industry,
     services,
+    gdpCurrent,
+    taxRevenue,
   ] = await Promise.all([
     fetchIndicator(countryCode, "SP.POP.TOTL"),
     fetchIndicator(countryCode, "EN.POP.DNST"),
@@ -145,6 +166,8 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     fetchIndicator(countryCode, "NV.AGR.TOTL.ZS"),
     fetchIndicator(countryCode, "NV.IND.TOTL.ZS"),
     fetchIndicator(countryCode, "NV.SRV.TOTL.ZS"),
+    fetchIndicator(countryCode, "NY.GDP.MKTP.CD"),
+    fetchIndicator(countryCode, "GC.TAX.TOTL.GD.ZS"),
   ]);
 
   return {
@@ -162,5 +185,36 @@ export async function getWorldBankIndicators(countryCode: string): Promise<World
     politicalStabilityTrend: trendFromPctChange(pctChange(politicalStability)),
     homicideRatePer100k: latest(homicideRate),
     gdpSectorRanking: rankGdpSectors(latest(agriculture), latest(industry), latest(services)),
+    gdpCurrentUsd: latest(gdpCurrent),
+    taxRevenuePctGdp: latest(taxRevenue),
   };
+}
+
+interface WBBulkRow {
+  countryiso3code: string;
+  value: number | null;
+}
+
+/** GDP world ranking (1 = largest economy) - one bulk World Bank request
+ *  for every country's GDP at once, not 190+ individual calls. Verified
+ *  live 2026-09-25: 248ms, 214 real countries after filtering out
+ *  aggregate regions World Bank mixes into this same endpoint (see
+ *  REAL_ISO3_CODES's comment) - top of the list matched known reality
+ *  (US #1 ~$30.8tn, China #2 ~$19.5tn, ..., UK #5 ~$4.0tn). Callers should
+ *  wrap this in memoize() with a shared key (see aggregate.ts) - it's the
+ *  same result for every city, no reason to refetch per-country. */
+export async function getGdpWorldRanking(): Promise<Map<string, number>> {
+  const url = `${BASE}/country/all/indicator/NY.GDP.MKTP.CD?format=json&per_page=20000&mrnev=1`;
+  const res = await fetchWithTimeout(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`World Bank bulk GDP request failed: ${res.status}`);
+  const json = await res.json();
+  const rows: WBBulkRow[] = json?.[1] ?? [];
+
+  const ranked = rows
+    .filter((r) => r.value != null && REAL_ISO3_CODES.has(r.countryiso3code))
+    .sort((a, b) => (b.value as number) - (a.value as number));
+
+  const rankByIso3 = new Map<string, number>();
+  ranked.forEach((row, i) => rankByIso3.set(row.countryiso3code, i + 1));
+  return rankByIso3;
 }
