@@ -177,6 +177,14 @@ export interface OverpassTransportPresence {
   hasSubway: boolean;
   hasTramway: boolean;
   hasAirport: boolean;
+  /** Added 2026-09-26 alongside hasSchool/hasUniversity, on request - a
+   *  real bus terminal/station node (highway=bus_station), not the far
+   *  more common scattered highway=bus_stop tag, which is ubiquitous
+   *  enough in well-mapped cities that it wouldn't be a meaningful
+   *  presence signal the way "has an airport" or "has a train station" is. */
+  hasBusStation: boolean;
+  hasSchool: boolean;
+  hasUniversity: boolean;
 }
 
 export interface EconomySectorCounts {
@@ -211,18 +219,25 @@ const GROUP = {
   manufacturingAndIndustry: 11,
   governmentAndPublicSector: 12,
   naturalResourcesAndAgriculture: 13,
+  busStation: 14,
+  school: 15,
+  university: 16,
 } as const;
 
 /** Every Overpass-sourced field a city needs (amenity/cultural/family
- *  density, green space, transport presence flags, and economy-sector POI
- *  counts) in ONE HTTP request instead of the 14 separate ones this used
- *  to take (see countTagsBatch above) - transport presence flags favour
- *  the single most consistently-used OSM tag per mode rather than
- *  enumerating every regional tagging variant: railway=station
- *  (heavy/mainline rail), station=subway (the standard sub-tag
- *  distinguishing a metro/subway stop from a mainline station) plus
- *  railway=subway_entrance as a second, very consistently tagged signal,
- *  railway=tram_stop, and aeroway=aerodrome.
+ *  density, green space, transport presence flags, education presence
+ *  flags, and economy-sector POI counts) in ONE HTTP request instead of
+ *  the 17 separate ones this used to take (see countTagsBatch above) -
+ *  transport presence flags favour the single most consistently-used OSM
+ *  tag per mode rather than enumerating every regional tagging variant:
+ *  railway=station (heavy/mainline rail), station=subway (the standard
+ *  sub-tag distinguishing a metro/subway stop from a mainline station)
+ *  plus railway=subway_entrance as a second, very consistently tagged
+ *  signal, railway=tram_stop, aeroway=aerodrome, and (added 2026-09-26)
+ *  highway=bus_station/amenity=bus_station for a genuine bus terminal (not
+ *  the far more common, far less meaningful highway=bus_stop). School/
+ *  university presence use amenity=school/amenity=university directly -
+ *  OSM's standard, unambiguous tags for each, no regional variants needed.
  *
  *  Economy-sector counts are a point-of-interest density proxy, not real
  *  GDP or employment-share data - no free source for true city-level
@@ -255,6 +270,9 @@ export async function getCityOverpassData(lat: number, lng: number): Promise<Cit
       tags: ['"landuse"="farmland"', '"landuse"="orchard"', '"landuse"="vineyard"', '"landuse"="quarry"'],
       radiusM: SECTOR_RADIUS_M,
     },
+    { tags: ['"highway"="bus_station"', '"amenity"="bus_station"'], radiusM: RADIUS_M },
+    { tags: ['"amenity"="school"'], radiusM: RADIUS_M },
+    { tags: ['"amenity"="university"'], radiusM: RADIUS_M },
   ]);
 
   return {
@@ -269,6 +287,9 @@ export async function getCityOverpassData(lat: number, lng: number): Promise<Cit
       hasSubway: counts[GROUP.subway] > 0,
       hasTramway: counts[GROUP.tramway] > 0,
       hasAirport: counts[GROUP.airport] > 0,
+      hasBusStation: counts[GROUP.busStation] > 0,
+      hasSchool: counts[GROUP.school] > 0,
+      hasUniversity: counts[GROUP.university] > 0,
     },
     economySectors: {
       technologyAndInnovation: counts[GROUP.techAndInnovation],
@@ -300,6 +321,25 @@ export interface NearestFeatureResult {
    *  stations, parks, hospitals), some don't (an anonymous kindergarten
    *  node, an unnamed beach segment). Null when absent, not guessed. */
   name: string | null;
+}
+
+/** Every Overpass-sourced field aggregate.ts needs for a city, bundled
+ *  together for the one-time shortlist backfill
+ *  (lib/aggregation/backfillOverpassAmenities.ts) to store as a single
+ *  `cities.overpass_amenities` JSONB blob - the exact same shape
+ *  aggregateCityData already assembles from 4 separate live calls
+ *  (getCityOverpassData + nearestVerifiedBeach + 2x
+ *  nearestFeatureWithDetails), just persisted instead of re-fetched on
+ *  every cache miss. `raw`/`transport`/`economySectors` are `CityOverpassData`
+ *  split out (not nested) so a backfilled city and a live-fetched one look
+ *  identical to the code consuming them either way. */
+export interface OverpassAmenitiesBackfill {
+  raw: OverpassRawCounts;
+  transport: OverpassTransportPresence;
+  economySectors: EconomySectorCounts;
+  beach: NearestFeatureResult | null;
+  mountain: NearestFeatureResult | null;
+  forest: NearestFeatureResult | null;
 }
 
 function haversineKmInternal(lat1: number, lng1: number, lat2: number, lng2: number): number {

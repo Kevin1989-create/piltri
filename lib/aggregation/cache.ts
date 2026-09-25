@@ -3,6 +3,7 @@ import { aggregateCityData } from "./aggregate";
 import { aggregatePinData } from "./pin";
 import { memoize } from "./memoryCache";
 import type { CityExploreData, CitySearchResult, ClimateFields, LiveabilityFields, PinnedLocationData } from "@/lib/types";
+import type { OverpassAmenitiesBackfill } from "@/lib/data-sources/overpass";
 
 // Fields that all come from Overpass (OSM) - the least reliable data
 // source this app calls, and prone to going down for everyone, not just
@@ -20,6 +21,9 @@ const OVERPASS_LIVEABILITY_FIELDS: (keyof LiveabilityFields)[] = [
   "hasSubway",
   "hasTramway",
   "hasAirport",
+  "hasBusStation",
+  "hasSchool",
+  "hasUniversity",
   "distanceToBeachKm",
   "distanceToMountainKm",
   "distanceToForestKm",
@@ -104,7 +108,7 @@ export async function getOrAggregateCityData(city: CitySearchResult): Promise<Ci
   const { data: existing, error: readErr } = await supabase
     .from("city_scores")
     .select(
-      "city_id, data, last_updated, cities!inner(slug, osm_land_area_km2, wikidata_population, wikidata_area_km2, wikidata_checked_at)"
+      "city_id, data, last_updated, cities!inner(slug, osm_land_area_km2, wikidata_population, wikidata_area_km2, wikidata_checked_at, overpass_amenities, overpass_checked_at)"
     )
     .eq("cities.slug", slug)
     .maybeSingle();
@@ -132,6 +136,8 @@ export async function getOrAggregateCityData(city: CitySearchResult): Promise<Ci
   let wikidataPopulation = existingCityRel?.wikidata_population as number | null | undefined;
   let wikidataAreaKm2 = existingCityRel?.wikidata_area_km2 as number | null | undefined;
   let wikidataCheckedAt = existingCityRel?.wikidata_checked_at as string | null | undefined;
+  let overpassAmenities = existingCityRel?.overpass_amenities as OverpassAmenitiesBackfill | null | undefined;
+  let overpassCheckedAt = existingCityRel?.overpass_checked_at as string | null | undefined;
 
   if (!cityId) {
     const { data: cityRow, error: cityErr } = await supabase
@@ -148,7 +154,7 @@ export async function getOrAggregateCityData(city: CitySearchResult): Promise<Ci
         },
         { onConflict: "slug" }
       )
-      .select("id, osm_land_area_km2, wikidata_population, wikidata_area_km2, wikidata_checked_at")
+      .select("id, osm_land_area_km2, wikidata_population, wikidata_area_km2, wikidata_checked_at, overpass_amenities, overpass_checked_at")
       .single();
 
     if (cityErr || !cityRow) {
@@ -162,6 +168,8 @@ export async function getOrAggregateCityData(city: CitySearchResult): Promise<Ci
     wikidataPopulation = cityRow.wikidata_population as number | null;
     wikidataAreaKm2 = cityRow.wikidata_area_km2 as number | null;
     wikidataCheckedAt = cityRow.wikidata_checked_at as string | null;
+    overpassAmenities = cityRow.overpass_amenities as OverpassAmenitiesBackfill | null;
+    overpassCheckedAt = cityRow.overpass_checked_at as string | null;
   }
 
   let fresh = await aggregateCityData(
@@ -171,6 +179,8 @@ export async function getOrAggregateCityData(city: CitySearchResult): Promise<Ci
       wikidataChecked: wikidataCheckedAt != null,
       wikidataPopulation: wikidataPopulation ?? null,
       wikidataAreaKm2: wikidataAreaKm2 ?? null,
+      overpassChecked: overpassCheckedAt != null,
+      overpassAmenities: overpassAmenities ?? null,
     }
   );
   if (existing?.data) {

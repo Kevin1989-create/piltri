@@ -1990,6 +1990,18 @@ Added `pisaMathScore`/`pisaReadingScore`/`pisaScienceScore` to `LiveabilityField
 
 `kpiRows.ts`'s "Distance to capital city" row was `precision: "country"`, grouping it with United Kingdom-level facts even though it's genuinely a statement about THIS city's own position (same conceptual group as Distance to beach/mountain/forest right above it) - just sourced from a static country-level lookup table rather than a live per-city API, which shouldn't determine its display group. Changed to `precision: "pinned"` so it renders under the City heading. Verified live: for London, "Distance to capital city — 0 km" now sits under "London", not "United Kingdom".
 
+## Overpass amenities backfill: eliminates the live-request dependency for 11 Quality of Life fields + 3 new presence flags (2026-09-26, later same session)
+
+Directly followed up on "digging" into why Distance to beach/green space/transport presence kept coming back empty (Overpass has been unreliable all session - confirmed multiple outages). Built the same resumable-backfill architecture already proven for `backfillWikidataPopulation.ts`, applied to Overpass:
+
+- **New**: `lib/aggregation/backfillOverpassAmenities.ts` + `POST /api/admin/backfill-overpass-amenities` + an "/admin" page button, all mirroring the Wikidata backfill's exact shape (resumable via `cities.overpass_checked_at`, paced at 1.5s/city, 20s per-city timeout for a background job that can afford to wait longer than a live page load).
+- Runs the SAME 4 Overpass calls `aggregateCityData` makes live (`getCityOverpassData` + `nearestVerifiedBeach` + 2x `nearestFeatureWithDetails` for mountain/forest) per shortlisted city, once, and stores the combined result as one `cities.overpass_amenities` JSONB blob (`OverpassAmenitiesBackfill` in `lib/data-sources/overpass.ts`) - schema migration (`overpass_amenities jsonb`, `overpass_checked_at timestamptz`) run manually in the Supabase SQL editor before this deployed.
+- `aggregate.ts`'s `aggregateCityData` now accepts `opts.overpassChecked`/`overpassAmenities` (same pattern as `osmLandAreaKm2`/`wikidataChecked`) - a shortlisted, already-backfilled city skips ALL 4 live Overpass calls entirely and reads its stored value instead; a city outside the shortlist still falls back to the live call, unchanged. `withTimeout` exported from `aggregate.ts` so the backfill can reuse it rather than duplicating.
+
+**Also added 3 presence flags that didn't exist at all before** (user explicitly asked for Bus/School/University alongside the existing Train/Subway/Tram/Airport): `hasBusStation` (`highway=bus_station`/`amenity=bus_station`, deliberately NOT the far more common `highway=bus_stop`, which is too ubiquitous to be a meaningful "does this city have one" signal), `hasSchool` (`amenity=school`), `hasUniversity` (`amenity=university`) - folded into the same single batched Overpass query (`getCityOverpassData`, now 17 tag groups instead of 14, still 1 HTTP request), same null-means-unresolved convention as the other 4 flags.
+
+The stale-cache-fallback resilience fix from 2 entries up and the cache-resilience Overpass field list in `cache.ts` were both extended to cover these 3 new flags automatically.
+
 ## Getting oriented fast
 
 Start with `lib/types.ts` (the whole data model — read its file header

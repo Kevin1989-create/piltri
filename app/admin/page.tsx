@@ -16,6 +16,8 @@ interface Status {
   landAreaFound: number;
   wikidataChecked: number;
   wikidataFound: number;
+  overpassChecked: number;
+  overpassFound: number;
 }
 
 interface WarmResult {
@@ -45,6 +47,21 @@ interface BackfillLandAreaResult {
 // just be a coincidence waiting to drift.
 type BackfillWikidataPopulationResult = BackfillLandAreaResult;
 
+// No "notFound" bucket here (unlike the 2 backfills above) - see
+// backfillOverpassAmenities.ts's own doc comment for why "found" means
+// something slightly different for this one (the combined Overpass call
+// itself succeeded, not that every individual flag/count came back
+// positive).
+interface BackfillOverpassAmenitiesResult {
+  total: number;
+  alreadyChecked: number;
+  attempted: number;
+  found: number;
+  failed: number;
+  remaining: number;
+  stoppedReason: "exhausted" | "deadline";
+}
+
 /** Back-office status page: how much of the city shortlist currently has
  *  real, fresh data cached, plus manual triggers for the same warm/clear
  *  actions the scheduled cron job (vercel.json → /api/cron/warm-cache-tick)
@@ -57,11 +74,12 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
-  const [busy, setBusy] = useState<"warm" | "sweep" | "clear" | "landArea" | "wikidataPopulation" | null>(null);
+  const [busy, setBusy] = useState<"warm" | "sweep" | "clear" | "landArea" | "wikidataPopulation" | "overpassAmenities" | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [sweepProgress, setSweepProgress] = useState<{ warmed: number; failed: number } | null>(null);
   const [landAreaProgress, setLandAreaProgress] = useState<{ found: number; notFound: number; failed: number } | null>(null);
   const [wikidataProgress, setWikidataProgress] = useState<{ found: number; notFound: number; failed: number } | null>(null);
+  const [overpassProgress, setOverpassProgress] = useState<{ found: number; failed: number } | null>(null);
   // A plain ref, not state - flipping it doesn't need a re-render, it's
   // only read at the top of runSweep's loop between calls to decide
   // whether to keep going, same pattern as an AbortController but simpler
@@ -70,6 +88,7 @@ export default function AdminPage() {
   const stopRequested = useRef(false);
   const stopLandAreaRequested = useRef(false);
   const stopWikidataRequested = useRef(false);
+  const stopOverpassRequested = useRef(false);
 
   async function loadStatus() {
     const res = await fetch("/api/admin/status");
@@ -244,6 +263,44 @@ export default function AdminPage() {
     }
   }
 
+  /** Overpass amenities backfill (transport/education presence, beach/
+   *  mountain/forest distance, density counts) - same repeat-until-done
+   *  pattern as the 2 backfills above, replacing the live per-search
+   *  Overpass call (see aggregate.ts) with a one-time paced sweep of the
+   *  shortlist. Safe to stop and resume any time - cities.overpass_checked_at
+   *  just tracks what's already been attempted. */
+  async function triggerOverpassBackfill() {
+    setBusy("overpassAmenities");
+    setLastResult(null);
+    stopOverpassRequested.current = false;
+    let totalFound = 0;
+    let totalFailed = 0;
+    setOverpassProgress({ found: 0, failed: 0 });
+
+    try {
+      while (!stopOverpassRequested.current) {
+        const res = await fetch("/api/admin/backfill-overpass-amenities", { method: "POST" });
+        const body: BackfillOverpassAmenitiesResult = await res.json();
+        totalFound += body.found;
+        totalFailed += body.failed;
+        setOverpassProgress({ found: totalFound, failed: totalFailed });
+        await loadStatus();
+        if (body.remaining <= 0) {
+          setLastResult(`Overpass amenities backfill complete — ${totalFound} found, ${totalFailed} failed.`);
+          break;
+        }
+      }
+      if (stopOverpassRequested.current) {
+        setLastResult(`Stopped — ${totalFound} found this run, ${totalFailed} failed. Resume any time.`);
+      }
+    } catch {
+      setLastResult(`Request failed after ${totalFound} found this run — see server logs.`);
+    } finally {
+      setBusy(null);
+      setOverpassProgress(null);
+    }
+  }
+
   async function triggerClear() {
     if (!confirm("Clear every cached city score? Nothing is lost (it's all re-derivable), but the site will read slower until re-warmed.")) {
       return;
@@ -334,6 +391,16 @@ export default function AdminPage() {
                     </p>
                     <p className="text-ink-500 text-xs mt-0.5">Wikidata backfill checked</p>
                   </div>
+                  <div>
+                    <p className="font-serif text-2xl text-ink-900 tabular-nums">{status.overpassFound}</p>
+                    <p className="text-ink-500 text-xs mt-0.5">Overpass amenities found</p>
+                  </div>
+                  <div>
+                    <p className="font-serif text-2xl text-ink-900 tabular-nums">
+                      {status.overpassChecked}/{status.totalCities}
+                    </p>
+                    <p className="text-ink-500 text-xs mt-0.5">Overpass backfill checked</p>
+                  </div>
                 </div>
               </Card>
 
@@ -384,6 +451,21 @@ export default function AdminPage() {
                 ) : (
                   <Button variant="secondary" onClick={triggerWikidataBackfill} disabled={busy !== null} className="w-full">
                     Backfill city population (Wikidata) — one-time, paced, can take a while
+                  </Button>
+                )}
+                {busy === "overpassAmenities" ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      stopOverpassRequested.current = true;
+                    }}
+                    className="w-full"
+                  >
+                    Stop backfill{overpassProgress ? ` (${overpassProgress.found} found so far)` : ""}
+                  </Button>
+                ) : (
+                  <Button variant="secondary" onClick={triggerOverpassBackfill} disabled={busy !== null} className="w-full">
+                    Backfill Overpass amenities (transport/schools/beach/etc.) — one-time, paced, can take a while
                   </Button>
                 )}
                 <Button variant="ghost" onClick={triggerClear} disabled={busy !== null} className="w-full">

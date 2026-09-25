@@ -46,7 +46,27 @@ create table if not exists cities (
   -- osm_land_area_checked_at already makes.
   wikidata_population integer,
   wikidata_area_km2 double precision,
-  wikidata_checked_at timestamptz
+  wikidata_checked_at timestamptz,
+  -- Every Overpass-sourced Quality of Life field (restaurant/green-space/
+  -- cultural/family density, train/subway/tram/airport/bus/school/
+  -- university presence, distance to beach/mountain/forest), backfilled
+  -- once per shortlisted city via the same resumable pattern as
+  -- wikidata_population above - see
+  -- lib/aggregation/backfillOverpassAmenities.ts and POST
+  -- /api/admin/backfill-overpass-amenities. Added 2026-09-26 after Overpass
+  -- proved unreliable enough at request time that this whole section of
+  -- Quality of Life was routinely coming back empty for real cities (see
+  -- HANDOFF.md). A single JSONB blob (lib/data-sources/overpass.ts's
+  -- OverpassAmenitiesBackfill), not one column per field, since it's
+  -- always read/written as one unit and mirrors the shape
+  -- aggregateCityData already assembles from its 4 live Overpass calls -
+  -- same reasoning city_scores.data itself already uses. overpass_checked_at
+  -- is the same "not attempted vs. a real negative" distinction
+  -- wikidata_checked_at makes (a city genuinely far from any coast, with
+  -- no train station, etc. is a real checked "null/false" - not the same
+  -- as "backfill hasn't reached it yet").
+  overpass_amenities jsonb,
+  overpass_checked_at timestamptz
 );
 
 -- Run this against an ALREADY-PROVISIONED database (the create table above
@@ -56,6 +76,8 @@ create table if not exists cities (
 alter table cities add column if not exists wikidata_population integer;
 alter table cities add column if not exists wikidata_area_km2 double precision;
 alter table cities add column if not exists wikidata_checked_at timestamptz;
+alter table cities add column if not exists overpass_amenities jsonb;
+alter table cities add column if not exists overpass_checked_at timestamptz;
 
 create extension if not exists pg_trgm;
 create index if not exists cities_name_trgm_idx on cities using gin (city_name gin_trgm_ops);

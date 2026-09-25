@@ -273,16 +273,25 @@ export interface ClimateFields {
 export interface LiveabilityFields {
   // restaurantsBarsDensityPer10k / greenSpaceScore / culturalVenuesDensityPer10k
   // / familyKidsActivitiesDensityPer10k / hasTrainStation / hasSubway /
-  // hasTramway / hasAirport all come from ONE combined Overpass call
-  // (getCityOverpassData) - genuinely null (not 0/false) when that single
-  // call fails/times out, so a real "London has 0 restaurants" can never
-  // be confused with "Overpass didn't answer" (2026-09-26, on request -
-  // these used to default to 0/50/false on failure, which silently showed
-  // as real, verified data - "0 restaurants", "No train station" - for
-  // London itself during an Overpass outage. Same "omit, don't guess"
-  // convention as distanceToBeachKm etc. below; aggregate.ts still uses an
-  // internal fallback for the *score* calculation only, never for what's
-  // actually displayed).
+  // hasTramway / hasAirport / hasBusStation / hasSchool / hasUniversity all
+  // come from ONE combined Overpass call (getCityOverpassData) - genuinely
+  // null (not 0/false) when that single call fails/times out, so a real
+  // "London has 0 restaurants" can never be confused with "Overpass didn't
+  // answer" (2026-09-26, on request - these used to default to 0/50/false
+  // on failure, which silently showed as real, verified data -
+  // "0 restaurants", "No train station" - for London itself during an
+  // Overpass outage. Same "omit, don't guess" convention as
+  // distanceToBeachKm etc. below; aggregate.ts still uses an internal
+  // fallback for the *score* calculation only, never for what's actually
+  // displayed). As of 2026-09-26 this whole group (plus
+  // distanceToBeachKm/distanceToMountainKm/distanceToForestKm below) is
+  // ALSO available pre-computed via a one-time backfill across the city
+  // shortlist (lib/aggregation/backfillOverpassAmenities.ts,
+  // cities.overpass_amenities in Supabase) - a shortlisted city that's
+  // already been backfilled reads its stored value and skips the live
+  // Overpass call entirely, same pattern as osmLandAreaKm2/
+  // wikidataPopulation already use. A city outside the shortlist (a search
+  // Explore hasn't seen before) still falls back to the live call.
   restaurantsBarsDensityPer10k: number | null;
   /** 0-100, Overpass parks/gardens count within 5km of centre normalised
    *  against a reasonable-range ceiling - a density SCORE, not a literal
@@ -303,6 +312,12 @@ export interface LiveabilityFields {
   hasSubway: boolean | null;
   hasTramway: boolean | null;
   hasAirport: boolean | null;
+  /** Added 2026-09-26 alongside the Overpass backfill (see
+   *  lib/aggregation/backfillOverpassAmenities.ts) - same null-means-
+   *  unresolved convention as the 4 transport flags above. */
+  hasBusStation: boolean | null;
+  hasSchool: boolean | null;
+  hasUniversity: boolean | null;
   // "What's nearby" distances (2026-09-24, moved here from ClimateFields
   // on request - proximity to a beach/mountain/forest/capital reads as a
   // Quality of Life question, not a climate/geography fact about the

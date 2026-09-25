@@ -42,6 +42,8 @@ export async function GET(req: NextRequest) {
   let landAreaFound = 0;
   let wikidataChecked = 0;
   let wikidataFound = 0;
+  let overpassChecked = 0;
+  let overpassFound = 0;
   try {
     const supabase = getSupabaseServiceClient();
     const slugs = cityInputs.map((c) => citySlug(c));
@@ -58,7 +60,9 @@ export async function GET(req: NextRequest) {
       slugChunks.map((slice) =>
         supabase
           .from("cities")
-          .select("osm_land_area_km2, osm_land_area_checked_at, wikidata_population, wikidata_area_km2, wikidata_checked_at")
+          .select(
+            "osm_land_area_km2, osm_land_area_checked_at, wikidata_population, wikidata_area_km2, wikidata_checked_at, overpass_amenities, overpass_checked_at"
+          )
           .in("slug", slice)
       )
     );
@@ -76,6 +80,10 @@ export async function GET(req: NextRequest) {
           wikidataChecked++;
           if (row.wikidata_population != null || row.wikidata_area_km2 != null) wikidataFound++;
         }
+        if (row.overpass_checked_at != null) {
+          overpassChecked++;
+          if (row.overpass_amenities != null) overpassFound++;
+        }
       }
     }
   } catch (err) {
@@ -92,5 +100,7 @@ export async function GET(req: NextRequest) {
     landAreaFound,
     wikidataChecked,
     wikidataFound,
+    overpassChecked,
+    overpassFound,
   });
 }

@@ -688,13 +688,14 @@ export function splitKpiRowsByTier(rows: KpiRow[]): { countryRows: KpiRow[]; cit
   };
 }
 
-/** The 4 Overpass-sourced transport presence flags, folded directly into
- *  the main Liveability City grid (no separate "Local Signals"/"Transport
- *  Access" sub-heading - 2026-09-26, on request). Coloured Yes=green/
- *  No=red as a simple presence-is-positive read. Each flag is null, not
- *  false, when the whole Overpass call didn't resolve (see
- *  LiveabilityFields' header comment) - omitted rather than shown as a
- *  misleading "No" for a city Overpass simply couldn't be reached for. */
+/** The 7 Overpass-sourced presence flags (4 transport + 3 education, added
+ *  2026-09-26), folded directly into the main Liveability City grid (no
+ *  separate "Local Signals"/"Transport Access" sub-heading - 2026-09-26,
+ *  on request). Coloured Yes=green/No=red as a simple presence-is-positive
+ *  read. Each flag is null, not false, when the whole Overpass call didn't
+ *  resolve (see LiveabilityFields' header comment) - omitted rather than
+ *  shown as a misleading "No" for a city Overpass simply couldn't be
+ *  reached for. */
 export function buildLiveabilityTransportRows(data: CityExploreData): KpiRow[] {
   const l = data.liveability;
   const rows: (KpiRow | null)[] = [
@@ -709,6 +710,15 @@ export function buildLiveabilityTransportRows(data: CityExploreData): KpiRow[] {
       : null,
     l.hasAirport != null
       ? { label: "Airport", value: l.hasAirport ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasAirport) }
+      : null,
+    l.hasBusStation != null
+      ? { label: "Bus station", value: l.hasBusStation ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasBusStation) }
+      : null,
+    l.hasSchool != null
+      ? { label: "School", value: l.hasSchool ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasSchool) }
+      : null,
+    l.hasUniversity != null
+      ? { label: "University", value: l.hasUniversity ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasUniversity) }
       : null,
   ];
   return rows.filter((r): r is KpiRow => r != null);

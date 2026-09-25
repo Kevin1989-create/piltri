@@ -3,7 +3,13 @@ import { getCountryLanguages } from "@/lib/data-sources/languages";
 import { getCountryMedianAge } from "@/lib/data-sources/medianAge";
 import { getClimateAverages, getKoppenClimateType } from "@/lib/data-sources/openmeteo";
 import { getAirQualityAverages } from "@/lib/data-sources/airQuality";
-import { getCityOverpassData, nearestFeatureWithDetails, nearestVerifiedBeach, pickMainEconomyType } from "@/lib/data-sources/overpass";
+import {
+  getCityOverpassData,
+  nearestFeatureWithDetails,
+  nearestVerifiedBeach,
+  pickMainEconomyType,
+  type OverpassAmenitiesBackfill,
+} from "@/lib/data-sources/overpass";
 import { getHealthcareQualityScore } from "@/lib/data-sources/who";
 import { getCityPopulationAndArea } from "@/lib/data-sources/wikidata";
 import { toIso3 } from "@/lib/data-sources/country-codes";
@@ -119,10 +125,22 @@ const FAR_LOOKUP_TIMEOUT_MS = 12000;
  */
 export async function aggregateCityData(
   city: CitySearchResult,
-  opts: { osmLandAreaKm2?: number | null; wikidataChecked?: boolean; wikidataPopulation?: number | null; wikidataAreaKm2?: number | null } = {}
+  opts: {
+    osmLandAreaKm2?: number | null;
+    wikidataChecked?: boolean;
+    wikidataPopulation?: number | null;
+    wikidataAreaKm2?: number | null;
+    /** Same idea as wikidataChecked/wikidataPopulation above, for the
+     *  Overpass-sourced fields listed in LiveabilityFields' own header
+     *  comment - see lib/aggregation/backfillOverpassAmenities.ts. */
+    overpassChecked?: boolean;
+    overpassAmenities?: OverpassAmenitiesBackfill | null;
+  } = {}
 ): Promise<CityExploreData> {
   const osmLandAreaKm2 = opts.osmLandAreaKm2 ?? null;
   const wikidataChecked = opts.wikidataChecked ?? false;
+  const overpassChecked = opts.overpassChecked ?? false;
+  const overpassAmenities = opts.overpassAmenities ?? null;
   const iso3 = toIso3(city.countryCode);
 
   const [
@@ -145,30 +163,46 @@ export async function aggregateCityData(
     safely(() => getCountryLanguages(city.countryCode), { officialLanguages: [], mostWidelySpokenLanguage: "Unknown" }),
     safely(() => getClimateAverages(city.lat, city.lng), null),
     // One Overpass request covering amenity density, transport presence,
-    // and economy-sector counts together - was 14 separate requests (see
-    // getCityOverpassData's doc comment).
-    safely(() => getCityOverpassData(city.lat, city.lng), null),
+    // and economy-sector counts together - was 17 separate requests (see
+    // getCityOverpassData's doc comment). Skipped entirely for a
+    // shortlisted, already-backfilled city (see
+    // backfillOverpassAmenities.ts) - its stored value is used instead, no
+    // live Overpass call at all.
+    overpassChecked
+      ? Promise.resolve(
+          overpassAmenities
+            ? { raw: overpassAmenities.raw, transport: overpassAmenities.transport, economySectors: overpassAmenities.economySectors }
+            : null
+        )
+      : safely(() => getCityOverpassData(city.lat, city.lng), null),
     safely(() => memoize(`who:${iso3}`, COUNTRY_LEVEL_TTL_MS, () => getHealthcareQualityScore(iso3)), null),
     wikidataChecked
       ? Promise.resolve({ population: opts.wikidataPopulation ?? null, areaKm2: opts.wikidataAreaKm2 ?? null })
       : safely(() => getCityPopulationAndArea(city.lat, city.lng, city.cityName), { population: null, areaKm2: null }),
     safely(() => getKoppenClimateType(city.lat, city.lng), null),
     // withTimeout, not just safely - see that helper's own comment for why
-    // beach/mountain specifically need a hard outer cap.
-    safely(() => withTimeout(nearestVerifiedBeach(city.lat, city.lng), FAR_LOOKUP_TIMEOUT_MS, null), null),
-    safely(
-      () => withTimeout(nearestFeatureWithDetails(city.lat, city.lng, '"natural"="peak"', 40000), FAR_LOOKUP_TIMEOUT_MS, null),
-      null
-    ),
-    safely(
-      () =>
-        withTimeout(
-          nearestFeatureWithDetails(city.lat, city.lng, ['"natural"="wood"', '"landuse"="forest"'], 20000),
-          FAR_LOOKUP_TIMEOUT_MS,
+    // beach/mountain specifically need a hard outer cap. Same backfill
+    // short-circuit as overpassData above.
+    overpassChecked
+      ? Promise.resolve(overpassAmenities?.beach ?? null)
+      : safely(() => withTimeout(nearestVerifiedBeach(city.lat, city.lng), FAR_LOOKUP_TIMEOUT_MS, null), null),
+    overpassChecked
+      ? Promise.resolve(overpassAmenities?.mountain ?? null)
+      : safely(
+          () => withTimeout(nearestFeatureWithDetails(city.lat, city.lng, '"natural"="peak"', 40000), FAR_LOOKUP_TIMEOUT_MS, null),
           null
         ),
-      null
-    ),
+    overpassChecked
+      ? Promise.resolve(overpassAmenities?.forest ?? null)
+      : safely(
+          () =>
+            withTimeout(
+              nearestFeatureWithDetails(city.lat, city.lng, ['"natural"="wood"', '"landuse"="forest"'], 20000),
+              FAR_LOOKUP_TIMEOUT_MS,
+              null
+            ),
+          null
+        ),
     safely(() => getAirQualityAverages(city.lat, city.lng), null),
     safely(() => getEarthquakeCount(city.lat, city.lng), null),
     safely(
@@ -333,6 +367,9 @@ export async function aggregateCityData(
       hasSubway: transportPresence?.hasSubway ?? null,
       hasTramway: transportPresence?.hasTramway ?? null,
       hasAirport: transportPresence?.hasAirport ?? null,
+      hasBusStation: transportPresence?.hasBusStation ?? null,
+      hasSchool: transportPresence?.hasSchool ?? null,
+      hasUniversity: transportPresence?.hasUniversity ?? null,
       distanceToBeachKm: beach?.km != null ? Number(beach.km.toFixed(1)) : null,
       distanceToMountainKm: mountain?.km != null ? Number(mountain.km.toFixed(1)) : null,
       distanceToForestKm: forest?.km != null ? Number(forest.km.toFixed(1)) : null,
@@ -442,7 +479,10 @@ async function safely<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
  *  can't resolve a beach distance in time gets a null (same honest
  *  "no answer in time" convention as everything else) rather than
  *  dragging the whole page down with it. */
-function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+// Exported for backfillOverpassAmenities.ts, which needs this exact same
+// "give it a hard cap, degrade to a fallback rather than hang" behaviour
+// for the same beach/mountain/forest calls - not worth a separate copy.
+export function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
   return Promise.race([promise, new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))]);
 }
 

@@ -496,6 +496,27 @@ export const CRITERIA: CriterionDef[] = [
     kind: "boolean",
     getCityValue: (d) => d.liveability.hasAirport,
   },
+  {
+    key: "liveability.hasBusStation",
+    category: "liveability",
+    label: "Has bus station",
+    kind: "boolean",
+    getCityValue: (d) => d.liveability.hasBusStation,
+  },
+  {
+    key: "liveability.hasSchool",
+    category: "liveability",
+    label: "Has school",
+    kind: "boolean",
+    getCityValue: (d) => d.liveability.hasSchool,
+  },
+  {
+    key: "liveability.hasUniversity",
+    category: "liveability",
+    label: "Has university",
+    kind: "boolean",
+    getCityValue: (d) => d.liveability.hasUniversity,
+  },
   // "What's nearby" distances (2026-09-24, moved here from Environment/
   // Climate on request - proximity reads as a Quality of Life question).
   {
