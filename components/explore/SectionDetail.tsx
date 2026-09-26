@@ -1,36 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useRef } from "react";
 import { ClimateChart } from "@/components/explore/ClimateChart";
+import { KpiInfoButton, type KpiInfoHandle } from "@/components/explore/KpiInfo";
 import { cn } from "@/lib/cn";
 import { buildGdpSectorRows, buildKpiRows, buildLiveabilityTransportRows, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { useUnitPreferences } from "@/lib/unitPreferences";
 import type { CityExploreData, SectionKey } from "@/lib/types";
 
-/** One line per value and label keeps every cell the same height. The full
- *  text and the row's explanation are in the hover tooltip - and, since
- *  phones have no hover, a tap expands the cell in place. */
+/** One line per value and label keeps every cell the same height. The
+ *  small "i" next to the label explains the metric - its definition, colour
+ *  guide and source - on hover; on a phone, tapping anywhere on the cell
+ *  opens it (and shows any text the cell had to cut short). */
 function StatCell({ row, bold = false }: { row: KpiRow; bold?: boolean }) {
-  const [open, setOpen] = useState(false);
+  const info = useRef<KpiInfoHandle>(null);
   return (
-    <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="block w-full min-w-0 text-left cursor-default">
+    <div data-kpi-cell className="min-w-0 cursor-default" onClick={() => info.current?.toggle()}>
       <p
-        className={cn(
-          "text-xs leading-tight",
-          open ? "break-words" : "truncate",
-          bold ? "font-semibold" : "font-medium",
-          row.colorClass ?? "text-ink-900"
-        )}
+        className={cn("text-xs leading-tight truncate", bold ? "font-semibold" : "font-medium", row.colorClass ?? "text-ink-900")}
         title={row.valueSuffix ? `${row.value} ${row.valueSuffix}` : row.value}
       >
         {row.value}
         {row.valueSuffix && <span className="text-[10px] font-normal ml-1">{row.valueSuffix}</span>}
       </p>
-      <p className={cn("text-[10px] text-ink-500 leading-tight", open ? "break-words" : "truncate")} title={row.hint ?? row.label}>
-        {row.label}
-      </p>
-      {open && row.hint && <p className="mt-0.5 text-[10px] text-ink-300 leading-snug break-words">{row.hint}</p>}
-    </button>
+      <div className="flex items-center gap-1 min-w-0">
+        <p className="text-[10px] text-ink-500 leading-tight truncate">{row.label}</p>
+        <KpiInfoButton ref={info} row={row} />
+      </div>
+    </div>
   );
 }
 

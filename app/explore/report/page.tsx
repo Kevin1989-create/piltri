@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ClimateChart } from "@/components/explore/ClimateChart";
+import { KpiInfoButton } from "@/components/explore/KpiInfo";
 import { ResourcesDetail } from "@/components/explore/ResourcesDetail";
 import { buildGdpSectorRows, buildKpiRows, buildLiveabilityTransportRows, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { cn } from "@/lib/cn";
@@ -272,21 +273,21 @@ function ReportGroup({
       {rows.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
           {rows.map((row) => (
-            <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} hint={row.hint} />
+            <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} row={row} />
           ))}
         </div>
       )}
       {!!extraRows?.length && (
         <div className={cn("grid grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm", rows.length > 0 && "mt-3")}>
           {extraRows.map((row) => (
-            <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} hint={row.hint} />
+            <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} row={row} />
           ))}
         </div>
       )}
       {!!rowsAfterExtra?.length && (
         <div className={cn("grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm", (rows.length > 0 || !!extraRows?.length) && "mt-3")}>
           {rowsAfterExtra.map((row) => (
-            <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} hint={row.hint} />
+            <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} row={row} />
           ))}
         </div>
       )}
@@ -299,13 +300,14 @@ function ReportStat({
   value,
   valueSuffix,
   colorClass,
-  hint,
+  row,
 }: {
   label: string;
   value: string;
   valueSuffix?: string;
   colorClass?: string;
-  hint?: string;
+  /** A section KPI - adds the info button (screen only, not printed). */
+  row?: KpiRow;
 }) {
   return (
     <div className="min-w-0">
@@ -313,8 +315,9 @@ function ReportStat({
         {value}
         {valueSuffix && <span className="text-[11px] font-normal ml-1">{valueSuffix}</span>}
       </p>
-      <p className="text-[11px] text-ink-500 leading-snug" title={hint}>
-        {label}
+      <p className="text-[11px] text-ink-500 leading-snug flex items-center gap-1">
+        <span>{label}</span>
+        {row && <KpiInfoButton row={row} className="print:hidden" />}
       </p>
     </div>
   );
