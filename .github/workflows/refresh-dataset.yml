@@ -15,7 +15,9 @@ on:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # The Overture places extraction dominates (tens of GB of Parquet read
+    # from S3); generous headroom so a slow S3 day doesn't kill the run.
+    timeout-minutes: 300
     env:
       PIPELINE_CACHE_DIR: ${{ github.workspace }}/.pipeline-cache
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
