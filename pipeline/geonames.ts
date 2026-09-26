@@ -1,4 +1,4 @@
-import { createReadStream, existsSync } from "fs";
+import { createReadStream } from "fs";
 import path from "path";
 import readline from "readline";
 import { cached, downloadOnce, log, unzipOnce, WORK_DIR } from "./util";
@@ -59,10 +59,7 @@ export const MOUNTAIN_MIN_RISE_M = 500;
 
 async function geonamesDir(): Promise<string> {
   const dir = path.join(WORK_DIR, "geonames");
-  const allZip = await downloadOnce("https://download.geonames.org/export/dump/allCountries.zip", "allCountries.zip");
-  const citiesZip = await downloadOnce("https://download.geonames.org/export/dump/cities5000.zip", "cities5000.zip");
-  unzipOnce(allZip, dir, "allCountries.txt");
-  unzipOnce(citiesZip, dir, "cities5000.txt");
+  unzipOnce(await downloadOnce("https://download.geonames.org/export/dump/allCountries.zip", "allCountries.zip"), dir, "allCountries.txt");
   return dir;
 }
 
@@ -110,30 +107,4 @@ export async function extractGeoNamesFeatures(): Promise<GeoNamesFeatures> {
     log("geonames", `${lines} lines scanned; ` + Object.entries(out).map(([k, v]) => `${k}=${v.lng.length}`).join(" "));
     return out;
   });
-}
-
-/** GeoNames' SRTM-derived elevation ("dem" column) for every row in
- *  cities5000.txt, keyed by "lat|lng" - the city shortlist
- *  (data/static/discover-cities.json) was generated from this same file,
- *  with the same coordinates, so an exact key match is reliable. */
-export async function loadCityElevations(): Promise<Map<string, number>> {
-  const obj = await cached("city-elevations", async () => {
-    const dir = await geonamesDir();
-    const file = path.join(dir, "cities5000.txt");
-    if (!existsSync(file)) throw new Error("cities5000.txt missing");
-    const result: Record<string, number> = {};
-    const rl = readline.createInterface({ input: createReadStream(file), crlfDelay: Infinity });
-    for await (const line of rl) {
-      const cols = line.split("\t");
-      const lat = Number(cols[4]);
-      const lng = Number(cols[5]);
-      const dem = Number(cols[16]);
-      const elevation = cols[15] ? Number(cols[15]) : NaN;
-      const value = Number.isFinite(elevation) ? elevation : dem;
-      // -9999 is GeoNames' "no data" sentinel for dem.
-      if (Number.isFinite(value) && value > -1000) result[`${lat}|${lng}`] = value;
-    }
-    return result;
-  });
-  return new Map(Object.entries(obj));
 }

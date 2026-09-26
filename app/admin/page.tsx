@@ -138,7 +138,8 @@ export default function AdminPage() {
 
               <p className="mt-8 text-xs text-ink-300">
                 To refresh the data, run the offline pipeline (<code>npm run pipeline</code>) - it rebuilds every city from free bulk
-                sources and publishes the new dataset. See pipeline/README.md.
+                sources and publishes it; the site serves it from its next deploy (the monthly GitHub workflow does both). See
+                pipeline/README.md.
               </p>
             </>
           )}

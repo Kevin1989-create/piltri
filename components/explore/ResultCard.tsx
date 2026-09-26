@@ -24,10 +24,8 @@ export interface DisplayResult {
   wikiTitle: string;
   /** Wikipedia page title to fall back to if the first lookup is empty or a
    *  disambiguation page (e.g. "City, Country"). Undefined for countries,
-   *  which don't need the extra disambiguation attempt. If Wikipedia has no
-   *  photo at all, CityPhoto falls back further to a Mapbox static map
-   *  centred on lat/lng (see StaticMapFallback in ResultCard.tsx) so every
-   *  city still shows a real picture, not a placeholder glyph. */
+   *  which don't need the extra disambiguation attempt. With no photo at
+   *  all, the card shows a neutral placeholder. */
   wikiFallbackTitle?: string;
   /** Set only for country results — an ISO 3166-1 alpha-2 code, used to show
    *  a real flag (via flagcdn.com) instead of Wikipedia's lead image. A
@@ -75,14 +73,9 @@ function CityPhoto({ result }: { result: DisplayResult }) {
   const { src, loading } = useWikipediaThumbnail(result.wikiTitle, result.wikiFallbackTitle);
   if (src) return <img src={src} alt={result.name} className="w-full h-full object-cover" loading="lazy" />;
   if (loading) return <div className="w-full h-full animate-pulse bg-surface-muted" />;
-  return <StaticMapFallback result={result} />;
-}
-
-/** No Wikipedia photo for this city - show the neutral placeholder (this
- *  used to be a Mapbox static map image, a keyed per-card API call). */
-function StaticMapFallback(_props: { result: DisplayResult }) {
   return <PlaceholderGlyph />;
 }
+
 
 function PlaceholderGlyph() {
   return (

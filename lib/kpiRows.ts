@@ -1,45 +1,27 @@
 import { normalise } from "@/lib/aggregation/scoring";
-import { COUNT_CAPS, countScore } from "@/lib/dataset/assemble";
+import { COUNT_CAPS, countScore, RANGES } from "@/lib/dataset/assemble";
 import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
 import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
-import type { CityExploreData, EconomyTypeProfile, SectionKey, TrendDirection } from "@/lib/types";
+import type { CityExploreData, SectionKey, TrendDirection } from "@/lib/types";
 
-/** How precisely a KPI's value is actually known, given its real current
- *  source — not aspirational, what's true today. "country" covers genuine
- *  country-level APIs (World Bank, WHO, REST Countries). "pinned" is for
- *  the handful of fields already computed from an exact coordinate
- *  (Open-Meteo climate, Overpass local amenity density and transport
- *  presence, Wikidata nearby-entity lookups) — genuinely finer than city,
- *  not coarser. Nothing currently qualifies as "city" — that tier is
- *  reserved for once a real per-city source (e.g. Numbeo for Real Estate)
- *  is wired in; until then no KPI should claim it. */
+/** Which tier a value describes: "country" (national statistics) or
+ *  "pinned" (computed from this city's own coordinates). "city" is kept for
+ *  a future per-city statistic from a city-level source. */
 export type PrecisionTier = "country" | "city" | "pinned";
 
 export interface KpiRow {
   label: string;
   value: string;
   precision: PrecisionTier;
-  /** Tailwind text-color class (text-score-strong/moderate/weak), applied
-   *  to the value only where a metric has a clear, non-subjective "better
-   *  vs worse" direction (see tierColorClass/colorable helpers below).
-   *  Left undefined for purely descriptive values (a language name, a
-   *  category label) — forcing green/red onto something with no real
-   *  good/bad direction would be misleading, not informative. */
+  /** text-score-strong/moderate/weak where a metric has a clear better/worse
+   *  direction; grey (text-ink-500) for plain descriptive facts. */
   colorClass?: string;
-  /** Optional hover definition shown on the label, for a metric whose name
-   *  alone doesn't make clear what it measures. */
+  /** Hover definition for the label. */
   hint?: string;
-  /** Optional smaller, secondary bit of text shown right after the main
-   *  value - e.g. a "(73.1%)" share next to a sector name (see
-   *  buildGdpSectorRows). Rendered visibly smaller than value itself,
-   *  never coloured independently (inherits the row's own colorClass). */
+  /** Smaller secondary text after the value, e.g. "(73.1%)". */
   valueSuffix?: string;
 }
 
-// Same 3-tier colour language used in CityHeader.tsx for demographics -
-// duplicated here rather than imported since CityHeader's copy is a
-// component-local concern; this one is the shared KPI-row version used by
-// SectionDetail.tsx and the printable report page.
 function tierColorClass(value0to100: number): string {
   if (value0to100 >= 67) return "text-score-strong";
   if (value0to100 >= 34) return "text-score-moderate";
@@ -56,97 +38,33 @@ function trendColorClass(trend: TrendDirection): string {
   return "text-score-moderate";
 }
 
-// Reference ranges used only for KPI-row colour coding - kept in sync by
-// hand with the equivalent ranges in lib/aggregation/aggregate.ts (which
-// feed the actual section scores). Where a field is already stored as a
-// 0-100 "goodness" score elsewhere (e.g. purchasingPowerIndex,
-// politicalStabilityScore), this file colours it directly instead of
-// re-deriving a range for it.
-const COLOR_RANGES = {
-  gdpGrowth: { min: -10, max: 40 }, // matches aggregate.ts's RANGES.gdpGrowth (cumulative ~6yr growth, not annual)
-  // averageSalaryGbp is gniPerCapitaUsd * 0.79 (see aggregate.ts) - range
-  // scaled by the same factor so this stays consistent with the raw-USD
-  // range actually used for scoring, even though the displayed figure is
-  // the converted GBP one.
-  salaryGbp: { min: 1580, max: 71100 },
-  unemployment: { min: 0, max: 25 },
-  temperatureDistanceFrom20C: { min: 0, max: 20 },
-  // Rainfall/sunshine/snowfall don't have an app-established scoring
-  // direction the way risk/readiness metrics do, but colour is still
-  // useful for comparing cities against each other - these 3 ranges are a
-  // disclosed, reasonable-default judgment call, not an objective "correct"
-  // answer: rainfall treats a temperate ~1000mm/yr as the sweet spot
-  // (too dry or too wet both read as less favourable, same "distance from
-  // an ideal" shape as temperature above); sunshine treats more hours as
-  // better; snowfall treats less as better. Reasonable people can disagree
-  // with any of these three - happy to flip a direction on request. These
-  // 3 ranges match aggregate.ts's RANGES exactly, since (unlike the old
-  // version of this file) rainfall/sunshine/snowfall now feed the actual
-  // Climate score too, not just this display.
-  rainfallDistanceFromIdeal: { min: 0, max: 1000 }, // ideal centre: 1000mm/yr
-  sunshineHrs: { min: 1200, max: 3800 },
-  snowfallCm: { min: 0, max: 300 },
-  // WHO guideline: annual mean PM2.5 under 5 µg/m³ is "good". 80 as the
-  // ceiling covers the world's most polluted major cities without
-  // clamping every merely-average city to 0.
-  pm25: { min: 5, max: 80 },
-  // Disclosed subjective judgment calls (2026-09-24, on request - "it's
-  // okay if we are subjective"), same "distance from an ideal centre"
-  // shape as temperature/rainfall above. Humidity: ~50% is the commonly
-  // cited human-comfort centre (drier or more humid both read as less
-  // comfortable). UV: ~3 (moderate) as the centre balances "some sun
-  // exposure" against sunburn/skin-cancer risk - reasonable people can
-  // disagree with either centre, happy to flip on request.
-  humidityDistanceFromIdeal: { min: 0, max: 50 }, // ideal centre: 50%
-  uvIndexDistanceFromIdeal: { min: 0, max: 8 }, // ideal centre: 3
-  // Real, verifiable USGS counts, not a modelled score - most places have
-  // 0-5 M5+ quakes within 200km since 1970; genuinely active zones (Tokyo,
-  // Jakarta) run into the hundreds. 100 as the ceiling separates those
-  // extremes without clamping every moderate-risk city to 0.
-  earthquakeCount50yr: { min: 0, max: 100 },
-  // Farther from a volcano reads as safer, not closer - no "invert" flag
-  // needed here (unlike earthquakeCount above), the raw distance itself
-  // is already the "good" direction. 50km covers most cities' realistic
-  // range; a handful within a few km of an active volcano are the extreme.
-  distanceToVolcanoKm: { min: 0, max: 50 },
-  // log10($1bn) to log10($30tn) - covers the real observed World Bank
-  // range (smallest real economies run ~$1bn, the US tops out ~$30.8tn as
-  // of the 2026-09-25 live check) - see the GDP row's own comment for why
-  // this is log-scale rather than linear.
-  gdpUsdLog10: { min: 9, max: 13.5 },
-  // 214 is the real count of countries getGdpWorldRanking ranks against
-  // (see worldbank.ts) - rank 1 is the best possible outcome, hence
-  // `invert: true` at the call site rather than swapping min/max here.
-  gdpWorldRank: { min: 1, max: 214 },
-  // Real global range is roughly 50-85 years (lowest-ranked countries sit
-  // near 50-55, top of the range ~84-85) - verified live 2026-09-26 (UK
-  // 81.4, US 78.9, India 72.2).
-  lifeExpectancyYears: { min: 50, max: 85 },
-  // 0-100 already, World Bank's own %.
-  internetUsersPct: { min: 0, max: 100 },
-  // Matches aggregate.ts's RANGES.pisaScore exactly - see that file's
-  // comment for the observed global spread.
-  pisaScore: { min: 350, max: 590 },
-};
+const exposureColorClass = (level: "High" | "Moderate" | "Low") =>
+  level === "Low" ? "text-score-strong" : level === "Moderate" ? "text-score-moderate" : "text-score-weak";
 
-export const ECONOMY_TYPE_LABELS: Record<keyof EconomyTypeProfile, string> = {
-  technologyAndInnovation: "Technology & Innovation",
-  tourismAndHospitality: "Tourism & Hospitality",
-  financeAndServices: "Finance & Services",
-  manufacturingAndIndustry: "Manufacturing & Industry",
-  governmentAndPublicSector: "Government & Public Sector",
-  naturalResourcesAndAgriculture: "Natural Resources & Agriculture",
+/** Colour-only reference ranges. Where a field feeds a section score, the
+ *  range matches lib/dataset/assemble.ts's RANGES; the rest are disclosed
+ *  judgement calls for comparing cities (e.g. ~50% humidity and UV ~3 as
+ *  comfortable centres, a 20 °C summer high as ideal). */
+const COLOR_RANGES = {
+  // averageSalaryGbp is GNI per capita x 0.79 - the scoring range, converted.
+  salaryGbp: { min: 1580, max: 71100 },
+  humidityDistanceFromIdeal: { min: 0, max: 50 }, // ideal ~50%
+  uvIndexDistanceFromIdeal: { min: 0, max: 8 }, // ideal ~3
+  summerHighDistanceFromIdeal: { min: 0, max: 15 }, // ideal ~25 °C
+  winterLowDistanceFromIdeal: { min: 0, max: 20 }, // ideal ~8 °C
+  earthquakeCount50yr: { min: 0, max: 100 },
+  distanceToVolcanoKm: { min: 0, max: 50 },
+  gdpUsdLog10: { min: 9, max: 13.5 }, // $1bn to ~$30tn, log scale
+  gdpWorldRank: { min: 1, max: 214 },
+  lifeExpectancyYears: { min: 50, max: 85 },
+  internetUsersPct: { min: 0, max: 100 },
+  broadbandMbps: { min: 10, max: 300 },
+  mobileMbps: { min: 5, max: 150 },
 };
 
 const GDP_SECTOR_RANK_LABELS = ["1st GDP sector", "2nd GDP sector", "3rd GDP sector"] as const;
 
-/** Formats a current-US$ GDP figure the way headlines do ("$4.0 trillion",
- *  "$312.5 billion") rather than a raw number - added 2026-09-25 alongside
- *  Economy's GDP fields. Always USD, unlike formatCurrency elsewhere in
- *  this file - GDP is quoted in dollars everywhere regardless of the
- *  viewer's own unit preference, matching how every other GDP figure in
- *  the app (economicGrowth5yrGdpPct, gdpSectorRanking) is already sourced
- *  directly from World Bank's dollar-denominated series with no conversion. */
+/** "$4.0 trillion" / "$312.5 billion" - GDP is always quoted in US dollars. */
 function formatGdpUsd(value: number): string {
   if (value >= 1e12) return `$${(value / 1e12).toFixed(1)} trillion`;
   if (value >= 1e9) return `$${(value / 1e9).toFixed(1)} billion`;
@@ -154,7 +72,6 @@ function formatGdpUsd(value: number): string {
   return `$${value.toFixed(0)}`;
 }
 
-/** "5th" / "21st" / "112th" ordinal suffix for the GDP world-rank row. */
 function ordinal(n: number): string {
   const mod100 = n % 100;
   if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
@@ -170,56 +87,23 @@ function ordinal(n: number): string {
   }
 }
 
-/** Shared source of truth for each section's KPI list — used by the results
- *  page's SectionDetail panel and by the printable report page, so the two
- *  never drift out of sync with each other. Precision tags reflect the
- *  actual data source wired in today (see lib/aggregation/aggregate.ts) —
- *  update the relevant row here the day a field's real source changes,
- *  e.g. when Numbeo brings Real Estate back into the scored model. */
+const distanceRow = (label: string, km: number | null, prefs: UnitPreferences, hint: string): KpiRow | null =>
+  km == null ? null : { label, value: formatDistanceKm(km, prefs), precision: "pinned", colorClass: "text-ink-500", hint };
+
+/** Each section's KPI list - shared by the results page's detail panel and
+ *  the printable report, so the two never drift apart. */
 export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: UnitPreferences): KpiRow[] {
   switch (section) {
     case "economy": {
       const e = data.economy;
+      // GDP, GDP world rank and growth lead (SectionDetail/report splice the
+      // GDP sectors in after these three).
       const rows: (KpiRow | null)[] = [
-        // Genuinely computed from OSM POI/land-use density within range of
-        // this city's exact coordinates (see lib/data-sources/overpass.ts
-        // getEconomySectorCounts / pickMainEconomyType), not a placeholder.
-        // Omitted entirely rather than shown as "Not enough Data" when it
-        // doesn't resolve (2026-09-24, on request: show it only when it's
-        // genuinely solid, same as the GDP sector ranking below - never a
-        // placeholder for either). Folded into this same list rather than
-        // its own labeled "Economy Type" sub-block (the extra heading for
-        // a single row read as confusing); precision "pinned" still routes
-        // it into the City group automatically via splitKpiRowsByTier.
-        // Grey (text-ink-500, same as every row's own label text below it)
-        // rather than black (2026-09-24, on request - black read as
-        // identical to the "London"/"United Kingdom" group heading above
-        // it) and rather than the usual red/green score spectrum, since
-        // this is a plain descriptive label, not a good/bad value.
-        e.mainEconomyType && {
-          label: "Main economy type",
-          value: ECONOMY_TYPE_LABELS[e.mainEconomyType],
-          precision: "pinned",
-          colorClass: "text-ink-500",
-        },
-        // GDP, GDP world rank, and Economic growth lead the Country group
-        // (2026-09-25, on request - "please on the first line have GDP,
-        // GDP World rank, Economic growth"). GDP sector ranking renders as
-        // its own line right after these 3 (see SectionDetail.tsx /
-        // report/page.tsx, which now splice gdpSectorRows in after the
-        // first 3 country rows specifically for economy), then Tax
-        // revenue/Average salary/Unemployment rate, then Cost of
-        // living/Purchasing power.
         e.gdpUsd != null
           ? {
               label: "GDP",
               value: formatGdpUsd(e.gdpUsd),
               precision: "country",
-              // Log-scale (2026-09-25, on request: "GDP world rank and GDP
-              // must have colours (higher the better)") - GDP spans ~$1bn
-              // to ~$30tn across countries, a linear 0-100 scale would
-              // clamp almost everything below the US/China to the same
-              // "weak" bucket. log10 spreads that range out evenly instead.
               colorClass: tierColorClass(normalise(Math.log10(e.gdpUsd), COLOR_RANGES.gdpUsdLog10.min, COLOR_RANGES.gdpUsdLog10.max)),
               hint: "Gross domestic product, current US dollars (World Bank)",
             }
@@ -229,8 +113,6 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               label: "GDP world rank",
               value: ordinal(e.gdpWorldRank),
               precision: "country",
-              // Rank 1 (largest economy) is the best outcome, so this is
-              // inverted - rank counts up as GDP goes down.
               colorClass: tierColorClass(normalise(e.gdpWorldRank, COLOR_RANGES.gdpWorldRank.min, COLOR_RANGES.gdpWorldRank.max, true)),
               hint: "Rank among 214 countries by GDP, current US dollars (World Bank)",
             }
@@ -239,12 +121,9 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           label: "Economic growth (5yr GDP)",
           value: `${e.economicGrowth5yrGdpPct > 0 ? "+" : ""}${e.economicGrowth5yrGdpPct}%`,
           precision: "country",
-          colorClass: tierColorClass(normalise(e.economicGrowth5yrGdpPct, COLOR_RANGES.gdpGrowth.min, COLOR_RANGES.gdpGrowth.max)),
+          colorClass: tierColorClass(normalise(e.economicGrowth5yrGdpPct, RANGES.gdpGrowth.min, RANGES.gdpGrowth.max)),
         },
-        // Tax revenue is grey/descriptive - a country's tax take is a
-        // policy choice, not a good/bad outcome, same reasoning as Main
-        // economy type above (unlike GDP/rank/growth, which do have a
-        // clear "bigger economy is better" direction).
+        // A country's tax take is a policy choice, not good or bad - grey.
         e.taxRevenuePctGdp != null
           ? {
               label: "Tax revenue",
@@ -260,29 +139,30 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           precision: "country",
           colorClass: tierColorClass(normalise(e.averageSalaryGbp, COLOR_RANGES.salaryGbp.min, COLOR_RANGES.salaryGbp.max)),
           valueSuffix: "/ year",
+          hint: "Gross national income per person (World Bank) - an average-income proxy",
         },
         {
-          // toFixed(1) here (2026-09-24, on request - was showing raw,
-          // un-rounded World Bank precision like "4.746%") - app-wide rule
-          // going forward: no field shows more than 1 decimal place.
           label: "Unemployment rate",
           value: `${e.unemploymentRatePct.toFixed(1)}%`,
           precision: "country",
-          colorClass: tierColorClass(normalise(e.unemploymentRatePct, COLOR_RANGES.unemployment.min, COLOR_RANGES.unemployment.max, true)),
+          colorClass: tierColorClass(normalise(e.unemploymentRatePct, RANGES.unemployment.min, RANGES.unemployment.max, true)),
         },
         {
           label: "Cost of living index",
           value: `${e.costOfLivingIndex}`,
           precision: "country",
-          colorClass: tierColorClass(100 - e.costOfLivingIndex), // lower cost = better
+          colorClass: tierColorClass(100 - e.costOfLivingIndex),
           hint: "World Bank price level index — how expensive this country is relative to a global baseline",
         },
         {
           label: "Purchasing power index",
           value: `${e.purchasingPowerIndex}`,
           precision: "country",
-          colorClass: tierColorClass(e.purchasingPowerIndex), // already a 0-100 goodness score
+          colorClass: tierColorClass(e.purchasingPowerIndex),
         },
+        e.currency
+          ? { label: "Currency", value: `${e.currency.name} (${e.currency.code})`, precision: "country", colorClass: "text-ink-500" }
+          : null,
       ];
       return rows.filter((r): r is KpiRow => r != null);
     }
@@ -305,13 +185,9 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         },
         {
           label: "Homicide rate",
-          // Falls back to 0 for rows cached before this field existed (the
-          // 30-day Supabase cache serves those as-is until they naturally
-          // re-aggregate) — same nullish-safe pattern as the rest of this
-          // file's cached/optional fields.
-          value: `${(s.homicideRatePer100k ?? 0).toFixed(1)} / 100k`,
+          value: `${s.homicideRatePer100k.toFixed(1)} / 100k`,
           precision: "country",
-          colorClass: tierColorClass(100 - Math.min(100, ((s.homicideRatePer100k ?? 0) / 30) * 100)), // lower = better
+          colorClass: tierColorClass(normalise(s.homicideRatePer100k, RANGES.homicideRate.min, RANGES.homicideRate.max, true)),
           hint: "Intentional homicides per 100,000 people — UNODC via World Bank",
         },
         { label: "Safety trend", value: s.safetyTrend, precision: "country", colorClass: trendColorClass(s.safetyTrend) },
@@ -325,104 +201,87 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           value: formatTemperature(c.avgAnnualTemperatureC, prefs),
           precision: "pinned",
           colorClass: tierColorClass(
-            normalise(
-              Math.abs(c.avgAnnualTemperatureC - 20),
-              COLOR_RANGES.temperatureDistanceFrom20C.min,
-              COLOR_RANGES.temperatureDistanceFrom20C.max,
-              true
-            )
+            normalise(Math.abs(c.avgAnnualTemperatureC - 20), RANGES.temperatureDistanceFrom20C.min, RANGES.temperatureDistanceFrom20C.max, true)
           ),
         },
+        c.hottestMonthHighC != null
+          ? {
+              label: "Summer high",
+              value: formatTemperature(c.hottestMonthHighC, prefs),
+              precision: "pinned",
+              colorClass: tierColorClass(
+                normalise(Math.abs(c.hottestMonthHighC - 25), COLOR_RANGES.summerHighDistanceFromIdeal.min, COLOR_RANGES.summerHighDistanceFromIdeal.max, true)
+              ),
+              hint: "Average daily high in the hottest month (WorldClim 1970-2000 normals)",
+            }
+          : null,
+        c.coldestMonthLowC != null
+          ? {
+              label: "Winter low",
+              value: formatTemperature(c.coldestMonthLowC, prefs),
+              precision: "pinned",
+              colorClass: tierColorClass(
+                normalise(Math.abs(c.coldestMonthLowC - 8), COLOR_RANGES.winterLowDistanceFromIdeal.min, COLOR_RANGES.winterLowDistanceFromIdeal.max, true)
+              ),
+              hint: "Average daily low in the coldest month (WorldClim 1970-2000 normals)",
+            }
+          : null,
         {
           label: "Avg annual rainfall",
           value: `${c.avgAnnualRainfallMm} mm`,
           precision: "pinned",
           colorClass: tierColorClass(
-            normalise(
-              Math.abs(c.avgAnnualRainfallMm - 1000),
-              COLOR_RANGES.rainfallDistanceFromIdeal.min,
-              COLOR_RANGES.rainfallDistanceFromIdeal.max,
-              true
-            )
+            normalise(Math.abs(c.avgAnnualRainfallMm - 1000), RANGES.rainfallDistanceFromIdeal.min, RANGES.rainfallDistanceFromIdeal.max, true)
           ),
         },
         {
           label: "Avg annual sunshine",
           value: `${c.avgAnnualSunshineHrs} hrs`,
           precision: "pinned",
-          colorClass: tierColorClass(normalise(c.avgAnnualSunshineHrs, COLOR_RANGES.sunshineHrs.min, COLOR_RANGES.sunshineHrs.max)),
+          colorClass: tierColorClass(normalise(c.avgAnnualSunshineHrs, RANGES.sunshineHrs.min, RANGES.sunshineHrs.max)),
           hint: "Estimated from WorldClim solar radiation (1970-2000 normals), not a measured count",
         },
         {
           label: "Avg annual snowfall",
           value: `${c.avgAnnualSnowfallCm} cm`,
           precision: "pinned",
-          colorClass: tierColorClass(normalise(c.avgAnnualSnowfallCm, COLOR_RANGES.snowfallCm.min, COLOR_RANGES.snowfallCm.max, true)),
+          colorClass: tierColorClass(normalise(c.avgAnnualSnowfallCm, RANGES.snowfallCm.min, RANGES.snowfallCm.max, true)),
           hint: "Estimated from precipitation in below-freezing months (WorldClim 1970-2000 normals)",
         },
         {
-          // Coloured against a disclosed-subjective ideal centre (~50%,
-          // 2026-09-24 on request - see COLOR_RANGES.humidityDistanceFromIdeal),
-          // same "distance from an ideal" shape as temperature/rainfall.
           label: "Avg annual humidity",
           value: `${c.avgAnnualHumidityPct}%`,
           precision: "pinned",
           colorClass: tierColorClass(
-            normalise(
-              Math.abs(c.avgAnnualHumidityPct - 50),
-              COLOR_RANGES.humidityDistanceFromIdeal.min,
-              COLOR_RANGES.humidityDistanceFromIdeal.max,
-              true
-            )
+            normalise(Math.abs(c.avgAnnualHumidityPct - 50), COLOR_RANGES.humidityDistanceFromIdeal.min, COLOR_RANGES.humidityDistanceFromIdeal.max, true)
           ),
         },
         c.avgAnnualPm25 != null
           ? {
-              // Reverted to the actual number (2026-09-25 - the
-              // Good/Moderate/Poor wording read as inconsistent with
-              // every other row here showing a real figure). Just the
-              // "(PM2.5)" label suffix dropped as unnecessary detail;
-              // still in the hint for anyone who wants it.
-              label: "Air quality",
+              label: "Air pollution (PM2.5)",
               value: `${c.avgAnnualPm25} µg/m³`,
               precision: "pinned",
-              colorClass: tierColorClass(normalise(c.avgAnnualPm25, COLOR_RANGES.pm25.min, COLOR_RANGES.pm25.max, true)),
-              hint: "Annual mean PM2.5 (fine particulate matter) — WHO guideline: under 5 µg/m³",
+              colorClass: tierColorClass(normalise(c.avgAnnualPm25, RANGES.pm25.min, RANGES.pm25.max, true)),
+              hint: "Annual mean fine particulate matter, 2024 (satellite-derived, ACAG) — WHO guideline: under 5 µg/m³",
             }
           : null,
         c.avgAnnualUvIndexMax != null
           ? {
-              // Coloured against a disclosed-subjective ideal centre (~3,
-              // "moderate" - 2026-09-24 on request), balancing some sun
-              // exposure against sunburn/skin-cancer risk - see
-              // COLOR_RANGES.uvIndexDistanceFromIdeal.
               label: "Avg UV index",
               value: `${c.avgAnnualUvIndexMax}`,
               precision: "pinned",
               colorClass: tierColorClass(
-                normalise(
-                  Math.abs(c.avgAnnualUvIndexMax - 3),
-                  COLOR_RANGES.uvIndexDistanceFromIdeal.min,
-                  COLOR_RANGES.uvIndexDistanceFromIdeal.max,
-                  true
-                )
+                normalise(Math.abs(c.avgAnnualUvIndexMax - 3), COLOR_RANGES.uvIndexDistanceFromIdeal.min, COLOR_RANGES.uvIndexDistanceFromIdeal.max, true)
               ),
-              hint: "Average of each day's peak UV index over the trailing year",
+              hint: "Average midday UV index across the year, including cloud cover (NASA POWER 2001-2020)",
             }
           : null,
         c.earthquakeCount50yr != null
           ? {
-              // Reverted to the actual number (2026-09-25 - the
-              // Low/Moderate/High wording read as inconsistent with every
-              // other row here showing a real figure). Just the "(M5+)"
-              // value suffix dropped as unnecessary detail; still in the
-              // hint for anyone who wants it.
               label: "Seismic activity",
               value: `${c.earthquakeCount50yr} quakes`,
               precision: "pinned",
-              colorClass: tierColorClass(
-                normalise(c.earthquakeCount50yr, COLOR_RANGES.earthquakeCount50yr.min, COLOR_RANGES.earthquakeCount50yr.max, true)
-              ),
+              colorClass: tierColorClass(normalise(c.earthquakeCount50yr, COLOR_RANGES.earthquakeCount50yr.min, COLOR_RANGES.earthquakeCount50yr.max, true)),
               hint: "USGS: magnitude-5+ earthquakes within 200km since 1970 — a real historical count, not a modelled risk score",
             }
           : null,
@@ -431,9 +290,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               label: "Distance to volcano",
               value: formatDistanceKm(c.distanceToVolcanoKm, prefs),
               precision: "pinned",
-              colorClass: tierColorClass(
-                normalise(c.distanceToVolcanoKm, COLOR_RANGES.distanceToVolcanoKm.min, COLOR_RANGES.distanceToVolcanoKm.max)
-              ),
+              colorClass: tierColorClass(normalise(c.distanceToVolcanoKm, COLOR_RANGES.distanceToVolcanoKm.min, COLOR_RANGES.distanceToVolcanoKm.max)),
             }
           : null,
         c.coastalFloodExposure
@@ -441,13 +298,8 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               label: "Coastal flood exposure",
               value: c.coastalFloodExposure,
               precision: "pinned",
-              colorClass:
-                c.coastalFloodExposure === "Low"
-                  ? "text-score-strong"
-                  : c.coastalFloodExposure === "Moderate"
-                    ? "text-score-moderate"
-                    : "text-score-weak",
-              hint: "A simple proxy (elevation + coastline distance), not a real flood model — see the app's data notes",
+              colorClass: exposureColorClass(c.coastalFloodExposure),
+              hint: "A simple proxy (elevation + coastline distance), not a flood model",
             }
           : null,
         c.seaLevelRiseExposure
@@ -455,23 +307,15 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               label: "Sea level rise exposure",
               value: c.seaLevelRiseExposure,
               precision: "pinned",
-              colorClass:
-                c.seaLevelRiseExposure === "Low"
-                  ? "text-score-strong"
-                  : c.seaLevelRiseExposure === "Moderate"
-                    ? "text-score-moderate"
-                    : "text-score-weak",
-              hint: "A simple proxy (elevation + coastline distance against IPCC's ~1m high-end 2100 sea rise projection), not a real inundation model — a longer-horizon read than Coastal flood exposure above, not a duplicate of it",
+              colorClass: exposureColorClass(c.seaLevelRiseExposure),
+              hint: "A simple proxy (elevation + coastline distance against IPCC's ~1m high-end 2100 projection), not an inundation model",
             }
           : null,
-        // Pure astronomy (lib/data-sources/daylight.ts), never null - see
-        // that file's header for why "avg annual daylight" isn't shown
-        // instead (averages to ~12h almost everywhere, not differentiating).
         {
           label: "Longest day",
           value: `${c.longestDayHours} hrs`,
           precision: "pinned",
-          colorClass: "text-ink-500", // no "more daylight is better" consensus
+          colorClass: "text-ink-500",
           hint: "Sunrise-to-sunset hours on the summer solstice",
         },
         {
@@ -481,29 +325,26 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           colorClass: "text-ink-500",
           hint: "Sunrise-to-sunset hours on the winter solstice",
         },
-        // Climate type + Elevation deliberately last (2026-09-25, on
-        // request - these 2 used to sit mid-list; moved to the end of the
-        // City group so the more "human" comparative stats read first).
-        // Grey (text-ink-500, same as every row's own label text below
-        // it) rather than black - both are plain facts, no "good/bad"
-        // direction, same treatment already applied to Main economy
-        // type/GDP sector rows in Economy.
         c.koppenCode
           ? {
               label: "Climate type",
               value: KOPPEN_LABELS[c.koppenCode] ?? c.koppenCode,
               precision: "pinned",
               colorClass: "text-ink-500",
-              hint: `Köppen-Geiger classification: ${c.koppenCode} — computed from a 10-year Open-Meteo climate normal`,
+              hint: `Köppen-Geiger classification: ${c.koppenCode}, 1991-2020 (Beck et al. 2023)`,
+            }
+          : null,
+        c.koppenCode2085
+          ? {
+              label: "Climate by 2085",
+              value: c.koppenCode2085 === c.koppenCode ? "Unchanged" : KOPPEN_LABELS[c.koppenCode2085] ?? c.koppenCode2085,
+              precision: "pinned",
+              colorClass: "text-ink-500",
+              hint: `Projected Köppen-Geiger type for 2071-2099 (${c.koppenCode2085}) under a middle-of-the-road emissions scenario, SSP2-4.5 (Beck et al. 2023)`,
             }
           : null,
         c.elevationM != null
-          ? {
-              label: "Elevation",
-              value: `${c.elevationM.toLocaleString()} m`,
-              precision: "pinned",
-              colorClass: "text-ink-500",
-            }
+          ? { label: "Elevation", value: `${c.elevationM.toLocaleString()} m`, precision: "pinned", colorClass: "text-ink-500" }
           : null,
         c.climateReadinessScore != null
           ? {
@@ -519,35 +360,42 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
     }
     case "liveability": {
       const l = data.liveability;
-      // Counts of places within 5 km of the centre (Overture Maps places) -
-      // a fixed area, so directly comparable between cities of any size.
-      // Coloured on the same log scale the score uses (countScore).
+      // Places within 5 km of the centre (Overture Maps) - a fixed area, so
+      // comparable between cities of any size; coloured on the score's log scale.
       const countRow = (label: string, count: number | null, cap: number, hint: string): KpiRow | null =>
-        count == null
+        count == null ? null : { label, value: count.toLocaleString(), precision: "pinned", colorClass: tierColorClass(countScore(count, cap)), hint };
+      const speedRow = (label: string, mbps: number | null, range: { min: number; max: number }, hint: string): KpiRow | null =>
+        mbps == null ? null : { label, value: `${mbps.toLocaleString()} Mbps`, precision: "pinned", colorClass: tierColorClass(normalise(mbps, range.min, range.max)), hint };
+      const pisaRow = (label: string, score: number | null, subject: string): KpiRow | null =>
+        score == null
           ? null
-          : { label, value: count.toLocaleString(), precision: "pinned", colorClass: tierColorClass(countScore(count, cap)), hint };
+          : {
+              label,
+              value: `${Math.round(score)}`,
+              precision: "country",
+              colorClass: tierColorClass(normalise(score, RANGES.pisaScore.min, RANGES.pisaScore.max)),
+              hint: `OECD PISA mean ${subject} score for 15-year-olds — only countries that sit the test have a value`,
+            };
       const rows: (KpiRow | null)[] = [
         countRow("Restaurants, bars & cafés", l.restaurantsBarsWithin5km, COUNT_CAPS.restaurantsBars, "Places to eat and drink within 5 km of the centre"),
         countRow("Parks", l.parksWithin5km, COUNT_CAPS.parks, "Parks within 5 km of the centre"),
         countRow("Cultural venues", l.culturalVenuesWithin5km, COUNT_CAPS.cultural, "Museums, galleries, theatres and cinemas within 5 km of the centre"),
         countRow("Family activities", l.familyActivitiesWithin5km, COUNT_CAPS.family, "Playgrounds, zoos, aquariums and amusement/water parks within 5 km of the centre"),
+        speedRow("Broadband speed", l.broadbandDownloadMbps, COLOR_RANGES.broadbandMbps, "Average fixed-broadband download speed of Speedtest results within 5 km (Ookla open data)"),
+        speedRow("Mobile speed", l.mobileDownloadMbps, COLOR_RANGES.mobileMbps, "Average mobile download speed of Speedtest results within 5 km (Ookla open data)"),
         {
           label: "Healthcare quality score",
           value: `${l.healthcareQualityScore}`,
           precision: "country",
           colorClass: tierColorClass(l.healthcareQualityScore),
+          hint: "WHO universal health coverage service index, 0-100",
         },
-        // World Bank, not Overpass (2026-09-26, added specifically to give
-        // this section real country-level content on days Overpass is
-        // down - see LiveabilityFields' own comment in lib/types.ts).
         l.lifeExpectancyYears != null
           ? {
               label: "Life expectancy",
               value: `${l.lifeExpectancyYears.toFixed(1)} yrs`,
               precision: "country",
-              colorClass: tierColorClass(
-                normalise(l.lifeExpectancyYears, COLOR_RANGES.lifeExpectancyYears.min, COLOR_RANGES.lifeExpectancyYears.max)
-              ),
+              colorClass: tierColorClass(normalise(l.lifeExpectancyYears, COLOR_RANGES.lifeExpectancyYears.min, COLOR_RANGES.lifeExpectancyYears.max)),
             }
           : null,
         l.internetUsersPct != null
@@ -559,101 +407,32 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               hint: "Share of the population using the Internet (World Bank)",
             }
           : null,
-        // PISA (2026-09-26, added on request, counts toward the section
-        // score - see aggregate.ts's pisaAverage). Mirrored via World
-        // Bank, not a live OECD call - see WorldBankIndicators.pisaMathScore's
-        // own comment for the ~80-country coverage/2018-vintage caveats.
-        l.pisaMathScore != null
+        pisaRow("PISA maths score", l.pisaMathScore, "mathematics"),
+        pisaRow("PISA reading score", l.pisaReadingScore, "reading"),
+        pisaRow("PISA science score", l.pisaScienceScore, "science"),
+        // Distances - grey: closer isn't universally better.
+        distanceRow("Distance to beach", l.distanceToBeachKm, prefs, "Straight-line distance to the nearest sea coast or mapped beach (including lake and river beaches)"),
+        distanceRow("Distance to mountain", l.distanceToMountainKm, prefs, "Straight-line distance to the nearest peak of 1,000 m+ that rises 500 m+ above the city"),
+        distanceRow("Distance to forest", l.distanceToForestKm, prefs, "Straight-line distance to the nearest mapped forest or woodland"),
+        distanceRow("Nearest airport", l.distanceToAirportKm, prefs, "Straight-line distance to the nearest airport"),
+        distanceRow("Nearest train station", l.distanceToTrainStationKm, prefs, "Straight-line distance to the nearest railway station"),
+        l.nearestLargeCity
           ? {
-              label: "PISA maths score",
-              value: `${Math.round(l.pisaMathScore)}`,
-              precision: "country",
-              colorClass: tierColorClass(normalise(l.pisaMathScore, COLOR_RANGES.pisaScore.min, COLOR_RANGES.pisaScore.max)),
-              hint: "OECD PISA mean mathematics score for 15-year-olds — only countries that sit the test have a value",
-            }
-          : null,
-        l.pisaReadingScore != null
-          ? {
-              label: "PISA reading score",
-              value: `${Math.round(l.pisaReadingScore)}`,
-              precision: "country",
-              colorClass: tierColorClass(normalise(l.pisaReadingScore, COLOR_RANGES.pisaScore.min, COLOR_RANGES.pisaScore.max)),
-              hint: "OECD PISA mean reading score for 15-year-olds — only countries that sit the test have a value",
-            }
-          : null,
-        l.pisaScienceScore != null
-          ? {
-              label: "PISA science score",
-              value: `${Math.round(l.pisaScienceScore)}`,
-              precision: "country",
-              colorClass: tierColorClass(normalise(l.pisaScienceScore, COLOR_RANGES.pisaScore.min, COLOR_RANGES.pisaScore.max)),
-              hint: "OECD PISA mean science score for 15-year-olds — only countries that sit the test have a value",
-            }
-          : null,
-        // "What's nearby" distances (2026-09-24, moved here from
-        // Environment/Climate on request - proximity reads as a Quality
-        // of Life question). Grey, not coloured - no consensus "closer is
-        // better" direction for any of these (unlike restaurant/green-
-        // space density above, which do have one). Omitted, not
-        // placeholdered, when unresolved - see aggregate.ts's withTimeout
-        // comment (beach/mountain/forest) and capitals.ts's own comment
-        // (capital - only null for a handful of countries with no
-        // GeoNames capital on file).
-        l.distanceToBeachKm != null
-          ? {
-              label: "Distance to beach",
-              value: formatDistanceKm(l.distanceToBeachKm, prefs),
+              label: "Nearest large city",
+              value: `${l.nearestLargeCity.name}, ${formatDistanceKm(l.nearestLargeCity.km, prefs)}`,
               precision: "pinned",
               colorClass: "text-ink-500",
-              hint: "Straight-line distance to the nearest beach or sea coast",
+              hint: "Nearest city of 500,000+ people, straight-line",
             }
           : null,
-        l.distanceToMountainKm != null
-          ? {
-              label: "Distance to mountain",
-              value: formatDistanceKm(l.distanceToMountainKm, prefs),
-              precision: "pinned",
-              colorClass: "text-ink-500",
-              hint: "Straight-line distance to the nearest peak of 1,000 m or higher",
-            }
-          : null,
-        l.distanceToForestKm != null
-          ? {
-              label: "Distance to forest",
-              value: formatDistanceKm(l.distanceToForestKm, prefs),
-              precision: "pinned",
-              colorClass: "text-ink-500",
-              hint: "Straight-line distance to the nearest mapped forest or woodland",
-            }
-          : null,
-        l.distanceToCapitalKm != null
-          ? {
-              // "pinned" (2026-09-26, on request) not "country" - this is
-              // a fact about THIS city's own position relative to the
-              // capital, same City-group placement as distanceToBeachKm/
-              // distanceToMountainKm/distanceToForestKm right above it,
-              // even though the capital's coordinate itself comes from a
-              // static country-level lookup table (lib/data-sources/
-              // capitals.ts) rather than a live per-city API.
-              label: "Distance to capital city",
-              value: formatDistanceKm(l.distanceToCapitalKm, prefs),
-              precision: "pinned",
-              colorClass: "text-ink-500",
-            }
-          : null,
+        distanceRow("Distance to capital city", l.distanceToCapitalKm, prefs, "Straight-line distance to the national capital"),
       ];
       return rows.filter((r): r is KpiRow => r != null);
     }
   }
 }
 
-/** Splits a section's KPI rows into Country vs City groups, using each
- *  row's precision tier as the source of truth - "country" rows go to
- *  Country, "pinned"/"city" rows (both genuinely tied to this city rather
- *  than its country - see PrecisionTier above) go to City. Mirrors
- *  CityHeader's Demographics split: a section with data at only one tier
- *  produces an empty array for the other, so callers render only the
- *  subsection that actually has content rather than a padded-out empty one. */
+/** Splits rows into the city's own values and its country's. */
 export function splitKpiRowsByTier(rows: KpiRow[]): { countryRows: KpiRow[]; cityRows: KpiRow[] } {
   return {
     countryRows: rows.filter((r) => r.precision === "country"),
@@ -661,52 +440,26 @@ export function splitKpiRowsByTier(rows: KpiRow[]): { countryRows: KpiRow[]; cit
   };
 }
 
-/** The 7 Overpass-sourced presence flags (4 transport + 3 education, added
- *  2026-09-26), folded directly into the main Liveability City grid (no
- *  separate "Local Signals"/"Transport Access" sub-heading - 2026-09-26,
- *  on request). Coloured Yes=green/No=red as a simple presence-is-positive
- *  read. Each flag is null, not false, when the whole Overpass call didn't
- *  resolve (see LiveabilityFields' header comment) - omitted rather than
- *  shown as a misleading "No" for a city Overpass simply couldn't be
- *  reached for. */
+/** Transport and education presence within 5 km of the centre (40 km for
+ *  airports), from Overture Maps / OpenStreetMap and GeoNames. */
 export function buildLiveabilityTransportRows(data: CityExploreData): KpiRow[] {
   const l = data.liveability;
+  const flag = (label: string, value: boolean | null, hint: string): KpiRow | null =>
+    value == null ? null : { label, value: value ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(value), hint };
   const rows: (KpiRow | null)[] = [
-    l.hasTrainStation != null
-      ? { label: "Train station", value: l.hasTrainStation ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasTrainStation) }
-      : null,
-    l.hasSubway != null
-      ? { label: "Metro / light rail", value: l.hasSubway ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasSubway) }
-      : null,
-    l.hasTramway != null
-      ? { label: "Tramway", value: l.hasTramway ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasTramway) }
-      : null,
-    l.hasAirport != null
-      ? { label: "Airport", value: l.hasAirport ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasAirport) }
-      : null,
-    l.hasBusStation != null
-      ? { label: "Bus station", value: l.hasBusStation ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasBusStation) }
-      : null,
-    l.hasSchool != null
-      ? { label: "School", value: l.hasSchool ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasSchool) }
-      : null,
-    l.hasUniversity != null
-      ? { label: "University", value: l.hasUniversity ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasUniversity) }
-      : null,
+    flag("Train station", l.hasTrainStation, "A railway station within 5 km of the centre"),
+    flag("Metro", l.hasSubway, "A metro/subway line or station within 5 km of the centre"),
+    flag("Tram / light rail", l.hasTramway, "Tram or light rail track within 5 km of the centre"),
+    flag("Airport", l.hasAirport, "An airport within 40 km of the centre"),
+    flag("Bus station", l.hasBusStation, "A bus station within 5 km of the centre"),
+    flag("School", l.hasSchool, "A school within 5 km of the centre"),
+    flag("University", l.hasUniversity, "A university within 5 km of the centre"),
   ];
   return rows.filter((r): r is KpiRow => r != null);
 }
 
-/** Economy's country-level GDP-sector ranking (Agriculture/Industry/
- *  Services, see lib/data-sources/worldbank.ts rankGdpSectors), split out
- *  of the main Economy row list into its own fixed-3-column block
- *  (2026-09-24, on request - so "1st/2nd/3rd GDP sector" always render on
- *  one row together left to right, regardless of how many other Economy
- *  rows come before them and what column count the main grid happens to
- *  use). One row per sector that actually resolved for this country (0-3
- *  rows - World Bank coverage is ~94-96%, not universal), never padded to
- *  3 with a placeholder. The % share renders via valueSuffix, visibly
- *  smaller than the sector name (2026-09-24, on request). */
+/** Agriculture/Industry/Services ranked by share of GDP, rendered as one
+ *  fixed row of 3 - only sectors World Bank has a value for. */
 export function buildGdpSectorRows(data: CityExploreData): KpiRow[] {
   return data.economy.gdpSectorRanking.slice(0, 3).map((entry, i) => ({
     label: GDP_SECTOR_RANK_LABELS[i],
@@ -717,4 +470,3 @@ export function buildGdpSectorRows(data: CityExploreData): KpiRow[] {
     hint: "World Bank national accounts — share of GDP by sector",
   }));
 }
-

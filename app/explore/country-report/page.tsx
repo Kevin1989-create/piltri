@@ -17,7 +17,7 @@ const ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveabili
 // already shown at the top of the page (the big number + the 5 section
 // scores below it) - skipped here so they don't also show up a second time
 // as a KPI row further down.
-const SKIP_CATEGORIES: CategoryKey[] = ["overall"];
+const SKIP_CATEGORIES: CategoryKey[] = ["overall", "nearby"];
 
 function safeParse<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
@@ -28,19 +28,12 @@ function safeParse<T>(raw: string | null, fallback: T): T {
   }
 }
 
-/** Country-scope counterpart to /explore/report — opens in a new tab from
- *  an Advanced search country result card, same "view first, download if
- *  you want it" pattern (see report/page.tsx). Shows every criterion in the
- *  registry (allValues), not just whichever ones the search happened to
- *  filter on, grouped into the same categories Advanced search itself uses
- *  — grouped roll-ups across tracked cities rather than an authoritative
- *  national statistic (see AdvancedSearchCountryResult's doc comment in
- *  lib/types.ts). Nearby & distance criteria are the one exception: they're
- *  simply absent unless this particular search actually used a Nearby
- *  filter (computing them otherwise would mean fetching pin data for every
- *  city just for this page, undoing the search-speed work elsewhere). All
- *  of this page's data is carried in via the URL rather than re-fetched,
- *  since the result card already has everything it needs. */
+/** Country-scope counterpart to /explore/report, opened from an Advanced
+ *  search country card: every criterion's roll-up across the country's
+ *  tracked cities (see AdvancedSearchCountryResult), grouped like the search
+ *  page. Everything arrives in the URL from the result card - nothing is
+ *  fetched. "Distance from city centre" is skipped: per country it's only
+ *  "found near at least one city". */
 function CountryReportContent() {
   const params = useSearchParams();
   const country = params.get("country") ?? "";
@@ -105,11 +98,7 @@ function CountryReportContent() {
         </section>
 
         {CATEGORY_ORDER.filter((category) => !SKIP_CATEGORIES.includes(category)).map((category) => {
-          // Each category's own "X score" criterion is already shown in the
-          // Section scores block above; Nearby criteria are absent from
-          // allValues entirely (not just empty) when this particular search
-          // never fetched pin data - see the doc comment on
-          // AdvancedSearchCountryResult.allValues in lib/types.ts.
+          // Each category's own "X score" is already in the block above.
           const rows = categories[category].filter((def) => !def.key.endsWith(".sectionScore") && def.key in allValues);
           if (rows.length === 0) return null;
           return (

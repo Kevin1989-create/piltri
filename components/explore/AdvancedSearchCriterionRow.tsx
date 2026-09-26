@@ -46,8 +46,8 @@ function clampToRange(raw: string, range: [number, number] | undefined): string 
 
 /** One criterion's filter control — a min/max pair for "range", a 3-way
  *  Any/Yes/No pill for "boolean", or a small dropdown for "select". Which
- *  kind renders is decided per-scope (kindForScope): the 13 Nearby fields
- *  are a minutes range at city scope but flip to Yes/No at country scope,
+ *  kind renders is decided per-scope (kindForScope): the "distance from city
+ *  centre" fields are a minutes range at city scope but Yes/No at country scope,
  *  since "distance from a country's centre" isn't a meaningful question. */
 export function AdvancedSearchCriterionRow({ def, scope, value, onChange, primary = false }: AdvancedSearchCriterionRowProps) {
   const kind = kindForScope(def, scope);

@@ -1,11 +1,12 @@
-import { ISO2_TO_ISO3 } from "@/lib/data-sources/country-codes";
-import { getCountryLanguages } from "@/lib/data-sources/languages";
-import { getCountryMedianAge } from "@/lib/data-sources/medianAge";
-import { getClimateReadiness } from "@/lib/data-sources/climateReadiness";
+import { ISO2_TO_ISO3 } from "./sources/countryCodes";
+import { getCountryLanguages } from "./sources/languages";
+import { getCountryMedianAge } from "./sources/medianAge";
+import { getClimateReadiness } from "./sources/climateReadiness";
 import { normalise } from "@/lib/aggregation/scoring";
 import { RANGES } from "@/lib/dataset/assemble";
 import type { CountryRecord } from "@/lib/dataset/schema";
 import type { GdpSector, GdpSectorShare, TrendDirection } from "@/lib/types";
+import type { CountryInfo } from "./shortlist";
 import { cached, fetchJson, log, round, sleep } from "./util";
 
 /** Every World Bank indicator the site uses, fetched ONCE for all
@@ -98,8 +99,9 @@ async function fetchWhoUhc(): Promise<Record<string, number>> {
   return Object.fromEntries(Object.entries(best).map(([iso3, v]) => [iso3, Math.round(v.value)]));
 }
 
-/** countryCode -> country display name, from the city shortlist. */
-export async function buildCountries(countryNames: Map<string, string>): Promise<Record<string, CountryRecord>> {
+/** One record per country in the shortlist (name, currency and capital come
+ *  from GeoNames via the shortlist step). */
+export async function buildCountries(countryInfo: Record<string, CountryInfo>): Promise<Record<string, CountryRecord>> {
   const series = await cached("worldbank-series", async () => {
     const out: Partial<Record<IndicatorKey, Record<string, Series>>> = {};
     for (const [key, code] of Object.entries(INDICATORS) as [IndicatorKey, string][]) {
@@ -122,17 +124,17 @@ export async function buildCountries(countryNames: Map<string, string>): Promise
   const gdpRank = new Map(gdpRanked.map(([iso3], i) => [iso3, i + 1]));
 
   const countries: Record<string, CountryRecord> = {};
-  for (const [cc, name] of countryNames) {
+  for (const [cc, info] of Object.entries(countryInfo)) {
     const iso3 = ISO2_TO_ISO3[cc];
     const get = (key: IndicatorKey) => (iso3 ? series[key][iso3] : undefined);
     const priceLevel = latest(get("priceLevel"));
     const gni = latest(get("gni"));
     const politicalStability = latest(get("politicalStability"));
     const ruleOfLaw = latest(get("ruleOfLaw"));
-    const languages = await getCountryLanguages(cc);
+    const languages = getCountryLanguages(cc);
 
     countries[cc] = {
-      name,
+      name: info.name,
       demographics: {
         countryPopulation: latest(get("population")),
         countryPopulationDensityPerKm2: latest(get("density")),
@@ -151,6 +153,7 @@ export async function buildCountries(countryNames: Map<string, string>): Promise
         gdpUsd: latest(get("gdpCurrent")),
         gdpWorldRank: iso3 ? gdpRank.get(iso3) ?? null : null,
         taxRevenuePctGdp: latest(get("taxRevenue")),
+        currency: info.currencyCode ? { code: info.currencyCode, name: info.currencyName ?? info.currencyCode } : null,
       },
       safetyStability: {
         politicalStabilityScore: politicalStability != null ? Math.round(politicalStability) : 50,
@@ -166,6 +169,7 @@ export async function buildCountries(countryNames: Map<string, string>): Promise
       pisaReadingScore: round(latest(get("pisaReading")), 0),
       pisaScienceScore: round(latest(get("pisaScience")), 0),
       gniPerCapitaUsd: gni,
+      capital: info.capital,
     };
   }
   log("countries", `${Object.keys(countries).length} countries built`);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { PiltriScoreDisplay } from "@/components/ui/ScoreBadge";
 import { EyeIcon, PlusIcon } from "@/components/ui/icons";
 import { isCustomWeights } from "@/lib/scoreWeights";
+import { formatUtcOffset } from "@/lib/timezone";
 import { formatAreaKm2Compact, formatDensityPerKm2, useUnitPreferences } from "@/lib/unitPreferences";
 import type { DemographicsFields, SectionKey } from "@/lib/types";
 
@@ -76,7 +77,7 @@ export function CityHeader({
   const isCustomised = weights != null && isCustomWeights(weights);
   const { prefs } = useUnitPreferences();
 
-  type Stat = { label: string; value: string; colorClass: string };
+  type Stat = { label: string; value: string; colorClass: string; title?: string };
   const NOT_AVAILABLE = "Not available";
 
   // Country and City are two genuinely separate data tiers (see
@@ -137,10 +138,9 @@ export function CityHeader({
       ]
     : null;
 
-  // Land area / density are omitted (not shown as "Not available") when the
-  // dataset has no value - there's no free bulk source of city boundary
-  // areas, so for most cities they're simply absent rather than a gap in
-  // one specific lookup.
+  // Density is people within 5 km of the centre (the same area for every
+  // place); time zone shows the current UTC offset, IANA name on hover.
+  const utcOffset = demographics?.timezone ? formatUtcOffset(demographics.timezone) : null;
   const cityStats: Stat[] | null = demographics
     ? [
         {
@@ -148,23 +148,18 @@ export function CityHeader({
           value: demographics.cityPopulation != null ? formatCompactNumber(demographics.cityPopulation) : NOT_AVAILABLE,
           colorClass: demographics.cityPopulation != null ? "text-ink-900" : "text-ink-500",
         },
-        ...(demographics.cityAreaKm2 != null
+        ...(demographics.cityDensityPerKm2 != null
           ? [
               {
-                label: "Land Area",
-                value: formatAreaKm2Compact(demographics.cityAreaKm2, prefs, formatCompactNumber),
+                label: "Density (5 km)",
+                value: formatDensityPerKm2(demographics.cityDensityPerKm2, prefs, formatCompactNumber),
                 colorClass: "text-ink-900",
+                title: "People per km² within 5 km of the centre",
               },
             ]
           : []),
-        ...(demographics.cityPopulationDensityPerKm2 != null
-          ? [
-              {
-                label: "Population Density",
-                value: formatDensityPerKm2(demographics.cityPopulationDensityPerKm2, prefs, formatCompactNumber),
-                colorClass: "text-ink-900",
-              },
-            ]
+        ...(utcOffset
+          ? [{ label: "Time Zone", value: utcOffset, colorClass: "text-ink-900", title: `${demographics.timezone} (${utcOffset} today)` }]
           : []),
       ]
     : null;
@@ -221,20 +216,8 @@ export function CityHeader({
         )}
       </div>
 
-      {/* Demographics — supplementary reference info, not a scored section
-       *  (a population count doesn't really have a "good/bad" score).
-       *  Two clearly separate groups (2026-09-22) rather than one blended
-       *  grid — Country info is always-published World Bank/UN/GeoNames
-       *  data, identical for every city in that country; City data is
-       *  genuinely this specific place's own Wikidata-matched figures,
-       *  "Not available" where no match resolved. Both blocks now share
-       *  the exact same background and border colour (2026-09-23, on
-       *  request) - the earlier version's amber-vs-neutral distinction
-       *  between them was read as unclear rather than informative; the
-       *  block's own header text is what actually says which tier it is.
-       *  City before Country (2026-09-23, on request) - matches the title
-       *  above now being city-only, so the reading order stays "this
-       *  place, then the country it's in" throughout the whole header. */}
+      {/* Demographics - reference info, not scored. City first, then its
+       *  country; each block's header says which tier it is. */}
       {cityStats && (
         <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
           <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{cityName}</p>
@@ -248,7 +231,7 @@ export function CityHeader({
           <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
             {cityStats.map((stat) => (
               <div key={stat.label} className="min-w-0">
-                <p className={`text-[11px] font-medium leading-snug truncate ${stat.colorClass}`} title={stat.value}>
+                <p className={`text-[11px] font-medium leading-snug truncate ${stat.colorClass}`} title={stat.title ?? stat.value}>
                   {stat.value}
                 </p>
                 <p className="text-[9px] text-ink-500 uppercase tracking-wide leading-snug truncate" title={stat.label}>

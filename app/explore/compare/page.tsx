@@ -8,6 +8,7 @@ import { SearchBar } from "@/components/ui/SearchBar";
 import { CityHeader } from "@/components/explore/CityHeader";
 import { SectionColumn } from "@/components/explore/SectionColumn";
 import { CloseIcon } from "@/components/ui/icons";
+import { getCityExploreData } from "@/lib/dataset/cities";
 import type { CityExploreData, CitySearchResult } from "@/lib/types";
 
 const MAX_COLUMNS = 10;
@@ -35,19 +36,9 @@ function paramsToCity(params: URLSearchParams): CitySearchResult | null {
 }
 
 async function fetchScore(city: CitySearchResult): Promise<CityExploreData> {
-  const qs = new URLSearchParams({
-    cityId: city.cityId,
-    city: city.cityName,
-    region: city.region ?? "",
-    country: city.country,
-    countryCode: city.countryCode,
-    lat: String(city.lat),
-    lng: String(city.lng),
-  });
-  const res = await fetch(`/api/explore/score?${qs.toString()}`);
-  const body = await res.json();
-  if (!res.ok || body?.error) throw new Error(body?.error ?? "Failed to load this place's score.");
-  return body as CityExploreData;
+  const data = await getCityExploreData(city.countryCode, city.cityId || null, city.lat, city.lng);
+  if (!data) throw new Error("No data for this place.");
+  return data;
 }
 
 /**

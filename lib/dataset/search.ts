@@ -1,91 +1,79 @@
-import capitals from "@/data/static/country-capitals.json";
-import { getDiscoverCities } from "@/lib/discoverCities";
-import type { CitySearchResult, DiscoverCity } from "@/lib/types";
+import type { CitySearchResult } from "@/lib/types";
+import { getCountries } from "./cities";
+import { loadFile, manifest, memo } from "./files";
+import { cityIdFor, normaliseSearchText, searchKey, type SearchEntry } from "./schema";
 
-/** Search-as-you-type over the city shortlist bundled with the site
- *  (data/static/discover-cities.json, every place with 5,000+ people) -
- *  replaces a Mapbox geocoding call on every keystroke. Every result is a
- *  city the dataset has full data for, by construction. */
+/** Search-as-you-type over every shortlisted place, in the browser. The
+ *  first keystroke reads the 300 largest places for that letter; from the
+ *  second on, the index file for the query's first two characters (every
+ *  place with a word starting that way, a few KB) - after which each
+ *  keystroke is instant. Largest places first. */
 
-function normalise(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9 ]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-interface IndexedCity {
-  city: DiscoverCity;
+interface Indexed {
+  entry: SearchEntry;
   name: string;
   words: string[];
-  country: string;
 }
 
-let index: IndexedCity[] | null = null;
+const indexes = new Map<string, Promise<Indexed[]>>();
+const existing = new Set(manifest.searchFiles);
 
-function getIndex(): IndexedCity[] {
-  if (!index) {
-    // The shortlist is already sorted by population, largest first - so a
-    // plain in-order scan returns the most prominent matches first.
-    index = getDiscoverCities().map((city) => {
-      const name = normalise(city.cityName);
-      return { city, name, words: name.split(" "), country: normalise(city.country) };
-    });
-  }
-  return index;
+/** Which index file answers a normalised query. */
+const fileFor = (query: string) => (query.length === 1 ? query : searchKey(query));
+
+function loadIndex(file: string): Promise<Indexed[]> {
+  return memo(indexes, file, async () =>
+    (existing.has(file) ? await loadFile<SearchEntry[]>(`search/${file}.json`) : []).map((entry) => {
+      const name = normaliseSearchText(entry[0]);
+      return { entry, name, words: name.split(" ") };
+    })
+  );
 }
 
-function toResult(city: DiscoverCity): CitySearchResult {
-  return {
-    cityId: city.cityId,
-    cityName: city.cityName,
-    region: city.region,
-    country: city.country,
-    countryCode: city.countryCode,
-    lat: city.lat,
-    lng: city.lng,
-  };
+/** Starts loading the index file a query will need. */
+export function prefetchSearch(query: string): void {
+  const q = normaliseSearchText(query);
+  if (q) loadIndex(fileFor(q)).catch(() => {});
 }
 
-const CAPITALS = capitals as Record<string, { name: string; lat: number; lng: number }>;
+const normalisedCountryNames = Object.entries(manifest.countryNames).map(([cc, name]) => ({ cc, name: normaliseSearchText(name) }));
 
-export function searchCities(rawQuery: string, limit = 6): CitySearchResult[] {
-  const [cityPart, countryPart] = rawQuery.split(",").map((s) => normalise(s ?? ""));
+function toResult([name, region, cc, lat, lng]: SearchEntry): CitySearchResult {
+  return { cityId: cityIdFor(name, cc), cityName: name, region, country: manifest.countryNames[cc] ?? cc, countryCode: cc, lat, lng };
+}
+
+/** "lisbon", "lisbon, portugal", "new york, united" or a full country name
+ *  ("france" puts its capital first). */
+export async function searchCities(rawQuery: string, limit = 6): Promise<CitySearchResult[]> {
+  const [cityPart, countryPart = ""] = rawQuery.split(",").map((s) => normaliseSearchText(s));
   if (!cityPart) return [];
-  const all = getIndex();
-  const results: DiscoverCity[] = [];
+  const all = await loadIndex(fileFor(cityPart));
+  const countryCodes = countryPart ? new Set(normalisedCountryNames.filter((c) => c.name.startsWith(countryPart)).map((c) => c.cc)) : null;
+  const countryOk = (e: SearchEntry) => !countryCodes || countryCodes.has(e[2]);
+
+  const results: SearchEntry[] = [];
   const seen = new Set<string>();
-  const push = (city: DiscoverCity) => {
-    if (results.length < limit && !seen.has(city.cityId)) {
-      seen.add(city.cityId);
-      results.push(city);
+  const push = (e: SearchEntry) => {
+    const id = `${e[0]}|${e[2]}`;
+    if (results.length < limit && !seen.has(id)) {
+      seen.add(id);
+      results.push(e);
     }
   };
-  const countryOk = (c: IndexedCity) => !countryPart || c.country.startsWith(countryPart);
 
-  // A country name typed in full ("france") surfaces its capital first.
   if (!countryPart) {
-    const countryMatch = all.find((c) => c.country === cityPart);
-    const capital = countryMatch ? CAPITALS[countryMatch.city.countryCode] : undefined;
-    if (capital) {
-      const capitalCity = all.find((c) => c.city.countryCode === countryMatch!.city.countryCode && c.city.cityName === capital.name);
-      if (capitalCity) push(capitalCity.city);
+    const country = normalisedCountryNames.find((c) => c.name === cityPart);
+    if (country) {
+      const capital = (await getCountries())[country.cc]?.capital;
+      if (capital) {
+        const capitalIndex = await loadIndex(searchKey(normaliseSearchText(capital.name)));
+        const hit = capitalIndex.find((c) => c.entry[2] === country.cc && c.entry[0] === capital.name);
+        if (hit) push(hit.entry);
+      }
     }
   }
-  for (const c of all) {
-    if (results.length >= limit) break;
-    if (c.name === cityPart && countryOk(c)) push(c.city);
-  }
-  for (const c of all) {
-    if (results.length >= limit) break;
-    if (c.name.startsWith(cityPart) && countryOk(c)) push(c.city);
-  }
-  for (const c of all) {
-    if (results.length >= limit) break;
-    if (c.words.some((w) => w.startsWith(cityPart)) && countryOk(c)) push(c.city);
-  }
+  for (const c of all) if (results.length < limit && c.name === cityPart && countryOk(c.entry)) push(c.entry);
+  for (const c of all) if (results.length < limit && c.name.startsWith(cityPart) && countryOk(c.entry)) push(c.entry);
+  for (const c of all) if (results.length < limit && c.words.some((w) => w.startsWith(cityPart)) && countryOk(c.entry)) push(c.entry);
   return results.map(toResult);
 }

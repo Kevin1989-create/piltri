@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/adminAuth";
-import { getManifest } from "@/lib/dataset/load";
+import { manifest } from "@/lib/dataset/files";
 
-/** GET /api/admin/status - which precomputed dataset the site is serving
- *  (version, when it was built, how many cities/countries, sources). The
- *  dataset is rebuilt and published offline (see pipeline/README.md) - there
- *  is no cache to warm or backfill any more. */
+/** GET /api/admin/status - which precomputed dataset this deployment serves
+ *  (version, build date, counts, sources). Also the /admin pages' login
+ *  check. The dataset is rebuilt offline (see pipeline/README.md). */
 export async function GET(req: NextRequest) {
   if (!isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  try {
-    return NextResponse.json({ dataset: await getManifest() });
-  } catch (err) {
-    return NextResponse.json({ dataset: null, error: err instanceof Error ? err.message : String(err) });
-  }
+  const { tiles: _t, chunks: _c, countryNames: _n, searchFiles: _s, advCityColumns: _a, ...summary } = manifest;
+  return NextResponse.json({ dataset: summary });
 }

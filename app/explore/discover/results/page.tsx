@@ -12,7 +12,8 @@ const DiscoverResultsMap = dynamic(() => import("@/components/explore/DiscoverRe
   ssr: false,
   loading: () => <div className="w-full h-full rounded-card bg-surface-muted" />,
 });
-import { SECTION_LABELS, type AdvancedSearchResponse, type SectionKey } from "@/lib/types";
+import { runAdvancedSearch } from "@/lib/advancedSearch/engine";
+import { SECTION_LABELS, type AdvancedSearchRequest, type AdvancedSearchResponse, type SectionKey } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
 const SECTION_KEYS = Object.keys(SECTION_LABELS) as SectionKey[];
@@ -91,12 +92,10 @@ function buildMapPoints(results: DisplayResult[]): MapPoint[] {
 }
 
 /**
- * Advanced search results — its own page (not inline under the criteria
- * form) so a search's ~50 results get real room: a photo-forward grid with
- * sort/pagination, or a map of every match at once. Re-runs the search
- * itself from the scope/filters/weights carried in the URL (see
- * discover/page.tsx's "Search" button) rather than passing the (potentially
- * large) result set through the URL directly.
+ * Advanced search results - the top matches as a photo grid or a map. The
+ * search itself runs in the browser (lib/advancedSearch/engine.ts) from the
+ * scope/filters/weights in the URL, over files the search page already
+ * started downloading.
  */
 function DiscoverResultsContent() {
   const params = useSearchParams();
@@ -115,7 +114,7 @@ function DiscoverResultsContent() {
     setLoading(true);
     setError(null);
 
-    let filters: unknown[] = [];
+    let filters: AdvancedSearchRequest["filters"] = [];
     let weights: Record<string, number> | undefined;
     try {
       filters = JSON.parse(params.get("filters") ?? "[]");
@@ -129,15 +128,9 @@ function DiscoverResultsContent() {
       weights = undefined;
     }
 
-    fetch("/api/explore/discover", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scope, filters, weights }),
-    })
-      .then(async (res) => {
-        const body = await res.json();
-        if (!res.ok || body?.error) throw new Error(body?.error ?? "Advanced search failed.");
-        if (!cancelled) setResponse(body as AdvancedSearchResponse);
+    runAdvancedSearch({ scope, filters, weights })
+      .then((result) => {
+        if (!cancelled) setResponse(result);
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -184,16 +177,11 @@ function DiscoverResultsContent() {
           </h1>
           {response && (
             <p className="text-sm text-ink-700 mt-1">
-              <span className="font-medium text-ink-900">{response.matchCount}</span>{" "}
-              {scope === "city" ? "cities" : "countries"} match, out of {response.checked} checked
-              {response.failed > 0 ? ` (${response.failed} couldn't be scored and were skipped)` : ""}.
-              {response.notYetCached > 0 && (
-                <span className="block text-ink-500 mt-0.5">
-                  {response.notYetCached} more {scope === "city" ? "cities aren't" : "countries' cities aren't"} in the
-                  data cache yet — a scheduled job is filling it in gradually, so this list gets more complete over
-                  time.
-                </span>
-              )}
+              <span className="font-medium text-ink-900">{response.matchCount.toLocaleString()}</span>{" "}
+              {scope === "city" ? "cities" : "countries"} match, out of {response.checked.toLocaleString()}
+              {response.matchCount > (response.cityResults ?? response.countryResults ?? []).length &&
+                ` - showing the top ${(response.cityResults ?? response.countryResults ?? []).length}`}
+              .
             </p>
           )}
         </div>

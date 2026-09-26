@@ -1,15 +1,13 @@
 import path from "path";
 import { fromFile } from "geotiff";
-import { classifyKoppen } from "@/lib/data-sources/koppen";
-import { cached, downloadOnce, log, round, unzipOnce, WORK_DIR } from "./util";
+import { cached, downloadOnce, log, pointsKey, round, unzipOnce, WORK_DIR } from "./util";
 
 /** WorldClim 2.1 monthly climate normals (1970-2000), 2.5 arc-minute
- *  (~4.5 km) grid - free, CC BY 4.0 (commercial use allowed), read with
- *  geotiff.js (pure JS, no GDAL). Replaces ~2 Open-Meteo calls per city
- *  (whose free tier is also non-commercial only). Climate normals are the
- *  standard basis for Köppen classification and don't change year to year,
- *  so this only ever needs re-running if WorldClim publishes a new edition. */
-const VARIABLES = ["tavg", "prec", "srad", "vapr"] as const;
+ *  (~4.5 km) grid - free, CC BY 4.0, read with geotiff.js (pure JS, no
+ *  GDAL). Normals don't change year to year; the rasters are cached across
+ *  runs. (Köppen types come from Beck et al.'s published map instead -
+ *  see koppenMap.ts.) */
+const VARIABLES = ["tavg", "tmax", "tmin", "prec", "srad", "vapr"] as const;
 type Variable = (typeof VARIABLES)[number];
 
 export interface ClimateResult {
@@ -18,7 +16,11 @@ export interface ClimateResult {
   avgAnnualSunshineHrs: number | null;
   avgAnnualSnowfallCm: number | null;
   avgAnnualHumidityPct: number | null;
-  koppenCode: string | null;
+  hottestMonthHighC: number | null;
+  coldestMonthLowC: number | null;
+  monthlyHighC: number[] | null;
+  monthlyLowC: number[] | null;
+  monthlyRainMm: number[] | null;
 }
 
 async function variableDir(variable: Variable): Promise<string> {
@@ -74,7 +76,7 @@ async function sampleRaster(file: string, points: { lat: number; lng: number }[]
 }
 
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-const MID_MONTH_DAY = [15, 46, 74, 105, 135, 166, 196, 227, 258, 288, 319, 349];
+export const MID_MONTH_DAY = [15, 46, 74, 105, 135, 166, 196, 227, 258, 288, 319, 349];
 
 /** Estimated monthly sunshine hours from WorldClim solar radiation, via
  *  the FAO-56 Angström-Prescott relation (Rs/Ra = a + b·n/N, a=0.25,
@@ -82,9 +84,8 @@ const MID_MONTH_DAY = [15, 46, 74, 105, 135, 166, 196, 227, 258, 288, 319, 349];
  *  reference cities (London, Madrid, Moscow, Phoenix, Singapore, Dubai,
  *  Sydney, Denver, Miami, Tokyo, Cairo): the plain formula read a
  *  consistent 3-21% low; x1.1 centres it (mean absolute error ~9%). A
- *  latitude-dependent variant (Glover & McCulloch) was tried and rejected -
- *  its errors scattered from -37% (Singapore) to +22% (Moscow), which is
- *  worse for comparing cities. A disclosed estimate, not a measured count. */
+ *  latitude-dependent variant (Glover & McCulloch) scattered from -37% to
+ *  +22% and was rejected. A disclosed estimate, not a measured count. */
 const SUNSHINE_CALIBRATION = 1.1;
 function sunshineHoursPerDay(lat: number, month: number, sradKJ: number): number {
   const phi = (lat * Math.PI) / 180;
@@ -107,20 +108,32 @@ function relativeHumidity(vaprKPa: number, tempC: number): number {
 
 /** Share of a month's precipitation falling as snow - all of it at or
  *  below -5 °C, none at or above +3 °C, linear in between (a month
- *  averaging -1 °C still has plenty of freezing days, so a narrow ramp
- *  around 0 °C undercounts continental winters). 1 mm of water ≈ 1 cm of
- *  snow (the standard 10:1 ratio). A disclosed estimate from monthly
- *  means - it can't see individual spring storms (e.g. Denver's). */
+ *  averaging -1 °C still has plenty of freezing days). 1 mm of water ≈
+ *  1 cm of snow. A disclosed estimate from monthly means. */
 function snowFraction(tempC: number): number {
   return Math.max(0, Math.min(1, (3 - tempC) / 8));
 }
 
+const EMPTY: ClimateResult = {
+  avgAnnualTemperatureC: null,
+  avgAnnualRainfallMm: null,
+  avgAnnualSunshineHrs: null,
+  avgAnnualSnowfallCm: null,
+  avgAnnualHumidityPct: null,
+  hottestMonthHighC: null,
+  coldestMonthLowC: null,
+  monthlyHighC: null,
+  monthlyLowC: null,
+  monthlyRainMm: null,
+};
+
 export async function sampleClimate(points: { lat: number; lng: number }[]): Promise<ClimateResult[]> {
-  // Raw monthly samples are the slow part (48 rasters) - cached on their
+  // Raw monthly samples are the slow part (72 rasters) - cached on their
   // own so tweaking the derivations below never re-reads the rasters.
-  const monthly = await cached(`worldclim-monthly-${points.length}`, async () => {
-    const out: Record<Variable, (number | null)[][]> = { tavg: [], prec: [], srad: [], vapr: [] };
+  const monthly = await cached(`worldclim-monthly-${pointsKey(points)}`, async () => {
+    const out = {} as Record<Variable, (number | null)[][]>;
     for (const variable of VARIABLES) {
+      out[variable] = [];
       const dir = await variableDir(variable);
       for (let m = 1; m <= 12; m++) {
         const file = path.join(dir, `wc2.1_2.5m_${variable}_${String(m).padStart(2, "0")}.tif`);
@@ -130,36 +143,30 @@ export async function sampleClimate(points: { lat: number; lng: number }[]): Pro
     }
     return out;
   });
-  {
-    return points.map(({ lat }, i) => {
-      const T = monthly.tavg.map((m) => m[i]);
-      const P = monthly.prec.map((m) => m[i]);
-      const S = monthly.srad.map((m) => m[i]);
-      const V = monthly.vapr.map((m) => m[i]);
-      if (T.some((v) => v == null) || P.some((v) => v == null)) {
-        return {
-          avgAnnualTemperatureC: null,
-          avgAnnualRainfallMm: null,
-          avgAnnualSunshineHrs: null,
-          avgAnnualSnowfallCm: null,
-          avgAnnualHumidityPct: null,
-          koppenCode: null,
-        };
-      }
-      const t = T as number[];
-      const p = P as number[];
-      const sunshine = S.every((v) => v != null)
-        ? (S as number[]).reduce((sum, s, m) => sum + sunshineHoursPerDay(lat, m, s) * DAYS_IN_MONTH[m], 0)
-        : null;
-      const humidity = V.every((v) => v != null) ? (V as number[]).reduce((sum, v, m) => sum + relativeHumidity(v, t[m]), 0) / 12 : null;
-      return {
-        avgAnnualTemperatureC: round(t.reduce((a, b) => a + b, 0) / 12, 1),
-        avgAnnualRainfallMm: Math.round(p.reduce((a, b) => a + b, 0)),
-        avgAnnualSunshineHrs: sunshine != null ? Math.round(sunshine) : null,
-        avgAnnualSnowfallCm: Math.round(p.reduce((sum, v, m) => sum + v * snowFraction(t[m]), 0)),
-        avgAnnualHumidityPct: humidity != null ? Math.round(humidity) : null,
-        koppenCode: classifyKoppen(t, p, lat),
-      };
-    });
-  }
+
+  const column = (variable: Variable, i: number) => monthly[variable].map((m) => m[i]);
+  const complete = (values: (number | null)[]): values is number[] => values.every((v) => v != null);
+  return points.map(({ lat }, i) => {
+    const t = column("tavg", i);
+    const p = column("prec", i);
+    if (!complete(t) || !complete(p)) return EMPTY;
+    const hi = column("tmax", i);
+    const lo = column("tmin", i);
+    const s = column("srad", i);
+    const v = column("vapr", i);
+    const sunshine = complete(s) ? s.reduce((sum, x, m) => sum + sunshineHoursPerDay(lat, m, x) * DAYS_IN_MONTH[m], 0) : null;
+    const humidity = complete(v) ? v.reduce((sum, x, m) => sum + relativeHumidity(x, t[m]), 0) / 12 : null;
+    return {
+      avgAnnualTemperatureC: round(t.reduce((a, b) => a + b, 0) / 12, 1),
+      avgAnnualRainfallMm: Math.round(p.reduce((a, b) => a + b, 0)),
+      avgAnnualSunshineHrs: sunshine != null ? Math.round(sunshine) : null,
+      avgAnnualSnowfallCm: Math.round(p.reduce((sum, x, m) => sum + x * snowFraction(t[m]), 0)),
+      avgAnnualHumidityPct: humidity != null ? Math.round(humidity) : null,
+      hottestMonthHighC: complete(hi) ? round(Math.max(...hi), 1) : null,
+      coldestMonthLowC: complete(lo) ? round(Math.min(...lo), 1) : null,
+      monthlyHighC: complete(hi) ? hi.map((x) => Math.round(x)) : null,
+      monthlyLowC: complete(lo) ? lo.map((x) => Math.round(x)) : null,
+      monthlyRainMm: p.map((x) => Math.round(x)),
+    };
+  });
 }

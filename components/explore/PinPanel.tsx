@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getPinnedLocationData } from "@/lib/dataset/pin";
 import { Button } from "@/components/ui/Button";
 import { CloseIcon } from "@/components/ui/icons";
 import { isPinSaved, savePin } from "@/lib/savedPins";
@@ -74,11 +75,11 @@ export function PinPanel({
     let cancelled = false;
     setData(null);
     setSaved(isPinSaved(coords.lat, coords.lng));
-    fetch(`/api/explore/pin?lat=${coords.lat}&lng=${coords.lng}`)
-      .then((r) => r.json())
+    getPinnedLocationData(coords.lat, coords.lng)
       .then((d) => {
         if (!cancelled) setData(d);
-      });
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };

@@ -1,19 +1,13 @@
-import type { AdvancedSearchCriterionFilter, AdvancedSearchScope, CityExploreData, CriterionValue, PinnedLocationData } from "@/lib/types";
+import { kmToMinutes } from "@/lib/dataset/assemble";
+import type { AdvancedSearchCriterionFilter, AdvancedSearchScope, CityExploreData, CriterionValue, SectionKey } from "@/lib/types";
 
 /**
- * Advanced search's criteria registry — the single source of truth for
- * "every existing criterion in the app" that the /explore/discover page
- * proposes as a filter. Each entry knows its own label/unit, how to read
- * its value off a city's aggregated data (CityExploreData, the exact same
- * object the single-city results page renders), and — for the 4 "nearest
- * X" fields — off that city's centre-point Pin-mode data too.
- *
- * Keeping this in one place (rather than scattering field lookups across
- * the API route and the UI) means the UI's list of filters and the API's
- * filtering logic can never drift out of sync with each other.
- *
- * There is no "Real Estate" category — see lib/types.ts's file header
- * comment for why (no reliable free global source exists today).
+ * Advanced search's criteria registry - the single source of truth for
+ * every filter /explore/discover offers. Each entry knows its label/unit
+ * and how to read its value off a city's CityExploreData (the same object
+ * the city page renders). The offline pipeline evaluates every criterion
+ * for every city with these same getters (pipeline/output.ts), so the
+ * filters, the published columns and the city pages can't drift apart.
  */
 
 export type CriterionKind = "range" | "boolean" | "select";
@@ -22,9 +16,6 @@ export type CategoryKey = "overall" | "economy" | "safetyStability" | "climate" 
 
 export const CATEGORY_ORDER: CategoryKey[] = ["overall", "economy", "safetyStability", "climate", "liveability", "demographics", "nearby"];
 
-// Matches lib/types.ts's SECTION_LABELS renaming (2026-09-24) - see that
-// file's comment for why. CategoryKey itself is unchanged (still
-// safetyStability/climate/liveability), display labels only.
 export const CATEGORY_LABELS: Record<CategoryKey, string> = {
   overall: "Overall",
   economy: "Economy",
@@ -44,34 +35,21 @@ export interface CriterionDef {
   unit?: string;
   /** Filter input type at city scope. */
   kind: CriterionKind;
-  /** Filter input type at country scope, if different — the 4 "nearest X"
-   *  fields switch from a minutes range to a plain Yes/No, since "distance
-   *  from a country's centre" isn't a meaningful question. */
+  /** Filter input type at country scope, if different ("distance from city
+   *  centre" criteria become "found in at least one city"). */
   countryKind?: CriterionKind;
   selectOptions?: string[];
-  /** Cosmetic bounds only, to seed sensible input placeholders — not
-   *  enforced server-side. */
+  /** Placeholder bounds only - not enforced. */
   suggestedRange?: [number, number];
-  /** Overrides suggestedRange at country scope, for fields whose sensible
-   *  bound genuinely differs by scope (e.g. Population — a country-scope
-   *  value is an average across every tracked city in that country, which
-   *  can run higher than any single city). Falls back to suggestedRange
-   *  when not set. */
   countrySuggestedRange?: [number, number];
-  /** Overrides label at country scope, for fields whose wording is
-   *  city-specific (e.g. "City land area"). Falls back to label when not
-   *  set. */
   countryLabel?: string;
-  /** True when resolving this criterion needs the pin-at-centre lookup —
-   *  lets the API route skip that call for every candidate when no Nearby
-   *  filter is actually active. */
-  needsPinData?: boolean;
-  /** Reads this criterion's raw value for one city. `pin` is null unless
-   *  needsPinData is true and the caller actually fetched it. */
-  getCityValue: (data: CityExploreData, pin: PinnedLocationData | null) => CriterionValue;
+  /** Derived from section scores ("piltri" honours the search's weights) -
+   *  computed on the fly rather than stored as a column. */
+  fromScores?: "piltri" | SectionKey;
+  getCityValue: (data: CityExploreData) => CriterionValue;
 }
 
-function nearby(key: string, label: string, pick: (pin: PinnedLocationData) => number | null): CriterionDef {
+function minutesFrom(key: string, label: string, pick: (d: CityExploreData) => number | null): CriterionDef {
   return {
     key,
     category: "nearby",
@@ -80,8 +58,19 @@ function nearby(key: string, label: string, pick: (pin: PinnedLocationData) => n
     kind: "range",
     countryKind: "boolean",
     suggestedRange: [0, 500],
-    needsPinData: true,
-    getCityValue: (_data, pin) => (pin ? pick(pin) : null),
+    getCityValue: (d) => kmToMinutes(pick(d)),
+  };
+}
+
+function sectionScore(section: SectionKey, category: CategoryKey, label: string): CriterionDef {
+  return {
+    key: `${section}.sectionScore`,
+    category,
+    label,
+    kind: "range",
+    suggestedRange: [0, 100],
+    fromScores: section,
+    getCityValue: (d) => d.sectionScores[section],
   };
 }
 
@@ -93,38 +82,29 @@ export const CRITERIA: CriterionDef[] = [
     label: "Piltri Score",
     kind: "range",
     suggestedRange: [0, 100],
+    fromScores: "piltri",
     getCityValue: (d) => d.piltriScore,
   },
 
   // ---- Economy ------------------------------------------------------------
-  {
-    key: "economy.sectionScore",
-    category: "economy",
-    label: "Economy score",
-    kind: "range",
-    suggestedRange: [0, 100],
-    getCityValue: (d) => d.sectionScores.economy,
-  },
+  sectionScore("economy", "economy", "Economy score"),
   {
     key: "economy.economicGrowth5yrGdpPct",
     category: "economy",
     label: "5yr GDP growth",
     unit: "%",
     kind: "range",
-    suggestedRange: [-10, 40], // matches aggregate.ts's RANGES.gdpGrowth (cumulative ~6yr growth, not annual)
+    suggestedRange: [-10, 40],
     getCityValue: (d) => d.economy.economicGrowth5yrGdpPct,
   },
   {
+    // Monthly, in thousands of GBP (annual averageSalaryGbp / 12 / 1000).
     key: "economy.averageSalaryGbp",
     category: "economy",
     label: "Average salary per month (K)",
     unit: "K",
     kind: "range",
     suggestedRange: [0, 10],
-    // Underlying field is an annual GBP figure (see aggregate.ts —
-    // gniPerCapitaUsd * 0.79) - divided by 12 for monthly, then by 1000 for
-    // K, same "value in K" convention as Population. One decimal kept since
-    // monthly-in-K numbers are small (e.g. a £45,000/yr salary -> 3.75).
     getCityValue: (d) => Math.round((d.economy.averageSalaryGbp / 12 / 1000) * 10) / 10,
   },
   {
@@ -159,9 +139,6 @@ export const CRITERIA: CriterionDef[] = [
     unit: "B",
     kind: "range",
     suggestedRange: [0, 30000],
-    // Underlying field is raw current-US$ (see aggregate.ts) - divided by
-    // 1e9 for the same "value in B" convention as other large-number
-    // criteria in this file (e.g. Population's "K" convention above).
     getCityValue: (d) => (d.economy.gdpUsd != null ? Math.round(d.economy.gdpUsd / 1e9) : null),
   },
   {
@@ -183,14 +160,7 @@ export const CRITERIA: CriterionDef[] = [
   },
 
   // ---- Safety ---------------------------------------------------------------
-  {
-    key: "safetyStability.sectionScore",
-    category: "safetyStability",
-    label: "Safety score",
-    kind: "range",
-    suggestedRange: [0, 100],
-    getCityValue: (d) => d.sectionScores.safetyStability,
-  },
+  sectionScore("safetyStability", "safetyStability", "Safety score"),
   {
     key: "safetyStability.politicalStabilityScore",
     category: "safetyStability",
@@ -225,14 +195,7 @@ export const CRITERIA: CriterionDef[] = [
   },
 
   // ---- Environment ----------------------------------------------------------
-  {
-    key: "climate.sectionScore",
-    category: "climate",
-    label: "Environment score",
-    kind: "range",
-    suggestedRange: [0, 100],
-    getCityValue: (d) => d.sectionScores.climate,
-  },
+  sectionScore("climate", "climate", "Environment score"),
   {
     key: "climate.avgAnnualTemperatureC",
     category: "climate",
@@ -241,6 +204,24 @@ export const CRITERIA: CriterionDef[] = [
     kind: "range",
     suggestedRange: [-10, 35],
     getCityValue: (d) => d.climate.avgAnnualTemperatureC,
+  },
+  {
+    key: "climate.hottestMonthHighC",
+    category: "climate",
+    label: "Summer high (hottest month)",
+    unit: "°C",
+    kind: "range",
+    suggestedRange: [10, 45],
+    getCityValue: (d) => d.climate.hottestMonthHighC,
+  },
+  {
+    key: "climate.coldestMonthLowC",
+    category: "climate",
+    label: "Winter low (coldest month)",
+    unit: "°C",
+    kind: "range",
+    suggestedRange: [-30, 25],
+    getCityValue: (d) => d.climate.coldestMonthLowC,
   },
   {
     key: "climate.avgAnnualRainfallMm",
@@ -257,7 +238,7 @@ export const CRITERIA: CriterionDef[] = [
     label: "Avg. annual sunshine",
     unit: "hrs",
     kind: "range",
-    suggestedRange: [0, 8760],
+    suggestedRange: [1000, 4000],
     getCityValue: (d) => d.climate.avgAnnualSunshineHrs,
   },
   {
@@ -269,12 +250,8 @@ export const CRITERIA: CriterionDef[] = [
     suggestedRange: [0, 200],
     getCityValue: (d) => d.climate.avgAnnualSnowfallCm,
   },
-  // Distance to beach/mountain/forest/capital moved to Quality of Life
-  // (2026-09-24, on request) - see that section below.
-  // Climate type (Köppen) isn't a filter criterion here - ~30 possible
-  // codes is too many for a clean select dropdown, and it's a descriptive
-  // fact rather than a natural filter dimension, same reasoning
-  // mainEconomyType/gdpSectorRanking are also left out of this file.
+  // Climate type (Köppen) isn't a filter: ~30 codes is too many for a clean
+  // dropdown, and it's descriptive rather than a natural filter dimension.
   {
     key: "climate.avgAnnualHumidityPct",
     category: "climate",
@@ -285,6 +262,23 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.climate.avgAnnualHumidityPct,
   },
   {
+    key: "climate.avgAnnualPm25",
+    category: "climate",
+    label: "Air pollution (PM2.5)",
+    unit: "µg/m³",
+    kind: "range",
+    suggestedRange: [0, 50],
+    getCityValue: (d) => d.climate.avgAnnualPm25,
+  },
+  {
+    key: "climate.avgAnnualUvIndexMax",
+    category: "climate",
+    label: "Avg. UV index",
+    kind: "range",
+    suggestedRange: [0, 12],
+    getCityValue: (d) => d.climate.avgAnnualUvIndexMax,
+  },
+  {
     key: "climate.elevationM",
     category: "climate",
     label: "Elevation",
@@ -293,9 +287,6 @@ export const CRITERIA: CriterionDef[] = [
     suggestedRange: [0, 4000],
     getCityValue: (d) => d.climate.elevationM,
   },
-  // Air quality (PM2.5), UV index and "Has tramway" have no filters: the
-  // offline dataset doesn't carry them yet (pipeline/build.ts stores null),
-  // and a filter that can only ever match nothing is worse than none.
   {
     key: "climate.earthquakeCount50yr",
     category: "climate",
@@ -357,18 +348,8 @@ export const CRITERIA: CriterionDef[] = [
   },
 
   // ---- Quality of Life --------------------------------------------------------
+  sectionScore("liveability", "liveability", "Quality of Life score"),
   {
-    key: "liveability.sectionScore",
-    category: "liveability",
-    label: "Quality of Life score",
-    kind: "range",
-    suggestedRange: [0, 100],
-    getCityValue: (d) => d.sectionScores.liveability,
-  },
-  {
-    // Suggested ranges below match aggregate.ts's RANGES (recalibrated
-    // 2026-09-21 against real per-city-population Overpass data, after
-    // fixing a bug that divided by country population instead of city).
     key: "liveability.restaurantsBarsWithin5km",
     category: "liveability",
     label: "Restaurants, bars & cafés (within 5 km)",
@@ -399,6 +380,24 @@ export const CRITERIA: CriterionDef[] = [
     kind: "range",
     suggestedRange: [0, 30],
     getCityValue: (d) => d.liveability.familyActivitiesWithin5km,
+  },
+  {
+    key: "liveability.broadbandDownloadMbps",
+    category: "liveability",
+    label: "Broadband speed (download)",
+    unit: "Mbps",
+    kind: "range",
+    suggestedRange: [0, 500],
+    getCityValue: (d) => d.liveability.broadbandDownloadMbps,
+  },
+  {
+    key: "liveability.mobileDownloadMbps",
+    category: "liveability",
+    label: "Mobile speed (download)",
+    unit: "Mbps",
+    kind: "range",
+    suggestedRange: [0, 300],
+    getCityValue: (d) => d.liveability.mobileDownloadMbps,
   },
   {
     key: "liveability.healthcareQualityScore",
@@ -460,9 +459,16 @@ export const CRITERIA: CriterionDef[] = [
   {
     key: "liveability.hasSubway",
     category: "liveability",
-    label: "Has metro / light rail",
+    label: "Has metro",
     kind: "boolean",
     getCityValue: (d) => d.liveability.hasSubway,
+  },
+  {
+    key: "liveability.hasTramway",
+    category: "liveability",
+    label: "Has tram / light rail",
+    kind: "boolean",
+    getCityValue: (d) => d.liveability.hasTramway,
   },
   {
     key: "liveability.hasAirport",
@@ -492,8 +498,6 @@ export const CRITERIA: CriterionDef[] = [
     kind: "boolean",
     getCityValue: (d) => d.liveability.hasUniversity,
   },
-  // "What's nearby" distances (2026-09-24, moved here from Environment/
-  // Climate on request - proximity reads as a Quality of Life question).
   {
     key: "liveability.distanceToBeachKm",
     category: "liveability",
@@ -530,15 +534,20 @@ export const CRITERIA: CriterionDef[] = [
     suggestedRange: [0, 1000],
     getCityValue: (d) => d.liveability.distanceToCapitalKm,
   },
-
-  // ---- Demographics (reference info, not scored) ---------------------------
-  // Population/density/land area filter on the city-level Wikidata figures
-  // (null - and so excluded from range matches - whenever that city didn't
-  // resolve); average age and 5yr trend have no city-level equivalent, so
-  // they always use the country figures, same as before this file's
-  // corresponding DemographicsFields fields were split into separate
-  // country/city ones (see lib/types.ts).
   {
+    key: "liveability.nearestLargeCityKm",
+    category: "liveability",
+    label: "Distance to a large city (500k+)",
+    unit: "km",
+    kind: "range",
+    suggestedRange: [0, 200],
+    // A large city itself counts as 0 km from one.
+    getCityValue: (d) => (d.liveability.nearestLargeCity ? d.liveability.nearestLargeCity.km : (d.demographics.cityPopulation ?? 0) >= 500000 ? 0 : null),
+  },
+
+  // ---- Demographics (not scored) -------------------------------------------
+  {
+    // In thousands (K).
     key: "demographics.population",
     category: "demographics",
     label: "Population",
@@ -546,20 +555,16 @@ export const CRITERIA: CriterionDef[] = [
     kind: "range",
     suggestedRange: [1, 5000],
     countrySuggestedRange: [1, 150000],
-    // Expressed in thousands (K) rather than the raw headcount - matches
-    // the suggestedRange bounds above (1 to 5000, i.e. 1,000 to 5,000,000)
-    // and how it's shown in formatCriterionValue's default "num unit"
-    // rendering ("1,240 K" rather than a much harder-to-scan "1,240,000").
     getCityValue: (d) => (d.demographics.cityPopulation != null ? Math.round(d.demographics.cityPopulation / 1000) : null),
   },
   {
     key: "demographics.populationDensityPerKm2",
     category: "demographics",
-    label: "Population density",
+    label: "Population density (within 5 km)",
     unit: "per km²",
     kind: "range",
-    suggestedRange: [500, 50000],
-    getCityValue: (d) => d.demographics.cityPopulationDensityPerKm2,
+    suggestedRange: [0, 20000],
+    getCityValue: (d) => d.demographics.cityDensityPerKm2,
   },
   {
     key: "demographics.populationTrend5yrPct",
@@ -579,22 +584,12 @@ export const CRITERIA: CriterionDef[] = [
     suggestedRange: [20, 60],
     getCityValue: (d) => d.demographics.countryAverageAge,
   },
-  {
-    key: "demographics.areaKm2",
-    category: "demographics",
-    label: "City land area",
-    countryLabel: "Country land area",
-    unit: "km²",
-    kind: "range",
-    suggestedRange: [10, 10000],
-    getCityValue: (d) => d.demographics.cityAreaKm2,
-  },
 
-  // ---- Nearby & distance from city centre (mirrors Pin mode) --------------
-  nearby("nearby.beach", "Beach", (p) => p.nearestBeach.minutes),
-  nearby("nearby.mountain", "Mountain", (p) => p.nearestMountain.minutes),
-  nearby("nearby.trainStation", "Train station", (p) => p.nearestTrainStation.minutes),
-  nearby("nearby.airport", "Airport", (p) => p.nearestAirport.minutes),
+  // ---- Distance from city centre (the same estimate as pin mode) ----------
+  minutesFrom("nearby.beach", "Beach", (d) => d.liveability.distanceToBeachKm),
+  minutesFrom("nearby.mountain", "Mountain", (d) => d.liveability.distanceToMountainKm),
+  minutesFrom("nearby.trainStation", "Train station", (d) => d.liveability.distanceToTrainStationKm),
+  minutesFrom("nearby.airport", "Airport", (d) => d.liveability.distanceToAirportKm),
 ];
 
 const CRITERIA_BY_KEY = new Map(CRITERIA.map((c) => [c.key, c]));
@@ -610,31 +605,20 @@ export function criteriaByCategory(): Record<CategoryKey, CriterionDef[]> {
   return result;
 }
 
-/** This criterion's filter-input kind for the given scope — Nearby-category
- *  fields switch from a minutes range (city) to Yes/No (country). */
 export function kindForScope(def: CriterionDef, scope: AdvancedSearchScope): CriterionKind {
   return scope === "country" && def.countryKind ? def.countryKind : def.kind;
 }
 
-/** This criterion's suggested min/max bounds for the given scope — falls
- *  back to suggestedRange unless a countrySuggestedRange override exists
- *  (see CriterionDef.countrySuggestedRange, e.g. Population). */
 export function rangeForScope(def: CriterionDef, scope: AdvancedSearchScope): [number, number] | undefined {
   return scope === "country" && def.countrySuggestedRange ? def.countrySuggestedRange : def.suggestedRange;
 }
 
-/** This criterion's display label for the given scope — falls back to
- *  label unless a countryLabel override exists (see
- *  CriterionDef.countryLabel, e.g. "City land area" -> "Country land
- *  area"). */
 export function labelForScope(def: CriterionDef, scope: AdvancedSearchScope): string {
   return scope === "country" && def.countryLabel ? def.countryLabel : def.label;
 }
 
-/** Does this resolved value satisfy the given filter, interpreted under
- *  `kind`? A null/unknown value never satisfies an active numeric filter —
- *  "we couldn't find one nearby" shouldn't count as meeting a "must be
- *  within X minutes" constraint. */
+/** Does this value satisfy the filter? An unknown (null) value never
+ *  satisfies an active numeric filter. */
 export function matchesFilter(value: CriterionValue, filter: AdvancedSearchCriterionFilter, kind: CriterionKind): boolean {
   if (kind === "range") {
     if (typeof value !== "number" || Number.isNaN(value)) return false;
@@ -646,18 +630,14 @@ export function matchesFilter(value: CriterionValue, filter: AdvancedSearchCrite
     if (filter.bool == null) return true;
     return Boolean(value) === filter.bool;
   }
-  // select
   if (!filter.select) return true;
   return value === filter.select;
 }
 
-/** Rolls up a set of per-city values for one criterion into a single
- *  country-level value. Numeric fields average; booleans OR; the one
- *  select field (safety trend) takes the most common value. Nearby
- *  fields are numeric at city scope but boolean at country scope — for
- *  those, "Yes" means at least one tracked city actually found one
- *  (regardless of how far), not an average distance that wouldn't mean
- *  much at country level anyway. */
+/** Rolls per-city values up to one country value: numbers average,
+ *  booleans OR, selects take the most common value. "Distance from city
+ *  centre" criteria are numeric per city but Yes/No per country ("found
+ *  one near at least one tracked city"). */
 export function aggregateForCountry(values: CriterionValue[], cityKind: CriterionKind, countryKind: CriterionKind): CriterionValue {
   if (countryKind === "boolean") {
     if (cityKind === "boolean") return values.some((v) => v === true);
@@ -681,10 +661,7 @@ export function aggregateForCountry(values: CriterionValue[], cityKind: Criterio
   return Number((nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2));
 }
 
-/** Human-readable rendering of a resolved criterion value, for result cards
- *  and matched-filter chips — e.g. "£48,200", "18 min", "23% of city area",
- *  "Yes". Centralised here so the UI never has to guess a field's unit
- *  formatting itself. */
+/** Human-readable value for result cards and matched-filter chips. */
 export function formatCriterionValue(def: CriterionDef, value: CriterionValue): string {
   if (value == null) return "Not available";
   if (typeof value === "boolean") return value ? "Yes" : "No";
@@ -693,7 +670,6 @@ export function formatCriterionValue(def: CriterionDef, value: CriterionValue): 
   const num = rounded.toLocaleString();
   const unit = def.unit;
   if (!unit) return num;
-  if (unit === "£") return `£${num}`;
   if (unit.startsWith("%")) return `${num}${unit}`;
   return `${num} ${unit}`;
 }

@@ -1,24 +1,21 @@
 import { mkdirSync, writeFileSync } from "fs";
 import path from "path";
+import { tileKey } from "@/lib/dataset/schema";
 import { log } from "./util";
 
-/** Pin mode's "nearest X" lookups need arbitrary coordinates, not just
- *  shortlisted cities - so the points themselves are published, split
- *  into 5°x5° tiles. The pin API loads only the few tiles around a dropped
- *  pin and finds the nearest point locally (lib/dataset/pin.ts). */
-export const POI_TILE_DEG = 5;
+/** Pin mode's "nearest X" lookups work for any coordinate, not just
+ *  shortlisted cities - so the points themselves are published, split into
+ *  5°x5° tiles. The browser loads only the tiles around a dropped pin and
+ *  finds the nearest point locally (lib/dataset/pin.ts). */
 
-export function tileKey(lat: number, lng: number): string {
-  return `${Math.floor(lat / POI_TILE_DEG)}_${Math.floor(lng / POI_TILE_DEG)}`;
-}
+type Source = { lng: ArrayLike<number>; lat: ArrayLike<number>; names: (string | null)[]; elev?: ArrayLike<number | null> };
 
-type Source = { lng: ArrayLike<number>; lat: ArrayLike<number>; names: (string | null)[]; elev?: ArrayLike<number> };
-
-/** Each point is [lng, lat, name] - plus elevation (m) for mountains, so pin
- *  mode can apply the same "rises 500 m+ above you" rule as city pages. */
-export async function buildPoiTiles(dir: string, sources: Record<string, Source>, coastStride = 5): Promise<void> {
+/** Each point is [lng, lat, name] - plus elevation (m) for categories that
+ *  carry one (peaks for the "rises 500 m+" rule; towns for local ground
+ *  level). Returns the keys of the tiles written. */
+export function buildPoiTiles(dir: string, sources: Record<string, Source>, coastStride = 5): string[] {
   mkdirSync(dir, { recursive: true });
-  const tiles = new Map<string, Record<string, (string | number)[][]>>();
+  const tiles = new Map<string, Record<string, (string | number | null)[][]>>();
   for (const [category, src] of Object.entries(sources)) {
     // Coastline is densified to ~1 km for accurate city distances; ~5 km
     // spacing is plenty for pin mode and keeps tiles small.
@@ -29,11 +26,15 @@ export async function buildPoiTiles(dir: string, sources: Record<string, Source>
       const key = tileKey(lat, lng);
       if (!tiles.has(key)) tiles.set(key, {});
       const tile = tiles.get(key)!;
-      const point: (string | number)[] = [Math.round(lng * 1e4) / 1e4, Math.round(lat * 1e4) / 1e4, src.names[i] ?? ""];
-      if (src.elev) point.push(Math.round(src.elev[i]));
+      const point: (string | number | null)[] = [Math.round(lng * 1e4) / 1e4, Math.round(lat * 1e4) / 1e4, src.names[i] ?? ""];
+      if (src.elev) {
+        const e = src.elev[i];
+        point.push(e == null ? null : Math.round(e));
+      }
       (tile[category] ??= []).push(point);
     }
   }
   for (const [key, tile] of tiles) writeFileSync(path.join(dir, `${key}.json`), JSON.stringify(tile));
   log("poi", `${tiles.size} POI tiles written`);
+  return [...tiles.keys()].sort();
 }

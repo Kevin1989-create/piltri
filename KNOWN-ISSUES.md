@@ -1,45 +1,31 @@
-# Known issues — pre-production
+# Known issues and limitations
 
-Logged 2026-07-27. Updated 2026-09-20 after the data-model simplification
-(see HANDOFF.md) — several items below were resolved as a side effect of
-that work, not independently fixed.
+Updated 2026-09-26, after the move to an offline dataset served as static
+files. The earlier issues (slow pin mode, empty beach field for London,
+Overpass/Mapbox rate limits, cold loads) went away with the live data
+sources they came from.
 
-## 1. Loading performance — largely resolved for Pin mode
-Pin mode used to fire ~13 parallel lookups per pin (schools, subway, high
-street, hospitals, etc.), several hitting Mapbox category search + Overpass
-with multi-tier fallback chains — the main source of slow/inconsistent pin
-loads. Pin mode (`lib/aggregation/pin.ts`) now resolves just 4 fields (Beach,
-Mountain, Train station, Airport), cutting the per-pin lookup count by ~70%.
-Not yet addressed: no caching layer on repeated Overpass/Mapbox queries for
-the same area, and Overpass's public API itself is still often slow/rate-
-limited server-side, outside our control — a real fix (short-TTL response
-caching per lat/lng bucket, tighter timeouts) is still worth doing if pin
-loads are still felt to be slow in practice.
+## Data limitations (disclosed in the UI)
+- **Sunshine hours, snowfall and UV index** are estimates derived from
+  climate normals (see pipeline/README.md "Disclosed estimates").
+- **Coastal flood / sea-level-rise exposure** are simple proxies
+  (elevation + distance to the coast), not inundation models.
+- **Travel times** in pin mode and the "distance from city centre" filters
+  are straight-line estimates (~30 km/h) - there's no routing engine.
+- **Country-level fields** (economy, safety, healthcare, PISA...) are the
+  same for every city in a country - there's no free per-city source.
+- **Air quality** has no value above 70°N (outside the satellite grid) -
+  31 small Arctic towns.
+- **Broadband/mobile speeds** need at least 30 Speedtest results within
+  5 km; small or remote places often have none.
+- **City population** is GeoNames' city-proper figure; districts of a big
+  city are listed as their own places.
 
-Advanced search's "Nearby & distance" filter category is trimmed the same
-way (4 fields: Beach, Mountain, Train station, Airport — was 13), so the
-same "~13 extra live lookups per candidate" cost described here previously
-no longer applies at anywhere near that scale.
+## Licensing
+WHO health data and Ookla speed data are non-commercial licences (fine
+today). If Piltri ever becomes commercial, replace the healthcare score with
+a World Bank indicator and drop or licence the speeds.
 
-## 2. Beach field sometimes empty
-Reported empty for London across multiple rounds despite several fixes
-(widened radius, tiered search, coastline fallback). Root cause never
-conclusively identified in earlier sessions (no network access to verify
-at the time). Subway is no longer part of Pin mode at all (dropped in the
-September 2026 simplification — see HANDOFF.md), so that half of the
-original issue title is moot. Beach itself uses the same verification logic
-as before (`isNearCoastOrLake` / `nearestVerifiedBeach` in
-`lib/data-sources/overpass.ts`) and was runtime-verified working correctly
-for at least one pin during this session (correctly reported "Not found
-nearby" for a pin with no real beach in range) — but London specifically
-hasn't been re-tested. Worth a specific check before calling this resolved.
-
-## 3. Can't pin a specific map-flagged place (main or second pin)
-Clicking a labelled feature on the map (a shop, station, neighbourhood name)
-is meant to snap the pin to it and show its name. Implemented via two-step
-resolution (rendered-feature query, then reverse-geocode fallback) for both
-the main and second pin. Still not specifically runtime-verified — pins
-dropped during this session's testing landed on arbitrary map points, not
-deliberately on a labelled POI, so this hasn't actually been exercised yet.
-Needs a deliberate test: click directly on a labelled shop/station icon and
-confirm the pin snaps to it with the correct name in the popup.
+## To verify
+- Clicking directly on a labelled map feature (shop, station) should snap
+  the pin to it and show its name - worth a deliberate test on mobile.

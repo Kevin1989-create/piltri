@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import type { SVGProps } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -13,6 +13,7 @@ import { getScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import type { AdvancedSearchCriterionFilter, AdvancedSearchScope } from "@/lib/types";
 import { CATEGORY_ORDER, criteriaByCategory, getCriterion, kindForScope, type CategoryKey } from "@/lib/advancedSearch/criteria";
 import { cn } from "@/lib/cn";
+import { countMatches, prefetchAdvancedSearch } from "@/lib/advancedSearch/engine";
 
 const CATEGORY_ICONS: Record<CategoryKey, (props: SVGProps<SVGSVGElement>) => JSX.Element> = {
   overall: CompassIcon,
@@ -50,20 +51,11 @@ function buildRequestFilters(scope: AdvancedSearchScope, filters: FiltersState):
 }
 
 /**
- * Advanced search — every existing criterion in the app (the 5 scored
- * sections' individual fields, demographics, and the same "nearest X"
- * distance fields Pin mode computes from a dropped pin, run here from each
- * city's own centre point instead), proposed as filters. Scope (Cities vs
- * Countries) is asked first and is mandatory — it changes both what a
- * result *is* and, for the 13 Nearby fields, what kind of filter they even
- * are (a minutes range at city scope, a plain Yes/No at country scope,
- * since "distance from a country's centre" isn't meaningful).
- *
- * Country scope has no separate country-level data source — each country's
- * numbers are a genuine roll-up of whichever shortlisted cities sit in it
- * (mean for numeric fields, "found in at least one" for Yes/No fields), and
- * that's disclosed on every result card via how many cities it's tracking,
- * not presented as an authoritative national statistic.
+ * Advanced search - every criterion in the app as a filter (see
+ * lib/advancedSearch/criteria.ts), over cities or countries. Scope comes
+ * first: it changes what a result is. Country results are roll-ups of each
+ * country's tracked cities (mean for numbers, "found in at least one" for
+ * Yes/No), disclosed on every card via how many cities it tracks.
  */
 function DiscoverContent() {
   const router = useRouter();
@@ -79,6 +71,7 @@ function DiscoverContent() {
   const [scope, setScope] = useState<AdvancedSearchScope | null>(null);
   const [filters, setFilters] = useState<FiltersState>({});
   const [navigating, setNavigating] = useState(false);
+  const [matchCount, setMatchCount] = useState<number | null>(null);
 
   const categories = criteriaByCategory();
   // Nearby only makes sense at city scope - "distance from a country's
@@ -98,6 +91,28 @@ function DiscoverContent() {
   const rightCategories = visibleCategoryOrder.filter((_, i) => i % 2 === 1);
   const activeFilterCount = Object.values(filters).filter(isFilterActive).length;
 
+  // Most searches are city searches - start downloading before a scope is
+  // even picked, so the count and results are ready by the time they're asked for.
+  useEffect(() => prefetchAdvancedSearch("city"), []);
+
+  // Live match count: the search runs in the browser, so every filter
+  // change is re-counted over all cities in a few milliseconds (once the
+  // data - prefetched as soon as a scope is picked - has arrived).
+  useEffect(() => {
+    if (!scope) return;
+    prefetchAdvancedSearch(scope);
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      countMatches({ scope, filters: buildRequestFilters(scope, filters), weights: weightPercentagesToScores(getScoreWeights()) })
+        .then((n) => !cancelled && setMatchCount(n))
+        .catch(() => !cancelled && setMatchCount(null));
+    }, 120);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [scope, filters]);
+
   function handleScopeChange(next: AdvancedSearchScope) {
     if (next === scope) return;
     // Nearby criteria mean something different under each scope (a minutes
@@ -105,6 +120,7 @@ function DiscoverContent() {
     // switch would silently misinterpret it, so this is a clean slate.
     setScope(next);
     setFilters({});
+    setMatchCount(null);
   }
 
   function updateFilter(key: string, next: FilterInputValue | undefined) {
@@ -186,6 +202,9 @@ function DiscoverContent() {
               <Button onClick={goToResults} disabled={navigating} className="w-full">
                 {navigating ? "Opening…" : activeFilterCount > 0 ? `Search (${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"})` : "Search all"}
               </Button>
+              <p className="text-xs text-ink-500 text-center tabular-nums min-h-[1rem]" aria-live="polite">
+                {matchCount != null && `${matchCount.toLocaleString()} ${scope === "city" ? (matchCount === 1 ? "city" : "cities") : matchCount === 1 ? "country" : "countries"} match`}
+              </p>
               <Button variant="ghost" size="sm" onClick={resetFilters} disabled={navigating || activeFilterCount === 0} className="w-full">
                 Reset filters
               </Button>

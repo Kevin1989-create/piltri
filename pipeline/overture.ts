@@ -84,17 +84,63 @@ function sqlCase(column: string, map: Record<string, number>): string {
 
 /** One pass over Overture's global places (~70M rows, read straight from
  *  their public S3 bucket - free, no account), keeping only the categories
- *  above, written to a local Parquet file. Everything downstream reads
- *  that local file. Takes a while on first run (it streams a few GB);
- *  skipped when the output already exists. */
+ *  above, written to local Parquet parts. Everything downstream reads
+ *  those. Takes a while on first run (it streams a few GB); skipped when
+ *  the output already exists. */
 export async function extractOverturePlaces(): Promise<{ glob: string; release: string }> {
-  const OVERTURE_RELEASE = await resolveOvertureRelease();
-  const result = await extractRelease(OVERTURE_RELEASE);
-  return { glob: result, release: OVERTURE_RELEASE };
+  const release = await resolveOvertureRelease();
+  const basicList = Object.keys(BASIC_CATEGORY_TO_CODE).map((c) => `'${c}'`).join(",");
+  const taxList = Object.keys(TAXONOMY_TO_CODE).map((c) => `'${c}'`).join(",");
+  const glob = await extractParts(release, {
+    name: "places",
+    source: "theme=places/type=place",
+    select: `
+      CASE ${sqlCase("taxonomy.primary", TAXONOMY_TO_CODE)} ${sqlCase("basic_category", BASIC_CATEGORY_TO_CODE)} END::TINYINT AS cat,
+      round((bbox.xmin + bbox.xmax) / 2, 5) AS lng,
+      round((bbox.ymin + bbox.ymax) / 2, 5) AS lat,
+      names."primary" AS name`,
+    where: `(basic_category IN (${basicList}) OR taxonomy.primary IN (${taxList}))
+      AND coalesce(confidence, 1) >= 0.5
+      AND coalesce(operating_status, 'open') <> 'permanently_closed'`,
+  });
+  return { glob, release };
 }
 
-async function extractRelease(OVERTURE_RELEASE: string): Promise<string> {
-  const partsDir = path.join(WORK_DIR, `overture-places-${OVERTURE_RELEASE}`).replace(/\\/g, "/");
+/** Urban rail track from Overture's transportation theme (OpenStreetMap
+ *  railway=tram / light_rail / subway / monorail) - the actual lines, which
+ *  is what "does this city have trams" needs. Stops/stations aren't
+ *  reliably mapped as places (see build.ts's tram history), but the track
+ *  itself is. One point per segment (its bbox centre, segments are short);
+ *  abandoned / disused / under-construction track is dropped. */
+export async function extractOvertureRail(): Promise<{ glob: string; release: string }> {
+  const release = await resolveOvertureRelease();
+  const glob = await extractParts(release, {
+    name: "rail",
+    source: "theme=transportation/type=segment",
+    select: `
+      class,
+      round((bbox.xmin + bbox.xmax) / 2, 5) AS lng,
+      round((bbox.ymin + bbox.ymax) / 2, 5) AS lat`,
+    where: `subtype = 'rail' AND class IN ('tram', 'light_rail', 'subway', 'monorail')
+      AND NOT coalesce(list_has_any(
+        flatten(list_transform(rail_flags, f -> f."values")),
+        ['is_abandoned', 'is_disused', 'is_under_construction', 'is_construction', 'is_proposed']
+      ), false)`,
+  });
+  return { glob, release };
+}
+
+interface ExtractSpec {
+  /** Local folder suffix, e.g. "places". */
+  name: string;
+  /** Path under the release, e.g. "theme=places/type=place". */
+  source: string;
+  select: string;
+  where: string;
+}
+
+async function extractParts(OVERTURE_RELEASE: string, spec: ExtractSpec): Promise<string> {
+  const partsDir = path.join(WORK_DIR, `overture-${spec.name}-${OVERTURE_RELEASE}`).replace(/\\/g, "/");
   const doneMarker = path.join(partsDir, "_DONE");
   const glob = `${partsDir}/part-*.parquet`;
   if (existsSync(doneMarker)) {
@@ -109,13 +155,11 @@ async function extractRelease(OVERTURE_RELEASE: string): Promise<string> {
     "INSTALL httpfs; LOAD httpfs; SET s3_region='us-west-2'; SET threads=8; SET http_retries=10; SET http_retry_wait_ms=2000; SET http_retry_backoff=2;"
   );
   const files = (
-    await con.runAndReadAll(`SELECT file FROM glob('s3://overturemaps-us-west-2/release/${OVERTURE_RELEASE}/theme=places/type=place/*')`)
+    await con.runAndReadAll(`SELECT file FROM glob('s3://overturemaps-us-west-2/release/${OVERTURE_RELEASE}/${spec.source}/*')`)
   )
     .getRows()
     .map((r) => String(r[0]));
-  const basicList = Object.keys(BASIC_CATEGORY_TO_CODE).map((c) => `'${c}'`).join(",");
-  const taxList = Object.keys(TAXONOMY_TO_CODE).map((c) => `'${c}'`).join(",");
-  log("overture", `${files.length} source files in release ${OVERTURE_RELEASE} (one-time, resumable)`);
+  log("overture", `${spec.name}: ${files.length} source files in release ${OVERTURE_RELEASE} (one-time, resumable)`);
 
   // One local part per remote file, so a network blip only costs the file
   // in flight - a re-run skips every part already written. Several
@@ -160,17 +204,8 @@ async function extractRelease(OVERTURE_RELEASE: string): Promise<string> {
     for (let attempt = 1; ; attempt++) {
       try {
         await con.run(`
-          COPY (
-            SELECT
-              CASE ${sqlCase("taxonomy.primary", TAXONOMY_TO_CODE)} ${sqlCase("basic_category", BASIC_CATEGORY_TO_CODE)} END::TINYINT AS cat,
-              round((bbox.xmin + bbox.xmax) / 2, 5) AS lng,
-              round((bbox.ymin + bbox.ymax) / 2, 5) AS lat,
-              names."primary" AS name
-            FROM read_parquet('${files[i]}')
-            WHERE (basic_category IN (${basicList}) OR taxonomy.primary IN (${taxList}))
-              AND coalesce(confidence, 1) >= 0.5
-              AND coalesce(operating_status, 'open') <> 'permanently_closed'
-          ) TO '${tmp}' (FORMAT PARQUET, COMPRESSION ZSTD)`);
+          COPY (SELECT ${spec.select} FROM read_parquet('${files[i]}') WHERE ${spec.where})
+          TO '${tmp}' (FORMAT PARQUET, COMPRESSION ZSTD)`);
         renameSync(tmp, part);
         break;
       } catch (err) {
@@ -179,58 +214,8 @@ async function extractRelease(OVERTURE_RELEASE: string): Promise<string> {
         await new Promise((r) => setTimeout(r, 5000 * attempt));
       }
     }
-    log("overture", `file ${i + 1}/${files.length} in ${Math.round((Date.now() - t0) / 1000)}s`);
+    log("overture", `${spec.name} file ${i + 1}/${files.length} in ${Math.round((Date.now() - t0) / 1000)}s`);
   }
-}
-
-/** Per-city counts of each POI category within `radiusKm`, computed inside
- *  DuckDB - the densest categories (restaurants/bars/cafes) run to millions
- *  of points worldwide, far too many to pull into JavaScript. Places are
- *  bucketed into 0.05° cells; each city is joined only against the cells
- *  its radius can reach, then filtered by exact great-circle distance. */
-export async function countPlacesNearCities(
-  placesGlob: string,
-  cities: { lat: number; lng: number }[],
-  radiusKm: number,
-  categories: number[]
-): Promise<Map<number, Map<number, number>>> {
-  const CELL = 0.05;
-  const instance = await DuckDBInstance.create(":memory:");
-  const con = await instance.connect();
-  const citiesFile = path.join(WORK_DIR, "cities-for-counting.csv").replace(/\\/g, "/");
-  writeFileSync(citiesFile, "i,lat,lng\n" + cities.map((c, i) => `${i},${c.lat},${c.lng}`).join("\n"));
-
-  await con.run(`CREATE TABLE cities AS SELECT * FROM read_csv('${citiesFile}', header=true, columns={'i':'INTEGER','lat':'DOUBLE','lng':'DOUBLE'})`);
-  await con.run(`
-    CREATE TABLE places AS
-    SELECT cat, lat, lng, floor(lat / ${CELL})::INTEGER AS cy, floor(lng / ${CELL})::INTEGER AS cx
-    FROM read_parquet('${placesGlob}') WHERE cat IN (${categories.join(",")}) AND lat IS NOT NULL AND lng IS NOT NULL`);
-  // Every cell each city's radius can touch (wider in longitude away from
-  // the equator, where a degree of longitude covers less ground).
-  await con.run(`
-    CREATE TABLE city_cells AS
-    SELECT i, lat, lng, cy, cx FROM (
-      SELECT i, lat, lng,
-        unnest(range(floor((lat - ${radiusKm / 111}) / ${CELL})::INTEGER, floor((lat + ${radiusKm / 111}) / ${CELL})::INTEGER + 1)) AS cy,
-        floor((lng - ${radiusKm} / (111 * greatest(cos(radians(lat)), 0.05))) / ${CELL})::INTEGER AS cx0,
-        floor((lng + ${radiusKm} / (111 * greatest(cos(radians(lat)), 0.05))) / ${CELL})::INTEGER AS cx1
-      FROM cities
-    ) t, LATERAL (SELECT unnest(range(t.cx0, t.cx1 + 1)) AS cx)`);
-  const reader = await con.runAndReadAll(`
-    SELECT c.i, p.cat, count(*) AS n
-    FROM city_cells c JOIN places p ON p.cy = c.cy AND p.cx = c.cx
-    WHERE 2 * 6371 * asin(sqrt(
-      pow(sin(radians(p.lat - c.lat) / 2), 2) +
-      cos(radians(c.lat)) * cos(radians(p.lat)) * pow(sin(radians(p.lng - c.lng) / 2), 2)
-    )) <= ${radiusKm}
-    GROUP BY c.i, p.cat`);
-  const out = new Map<number, Map<number, number>>();
-  for (const [i, cat, n] of reader.getRows()) {
-    const idx = Number(i);
-    if (!out.has(idx)) out.set(idx, new Map());
-    out.get(idx)!.set(Number(cat), Number(n));
-  }
-  return out;
 }
 
 export interface OverturePoints {
@@ -239,13 +224,16 @@ export interface OverturePoints {
   names: (string | null)[] | null;
 }
 
-/** Loads one category's points from the local extract. Names only kept
- *  when asked for (pin-mode categories), since they're most of the size. */
-export async function loadOvertureCategory(file: string, cat: number, withNames = false): Promise<OverturePoints> {
+/** Loads one category's points from a local extract - a place category
+ *  code, or a rail class name ("tram", "subway"...). Names only kept when
+ *  asked for (pin-mode categories), since they're most of the size. */
+export async function loadOvertureCategory(file: string, cat: number | string, withNames = false): Promise<OverturePoints> {
+  const column = typeof cat === "number" ? "cat" : "class";
+  const value = typeof cat === "number" ? cat : `'${cat}'`;
   const instance = await DuckDBInstance.create(":memory:");
   const con = await instance.connect();
   const reader = await con.runAndReadAll(
-    `SELECT lng, lat${withNames ? ", name" : ""} FROM read_parquet('${file}') WHERE cat = ${cat} AND lng IS NOT NULL AND lat IS NOT NULL`
+    `SELECT lng, lat${withNames ? ", name" : ""} FROM read_parquet('${file}') WHERE ${column} = ${value} AND lng IS NOT NULL AND lat IS NOT NULL`
   );
   const rows = reader.getRows();
   const lng = new Float64Array(rows.length);
@@ -259,8 +247,9 @@ export async function loadOvertureCategory(file: string, cat: number, withNames 
   return { lng, lat, names };
 }
 
+// `tsx pipeline/overture.ts [places|rail]` pre-extracts ahead of a build.
 if (process.argv[1]?.endsWith("overture.ts")) {
-  extractOverturePlaces().catch((err) => {
+  (process.argv[2] === "rail" ? extractOvertureRail() : extractOverturePlaces()).catch((err) => {
     console.error(err);
     process.exit(1);
   });

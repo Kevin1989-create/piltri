@@ -1,74 +1,49 @@
-# Deployment guide — Phase 6
+# Deployment
 
-Everything in this file requires your accounts/payment details, so these are
-"You (with Claude's guidance)" steps from the checklist. Follow in order.
+Piltri runs on free tiers only: Vercel (site + CDN), Supabase (Resources
+links table + public dataset bucket), GitHub Actions (monthly data refresh).
 
-## 1. Provision Supabase (finishes step 4.2)
+## Supabase
 
-1. Open your Supabase project (created in step 1.6).
-2. Go to **SQL Editor** → paste the contents of `lib/supabase/schema.sql` → run it.
-3. Go to **Project Settings → API** and copy:
-   - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY` (keep secret — never expose client-side)
+1. SQL Editor -> run `lib/supabase/schema.sql` (creates the Resources links
+   table).
+2. Storage -> New bucket `piltri-data`, **public**.
+3. Project Settings -> API: copy the project URL
+   (`NEXT_PUBLIC_SUPABASE_URL`) and the `service_role` key
+   (`SUPABASE_SERVICE_ROLE_KEY` - server/pipeline only, never client-side).
 
-## 2. Get a Mapbox token (finishes step 3.1 for Mapbox)
+## Data
 
-1. Open your Mapbox account (created in step 1.7).
-2. **Account → Tokens** → copy your default public token → `NEXT_PUBLIC_MAPBOX_TOKEN`.
-3. **Set up the usage alert now** (checklist "Ongoing — Mapbox usage monitoring"):
-   Account → Billing → Usage alerts → set an alert at 80% of the 50,000
-   free monthly map loads.
+`npm run pipeline` (locally or via the GitHub workflow) builds and publishes
+the dataset - see `pipeline/README.md`. The site can't build until at least
+one dataset has been published.
 
-## 3. Push the code to GitHub
+## Vercel
 
-```bash
-cd piltri
-git init
-git add .
-git commit -m "Piltri Explore — initial build"
-git branch -M main
-git remote add origin <your GitHub repo URL from step 1.8>
-git push -u origin main
-```
+1. Import the GitHub repo (framework preset: Next.js).
+2. Environment variables: `NEXT_PUBLIC_SUPABASE_URL`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`.
+3. Every push to `main` deploys. The build (`prebuild`) downloads the
+   current dataset from Supabase and serves it as static files.
+4. Settings -> Git -> Deploy Hooks: create one for branch `main`; store its
+   URL as the GitHub secret `VERCEL_DEPLOY_HOOK_URL` so the monthly data
+   refresh redeploys the site.
 
-## 4. Deploy on Vercel (step 6.3)
+## GitHub Actions secrets
 
-1. In the Vercel dashboard (account created in step 1.5): **Add New → Project** → import the GitHub repo.
-2. Framework preset: Next.js (auto-detected).
-3. Add environment variables (Settings → Environment Variables) — copy every
-   key from `.env.example`, using the real values from steps 1 and 2 above.
-   Also set `CRON_SECRET` and `ADMIN_PASSWORD` (see HANDOFF.md's "Scheduled
-   warming" section — needed for the daily cache-warming cron job and the
-   `/admin` back-office page to work).
-4. Click **Deploy**. Vercel will build and give you a `*.vercel.app` URL —
-   confirm the Home, Explore, and results pages all load before continuing.
+`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+`VERCEL_DEPLOY_HOOK_URL` (Settings -> Secrets and variables -> Actions).
+The workflow `.github/workflows/refresh-dataset.yml` runs monthly and can be
+started by hand from the Actions tab.
 
-## 5. Connect piltri.me (step 6.4)
+## Domain
 
-1. In the Vercel project: **Settings → Domains → Add** → enter `piltri.me`.
-2. Vercel will show DNS records to add. At your domain registrar (where you
-   registered piltri.me in step 1.2), add either:
-   - **Recommended:** change nameservers to Vercel's, or
-   - Add the **A record** (`76.76.21.21`) and **CNAME** for `www` that Vercel provides.
-3. DNS propagation can take a few minutes to a few hours. Vercel's Domains
-   page shows a green checkmark once it's verified and SSL is issued.
+`piltri.me` - DNS at Hostinger: apex A record to Vercel, `www` CNAME to
+Vercel's per-project target. Configured under Vercel -> Settings -> Domains.
 
-## 6. Soft launch checklist (6.1, 6.5, 6.6)
+## Rollback
 
-- Test Explore with 5–10 real cities across different continents — check
-  for API failures or odd scores.
-- Check the Mapbox usage dashboard after week 1 and week 2.
-- Confirm the daily cron (`/api/cron/warm-cache-tick`, see HANDOFF.md) is
-  actually running — Vercel's dashboard (Settings → Cron Jobs) shows recent
-  invocations and their status.
-- Share the piltri.me link with a small group before any public
-  announcement, and log feedback/bugs against `KNOWN-ISSUES.md`.
-
-## Rollback / fallback
-
-If Mapbox usage approaches the free-tier limit before caching absorbs
-enough traffic, `lib/data-sources/mapbox.ts` can be swapped for
-OpenStreetMap + Leaflet.js (no credit card, fully free) — the checklist's
-noted fallback. The `MapView` component is the only place that imports
-`mapbox-gl`, so this is a contained change.
+- Code: redeploy an earlier deployment from the Vercel dashboard.
+- Data: the previous dataset version is kept in the bucket; re-upload its
+  manifest as `v2/manifest.json` (or run
+  `npm run pipeline:publish <version>` for a locally built one) and redeploy.

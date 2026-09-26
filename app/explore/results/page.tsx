@@ -22,6 +22,7 @@ import { PinPanel } from "@/components/explore/PinPanel";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { useMediaQuery } from "@/lib/useMediaQuery";
+import { getCityExploreData } from "@/lib/dataset/cities";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
 function ResultsContent() {
@@ -33,7 +34,6 @@ function ResultsContent() {
   const countryCode = params.get("countryCode") ?? "";
   const lat = Number(params.get("lat"));
   const lng = Number(params.get("lng"));
-  const boundaryQuery = [cityName, region, country].filter(Boolean).join(", ");
   const cityQueryParams = {
     cityId,
     city: cityName,
@@ -159,26 +159,14 @@ function ResultsContent() {
     setError(null);
     setData(null);
     closePin();
-    const qs = new URLSearchParams({
-      cityId,
-      city: cityName,
-      region,
-      country,
-      countryCode,
-      lat: String(lat),
-      lng: String(lng),
-    });
-    fetch(`/api/explore/score?${qs.toString()}`)
-      .then(async (r) => {
-        const body = await r.json();
-        if (!r.ok || body?.error) {
-          throw new Error(body?.error ?? "Failed to load this city's score.");
-        }
-        setData(body as CityExploreData);
+    getCityExploreData(countryCode, cityId || null, lat, lng)
+      .then((result) => {
+        if (!result) throw new Error("No data for this place.");
+        setData(result);
       })
       .catch((err) => setError(err.message ?? "Something went wrong loading this city."))
       .finally(() => setLoading(false));
-  }, [cityId, cityName, region, country, countryCode, lat, lng]);
+  }, [cityId, cityName, countryCode, lat, lng]);
 
   useEffect(() => {
     function onEscape(e: KeyboardEvent) {
@@ -313,7 +301,6 @@ function ResultsContent() {
           <MapView
             lat={lat}
             lng={lng}
-            boundaryQuery={boundaryQuery}
             onMapClick={handleMapClick}
             pinnedCoords={pin}
             destinationCoords={destination}

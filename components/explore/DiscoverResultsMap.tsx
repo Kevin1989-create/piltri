@@ -6,9 +6,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { scoreColor } from "@/lib/design-tokens";
 import { autoCollapseAttribution } from "@/lib/mapAttribution";
 
-/** OpenFreeMap's minimal "positron" style (free, keyless) - the closest
- *  match to the plain Mapbox Light style this used, which suits an
- *  overview of up to 50 markers better than a busy POI-rich style. */
+/** OpenFreeMap's minimal "positron" style (free, keyless) - plain enough
+ *  for an overview of up to 50 markers. */
 const OVERVIEW_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 
 export interface MapPoint {

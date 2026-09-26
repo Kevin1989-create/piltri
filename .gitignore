@@ -10,6 +10,11 @@ node_modules
 # never intended to be pushed to this repo.
 MPF-training-update*.zip
 
+# The dataset the site serves - copied in by scripts/sync-dataset.mjs before
+# every dev/build run, never committed.
+public/data/
+lib/dataset/meta.generated.json
+
 # Offline data pipeline cache (downloads + intermediate files, ~2 GB) - normally
 # lives outside the repo (~/.piltri-pipeline-cache); this covers CI runs.
 .pipeline-cache/

@@ -1,6 +1,6 @@
 /**
  * Piltri design tokens — single source of truth for brand values used
- * outside Tailwind's CSS pipeline (Mapbox styling, canvas, emails, etc).
+ * outside Tailwind's CSS pipeline (map styling, canvas, emails, etc).
  * Keep in sync with tailwind.config.ts.
  */
 export const colors = {

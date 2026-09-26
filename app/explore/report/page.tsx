@@ -3,11 +3,14 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { ClimateChart } from "@/components/explore/ClimateChart";
 import { ResourcesDetail } from "@/components/explore/ResourcesDetail";
 import { buildGdpSectorRows, buildKpiRows, buildLiveabilityTransportRows, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { cn } from "@/lib/cn";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { isCustomWeights, useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
+import { getCityExploreData } from "@/lib/dataset/cities";
+import { formatUtcOffset } from "@/lib/timezone";
 import { formatAreaKm2, formatDensityPerKm2, useUnitPreferences } from "@/lib/unitPreferences";
 import { SECTION_LABELS, type CityExploreData, type SectionKey } from "@/lib/types";
 
@@ -27,8 +30,6 @@ function ReportContent() {
   const params = useSearchParams();
   const cityId = params.get("cityId") ?? "";
   const cityName = params.get("city") ?? "";
-  const region = params.get("region") ?? "";
-  const country = params.get("country") ?? "";
   const countryCode = params.get("countryCode") ?? "";
   const lat = Number(params.get("lat"));
   const lng = Number(params.get("lng"));
@@ -43,16 +44,14 @@ function ReportContent() {
     if (!cityName || Number.isNaN(lat) || Number.isNaN(lng)) return;
     setLoading(true);
     setError(null);
-    const qs = new URLSearchParams({ cityId, city: cityName, region, country, countryCode, lat: String(lat), lng: String(lng) });
-    fetch(`/api/explore/score?${qs.toString()}`)
-      .then(async (r) => {
-        const body = await r.json();
-        if (!r.ok || body?.error) throw new Error(body?.error ?? "Failed to load this city's data.");
-        setData(body as CityExploreData);
+    getCityExploreData(countryCode, cityId || null, lat, lng)
+      .then((result) => {
+        if (!result) throw new Error("No data for this place.");
+        setData(result);
       })
       .catch((err) => setError(err.message ?? "Something went wrong loading this city."))
       .finally(() => setLoading(false));
-  }, [cityId, cityName, region, country, countryCode, lat, lng]);
+  }, [cityId, cityName, countryCode, lat, lng]);
 
   if (Number.isNaN(lat) || Number.isNaN(lng) || !cityName) {
     return (
@@ -115,25 +114,20 @@ function ReportContent() {
             <section className="mt-8">
               <h2 className="text-xs uppercase tracking-wide text-ink-500 mb-2">Demographics</h2>
 
-              {/* Country and City are two genuinely separate data tiers
-               *  (see lib/types.ts's DemographicsFields comment) - shown
-               *  as two clearly labelled groups, same as CityHeader.tsx.
-               *  City before Country (2026-09-23, on request), matching
-               *  the title above now being city-only. */}
               <p className="font-serif text-base text-piltri-amber-dark mb-1.5">{data.cityName}</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
                 <ReportStat
                   label="Population"
                   value={data.demographics.cityPopulation != null ? data.demographics.cityPopulation.toLocaleString() : "Not available"}
                 />
-                {data.demographics.cityAreaKm2 != null && (
-                  <ReportStat label="Land area" value={formatAreaKm2(data.demographics.cityAreaKm2, prefs)} />
-                )}
-                {data.demographics.cityPopulationDensityPerKm2 != null && (
+                {data.demographics.cityDensityPerKm2 != null && (
                   <ReportStat
-                    label="Population density"
-                    value={formatDensityPerKm2(data.demographics.cityPopulationDensityPerKm2, prefs, (n) => Math.round(n).toLocaleString())}
+                    label="Density (within 5 km)"
+                    value={formatDensityPerKm2(data.demographics.cityDensityPerKm2, prefs, (n) => Math.round(n).toLocaleString())}
                   />
+                )}
+                {data.demographics.timezone && formatUtcOffset(data.demographics.timezone) && (
+                  <ReportStat label="Time zone" value={`${formatUtcOffset(data.demographics.timezone)} (${data.demographics.timezone})`} />
                 )}
               </div>
 
@@ -201,6 +195,11 @@ function ReportContent() {
                     </span>
                   </div>
                   {cityTierHasContent && <ReportGroup title={data.cityName} rows={cityRows} spacing="mt-3" />}
+                  {section === "climate" && data.climate.monthly && (
+                    <div className="mt-4">
+                      <ClimateChart monthly={data.climate.monthly} />
+                    </div>
+                  )}
                   <ReportGroup
                     title={data.country}
                     rows={countryRows}

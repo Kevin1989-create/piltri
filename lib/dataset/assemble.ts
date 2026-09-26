@@ -1,13 +1,10 @@
-import { distanceToCapitalKm } from "@/lib/data-sources/capitals";
 import { getDaylightRange } from "@/lib/data-sources/daylight";
 import { averageScores, computePiltriScore, normalise } from "@/lib/aggregation/scoring";
 import type { CityExploreData, SectionScores } from "@/lib/types";
 import type { CityRecord, CountryRecord } from "./schema";
 
-/** Reference ranges used to normalise raw metrics onto 0-100 for the
- *  section scores - moved verbatim from the old live aggregator
- *  (lib/aggregation/aggregate.ts) so scores stay comparable across the
- *  migration. kpiRows.ts's COLOR_RANGES mirror these for colouring. */
+/** Reference ranges that normalise raw metrics onto 0-100 for the section
+ *  scores. kpiRows.ts colours rows against the same ranges. */
 export const RANGES = {
   gdpGrowth: { min: -10, max: 40 },
   unemployment: { min: 0, max: 25 },
@@ -19,29 +16,26 @@ export const RANGES = {
   rainfallDistanceFromIdeal: { min: 0, max: 1000 },
   sunshineHrs: { min: 1200, max: 3800 },
   snowfallCm: { min: 0, max: 300 },
+  /** WHO's guideline is 5 µg/m³; 50+ (Delhi, Lahore, Dhaka) scores 0. */
+  pm25: { min: 5, max: 50 },
   pisaScore: { min: 350, max: 590 },
 };
 
-/** Amenity counts within 5 km of the city centre span 0 to tens of
- *  thousands (a village vs central London), so they're scored on a log
- *  scale: each step up in the order of magnitude counts the same. `cap` is
- *  the count that scores 100 - set from the real distribution across all
- *  ~66k cities (see pipeline/build.ts's distribution report), roughly the
- *  95th percentile. kpiRows.ts colours with this same function. */
-// Calibrated 2026-09-26 against the first full build (95th percentile of
-// cities with 100k+ people: eating 3,286 / cultural 171 / family 28 /
-// parks 145). A median town (36 places to eat) scores ~45; 600 scores ~80.
+/** Amenity counts within 5 km run from 0 to tens of thousands (a village
+ *  vs central London), so they're scored on a log scale: each order of
+ *  magnitude counts the same. `cap` scores 100 - roughly the 95th
+ *  percentile across cities of 100k+ people (calibrated 2026-09-26: eating
+ *  3,286 / cultural 171 / family 28 / parks 145). A median town (36 places
+ *  to eat) scores ~45; 600 scores ~80. kpiRows.ts colours with the same
+ *  function. */
 export const COUNT_CAPS = { restaurantsBars: 3000, cultural: 200, family: 30, parks: 150 };
 
 export function countScore(count: number, cap: number): number {
   return normalise(Math.log10(1 + count), 0, Math.log10(1 + cap));
 }
 
-/** Coastal flood / sea-level-rise exposure - disclosed PROXIES (elevation
- *  + distance to the actual coastline), not inundation models. See
- *  ClimateFields' own comments in lib/types.ts for the full reasoning and
- *  the two different threshold sets. Null (not "Low") when either input
- *  is missing - an unknown must never read as "safe". */
+/** Coastal flood / sea-level-rise exposure proxies (see ClimateFields).
+ *  Null (not "Low") when an input is missing. */
 function exposure(
   elevationM: number | null,
   coastKm: number | null,
@@ -54,11 +48,8 @@ function exposure(
   return "Low";
 }
 
-/** Section scores from a fully assembled city. Missing inputs are LEFT
- *  OUT of each section's average (averageScores skips nulls) rather than
- *  counted as zero - the old live aggregator scored a failed lookup as
- *  "0 restaurants", which dragged real cities' scores down for reasons
- *  that had nothing to do with the city. */
+/** Section scores. Missing inputs are left out of a section's average
+ *  (averageScores skips nulls) rather than counted as zero. */
 export function computeSectionScores(data: CityExploreData, gniPerCapitaUsd: number | null): SectionScores {
   const e = data.economy;
   const s = data.safetyStability;
@@ -86,6 +77,7 @@ export function computeSectionScores(data: CityExploreData, gniPerCapitaUsd: num
       normalise(Math.abs(c.avgAnnualRainfallMm - 1000), RANGES.rainfallDistanceFromIdeal.min, RANGES.rainfallDistanceFromIdeal.max, true),
       normalise(c.avgAnnualSunshineHrs, RANGES.sunshineHrs.min, RANGES.sunshineHrs.max),
       normalise(c.avgAnnualSnowfallCm, RANGES.snowfallCm.min, RANGES.snowfallCm.max, true),
+      orNull(c.avgAnnualPm25, (v) => normalise(v, RANGES.pm25.min, RANGES.pm25.max, true)),
     ]),
     liveability: averageScores([
       orNull(l.restaurantsBarsWithin5km, (v) => countScore(v, COUNT_CAPS.restaurantsBars)),
@@ -93,16 +85,16 @@ export function computeSectionScores(data: CityExploreData, gniPerCapitaUsd: num
       orNull(l.culturalVenuesWithin5km, (v) => countScore(v, COUNT_CAPS.cultural)),
       orNull(l.familyActivitiesWithin5km, (v) => countScore(v, COUNT_CAPS.family)),
       l.healthcareQualityScore,
-      // Non-participating PISA countries fall back to ~the OECD average so
-      // not sitting the test neither rewards nor penalises the score.
+      // Countries that don't sit PISA get ~the OECD average, so not
+      // participating neither rewards nor penalises them.
       normalise(pisaAverage ?? 470, RANGES.pisaScore.min, RANGES.pisaScore.max),
     ]),
   };
 }
 
-/** Merges one city's stored row with its country's record into the exact
- *  CityExploreData shape every page already consumes - pure and cheap
- *  (no I/O), so it runs per request rather than being stored. */
+/** Merges one city's row with its country's record into the CityExploreData
+ *  shape every page consumes - pure and cheap, so it runs in the browser
+ *  (and in the pipeline, for ranks and Advanced Search columns). */
 export function assembleCityExploreData(
   countryCode: string,
   city: CityRecord,
@@ -110,7 +102,10 @@ export function assembleCityExploreData(
   datasetGeneratedAt: string,
   totalCities?: number
 ): CityExploreData {
-  const cityAreaKm2 = city.cityAreaKm2;
+  const monthly =
+    city.monthlyHighC && city.monthlyLowC && city.monthlyRainMm
+      ? { highC: city.monthlyHighC, lowC: city.monthlyLowC, rainMm: city.monthlyRainMm }
+      : null;
   const data: CityExploreData = {
     cityId: city.id,
     cityName: city.name,
@@ -122,11 +117,10 @@ export function assembleCityExploreData(
     demographics: {
       ...country.demographics,
       cityPopulation: city.population,
-      cityAreaKm2,
-      cityPopulationDensityPerKm2:
-        city.population != null && cityAreaKm2 != null && cityAreaKm2 > 0 ? Number((city.population / cityAreaKm2).toFixed(1)) : null,
+      cityDensityPerKm2: city.densityPerKm2,
+      timezone: city.timezone,
     },
-    economy: { ...country.economy, mainEconomyType: city.mainEconomyType },
+    economy: country.economy,
     safetyStability: country.safetyStability,
     climate: {
       avgAnnualTemperatureC: city.avgAnnualTemperatureC ?? 15,
@@ -134,7 +128,11 @@ export function assembleCityExploreData(
       avgAnnualSunshineHrs: city.avgAnnualSunshineHrs ?? 1800,
       avgAnnualSnowfallCm: city.avgAnnualSnowfallCm ?? 0,
       koppenCode: city.koppenCode,
+      koppenCode2085: city.koppenCode2085,
       avgAnnualHumidityPct: city.avgAnnualHumidityPct ?? 60,
+      hottestMonthHighC: city.hottestMonthHighC,
+      coldestMonthLowC: city.coldestMonthLowC,
+      monthly,
       elevationM: city.elevationM,
       avgAnnualPm25: city.avgAnnualPm25,
       avgAnnualUvIndexMax: city.avgAnnualUvIndexMax,
@@ -158,10 +156,18 @@ export function assembleCityExploreData(
       hasBusStation: city.hasBusStation,
       hasSchool: city.hasSchool,
       hasUniversity: city.hasUniversity,
+      broadbandDownloadMbps: city.broadbandDownloadMbps,
+      mobileDownloadMbps: city.mobileDownloadMbps,
       distanceToBeachKm: city.distanceToBeachKm,
       distanceToMountainKm: city.distanceToMountainKm,
       distanceToForestKm: city.distanceToForestKm,
-      distanceToCapitalKm: distanceToCapitalKm(city.lat, city.lng, countryCode),
+      distanceToCapitalKm: city.distanceToCapitalKm,
+      distanceToAirportKm: city.distanceToAirportKm,
+      distanceToTrainStationKm: city.distanceToTrainStationKm,
+      nearestLargeCity:
+        city.nearestLargeCityName != null && city.nearestLargeCityKm != null
+          ? { name: city.nearestLargeCityName, km: city.nearestLargeCityKm }
+          : null,
       lifeExpectancyYears: country.lifeExpectancyYears,
       internetUsersPct: country.internetUsersPct,
       pisaMathScore: country.pisaMathScore,
@@ -185,4 +191,11 @@ export function assembleCityExploreData(
     };
   }
   return data;
+}
+
+/** Straight-line km -> rough minutes at ~30 km/h average local travel -
+ *  the disclosed estimate pin mode and the "distance from city centre"
+ *  filters both use (there's no routing engine). */
+export function kmToMinutes(km: number | null): number | null {
+  return km == null ? null : Math.round((km / 30) * 60);
 }

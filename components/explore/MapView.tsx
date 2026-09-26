@@ -8,7 +8,7 @@ import type { TravelTimes } from "@/lib/types";
 
 /** OpenFreeMap: free OpenStreetMap vector tiles, no API key, no usage
  *  limits (https://openfreemap.org). "liberty" is the richer style with POI
- *  icons, the closest match to the Mapbox Streets style this replaced. */
+ *  icons. */
 export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 
 /** Straight-line travel estimates - there's no routing engine by design
@@ -30,10 +30,6 @@ interface MapViewProps {
   lat: number;
   lng: number;
   zoom?: number;
-  /** Human-readable place name (e.g. "London, United Kingdom") used to look
-   *  up its real administrative boundary — falls back to a fixed-radius
-   *  circle around lat/lng if no boundary is found. */
-  boundaryQuery: string;
   /** A click on the map while NOT in pickingDestination mode - drops/moves
    *  the main pin. Like onDestinationPick below, `name` carries a nearby
    *  labelled map feature's name (POI, transit stop, neighbourhood) when
@@ -86,16 +82,15 @@ interface MapViewProps {
 
 const AREA_SOURCE_ID = "piltri-research-area";
 const ROUTE_SOURCE_ID = "piltri-route";
-// Fallback circle radius when no real boundary is found — matches the 5km
-// radius the backend actually uses for local amenity density queries (see
-// RADIUS_M in lib/data-sources/overpass.ts).
-const FALLBACK_RADIUS_KM = 5;
+// The researched area: the same 5 km radius the dataset counts amenities in
+// (pipeline/build.ts LOCAL_RADIUS_KM).
+const AREA_RADIUS_KM = 5;
 
 /** Custom marker element for the main dropped pin - white teardrop body with
  *  an amber outline and a small amber dot in the centre, the reverse of the
  *  old solid-amber default Marker (which only supports a single flat fill
  *  colour via its `color` option, not a two-tone design like this). A fresh
- *  element is needed per Marker instance since mapboxgl takes ownership of
+ *  element is needed per Marker instance since the map library takes ownership of
  *  whatever element it's given. `anchor: "bottom"` on the Marker (set where
  *  this is used) makes the tip of the teardrop - not its centre - the point
  *  that lands on the actual coordinate. */
@@ -103,8 +98,8 @@ const FALLBACK_RADIUS_KM = 5;
  *  design used for both the main pin (amber, #BA7517) and the second/
  *  destination pin (blue, #3B6E8F), so picking a second pin reads as "the
  *  same kind of thing, different colour" rather than a completely different
- *  marker style (the destination pin used to be Mapbox's plain solid-fill
- *  default). A fresh element is needed per Marker instance since mapboxgl
+ *  marker style. A fresh element is needed per Marker instance since the map
+ *  library
  *  takes ownership of whatever element it's given. `anchor: "bottom"` on
  *  the Marker (set where this is used) makes the tip of the teardrop - not
  *  its centre - the point that lands on the actual coordinate. */
@@ -142,7 +137,7 @@ function googleMapsSearchUrl(query: string): string {
  *  user can check ratings/reviews for whatever they just selected without
  *  leaving this page. Built as an HTML string for Popup.setHTML rather than
  *  setText, since a plain text popup can't hold a link - the place name
- *  comes from Mapbox feature properties/reverse-geocoding (external data),
+ *  comes from map feature properties (external data),
  *  so it's escaped before being inserted. */
 // The standard "open in new" glyph (Material Design's open_in_new) - a
 // square outline with an arrow breaking out of its top-right corner. This
@@ -202,12 +197,12 @@ function circlePolygon(centerLat: number, centerLng: number, radiusKm: number, p
 }
 
 /**
- * Mapbox map, minimal style. Sits behind the score panel / pin panel;
+ * MapLibre map (OpenFreeMap tiles). Sits behind the score panel / pin panel;
  * clicking anywhere on it drops a pin and triggers pin mode.
  *
  * Rendered exactly once by the parent (never remounted when toggling pin
  * mode) — the parent only changes this component's *container* width via
- * CSS, and the ResizeObserver below handles telling Mapbox to resize and
+ * CSS, and the ResizeObserver below handles telling the map to resize and
  * recentre itself. Remounting on every pin toggle was the earlier cause of
  * the dropped-pin marker seeming to disappear and the map view resetting.
  */
@@ -215,7 +210,6 @@ export function MapView({
   lat,
   lng,
   zoom = 10,
-  boundaryQuery,
   onMapClick,
   pinnedCoords,
   destinationCoords,
@@ -285,7 +279,7 @@ export function MapView({
 
       // Attempt 1: whatever labelled feature is directly under the click -
       // a POI icon/label, a transit stop, a neighbourhood name. Restricted
-      // to `symbol` layers, since that's how Mapbox styles render every
+      // to `symbol` layers, since that's how vector map styles render every
       // POI/place/transit label - naturally excludes things like the filled
       // research-area polygon or the route line. A small box around the
       // click (not just the single pixel) gives real clicks some hit-test
@@ -324,15 +318,14 @@ export function MapView({
         }
       }
 
-      // No reverse-geocoding fallback (that was a live Mapbox call): a click
-      // that doesn't land on a rendered label just keeps its raw
+      // A click that doesn't land on a rendered label just keeps its raw
       // coordinates, and PinPanel names the spot from the nearest town.
       return { point: clickPoint, name: null };
     }
 
     map.on("click", async (e) => {
       // Belt-and-braces fallback: whatever goes wrong inside feature
-      // resolution (network hiccup, an unforeseen Mapbox error, etc.), the
+      // resolution (network hiccup, an unforeseen map error, etc.), the
       // click itself should never be silently dropped - worst case, the pin
       // just lands on the raw coordinates with no resolved name, exactly
       // like it always did before snap-to-label existed.
@@ -345,15 +338,14 @@ export function MapView({
       }
     });
 
-    // Streets gives us the POI icons/labels the minimal Light style lacked,
-    // but its default colours are more saturated than fits the "elegant,
-    // book cover" tone. Rather than hand-recolouring every layer (a Mapbox
-    // Studio job), desaturating the rendered canvas itself gets a pastel
+    // The "liberty" style's colours are more saturated than fits the
+    // "elegant, book cover" tone. Rather than hand-recolouring every layer,
+    // desaturating the rendered canvas itself gets a pastel
     // look while keeping all the same detail. Applied to the canvas
     // specifically (not the container) so the zoom control buttons aren't
     // affected.
     map.getCanvas().style.filter = "saturate(0.45) brightness(1.08) contrast(0.95)";
-    // Pointer (hand) cursor everywhere on the map, not Mapbox's default
+    // Pointer (hand) cursor everywhere on the map, not the map's default
     // grab/drag cursor - clicking the map is always a meaningful action
     // here (drop a pin, or pick a directions target), so it should read as
     // clickable the same way the place-name buttons in PinPanel do, rather
@@ -403,7 +395,7 @@ export function MapView({
       });
     });
 
-    // Mapbox sizes its internal canvas from the container's dimensions at
+    // MapLibre sizes its internal canvas from the container's dimensions at
     // init time and doesn't notice later layout changes on its own — e.g.
     // the bottom score panel growing once data loads, or the container
     // shrinking to half-width when pin mode opens. Without this, the map
@@ -414,7 +406,7 @@ export function MapView({
     // mobile map height now animates via a CSS transition (opening/closing
     // a section), and ResizeObserver fires on essentially every frame of
     // that transition - each firing was triggering a full, synchronous
-    // Mapbox resize (WebGL canvas resize + repaint), competing with the CSS
+    // map resize (WebGL canvas resize + repaint), competing with the CSS
     // transition's own rendering for the main thread and producing the
     // stuttery "small movements" the animation was reported to have. Since
     // nothing needs the map's canvas to track the container's size on every
@@ -442,18 +434,21 @@ export function MapView({
   // Recentre and redraw the researched area whenever the searched place
   // changes: a 5 km circle - exactly the radius the dataset's amenity counts
   // (restaurants, parks, schools, stations...) are measured within, so the
-  // outline shows precisely what was counted. Replaces a live Nominatim
-  // boundary lookup.
+  // outline shows precisely what was counted.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
+    // A new place: the camera saved before a pin was dropped belongs to the
+    // previous place - forget it, or clearing that pin (which happens when
+    // the page switches place) would fly back there.
+    preDropCameraRef.current = null;
     let cancelled = false;
 
     function applyArea() {
       if (!map || cancelled) return;
       const source = map.getSource(AREA_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
-      const circle = circlePolygon(lat, lng, FALLBACK_RADIUS_KM);
+      const circle = circlePolygon(lat, lng, AREA_RADIUS_KM);
       source?.setData(circle as any);
       const bounds = new maplibregl.LngLatBounds();
       for (const coord of (circle.geometry as GeoJSON.Polygon).coordinates[0]) bounds.extend(coord as [number, number]);
@@ -475,7 +470,7 @@ export function MapView({
     return () => {
       cancelled = true;
     };
-  }, [lat, lng, zoom, boundaryQuery, compact]);
+  }, [lat, lng, zoom, compact]);
 
   // Show/hide the dropped pin marker — persists correctly now that MapView
   // is never remounted when pin mode toggles. Also zooms in on the pinned

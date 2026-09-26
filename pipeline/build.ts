@@ -1,33 +1,40 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import path from "path";
 import KDBush from "kdbush";
 import { around } from "geokdbush";
-import { CITY_FIELDS, DATASET_SCHEMA_VERSION, encodeCity, type CityRecord, type CityRow, type DatasetManifest } from "@/lib/dataset/schema";
-import { assembleCityExploreData, RANGES } from "@/lib/dataset/assemble";
-import type { DiscoverCity } from "@/lib/types";
+import { assembleCityExploreData } from "@/lib/dataset/assemble";
+import type { CityRecord } from "@/lib/dataset/schema";
+import { PM25_SOURCE, samplePm25 } from "./airQuality";
+import { sampleBroadband } from "./broadband";
 import { buildCountries } from "./countries";
-import { extractGeoNamesFeatures, loadCityElevations, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M, type PointSet } from "./geonames";
+import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M, type PointSet } from "./geonames";
 import { loadCoastlinePoints, loadEarthquakes } from "./hazards";
-import { countPlacesNearCities, extractOverturePlaces, loadOvertureCategory, POI } from "./overture";
-import { sampleClimate } from "./worldclim";
-import { buildPoiTiles } from "./poiTiles";
+import { countNearCities } from "./nearCities";
+import { writeDataset } from "./output";
+import { extractOverturePlaces, extractOvertureRail, loadOvertureCategory, POI } from "./overture";
+import { POPULATION_SOURCE, sampleDensity } from "./population";
+import { KOPPEN_SOURCE, sampleKoppen } from "./koppenMap";
+import { loadShortlist } from "./shortlist";
+import { sampleUvIndex } from "./uv";
 import { log, OUT_DIR, round } from "./util";
+import { sampleClimate } from "./worldclim";
 
-const LOCAL_RADIUS_KM = 5; // same 5 km radius the old live Overpass queries used
+const LOCAL_RADIUS_KM = 5;
 const AIRPORT_RADIUS_KM = 40; // airports sit well outside city centres
 const EARTHQUAKE_RADIUS_KM = 200;
+const LARGE_CITY_POPULATION = 500_000;
 
-type Index = { kd: KDBush; size: number };
+type Points = { lng: ArrayLike<number>; lat: ArrayLike<number> };
+type Index = { kd: KDBush; points: Points; size: number };
 
-function buildIndex(lng: ArrayLike<number>, lat: ArrayLike<number>): Index {
-  const kd = new KDBush(Math.max(lng.length, 1));
-  for (let i = 0; i < lng.length; i++) kd.add(lng[i], lat[i]);
-  if (lng.length === 0) kd.add(0, -89.999); // KDBush can't be empty; unreachable filler
+function buildIndex(points: Points): Index {
+  const kd = new KDBush(Math.max(points.lng.length, 1));
+  for (let i = 0; i < points.lng.length; i++) kd.add(points.lng[i], points.lat[i]);
+  if (points.lng.length === 0) kd.add(0, -89.999); // KDBush can't be empty; unreachable filler
   kd.finish();
-  return { kd, size: lng.length };
+  return { kd, points, size: points.lng.length };
 }
 
-function mergeSets(...sets: { lng: ArrayLike<number>; lat: ArrayLike<number> }[]) {
+function mergePoints(...sets: Points[]): Points {
   const lng: number[] = [];
   const lat: number[] = [];
   for (const s of sets) {
@@ -39,24 +46,45 @@ function mergeSets(...sets: { lng: ArrayLike<number>; lat: ArrayLike<number> }[]
   return { lng, lat };
 }
 
-function nearestKm(index: Index, lng: ArrayLike<number>, lat: ArrayLike<number>, cLng: number, cLat: number): number | null {
-  if (index.size === 0) return null;
-  const [id] = around(index.kd, cLng, cLat, 1);
-  if (id == null || id >= index.size) return null;
-  return haversineKm(cLat, cLng, lat[id], lng[id]);
-}
-
-function countWithin(index: Index, cLng: number, cLat: number, km: number): number {
-  if (index.size === 0) return 0;
-  return around(index.kd, cLng, cLat, Infinity, km).filter((id: number) => id < index.size).length;
-}
-
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
+  return 2 * 6371 * Math.asin(Math.sqrt(a));
+}
+
+/** Nearest point (optionally passing `accept`) - id and km, or null. */
+function nearest(index: Index, lng: number, lat: number, accept?: (id: number) => boolean): { id: number; km: number } | null {
+  if (index.size === 0) return null;
+  const [id] = around(index.kd, lng, lat, 1, Infinity, (i: number) => i < index.size && (!accept || accept(i)));
+  return id == null ? null : { id, km: haversineKm(lat, lng, index.points.lat[id], index.points.lng[id]) };
+}
+
+const anyWithin = (index: Index, lng: number, lat: number, km: number) =>
+  index.size > 0 && around(index.kd, lng, lat, 1, km, (i: number) => i < index.size).length > 0;
+
+const countWithin = (index: Index, lng: number, lat: number, km: number) =>
+  index.size === 0 ? 0 : around(index.kd, lng, lat, Infinity, km, (i: number) => i < index.size).length;
+
+/** Keeps only the highest peak per `cellDeg` grid cell (~2 km) - the Alps
+ *  alone have ~9,000 named 1,000 m+ peaks, most within a few hundred
+ *  metres of a higher one. Pin mode's nearest-mountain distance moves by at
+ *  most a cell; its tiles shrink by more than half. */
+function highestPerCell(peaks: PointSet, cellDeg: number): PointSet {
+  const best = new Map<string, number>();
+  const elev = peaks.elev ?? [];
+  for (let i = 0; i < peaks.lng.length; i++) {
+    const key = `${Math.floor(peaks.lat[i] / cellDeg)}|${Math.floor(peaks.lng[i] / cellDeg)}`;
+    const current = best.get(key);
+    if (current == null || elev[i] > elev[current]) best.set(key, i);
+  }
+  const keep = [...best.values()];
+  return {
+    lng: keep.map((i) => peaks.lng[i]),
+    lat: keep.map((i) => peaks.lat[i]),
+    names: keep.map((i) => peaks.names[i]),
+    elev: keep.map((i) => elev[i]),
+  };
 }
 
 function percentile(values: number[], p: number): number {
@@ -66,176 +94,140 @@ function percentile(values: number[], p: number): number {
 
 async function main() {
   const startedAt = Date.now();
-  const repoRoot = path.resolve(__dirname, "..");
-  const shortlist: DiscoverCity[] = JSON.parse(readFileSync(path.join(repoRoot, "data/static/discover-cities.json"), "utf8"));
-  log("build", `${shortlist.length} shortlisted cities`);
+  const { cities: shortlist, countries: countryInfo } = await loadShortlist();
+  const points = shortlist.map((c) => ({ lat: c.lat, lng: c.lng }));
+  const countries = await buildCountries(countryInfo);
 
-  const countryNames = new Map<string, string>();
-  for (const c of shortlist) if (!countryNames.has(c.countryCode)) countryNames.set(c.countryCode, c.country);
-  const countries = await buildCountries(countryNames);
+  const [gn, coast, quakes] = await Promise.all([extractGeoNamesFeatures(), loadCoastlinePoints(), loadEarthquakes()]);
+  const climate = await sampleClimate(points);
+  const koppen = await sampleKoppen(points);
+  const uv = await sampleUvIndex(points);
+  const pm25 = await samplePm25(points);
+  const density = await sampleDensity(points);
+  const broadband = await sampleBroadband(points);
 
-  const [elevations, gn, coast, quakes] = await Promise.all([
-    loadCityElevations(),
-    extractGeoNamesFeatures(),
-    loadCoastlinePoints(),
-    loadEarthquakes(),
-  ]);
-  const climate = await sampleClimate(shortlist.map((c) => ({ lat: c.lat, lng: c.lng })));
-
-  const { glob: overtureFile, release: overtureRelease } = await extractOverturePlaces();
-  // Counting within 5 km happens inside DuckDB (millions of restaurant
-  // points never enter JavaScript); only the two categories we need
-  // nearest-DISTANCES for (train stations, beaches) are loaded as points.
+  const { glob: placesGlob, release } = await extractOverturePlaces();
+  const { glob: railGlob } = await extractOvertureRail();
+  // Counting within 5 km runs inside DuckDB (millions of restaurants never
+  // enter JavaScript); only points needed for nearest distances are loaded.
   log("build", "counting Overture places within 5 km of every city (DuckDB)...");
-  const overtureCounts = await countPlacesNearCities(
-    overtureFile,
-    shortlist.map((c) => ({ lat: c.lat, lng: c.lng })),
-    LOCAL_RADIUS_KM,
-    [POI.eating, POI.cultural, POI.family, POI.park, POI.school, POI.university, POI.train, POI.metro, POI.bus, POI.tram]
-  );
-  const ovCount = (i: number, cat: number) => overtureCounts.get(i)?.get(cat) ?? 0;
-  const ov = {
-    train: await loadOvertureCategory(overtureFile, POI.train, true),
-  };
-  log("build", `overture points: train=${ov.train.lng.length}`);
+  const counted = [POI.eating, POI.cultural, POI.family, POI.park, POI.school, POI.university, POI.train, POI.bus];
+  const counts = await countNearCities(`SELECT cat, lat, lng FROM read_parquet('${placesGlob}') WHERE cat IN (${counted.join(",")})`, points, LOCAL_RADIUS_KM);
+  const ovCount = (i: number, cat: number) => counts.get(i)?.get(cat) ?? 0;
+  const ovTrain = await loadOvertureCategory(placesGlob, POI.train);
+  const tramTrack = mergePoints(await loadOvertureCategory(railGlob, "tram"), await loadOvertureCategory(railGlob, "light_rail"));
+  const metroTrack = mergePoints(await loadOvertureCategory(railGlob, "subway"), await loadOvertureCategory(railGlob, "monorail"));
+  log("build", `rail points: tram/light rail ${tramTrack.lng.length}, metro ${metroTrack.lng.length}`);
 
   log("build", "indexing...");
-  const trainSet = mergeSets(gn.rail, ov.train);
+  const trainPoints = mergePoints(gn.rail, ovTrain);
+  const large = shortlist.filter((c) => c.population >= LARGE_CITY_POPULATION);
   const idx = {
-    school: buildIndex(gn.school.lng, gn.school.lat),
-    university: buildIndex(gn.university.lng, gn.university.lat),
-    train: buildIndex(trainSet.lng, trainSet.lat),
-    metro: buildIndex(gn.metro.lng, gn.metro.lat),
-    bus: buildIndex(gn.bus.lng, gn.bus.lat),
-    tram: buildIndex(gn.tram.lng, gn.tram.lat),
-    airport: buildIndex(gn.airport.lng, gn.airport.lat),
-    peak: buildIndex(gn.peak1000.lng, gn.peak1000.lat),
-    forest: buildIndex(gn.forest.lng, gn.forest.lat),
-    volcano: buildIndex(gn.volcano.lng, gn.volcano.lat),
-    coast: buildIndex(coast.lng, coast.lat),
-    quakes: buildIndex(quakes.lng, quakes.lat),
+    school: buildIndex(gn.school),
+    university: buildIndex(gn.university),
+    train: buildIndex(trainPoints),
+    metro: buildIndex(mergePoints(gn.metro, metroTrack)),
+    tram: buildIndex(tramTrack),
+    bus: buildIndex(gn.bus),
+    airport: buildIndex(gn.airport),
+    peak: buildIndex(gn.peak1000),
+    forest: buildIndex(gn.forest),
+    volcano: buildIndex(gn.volcano),
+    // Natural beach features (GeoNames) + the sea coast. Overture's
+    // "beach" category includes beach bars and volleyball courts.
+    beach: buildIndex(gn.beach),
+    coast: buildIndex(coast),
+    quakes: buildIndex(quakes),
+    large: buildIndex({ lng: large.map((c) => c.lng), lat: large.map((c) => c.lat) }),
   };
-  // Natural beach features only (GeoNames) + the sea coast. Overture's
-  // "beach" category turned out to include beach bars, beach-volleyball
-  // venues etc. - it put central London 0.2 km from a "beach".
-  const beachSet = mergeSets(gn.beach);
-  const beachIdx = buildIndex(beachSet.lng, beachSet.lat);
   const peakElev = gn.peak1000.elev ?? [];
-  /** Nearest peak that is both >= 1,000 m and rises >= 500 m above the city. */
-  const nearestMountainKm = (cLng: number, cLat: number, cityElevM: number): number | null => {
-    const minElev = Math.max(MOUNTAIN_MIN_ELEVATION_M, cityElevM + MOUNTAIN_MIN_RISE_M);
-    const [id] = around(idx.peak.kd, cLng, cLat, 1, Infinity, (i: number) => i < idx.peak.size && peakElev[i] >= minElev);
-    return id == null ? null : haversineKm(cLat, cLng, gn.peak1000.lat[id], gn.peak1000.lng[id]);
-  };
 
   log("build", "computing per-city fields...");
-  const raw = shortlist.map((c, i) => {
-    const counts = {
-      eating: ovCount(i, POI.eating),
-      cultural: ovCount(i, POI.cultural),
-      family: ovCount(i, POI.family),
-      park: ovCount(i, POI.park),
-    };
-    // Present if either source has one within range (GeoNames via the JS
-    // index, Overture via the DuckDB counts).
-    const has = (index: Index, overtureCat?: number, km = LOCAL_RADIUS_KM) =>
-      (overtureCat != null && ovCount(i, overtureCat) > 0) ||
-      (index.size > 0 && around(index.kd, c.lng, c.lat, 1, km).some((id: number) => id < index.size));
-    const coastKm = nearestKm(idx.coast, coast.lng, coast.lat, c.lng, c.lat);
-    const beachFeatureKm = nearestKm(beachIdx, beachSet.lng, beachSet.lat, c.lng, c.lat);
+  const records: { cc: string; record: CityRecord }[] = shortlist.map((c, i) => {
+    const { lng, lat } = c;
+    const km = (hit: { km: number } | null, digits = 1) => (hit ? round(hit.km, digits) : null);
+    // Present if GeoNames or Overture has one within range.
+    const has = (index: Index, overtureCat?: number, radius = LOCAL_RADIUS_KM) =>
+      (overtureCat != null && ovCount(i, overtureCat) > 0) || anyWithin(index, lng, lat, radius);
+    const coastKm = nearest(idx.coast, lng, lat)?.km ?? null;
+    const beachKm = Math.min(coastKm ?? Infinity, nearest(idx.beach, lng, lat)?.km ?? Infinity);
+    // A mountain is a 1,000 m+ peak that also rises 500 m+ above the city.
+    const minPeak = Math.max(MOUNTAIN_MIN_ELEVATION_M, (c.elevationM ?? 0) + MOUNTAIN_MIN_RISE_M);
+    const nearestLarge = c.population >= LARGE_CITY_POPULATION ? null : nearest(idx.large, lng, lat);
+    const capital = countries[c.countryCode]?.capital;
+    const capitalKm = capital ? haversineKm(lat, lng, capital.lat, capital.lng) : null;
     if (i > 0 && i % 10000 === 0) log("build", `${i}/${shortlist.length}`);
     return {
-      c,
-      counts,
-      has: {
-        train: has(idx.train, POI.train),
-        metro: has(idx.metro, POI.metro),
-        tram: has(idx.tram, POI.tram),
-        bus: has(idx.bus, POI.bus),
-        school: has(idx.school, POI.school),
-        university: has(idx.university, POI.university),
-        airport: has(idx.airport, undefined, AIRPORT_RADIUS_KM),
+      cc: c.countryCode,
+      record: {
+        id: c.cityId,
+        name: c.cityName,
+        region: c.region,
+        lat,
+        lng,
+        population: c.population,
+        elevationM: c.elevationM,
+        timezone: c.timezone,
+        densityPerKm2: density[i],
+        ...climate[i],
+        koppenCode: koppen.today[i],
+        koppenCode2085: koppen.future[i],
+        avgAnnualPm25: pm25[i],
+        avgAnnualUvIndexMax: uv[i],
+        earthquakeCount50yr: countWithin(idx.quakes, lng, lat, EARTHQUAKE_RADIUS_KM),
+        distanceToVolcanoKm: km(nearest(idx.volcano, lng, lat)),
+        distanceToCoastKm: round(coastKm, 1),
+        distanceToBeachKm: Number.isFinite(beachKm) ? round(beachKm, 1) : null,
+        distanceToMountainKm: km(nearest(idx.peak, lng, lat, (id) => peakElev[id] >= minPeak)),
+        distanceToForestKm: km(nearest(idx.forest, lng, lat)),
+        // Under 1 km is the capital itself (two geocodes of one centre).
+        distanceToCapitalKm: capitalKm == null ? null : capitalKm < 1 ? 0 : round(capitalKm, 1),
+        distanceToAirportKm: km(nearest(idx.airport, lng, lat)),
+        distanceToTrainStationKm: km(nearest(idx.train, lng, lat)),
+        nearestLargeCityName: nearestLarge ? large[nearestLarge.id].cityName : null,
+        nearestLargeCityKm: nearestLarge ? round(nearestLarge.km, 0) : null,
+        restaurantsBarsWithin5km: ovCount(i, POI.eating),
+        parksWithin5km: ovCount(i, POI.park),
+        culturalVenuesWithin5km: ovCount(i, POI.cultural),
+        familyActivitiesWithin5km: ovCount(i, POI.family),
+        hasTrainStation: has(idx.train, POI.train),
+        hasSubway: has(idx.metro),
+        hasTramway: has(idx.tram),
+        hasAirport: has(idx.airport, undefined, AIRPORT_RADIUS_KM),
+        hasBusStation: has(idx.bus, POI.bus),
+        hasSchool: has(idx.school, POI.school),
+        hasUniversity: has(idx.university, POI.university),
+        broadbandDownloadMbps: broadband.fixedMbps[i],
+        mobileDownloadMbps: broadband.mobileMbps[i],
+        rankPiltri: null,
+        rankEconomy: null,
+        rankSafetyStability: null,
+        rankClimate: null,
+        rankLiveability: null,
       },
-      coastKm,
-      beachKm: [coastKm, beachFeatureKm].filter((v): v is number => v != null).reduce((a, b) => Math.min(a, b), Infinity),
-      mountainKm: nearestMountainKm(c.lng, c.lat, elevations.get(`${c.lat}|${c.lng}`) ?? 0),
-      airportKm: nearestKm(idx.airport, gn.airport.lng, gn.airport.lat, c.lng, c.lat),
-      trainKm: nearestKm(idx.train, trainSet.lng, trainSet.lat, c.lng, c.lat),
-      forestKm: nearestKm(idx.forest, gn.forest.lng, gn.forest.lat, c.lng, c.lat),
-      volcanoKm: nearestKm(idx.volcano, gn.volcano.lng, gn.volcano.lat, c.lng, c.lat),
-      quakes: countWithin(idx.quakes, c.lng, c.lat, EARTHQUAKE_RADIUS_KM),
-      climate: climate[i],
-      elevation: elevations.get(`${c.lat}|${c.lng}`) ?? null,
     };
   });
 
-  // Distribution report - used to calibrate COUNT_CAPS in lib/dataset/assemble.ts.
-  const big = raw.filter((r) => r.c.population >= 100000);
-  const report = (label: string, values: number[]) =>
-    log(
-      "dist",
-      `${label}: p10=${percentile(values, 0.1)} p50=${percentile(values, 0.5)} p90=${percentile(values, 0.9)} p95=${percentile(values, 0.95)} p99=${percentile(values, 0.99)}`
-    );
-  for (const key of ["eating", "cultural", "family", "park"] as const) {
-    report(`${key} within 5 km (all cities)`, raw.map((r) => r.counts[key]));
-    report(`${key} within 5 km (100k+ cities)`, big.map((r) => r.counts[key]));
-  }
+  // Distribution report - for calibrating COUNT_CAPS and sanity-checking.
+  const big = records.filter((r) => (r.record.population ?? 0) >= 100000);
+  const report = (label: string, values: (number | null)[]) => {
+    const v = values.filter((x): x is number => x != null);
+    log("dist", `${label}: n=${v.length} p10=${percentile(v, 0.1)} p50=${percentile(v, 0.5)} p90=${percentile(v, 0.9)} p99=${percentile(v, 0.99)}`);
+  };
+  report("restaurants (100k+)", big.map((r) => r.record.restaurantsBarsWithin5km));
+  report("parks (100k+)", big.map((r) => r.record.parksWithin5km));
+  report("PM2.5", records.map((r) => r.record.avgAnnualPm25));
+  report("UV index", records.map((r) => r.record.avgAnnualUvIndexMax));
+  report("density /km2", records.map((r) => r.record.densityPerKm2));
+  report("broadband Mbps", records.map((r) => r.record.broadbandDownloadMbps));
+  report("mobile Mbps", records.map((r) => r.record.mobileDownloadMbps));
+  log("dist", `tram: ${records.filter((r) => r.record.hasTramway).length} cities, metro: ${records.filter((r) => r.record.hasSubway).length} cities`);
 
-  const records: { cc: string; record: CityRecord }[] = raw.map((r) => {
-    const pop = r.c.population;
-    const record: CityRecord = {
-      id: r.c.cityId,
-      name: r.c.cityName,
-      region: r.c.region,
-      lat: r.c.lat,
-      lng: r.c.lng,
-      population: pop,
-      elevationM: r.elevation != null ? Math.round(r.elevation) : null,
-      ...r.climate,
-      avgAnnualPm25: null,
-      avgAnnualUvIndexMax: null,
-      earthquakeCount50yr: r.quakes,
-      distanceToVolcanoKm: round(r.volcanoKm, 1),
-      distanceToCoastKm: round(r.coastKm, 1),
-      distanceToBeachKm: Number.isFinite(r.beachKm) ? round(r.beachKm, 1) : null,
-      distanceToMountainKm: round(r.mountainKm, 1),
-      distanceToForestKm: round(r.forestKm, 1),
-      restaurantsBarsWithin5km: r.counts.eating,
-      parksWithin5km: r.counts.park,
-      culturalVenuesWithin5km: r.counts.cultural,
-      familyActivitiesWithin5km: r.counts.family,
-      hasTrainStation: r.has.train,
-      hasSubway: r.has.metro,
-      // Deliberately unknown (null -> row hidden): neither GeoNames (83 tram
-      // stops worldwide) nor Overture maps tram stops - the first build
-      // flagged only 62 cities, with Melbourne, Amsterdam, Vienna, Prague,
-      // Lisbon and Milan all wrongly "No". Light rail is covered by the
-      // "Metro / light rail" flag instead.
-      hasTramway: null,
-      hasAirport: r.has.airport,
-      hasBusStation: r.has.bus,
-      hasSchool: r.has.school,
-      hasUniversity: r.has.university,
-      mainEconomyType: null,
-      cityAreaKm2: null,
-      distanceToAirportKm: round(r.airportKm, 1),
-      distanceToTrainStationKm: round(r.trainKm, 1),
-      rankPiltri: null,
-      rankEconomy: null,
-      rankSafetyStability: null,
-      rankClimate: null,
-      rankLiveability: null,
-    };
-    return { cc: r.c.countryCode, record };
-  });
-
-  // World ranks: score every city exactly as the site will (same assemble
-  // + scoring code), then rank. Ties share a rank (1, 2, 2, 4...).
-  log("build", "ranking...");
-  const scored = records.map(({ cc, record }) => {
-    const data = assembleCityExploreData(cc, record, countries[cc], "");
-    return { record, piltri: data.piltriScore, s: data.sectionScores };
-  });
+  // World ranks: score every city exactly as the site does, then rank.
+  // Ties share a rank (1, 2, 2, 4...).
+  log("build", "scoring and ranking...");
+  const generatedAt = new Date().toISOString();
+  const scored = records.map(({ cc, record }) => ({ cc, record, data: assembleCityExploreData(cc, record, countries[cc], generatedAt) }));
   const assignRanks = (value: (x: (typeof scored)[number]) => number, set: (r: CityRecord, rank: number) => void) => {
     const sorted = [...scored].sort((a, b) => value(b) - value(a));
     let rank = 0;
@@ -244,61 +236,52 @@ async function main() {
       set(x.record, rank);
     });
   };
-  assignRanks((x) => x.piltri, (r, k) => (r.rankPiltri = k));
-  assignRanks((x) => x.s.economy, (r, k) => (r.rankEconomy = k));
-  assignRanks((x) => x.s.safetyStability, (r, k) => (r.rankSafetyStability = k));
-  assignRanks((x) => x.s.climate, (r, k) => (r.rankClimate = k));
-  assignRanks((x) => x.s.liveability, (r, k) => (r.rankLiveability = k));
+  assignRanks((x) => x.data.piltriScore, (r, k) => (r.rankPiltri = k));
+  assignRanks((x) => x.data.sectionScores.economy, (r, k) => (r.rankEconomy = k));
+  assignRanks((x) => x.data.sectionScores.safetyStability, (r, k) => (r.rankSafetyStability = k));
+  assignRanks((x) => x.data.sectionScores.climate, (r, k) => (r.rankClimate = k));
+  assignRanks((x) => x.data.sectionScores.liveability, (r, k) => (r.rankLiveability = k));
 
-  // --- Write the dataset -------------------------------------------------
-  const version = new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + Date.now().toString(36);
+  const version = generatedAt.slice(0, 10).replace(/-/g, "") + "-" + Date.now().toString(36);
   const outDir = path.join(OUT_DIR, version);
-  rmSync(outDir, { recursive: true, force: true });
-  mkdirSync(path.join(outDir, "cities"), { recursive: true });
-
-  const byCountry = new Map<string, CityRow[]>();
-  for (const { cc, record } of records) {
-    if (!byCountry.has(cc)) byCountry.set(cc, []);
-    byCountry.get(cc)!.push(encodeCity(record));
-  }
-  for (const [cc, rows] of byCountry) {
-    writeFileSync(path.join(outDir, "cities", `${cc}.json`), JSON.stringify({ countryCode: cc, rows }));
-  }
-  writeFileSync(path.join(outDir, "countries.json"), JSON.stringify(countries));
-  writeFileSync(path.join(outDir, "all-cities.json"), JSON.stringify({ fields: CITY_FIELDS, countries: Object.fromEntries(byCountry) }));
-
-  await buildPoiTiles(path.join(outDir, "poi"), {
-    airport: gn.airport,
-    // GeoNames stations only for pin mode, where the station's NAME is shown:
-    // Overture's train_station category includes ticket machines, kiosks
-    // and shops inside stations ("Kew Gardens QBM" turned up in central
-    // Westminster). City pages still use both sources for presence.
-    train: gn.rail,
-    beach: gn.beach,
-    coast: coast as PointSet,
-    mountain: gn.peak1000,
-  });
-
-  const manifest: DatasetManifest = {
-    schemaVersion: DATASET_SCHEMA_VERSION,
+  writeDataset(outDir, {
     version,
-    generatedAt: new Date().toISOString(),
-    cityCount: records.length,
-    countryCount: Object.keys(countries).length,
+    generatedAt,
+    countries,
+    cities: scored,
+    poi: {
+      airport: gn.airport,
+      // GeoNames stations only, since pin mode shows the NAME: Overture's
+      // train_station category includes kiosks and ticket machines.
+      train: gn.rail,
+      beach: gn.beach,
+      coast: { ...coast, names: [] } as PointSet,
+      mountain: highestPerCell(gn.peak1000, 0.02),
+      // Towns: pin mode's "near <town>" label and local ground elevation.
+      city: {
+        lng: shortlist.map((c) => c.lng),
+        lat: shortlist.map((c) => c.lat),
+        names: shortlist.map((c) => c.cityName),
+        elev: shortlist.map((c) => c.elevationM),
+      },
+    },
     sources: {
-      shortlist: "GeoNames cities5000 (CC BY 4.0) - every place with 5,000+ people",
+      shortlist: "GeoNames cities5000 (CC BY 4.0) - every place with 5,000+ people; time zones, capitals, currencies",
       country: "World Bank Open Data (CC BY 4.0), WHO GHO UHC index, ND-GAIN, UN median age",
-      climate: "WorldClim 2.1 monthly normals 1970-2000 (CC BY 4.0); sunshine hours estimated from solar radiation (FAO-56 Angström-Prescott), snowfall estimated from sub-zero monthly precipitation",
+      climate: "WorldClim 2.1 monthly normals 1970-2000 (CC BY 4.0); sunshine estimated from solar radiation (FAO-56), snowfall from sub-zero monthly precipitation",
+      climateType: KOPPEN_SOURCE,
+      uv: "NASA POWER all-sky UV index climatology 2001-2020 (CERES SYN1deg), converted to noon peak",
+      airQuality: PM25_SOURCE,
+      density: POPULATION_SOURCE,
+      internet: `Ookla Speedtest open data, quarter starting ${broadband.quarter} (CC BY-NC-SA 4.0)`,
       elevation: "GeoNames SRTM elevation",
-      places: `Overture Maps places ${overtureRelease} (CDLA-Permissive-2.0) + GeoNames features`,
+      places: `Overture Maps places and transportation ${release} (CDLA-Permissive-2.0 / ODbL) + GeoNames features`,
       mountains: `GeoNames peaks of ${MOUNTAIN_MIN_ELEVATION_M} m+ that rise ${MOUNTAIN_MIN_RISE_M} m+ above the city`,
       coast: "Natural Earth 1:10m coastline (public domain)",
       earthquakes: "USGS earthquake catalogue, magnitude 5+ since 1970 (public domain)",
     },
-  };
-  writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2));
+  });
   log("build", `dataset ${version} written to ${outDir} in ${Math.round((Date.now() - startedAt) / 1000)}s`);
-  console.log(`DATASET_DIR=${outDir}`);
 }
 
 main().catch((err) => {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
+import { prefetchSearch, searchCities } from "@/lib/dataset/search";
 import type { CitySearchResult } from "@/lib/types";
 
 interface SearchBarProps {
@@ -48,6 +49,7 @@ export function SearchBar({
   const [activeIndex, setActiveIndex] = useState(-1);
   const [hasUserTyped, setHasUserTyped] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestQueryRef = useRef("");
   const router = useRouter();
 
   useEffect(() => {
@@ -59,19 +61,23 @@ export function SearchBar({
       return;
     }
 
+    // Search runs in the browser over a small per-letter index (see
+    // lib/dataset/search.ts) - the short debounce just skips work while
+    // keys are still arriving; a stale answer never overwrites a newer one.
+    prefetchSearch(value);
+    latestQueryRef.current = value;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/explore/search?q=${encodeURIComponent(value)}`);
-        if (!res.ok) return;
-        const data: CitySearchResult[] = await res.json();
+        const data = await searchCities(value);
+        if (latestQueryRef.current !== value) return;
         setResults(data);
         setOpen(data.length > 0);
         setActiveIndex(-1);
       } catch {
-        // Network errors fail silently — suggestions simply don't appear.
+        // A failed index load just means no suggestions.
       }
-    }, 200);
+    }, 60);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);

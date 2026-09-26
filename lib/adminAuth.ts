@@ -21,18 +21,4 @@ export function isAdminRequest(req: NextRequest): boolean {
   return cookie === expected;
 }
 
-/** True if this request is Vercel Cron's own scheduled call to
- *  /api/cron/warm-cache-tick — Vercel automatically sends
- *  `Authorization: Bearer <CRON_SECRET>` on every cron invocation once
- *  CRON_SECRET is set in the project's env vars (see vercel.json). Also
- *  accepts an admin request (cookie/ADMIN_PASSWORD bearer), so the
- *  /admin page's "warm now" button can call the exact same endpoint a
- *  scheduled tick uses, rather than duplicating the chunking logic. */
-export function isCronOrAdminRequest(req: NextRequest): boolean {
-  const expectedCron = process.env.CRON_SECRET;
-  const bearer = req.headers.get("authorization");
-  if (expectedCron && bearer === `Bearer ${expectedCron}`) return true;
-  return isAdminRequest(req);
-}
-
 export const ADMIN_COOKIE_NAME = ADMIN_COOKIE;
