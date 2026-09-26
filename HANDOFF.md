@@ -39,8 +39,8 @@ Real Estate section** - no free, reliable global price source exists.
 
 ```
 pipeline/ (offline, monthly GitHub Action)
-   free bulk sources -> ~/.piltri-pipeline-cache -> dataset v2/<version>/bundle.json.gz
-   -> Supabase Storage bucket "piltri-data" (public) + v2/manifest.json
+   free bulk sources -> ~/.piltri-pipeline-cache -> dataset v<schema>/<version>/bundle.json.gz
+   -> Supabase Storage bucket "piltri-data" (public) + v<schema>/manifest.json
 site build (Vercel; scripts/sync-dataset.mjs via prebuild/predev)
    -> public/data/<version>/...  (static, immutable-cached on Vercel's CDN)
    -> lib/dataset/meta.generated.json (manifest bundled into the JS)
@@ -72,8 +72,8 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
   tram/light-rail track within 5 km (Overture transportation = OSM rail);
   train/bus/airport from GeoNames + Overture. Pin-mode station names come
   from GeoNames only (Overture's category includes kiosks).
-- **Beach** = nearest of coastline and GeoNames beaches (Overture's beach
-  category was polluted). **Mountain** = 1,000 m+ peak rising 500 m+ above
+- **Beach** = nearest sea coast, or GeoNames beach on the sea or a major
+  lake (Natural Earth); river spots, reservoirs and pools don't count. **Mountain** = 1,000 m+ peak rising 500 m+ above
   the city.
 - **Climate**: WorldClim normals incl. monthly highs/lows/rain (climate
   chart), summer high / winter low; climate type from Beck et al.'s
@@ -83,13 +83,20 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
   Environment score** (5 µg/m³ scores 100, 50+ scores 0).
 - **Density** = people within 5 km / 78.5 km² (GHS-POP 2025). City land area
   isn't shown (no free city boundaries).
-- **Internet**: Ookla fixed + mobile download speeds within 5 km.
+- **Internet**: Ookla fixed + mobile download speeds within 5 km, widened
+  to 15/30 km where there are under 30 tests (radius stored and shown).
 - **Nearest large city** (500k+), distances to capital/airport/station,
   time zone (GeoNames; UTC offset computed in the browser), currency.
 - Country-level: World Bank (economy, safety, demographics, life expectancy,
   internet use, PISA), WHO UHC (healthcare), ND-GAIN, UN median age.
-- **Licences**: WHO and Ookla data are non-commercial - fine now; revisit if
-  Piltri is ever monetised.
+- **Licences**: all open; credited publicly at /explore/sources. Only Ookla
+  is non-commercial - build with `PIPELINE_COMMERCIAL=1` to drop it. WHO
+  data is CC BY 4.0.
+- **Shortlist hygiene**: duplicate names resolved to the largest entry whose
+  point is a town; ~240 "places" with no town at their point are left out (see
+  pipeline/README.md "Data-quality rules").
+- **Air pollution** counts in the Environment score; small island nations
+  outside the satellite map use WHO's labelled national estimate.
 
 ## Where things live
 

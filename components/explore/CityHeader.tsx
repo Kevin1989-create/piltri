@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { PiltriScoreDisplay } from "@/components/ui/ScoreBadge";
 import { EyeIcon, PlusIcon } from "@/components/ui/icons";
@@ -51,6 +52,24 @@ function formatCompactNumber(n: number): string {
   // (e.g. "283.247/km²") - capped at 1 decimal (2026-09-24, on request:
   // no field shows more than 1 decimal place).
   return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+}
+
+/** A demographics stat: value over label, one line each; hover shows the
+ *  full text, and a tap expands it in place (phones have no hover). */
+function StatCell({ stat }: { stat: { label: string; value: string; colorClass: string; title?: string } }) {
+  const [open, setOpen] = useState(false);
+  const wrap = open ? "break-words" : "truncate";
+  return (
+    <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="block w-full min-w-0 text-left cursor-default">
+      <p className={`text-[11px] font-medium leading-snug ${wrap} ${stat.colorClass}`} title={stat.title ?? stat.value}>
+        {stat.value}
+      </p>
+      <p className={`text-[9px] text-ink-500 uppercase tracking-wide leading-snug ${wrap}`} title={stat.label}>
+        {stat.label}
+      </p>
+      {open && stat.title && <p className="text-[9px] text-ink-300 leading-snug break-words">{stat.title}</p>}
+    </button>
+  );
 }
 
 /** Non-breaking space (as a   escape, not a literal character, so it
@@ -230,14 +249,7 @@ export function CityHeader({
            *  1-line footprint regardless of label length. */}
           <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
             {cityStats.map((stat) => (
-              <div key={stat.label} className="min-w-0">
-                <p className={`text-[11px] font-medium leading-snug truncate ${stat.colorClass}`} title={stat.title ?? stat.value}>
-                  {stat.value}
-                </p>
-                <p className="text-[9px] text-ink-500 uppercase tracking-wide leading-snug truncate" title={stat.label}>
-                  {stat.label}
-                </p>
-              </div>
+              <StatCell key={stat.label} stat={stat} />
             ))}
           </div>
         </div>
@@ -248,14 +260,7 @@ export function CityHeader({
           <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{country}</p>
           <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
             {countryStats.map((stat) => (
-              <div key={stat.label} className="min-w-0">
-                <p className={`text-[11px] font-medium leading-snug truncate ${stat.colorClass}`} title={stat.value}>
-                  {stat.value}
-                </p>
-                <p className="text-[9px] text-ink-500 uppercase tracking-wide leading-snug truncate" title={stat.label}>
-                  {stat.label}
-                </p>
-              </div>
+              <StatCell key={stat.label} stat={stat} />
             ))}
           </div>
         </div>

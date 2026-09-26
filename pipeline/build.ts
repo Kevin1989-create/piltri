@@ -5,9 +5,10 @@ import { assembleCityExploreData } from "@/lib/dataset/assemble";
 import type { CityRecord } from "@/lib/dataset/schema";
 import { PM25_SOURCE, samplePm25 } from "./airQuality";
 import { sampleBroadband } from "./broadband";
-import { buildCountries } from "./countries";
+import { buildCountries, fetchWhoNationalPm25 } from "./countries";
+import { ISO2_TO_ISO3 } from "./sources/countryCodes";
 import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M, type PointSet } from "./geonames";
-import { loadCoastlinePoints, loadEarthquakes } from "./hazards";
+import { loadCoastlinePoints, loadEarthquakes, loadLakeShorePoints } from "./hazards";
 import { countNearCities } from "./nearCities";
 import { writeDataset } from "./output";
 import { extractOverturePlaces, extractOvertureRail, loadOvertureCategory, POI } from "./overture";
@@ -22,6 +23,9 @@ const LOCAL_RADIUS_KM = 5;
 const AIRPORT_RADIUS_KM = 40; // airports sit well outside city centres
 const EARTHQUAKE_RADIUS_KM = 200;
 const LARGE_CITY_POPULATION = 500_000;
+const BEACH_SHORE_KM = 2;
+const SMALL_COUNTRY_KM2 = 10_000;
+const GHOST_MAX_PEOPLE = 1000;
 
 type Points = { lng: ArrayLike<number>; lat: ArrayLike<number> };
 type Index = { kd: KDBush; points: Points; size: number };
@@ -66,6 +70,17 @@ const anyWithin = (index: Index, lng: number, lat: number, km: number) =>
 const countWithin = (index: Index, lng: number, lat: number, km: number) =>
   index.size === 0 ? 0 : around(index.kd, lng, lat, Infinity, km, (i: number) => i < index.size).length;
 
+function filterPoints(points: PointSet, keep: (lng: number, lat: number) => boolean): PointSet {
+  const out: PointSet = { lng: [], lat: [], names: [] };
+  for (let i = 0; i < points.lng.length; i++) {
+    if (!keep(points.lng[i], points.lat[i])) continue;
+    out.lng.push(points.lng[i]);
+    out.lat.push(points.lat[i]);
+    out.names.push(points.names[i]);
+  }
+  return out;
+}
+
 /** Keeps only the highest peak per `cellDeg` grid cell (~2 km) - the Alps
  *  alone have ~9,000 named 1,000 m+ peaks, most within a few hundred
  *  metres of a higher one. Pin mode's nearest-mountain distance moves by at
@@ -98,11 +113,25 @@ async function main() {
   const points = shortlist.map((c) => ({ lat: c.lat, lng: c.lng }));
   const countries = await buildCountries(countryInfo);
 
-  const [gn, coast, quakes] = await Promise.all([extractGeoNamesFeatures(), loadCoastlinePoints(), loadEarthquakes()]);
+  const [gn, coast, lakeShores, quakes] = await Promise.all([extractGeoNamesFeatures(), loadCoastlinePoints(), loadLakeShorePoints(), loadEarthquakes()]);
   const climate = await sampleClimate(points);
   const koppen = await sampleKoppen(points);
   const uv = await sampleUvIndex(points);
   const pm25 = await samplePm25(points);
+  // Small island nations are mostly outside the satellite PM2.5 map's land
+  // mask: their towns fall back to WHO's national estimate, labelled as
+  // such. Only for small countries - an island of a big one (Lakshadweep)
+  // would be badly misdescribed by its national average, so stays empty.
+  const uncovered = new Set(
+    shortlist
+      .filter((c, i) => pm25[i] == null && (countries[c.countryCode]?.demographics.countryLandAreaKm2 ?? Infinity) < SMALL_COUNTRY_KM2)
+      .map((c) => c.countryCode)
+  );
+  if (uncovered.size) {
+    const national = await fetchWhoNationalPm25();
+    for (const cc of uncovered) countries[cc].pm25NationalEstimate = national[ISO2_TO_ISO3[cc]] ?? null;
+    log("build", `PM2.5 national fallback: ${[...uncovered].map((cc) => `${cc}=${countries[cc].pm25NationalEstimate}`).join(" ")}`);
+  }
   const density = await sampleDensity(points);
   const broadband = await sampleBroadband(points);
 
@@ -122,6 +151,14 @@ async function main() {
   log("build", "indexing...");
   const trainPoints = mergePoints(gn.rail, ovTrain);
   const large = shortlist.filter((c) => c.population >= LARGE_CITY_POPULATION);
+  // GeoNames "beaches" include river bathing spots, reservoirs and even
+  // swimming pools - only those on the sea or a large lake count.
+  const coastIdx = buildIndex(coast);
+  const lakeIdx = buildIndex(lakeShores);
+  const beaches = filterPoints(gn.beach, (lng, lat) =>
+    (nearest(coastIdx, lng, lat)?.km ?? Infinity) <= BEACH_SHORE_KM || (nearest(lakeIdx, lng, lat)?.km ?? Infinity) <= BEACH_SHORE_KM
+  );
+  log("build", `beaches on the sea or a large lake: ${beaches.lng.length} of ${gn.beach.lng.length}`);
   const idx = {
     school: buildIndex(gn.school),
     university: buildIndex(gn.university),
@@ -135,15 +172,15 @@ async function main() {
     volcano: buildIndex(gn.volcano),
     // Natural beach features (GeoNames) + the sea coast. Overture's
     // "beach" category includes beach bars and volleyball courts.
-    beach: buildIndex(gn.beach),
-    coast: buildIndex(coast),
+    beach: buildIndex(beaches),
+    coast: coastIdx,
     quakes: buildIndex(quakes),
     large: buildIndex({ lng: large.map((c) => c.lng), lat: large.map((c) => c.lat) }),
   };
   const peakElev = gn.peak1000.elev ?? [];
 
   log("build", "computing per-city fields...");
-  const records: { cc: string; record: CityRecord }[] = shortlist.map((c, i) => {
+  const allRecords: { cc: string; record: CityRecord }[] = shortlist.map((c, i) => {
     const { lng, lat } = c;
     const km = (hit: { km: number } | null, digits = 1) => (hit ? round(hit.km, digits) : null);
     // Present if GeoNames or Overture has one within range.
@@ -197,8 +234,10 @@ async function main() {
         hasBusStation: has(idx.bus, POI.bus),
         hasSchool: has(idx.school, POI.school),
         hasUniversity: has(idx.university, POI.university),
-        broadbandDownloadMbps: broadband.fixedMbps[i],
-        mobileDownloadMbps: broadband.mobileMbps[i],
+        broadbandDownloadMbps: broadband.fixed.mbps[i],
+        broadbandRadiusKm: broadband.fixed.radiusKm[i],
+        mobileDownloadMbps: broadband.mobile.mbps[i],
+        mobileRadiusKm: broadband.mobile.radiusKm[i],
         rankPiltri: null,
         rankEconomy: null,
         rankSafetyStability: null,
@@ -207,6 +246,22 @@ async function main() {
       },
     };
   });
+
+  // Some GeoNames entries aren't towns at the point given: a municipality's
+  // centre point in empty land (Angola's Chitato, "246,880 people"), a
+  // national park, an abandoned city (Aghdam). Every local figure would
+  // describe empty countryside, so they're left out - but only with no
+  // sign of a town at all: under 1,000 people within 5 km (GHS-POP), no
+  // restaurant and no school, and inland (the population grid undercounts
+  // small islands, whose towns are real).
+  const isGhost = ({ record: r }: { record: CityRecord }) =>
+    (r.densityPerKm2 ?? 0) * Math.PI * LOCAL_RADIUS_KM ** 2 < GHOST_MAX_PEOPLE &&
+    !r.restaurantsBarsWithin5km &&
+    !r.hasSchool &&
+    (r.distanceToCoastKm ?? Infinity) > 5;
+  const ghosts = allRecords.filter(isGhost);
+  const records = allRecords.filter((r) => !isGhost(r));
+  log("build", `left out ${ghosts.length} places with no town at the listed point, e.g. ${ghosts.slice(0, 5).map((g) => `${g.record.name} (${g.cc})`).join(", ")}`);
 
   // Distribution report - for calibrating COUNT_CAPS and sanity-checking.
   const big = records.filter((r) => (r.record.population ?? 0) >= 100000);
@@ -254,30 +309,32 @@ async function main() {
       // GeoNames stations only, since pin mode shows the NAME: Overture's
       // train_station category includes kiosks and ticket machines.
       train: gn.rail,
-      beach: gn.beach,
+      beach: beaches,
       coast: { ...coast, names: [] } as PointSet,
       mountain: highestPerCell(gn.peak1000, 0.02),
       // Towns: pin mode's "near <town>" label and local ground elevation.
       city: {
-        lng: shortlist.map((c) => c.lng),
-        lat: shortlist.map((c) => c.lat),
-        names: shortlist.map((c) => c.cityName),
-        elev: shortlist.map((c) => c.elevationM),
+        lng: records.map((c) => c.record.lng),
+        lat: records.map((c) => c.record.lat),
+        names: records.map((c) => c.record.name),
+        elev: records.map((c) => c.record.elevationM),
       },
     },
     sources: {
       shortlist: "GeoNames cities5000 (CC BY 4.0) - every place with 5,000+ people; time zones, capitals, currencies",
-      country: "World Bank Open Data (CC BY 4.0), WHO GHO UHC index, ND-GAIN, UN median age",
+      country: "World Bank Open Data (CC BY 4.0); WHO UHC service coverage index (data.who.int, CC BY 4.0); ND-GAIN country index; UN World Population Prospects 2024 median age",
       climate: "WorldClim 2.1 monthly normals 1970-2000 (CC BY 4.0); sunshine estimated from solar radiation (FAO-56), snowfall from sub-zero monthly precipitation",
       climateType: KOPPEN_SOURCE,
       uv: "NASA POWER all-sky UV index climatology 2001-2020 (CERES SYN1deg), converted to noon peak",
       airQuality: PM25_SOURCE,
       density: POPULATION_SOURCE,
-      internet: `Ookla Speedtest open data, quarter starting ${broadband.quarter} (CC BY-NC-SA 4.0)`,
+      ...(broadband.quarter
+        ? { internet: `Speedtest by Ookla Global Fixed and Mobile Network Performance Maps, quarter starting ${broadband.quarter} (CC BY-NC-SA 4.0)` }
+        : {}),
       elevation: "GeoNames SRTM elevation",
       places: `Overture Maps places and transportation ${release} (CDLA-Permissive-2.0 / ODbL) + GeoNames features`,
       mountains: `GeoNames peaks of ${MOUNTAIN_MIN_ELEVATION_M} m+ that rise ${MOUNTAIN_MIN_RISE_M} m+ above the city`,
-      coast: "Natural Earth 1:10m coastline (public domain)",
+      coast: "Natural Earth 1:10m coastline and lakes (public domain); beaches count when on the sea or a large lake",
       earthquakes: "USGS earthquake catalogue, magnitude 5+ since 1970 (public domain)",
     },
   });

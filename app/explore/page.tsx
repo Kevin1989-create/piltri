@@ -46,6 +46,12 @@ export default function ExploreLandingPage() {
           </div>
         </div>
       </div>
+
+      <footer className="pb-4 text-center">
+        <Link href="/explore/sources" className="text-[11px] text-ink-300 hover:text-ink-500">
+          Data &amp; sources
+        </Link>
+      </footer>
     </main>
   );
 }

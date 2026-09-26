@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { cityIdFor } from "@/lib/dataset/schema";
+import { sampleDensity } from "./population";
 import { cached, downloadOnce, log, unzipOnce, WORK_DIR } from "./util";
 
 /** The city shortlist: every GeoNames place with 5,000+ people (cities5000,
@@ -49,13 +50,13 @@ export async function loadShortlist(): Promise<Shortlist> {
   const admin1File = await downloadOnce("https://download.geonames.org/export/dump/admin1CodesASCII.txt", "admin1CodesASCII.txt");
   const countryFile = await downloadOnce("https://download.geonames.org/export/dump/countryInfo.txt", "countryInfo.txt");
 
-  return cached("shortlist", async () => {
+  return cached("shortlist-v3", async () => {
     const admin1 = new Map(tsv(admin1File).map(([code, name]) => [code, name]));
     // countryInfo.txt: ISO, ISO3, ISO-Numeric, fips, Country, Capital, Area,
     // Population, Continent, tld, CurrencyCode, CurrencyName, ...
     const countryRows = new Map(tsv(countryFile).map((c) => [c[0], c]));
 
-    const bySlug = new Map<string, ShortlistCity>();
+    const bySlug = new Map<string, ShortlistCity[]>();
     const capitals = new Map<string, { name: string; lat: number; lng: number }>();
     // cities5000.txt: geonameid, name, asciiname, alternatenames, lat, lng,
     // feature class, feature code, country, cc2, admin1, admin2, admin3,
@@ -69,11 +70,9 @@ export async function loadShortlist(): Promise<Shortlist> {
       // PPLC = seat of a national capital.
       if (featureCode === "PPLC") capitals.set(cc, { name, lat, lng });
       const cityId = cityIdFor(name, cc);
-      // Same name twice in one country: keep the larger place.
-      const existing = bySlug.get(cityId);
-      if (existing && existing.population >= population) continue;
       const elevation = elevStr ? Number(elevStr) : Number(demStr);
-      bySlug.set(cityId, {
+      if (!bySlug.has(cityId)) bySlug.set(cityId, []);
+      bySlug.get(cityId)!.push({
         cityId,
         cityName: name,
         region: admin1Code ? admin1.get(`${cc}.${admin1Code}`) ?? null : null,
@@ -86,7 +85,24 @@ export async function loadShortlist(): Promise<Shortlist> {
         timezone: timezone || null,
       });
     }
-    const cities = [...bySlug.values()].sort((a, b) => b.population - a.population);
+    // The same name twice in one country (~2,400 cases): keep the largest
+    // entry whose point is actually a town. "Largest" alone picked
+    // municipality centre points in empty land (Colombia's Buenaventura
+    // resolved to the jungle, not the port city); "most people around the
+    // point" alone picked dense suburbs over real cities (Springfield, PA
+    // over Springfield, MO). An entry is a town if 5,000+ people, or a fifth
+    // of its stated population, live within 5 km of its point (GHS-POP).
+    const duplicates = [...bySlug.values()].filter((group) => group.length > 1).flat();
+    const density = await sampleDensity(duplicates.map((c) => ({ lat: c.lat, lng: c.lng })));
+    const around = new Map(duplicates.map((c, i) => [c, (density[i] ?? 0) * Math.PI * 25]));
+    const isTown = (c: ShortlistCity) => (around.get(c) ?? 0) >= Math.min(5000, c.population * 0.2);
+    const pick = (group: ShortlistCity[]) => {
+      const towns = group.filter(isTown);
+      const pool = towns.length ? towns : group;
+      return pool.reduce((best, c) => (c.population > best.population ? c : best));
+    };
+    const cities = [...bySlug.values()].map((group) => (group.length === 1 ? group[0] : pick(group))).sort((a, b) => b.population - a.population);
+    log("shortlist", `${duplicates.length} same-name entries: kept the largest whose point is a town`);
 
     const countries: Record<string, CountryInfo> = {};
     for (const cc of new Set(cities.map((c) => c.countryCode))) {

@@ -102,8 +102,11 @@ export interface ClimateFields {
   /** Month-by-month normals (January first), for the climate chart. */
   monthly: { highC: number[]; lowC: number[]; rainMm: number[] } | null;
   elevationM: number | null;
-  /** Annual mean PM2.5, µg/m³ (ACAG satellite-derived, 2024). */
+  /** Annual mean PM2.5, µg/m³ (ACAG satellite-derived, 2024) - or, for
+   *  small island nations the satellite map doesn't cover, WHO's national
+   *  estimate (avgAnnualPm25IsNational). */
   avgAnnualPm25: number | null;
+  avgAnnualPm25IsNational: boolean;
   /** Average noon UV index across the year, including cloud (from NASA
    *  POWER's 2001-2020 all-sky UV climatology). */
   avgAnnualUvIndexMax: number | null;
@@ -144,10 +147,13 @@ export interface LiveabilityFields {
   hasBusStation: boolean | null;
   hasSchool: boolean | null;
   hasUniversity: boolean | null;
-  /** Average download speed of Speedtest results within 5 km (Ookla open
-   *  data, latest quarter), in Mbps. */
+  /** Average download speed of Speedtest results (Ookla open data, latest
+   *  quarter), in Mbps, over the given radius: 5 km, widened to 15 or 30 km
+   *  where too few tests were taken closer in. */
   broadbandDownloadMbps: number | null;
+  broadbandRadiusKm: number | null;
   mobileDownloadMbps: number | null;
+  mobileRadiusKm: number | null;
   /** Straight-line distances. */
   distanceToBeachKm: number | null;
   distanceToMountainKm: number | null;

@@ -2,14 +2,14 @@ import { readFileSync } from "fs";
 import { cached, downloadOnce, fetchWithRetry, log, sleep } from "./util";
 import type { PointSet } from "./geonames";
 
-/** Natural Earth 1:10m coastline (public domain), densified so no gap
- *  between consecutive points exceeds ~1 km - distance-to-nearest-point is
- *  then within ~0.5 km of the true distance to the line itself. */
-export async function loadCoastlinePoints(): Promise<PointSet> {
-  return cached("coastline-points", async () => {
+/** Natural Earth 1:10m lines (public domain), densified so no gap between
+ *  consecutive points exceeds ~1 km - distance-to-nearest-point is then
+ *  within ~0.5 km of the true distance to the line itself. */
+async function loadNaturalEarthLines(layer: string, variant = "", keep: (properties: any) => boolean = () => true): Promise<PointSet> {
+  return cached(`${layer}${variant}-points`, async () => {
     const file = await downloadOnce(
-      "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_coastline.geojson",
-      "ne_10m_coastline.geojson"
+      `https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_${layer}.geojson`,
+      `ne_10m_${layer}.geojson`
     );
     const geojson = JSON.parse(readFileSync(file, "utf8"));
     const out: PointSet = { lng: [], lat: [], names: [] };
@@ -30,14 +30,27 @@ export async function loadCoastlinePoints(): Promise<PointSet> {
     };
     for (const f of geojson.features) {
       const g = f.geometry;
+      if (!g || !keep(f.properties ?? {})) continue;
       if (g.type === "LineString") addLine(g.coordinates);
       else if (g.type === "MultiLineString") g.coordinates.forEach(addLine);
+      // Lakes are polygons: their rings are the shoreline.
+      else if (g.type === "Polygon") g.coordinates.forEach(addLine);
+      else if (g.type === "MultiPolygon") g.coordinates.forEach((poly: [number, number][][]) => poly.forEach(addLine));
     }
     out.names = new Array(out.lng.length).fill("");
-    log("coastline", `${out.lng.length} densified coastline points`);
+    log(layer, `${out.lng.length} densified points`);
     return out;
   });
 }
+
+export const loadCoastlinePoints = () => loadNaturalEarthLines("coastline");
+
+/** Shores of the larger lakes Natural Earth maps at 1:10m - scalerank 0-7
+ *  (the Great Lakes, Geneva, Constance, Garda, Balaton, Tahoe...), not
+ *  minor mountain reservoirs, and not salt lakes. A mapped "beach" only
+ *  counts if it's on the sea or one of these. */
+export const loadLakeShorePoints = () =>
+  loadNaturalEarthLines("lakes", "-major", (p) => (p.scalerank ?? 99) <= 7 && p.featurecla !== "Alkaline Lake");
 
 /** Every magnitude-5+ earthquake worldwide since 1970 from the USGS
  *  catalogue (public domain) - ~92,000 events, fetched a decade at a time

@@ -1,27 +1,36 @@
 "use client";
 
+import { useState } from "react";
 import { ClimateChart } from "@/components/explore/ClimateChart";
 import { cn } from "@/lib/cn";
 import { buildGdpSectorRows, buildKpiRows, buildLiveabilityTransportRows, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { useUnitPreferences } from "@/lib/unitPreferences";
 import type { CityExploreData, SectionKey } from "@/lib/types";
 
+/** One line per value and label keeps every cell the same height. The full
+ *  text and the row's explanation are in the hover tooltip - and, since
+ *  phones have no hover, a tap expands the cell in place. */
 function StatCell({ row, bold = false }: { row: KpiRow; bold?: boolean }) {
+  const [open, setOpen] = useState(false);
   return (
-    <div className="min-w-0">
+    <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="block w-full min-w-0 text-left cursor-default">
       <p
-        className={cn("text-xs leading-tight truncate", bold ? "font-semibold" : "font-medium", row.colorClass ?? "text-ink-900")}
+        className={cn(
+          "text-xs leading-tight",
+          open ? "break-words" : "truncate",
+          bold ? "font-semibold" : "font-medium",
+          row.colorClass ?? "text-ink-900"
+        )}
         title={row.valueSuffix ? `${row.value} ${row.valueSuffix}` : row.value}
       >
         {row.value}
         {row.valueSuffix && <span className="text-[10px] font-normal ml-1">{row.valueSuffix}</span>}
       </p>
-      {/* One line per label so every cell is the same height; the full
-       *  text (or the row's hint) is in the hover tooltip. */}
-      <p className="text-[10px] text-ink-500 leading-tight truncate" title={row.hint ?? row.label}>
+      <p className={cn("text-[10px] text-ink-500 leading-tight", open ? "break-words" : "truncate")} title={row.hint ?? row.label}>
         {row.label}
       </p>
-    </div>
+      {open && row.hint && <p className="mt-0.5 text-[10px] text-ink-300 leading-snug break-words">{row.hint}</p>}
+    </button>
   );
 }
 

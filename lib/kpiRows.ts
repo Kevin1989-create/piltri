@@ -262,7 +262,9 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               value: `${c.avgAnnualPm25} µg/m³`,
               precision: "pinned",
               colorClass: tierColorClass(normalise(c.avgAnnualPm25, RANGES.pm25.min, RANGES.pm25.max, true)),
-              hint: "Annual mean fine particulate matter, 2024 (satellite-derived, ACAG) — WHO guideline: under 5 µg/m³",
+              hint: c.avgAnnualPm25IsNational
+                ? `National estimate for ${data.country} (WHO, 2023) - this place is outside the satellite map. WHO guideline: under 5 µg/m³`
+                : "Annual mean fine particulate matter, 2024 (satellite-derived, ACAG) — WHO guideline: under 5 µg/m³",
             }
           : null,
         c.avgAnnualUvIndexMax != null
@@ -364,8 +366,19 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
       // comparable between cities of any size; coloured on the score's log scale.
       const countRow = (label: string, count: number | null, cap: number, hint: string): KpiRow | null =>
         count == null ? null : { label, value: count.toLocaleString(), precision: "pinned", colorClass: tierColorClass(countScore(count, cap)), hint };
-      const speedRow = (label: string, mbps: number | null, range: { min: number; max: number }, hint: string): KpiRow | null =>
-        mbps == null ? null : { label, value: `${mbps.toLocaleString()} Mbps`, precision: "pinned", colorClass: tierColorClass(normalise(mbps, range.min, range.max)), hint };
+      const speedRow = (label: string, mbps: number | null, radiusKm: number | null, range: { min: number; max: number }, kind: string): KpiRow | null =>
+        mbps == null
+          ? null
+          : {
+              label,
+              value: `${mbps.toLocaleString()} Mbps`,
+              precision: "pinned",
+              colorClass: tierColorClass(normalise(mbps, range.min, range.max)),
+              hint:
+                `Average ${kind} download speed of Speedtest results within ${radiusKm ?? 5} km of the centre (Ookla open data)` +
+                ((radiusKm ?? 5) > 5 ? " - widened because few tests were taken closer in" : ""),
+              valueSuffix: (radiusKm ?? 5) > 5 ? `(${radiusKm} km)` : undefined,
+            };
       const pisaRow = (label: string, score: number | null, subject: string): KpiRow | null =>
         score == null
           ? null
@@ -381,8 +394,8 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         countRow("Parks", l.parksWithin5km, COUNT_CAPS.parks, "Parks within 5 km of the centre"),
         countRow("Cultural venues", l.culturalVenuesWithin5km, COUNT_CAPS.cultural, "Museums, galleries, theatres and cinemas within 5 km of the centre"),
         countRow("Family activities", l.familyActivitiesWithin5km, COUNT_CAPS.family, "Playgrounds, zoos, aquariums and amusement/water parks within 5 km of the centre"),
-        speedRow("Broadband speed", l.broadbandDownloadMbps, COLOR_RANGES.broadbandMbps, "Average fixed-broadband download speed of Speedtest results within 5 km (Ookla open data)"),
-        speedRow("Mobile speed", l.mobileDownloadMbps, COLOR_RANGES.mobileMbps, "Average mobile download speed of Speedtest results within 5 km (Ookla open data)"),
+        speedRow("Broadband speed", l.broadbandDownloadMbps, l.broadbandRadiusKm, COLOR_RANGES.broadbandMbps, "fixed-broadband"),
+        speedRow("Mobile speed", l.mobileDownloadMbps, l.mobileRadiusKm, COLOR_RANGES.mobileMbps, "mobile"),
         {
           label: "Healthcare quality score",
           value: `${l.healthcareQualityScore}`,
@@ -411,7 +424,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         pisaRow("PISA reading score", l.pisaReadingScore, "reading"),
         pisaRow("PISA science score", l.pisaScienceScore, "science"),
         // Distances - grey: closer isn't universally better.
-        distanceRow("Distance to beach", l.distanceToBeachKm, prefs, "Straight-line distance to the nearest sea coast or mapped beach (including lake and river beaches)"),
+        distanceRow("Distance to beach", l.distanceToBeachKm, prefs, "Straight-line distance to the nearest sea coast, or mapped beach on the sea or a large lake"),
         distanceRow("Distance to mountain", l.distanceToMountainKm, prefs, "Straight-line distance to the nearest peak of 1,000 m+ that rises 500 m+ above the city"),
         distanceRow("Distance to forest", l.distanceToForestKm, prefs, "Straight-line distance to the nearest mapped forest or woodland"),
         distanceRow("Nearest airport", l.distanceToAirportKm, prefs, "Straight-line distance to the nearest airport"),

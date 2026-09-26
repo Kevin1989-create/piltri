@@ -11,7 +11,7 @@ city in the browser in milliseconds.
 ```
 npm run pipeline          # build + publish
 npm run pipeline:build    # compute a dataset into ~/.piltri-pipeline-cache/out/<version>/
-npm run pipeline:publish  # upload it to Supabase Storage (v2/<version>/bundle.json.gz + v2/manifest.json)
+npm run pipeline:publish  # upload it to Supabase Storage (v<schema>/<version>/bundle.json.gz + v<schema>/manifest.json)
 ```
 
 Test a local build on the site without publishing it:
@@ -29,7 +29,7 @@ also picks up the latest published dataset.
 |---|---|---|
 | City shortlist, population, elevation, time zone, capitals, currencies | GeoNames `cities5000` + `countryInfo` | CC BY 4.0 |
 | Country economy, safety, demographics, life expectancy, internet, PISA | World Bank Open Data (bulk, all countries) | CC BY 4.0 |
-| Healthcare quality | WHO GHO (UHC service coverage index) | CC BY-NC-SA 3.0 IGO* |
+| Healthcare quality; PM2.5 fallback for small island nations | WHO (data.who.int: UHC service coverage index, SDG 11.6.2 PM2.5) | CC BY 4.0 |
 | Climate readiness | ND-GAIN (`generateClimateReadiness.mjs`) | free |
 | Temperature (mean, monthly highs/lows), rainfall, humidity, sunshine, snow | WorldClim 2.1 normals (1970-2000), 2.5′ grid | CC BY 4.0 |
 | Climate type today (1991-2020) and by 2085 (SSP2-4.5) | Beck et al. (2023) 1 km Köppen-Geiger maps | CC BY 4.0 |
@@ -37,15 +37,15 @@ also picks up the latest published dataset.
 | Air pollution (PM2.5) | ACAG satellite-derived PM2.5 V6.GL.03, 2024, 0.01° (AWS Open Data) | CC BY 4.0 |
 | Population density (5 km) | GHS-POP R2023A, 2025, 1 km (EC JRC) | CC BY 4.0 |
 | Broadband / mobile speed | Ookla Speedtest open data, latest quarter (AWS Open Data) | CC BY-NC-SA 4.0* |
+| Coastline, major lakes (which beaches count) | Natural Earth 1:10m | public domain |
 | Restaurants/bars/cafés, cultural venues, family activities, parks, schools, universities, stations | Overture Maps places | CDLA-Permissive-2.0 |
 | Tram / light rail / metro lines | Overture Maps transportation (OpenStreetMap rail) | ODbL |
 | Airports, rail/metro/bus stations, beaches, 1,000 m+ peaks, forests, volcanoes | GeoNames `allCountries` | CC BY 4.0 |
-| Coastline | Natural Earth 1:10m | public domain |
 | Earthquakes (M5+ since 1970) | USGS catalogue | public domain |
 
-\* Non-commercial licences: fine for Piltri today; if it ever becomes
-commercial, swap the healthcare score for a World Bank indicator and drop
-(or licence) the Ookla speeds.
+\* Non-commercial: fine for Piltri today. A commercial deployment builds with
+`PIPELINE_COMMERCIAL=1`, which leaves the speed fields out. Every source is
+credited on the site at /explore/sources (built from the manifest).
 
 ### Disclosed estimates
 - **Sunshine hours**: WorldClim solar radiation via FAO-56 Angström-Prescott,
@@ -58,6 +58,19 @@ commercial, swap the healthcare score for a World Bank indicator and drop
   coastline - proxies, not inundation models.
 - **Pin-mode / "distance from city centre" minutes**: straight-line distance
   at ~30 km/h (no routing).
+
+### Data-quality rules
+- **Duplicate names** in a country (~2,400 GeoNames pairs): the largest
+  entry whose point is a town (5,000+ people, or a fifth of its stated
+  population, within 5 km) - so a municipality centre point in empty land
+  can't win on population alone.
+- **Places left out**: under 1,000 people within 5 km, no restaurant, no
+  school, and inland - the listed point isn't a town (~240 places).
+- **Speeds**: averaged within 5 km, widened to 15/30 km below 30 tests;
+  the radius is stored and shown.
+- **PM2.5**: grid-edge value for towns just beyond the satellite map;
+  WHO national estimate (labelled) for small countries it misses.
+- **Beaches**: only on the sea or a Natural Earth major lake (scalerank <= 7).
 
 ## How it's organised
 

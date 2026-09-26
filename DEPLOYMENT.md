@@ -45,5 +45,5 @@ Vercel's per-project target. Configured under Vercel -> Settings -> Domains.
 
 - Code: redeploy an earlier deployment from the Vercel dashboard.
 - Data: the previous dataset version is kept in the bucket; re-upload its
-  manifest as `v2/manifest.json` (or run
+  manifest as `v<schema>/manifest.json` (or run
   `npm run pipeline:publish <version>` for a locally built one) and redeploy.

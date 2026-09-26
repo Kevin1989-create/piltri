@@ -11,7 +11,7 @@ import type { EconomyFields, SafetyStabilityFields } from "@/lib/types";
  * Bump DATASET_SCHEMA_VERSION whenever CITY_FIELDS or a file layout
  * changes - the build refuses a dataset built for a different schema.
  */
-export const DATASET_SCHEMA_VERSION = 2;
+export const DATASET_SCHEMA_VERSION = 3;
 
 /** Public Supabase Storage bucket the pipeline publishes to; the site's
  *  build step (scripts/sync-dataset.mjs) copies the current version from
@@ -73,6 +73,10 @@ export interface CountryRecord {
    *  this; averageSalaryGbp is the displayed, converted figure. */
   gniPerCapitaUsd: number | null;
   capital: { name: string; lat: number; lng: number } | null;
+  /** WHO national PM2.5 estimate - set only for countries the satellite
+   *  map doesn't cover at all (small island nations), as their cities'
+   *  fallback. */
+  pm25NationalEstimate: number | null;
 }
 
 /** City-level values, stored as one compact array per city in exactly this
@@ -123,7 +127,9 @@ export const CITY_FIELDS = [
   "hasSchool",
   "hasUniversity",
   "broadbandDownloadMbps",
+  "broadbandRadiusKm",
   "mobileDownloadMbps",
+  "mobileRadiusKm",
   "rankPiltri",
   "rankEconomy",
   "rankSafetyStability",
@@ -184,9 +190,12 @@ export interface CityRecord {
   hasBusStation: boolean | null;
   hasSchool: boolean | null;
   hasUniversity: boolean | null;
-  /** Test-weighted average download speed within 5 km (Ookla). */
+  /** Test-weighted average download speed (Ookla) within the stored
+   *  radius: 5 km, or 15/30 km where there were too few tests nearer. */
   broadbandDownloadMbps: number | null;
+  broadbandRadiusKm: number | null;
   mobileDownloadMbps: number | null;
+  mobileRadiusKm: number | null;
   /** World ranks (1 = best) among all cities, at the default weighting. */
   rankPiltri: number | null;
   rankEconomy: number | null;

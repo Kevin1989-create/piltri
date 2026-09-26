@@ -264,9 +264,13 @@ function ResultsContent() {
         }
         right={
           data && (
-            <p className="text-[11px] text-ink-300 whitespace-nowrap hidden md:block">
-              Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })}
-            </p>
+            <Link
+              href="/explore/sources"
+              className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap hidden md:block"
+              title="Where every figure comes from"
+            >
+              Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })} · Sources
+            </Link>
           )
         }
       />

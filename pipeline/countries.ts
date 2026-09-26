@@ -86,6 +86,8 @@ function rankGdpSectors(agriculture: number | null, industry: number | null, ser
     .sort((a, b) => b.sharePct - a.sharePct);
 }
 
+/** WHO UHC service coverage index (data.who.int, CC BY 4.0 - attribution:
+ *  "World Health Organization, data.who.int, UHC service coverage index"). */
 async function fetchWhoUhc(): Promise<Record<string, number>> {
   const json = await fetchJson<{ value: { SpatialDim: string; TimeDim: number; NumericValue: number | null }[] }>(
     "https://ghoapi.azureedge.net/api/UHC_INDEX_REPORTED"
@@ -97,6 +99,22 @@ async function fetchWhoUhc(): Promise<Record<string, number>> {
     if (!prev || r.TimeDim > prev.year) best[r.SpatialDim] = { year: r.TimeDim, value: r.NumericValue };
   }
   return Object.fromEntries(Object.entries(best).map(([iso3, v]) => [iso3, Math.round(v.value)]));
+}
+
+/** WHO's modelled national PM2.5 (2023, total population; data.who.int,
+ *  CC BY 4.0), by ISO3. */
+export async function fetchWhoNationalPm25(): Promise<Record<string, number>> {
+  return cached("who-pm25-national", async () => {
+    const json = await fetchJson<{ value: { SpatialDim: string; TimeDim: number; NumericValue: number | null; Dim1: string }[] }>(
+      "https://ghoapi.azureedge.net/api/SDGPM25?$filter=Dim1%20eq%20%27RESIDENCEAREATYPE_TOTL%27"
+    );
+    const best: Record<string, { year: number; value: number }> = {};
+    for (const r of json.value ?? []) {
+      if (r.NumericValue == null) continue;
+      if (!best[r.SpatialDim] || r.TimeDim > best[r.SpatialDim].year) best[r.SpatialDim] = { year: r.TimeDim, value: r.NumericValue };
+    }
+    return Object.fromEntries(Object.entries(best).map(([iso3, v]) => [iso3, round(v.value, 1)!]));
+  });
 }
 
 /** One record per country in the shortlist (name, currency and capital come
@@ -170,6 +188,7 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
       pisaScienceScore: round(latest(get("pisaScience")), 0),
       gniPerCapitaUsd: gni,
       capital: info.capital,
+      pm25NationalEstimate: null, // filled in by build.ts where needed
     };
   }
   log("countries", `${Object.keys(countries).length} countries built`);
