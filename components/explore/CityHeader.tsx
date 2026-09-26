@@ -33,6 +33,10 @@ interface CityHeaderProps {
    *  global, shared preference. Optional so CityHeader can still be used
    *  read-only (e.g. inside a Compare column) without this label. */
   weights?: Record<SectionKey, number>;
+  /** World rank at the default weighting (see CityExploreData.ranks) -
+   *  hidden when custom weights are active, since the rank was computed
+   *  for the default score, not the customised one. */
+  rank?: { position: number; outOf: number };
 }
 
 /** Abbreviates large counts (population, density) to a short, glanceable
@@ -67,6 +71,7 @@ export function CityHeader({
   compareHref,
   reportHref,
   weights,
+  rank,
 }: CityHeaderProps) {
   const isCustomised = weights != null && isCustomWeights(weights);
   const { prefs } = useUnitPreferences();
@@ -132,6 +137,10 @@ export function CityHeader({
       ]
     : null;
 
+  // Land area / density are omitted (not shown as "Not available") when the
+  // dataset has no value - there's no free bulk source of city boundary
+  // areas, so for most cities they're simply absent rather than a gap in
+  // one specific lookup.
   const cityStats: Stat[] | null = demographics
     ? [
         {
@@ -139,19 +148,24 @@ export function CityHeader({
           value: demographics.cityPopulation != null ? formatCompactNumber(demographics.cityPopulation) : NOT_AVAILABLE,
           colorClass: demographics.cityPopulation != null ? "text-ink-900" : "text-ink-500",
         },
-        {
-          label: "Land Area",
-          value: demographics.cityAreaKm2 != null ? formatAreaKm2Compact(demographics.cityAreaKm2, prefs, formatCompactNumber) : NOT_AVAILABLE,
-          colorClass: demographics.cityAreaKm2 != null ? "text-ink-900" : "text-ink-500",
-        },
-        {
-          label: "Population Density",
-          value:
-            demographics.cityPopulationDensityPerKm2 != null
-              ? formatDensityPerKm2(demographics.cityPopulationDensityPerKm2, prefs, formatCompactNumber)
-              : NOT_AVAILABLE,
-          colorClass: demographics.cityPopulationDensityPerKm2 != null ? "text-ink-900" : "text-ink-500",
-        },
+        ...(demographics.cityAreaKm2 != null
+          ? [
+              {
+                label: "Land Area",
+                value: formatAreaKm2Compact(demographics.cityAreaKm2, prefs, formatCompactNumber),
+                colorClass: "text-ink-900",
+              },
+            ]
+          : []),
+        ...(demographics.cityPopulationDensityPerKm2 != null
+          ? [
+              {
+                label: "Population Density",
+                value: formatDensityPerKm2(demographics.cityPopulationDensityPerKm2, prefs, formatCompactNumber),
+                colorClass: "text-ink-900",
+              },
+            ]
+          : []),
       ]
     : null;
 
@@ -272,6 +286,11 @@ export function CityHeader({
         </p>
         <PiltriScoreDisplay score={piltriScore} />
       </div>
+      {rank && !isCustomised && (
+        <p className="text-[10px] text-ink-500 text-right -mt-0.5" title="World rank among every city in Piltri's dataset">
+          #{rank.position.toLocaleString()} of {rank.outOf.toLocaleString()} cities
+        </p>
+      )}
 
       {isCustomised && (
         <p className="mt-1.5 text-[11px] text-ink-500">

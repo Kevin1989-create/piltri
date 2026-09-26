@@ -1,4 +1,5 @@
 import { normalise } from "@/lib/aggregation/scoring";
+import { COUNT_CAPS, countScore } from "@/lib/dataset/assemble";
 import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
 import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
 import type { CityExploreData, EconomyTypeProfile, SectionKey, TrendDirection } from "@/lib/types";
@@ -70,12 +71,6 @@ const COLOR_RANGES = {
   salaryGbp: { min: 1580, max: 71100 },
   unemployment: { min: 0, max: 25 },
   temperatureDistanceFrom20C: { min: 0, max: 20 },
-  // Matches aggregate.ts's RANGES exactly - see that file's comment for the
-  // live-data calibration behind these 3 (2026-09-21, after fixing the
-  // per10k bug that was dividing by country population instead of city).
-  restaurantsBarsPer10k: { min: 0, max: 30 },
-  culturalVenuesPer10k: { min: 0, max: 3 },
-  familyActivitiesPer10k: { min: 0, max: 15 },
   // Rainfall/sunshine/snowfall don't have an app-established scoring
   // direction the way risk/readiness metrics do, but colour is still
   // useful for comparing cities against each other - these 3 ranges are a
@@ -356,12 +351,14 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           value: `${c.avgAnnualSunshineHrs} hrs`,
           precision: "pinned",
           colorClass: tierColorClass(normalise(c.avgAnnualSunshineHrs, COLOR_RANGES.sunshineHrs.min, COLOR_RANGES.sunshineHrs.max)),
+          hint: "Estimated from WorldClim solar radiation (1970-2000 normals), not a measured count",
         },
         {
           label: "Avg annual snowfall",
           value: `${c.avgAnnualSnowfallCm} cm`,
           precision: "pinned",
           colorClass: tierColorClass(normalise(c.avgAnnualSnowfallCm, COLOR_RANGES.snowfallCm.min, COLOR_RANGES.snowfallCm.max, true)),
+          hint: "Estimated from precipitation in below-freezing months (WorldClim 1970-2000 normals)",
         },
         {
           // Coloured against a disclosed-subjective ideal centre (~50%,
@@ -522,50 +519,18 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
     }
     case "liveability": {
       const l = data.liveability;
-      // restaurantsBarsDensityPer10k/greenSpaceScore/culturalVenuesDensityPer10k/
-      // familyKidsActivitiesDensityPer10k are one combined Overpass call
-      // (see LiveabilityFields' header comment in lib/types.ts) - omitted,
-      // not shown as a misleading "0", when that call didn't resolve.
+      // Counts of places within 5 km of the centre (Overture Maps places) -
+      // a fixed area, so directly comparable between cities of any size.
+      // Coloured on the same log scale the score uses (countScore).
+      const countRow = (label: string, count: number | null, cap: number, hint: string): KpiRow | null =>
+        count == null
+          ? null
+          : { label, value: count.toLocaleString(), precision: "pinned", colorClass: tierColorClass(countScore(count, cap)), hint };
       const rows: (KpiRow | null)[] = [
-        l.restaurantsBarsDensityPer10k != null
-          ? {
-              label: "Restaurants & bars density",
-              value: `${l.restaurantsBarsDensityPer10k} / 10k`,
-              precision: "pinned",
-              colorClass: tierColorClass(
-                normalise(l.restaurantsBarsDensityPer10k, COLOR_RANGES.restaurantsBarsPer10k.min, COLOR_RANGES.restaurantsBarsPer10k.max)
-              ),
-            }
-          : null,
-        l.greenSpaceScore != null
-          ? {
-              label: "Green space score",
-              value: `${l.greenSpaceScore}`,
-              precision: "pinned",
-              colorClass: tierColorClass(l.greenSpaceScore),
-              hint: "Parks & gardens density within 5km of centre, normalised 0-100 - not a literal % of the city's land area",
-            }
-          : null,
-        l.culturalVenuesDensityPer10k != null
-          ? {
-              label: "Cultural venues density",
-              value: `${l.culturalVenuesDensityPer10k} / 10k`,
-              precision: "pinned",
-              colorClass: tierColorClass(
-                normalise(l.culturalVenuesDensityPer10k, COLOR_RANGES.culturalVenuesPer10k.min, COLOR_RANGES.culturalVenuesPer10k.max)
-              ),
-            }
-          : null,
-        l.familyKidsActivitiesDensityPer10k != null
-          ? {
-              label: "Family & kids activities density",
-              value: `${l.familyKidsActivitiesDensityPer10k} / 10k`,
-              precision: "pinned",
-              colorClass: tierColorClass(
-                normalise(l.familyKidsActivitiesDensityPer10k, COLOR_RANGES.familyActivitiesPer10k.min, COLOR_RANGES.familyActivitiesPer10k.max)
-              ),
-            }
-          : null,
+        countRow("Restaurants, bars & cafés", l.restaurantsBarsWithin5km, COUNT_CAPS.restaurantsBars, "Places to eat and drink within 5 km of the centre"),
+        countRow("Parks", l.parksWithin5km, COUNT_CAPS.parks, "Parks within 5 km of the centre"),
+        countRow("Cultural venues", l.culturalVenuesWithin5km, COUNT_CAPS.cultural, "Museums, galleries, theatres and cinemas within 5 km of the centre"),
+        countRow("Family activities", l.familyActivitiesWithin5km, COUNT_CAPS.family, "Playgrounds, zoos, aquariums and amusement/water parks within 5 km of the centre"),
         {
           label: "Healthcare quality score",
           value: `${l.healthcareQualityScore}`,
@@ -635,7 +600,13 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         // (capital - only null for a handful of countries with no
         // GeoNames capital on file).
         l.distanceToBeachKm != null
-          ? { label: "Distance to beach", value: formatDistanceKm(l.distanceToBeachKm, prefs), precision: "pinned", colorClass: "text-ink-500" }
+          ? {
+              label: "Distance to beach",
+              value: formatDistanceKm(l.distanceToBeachKm, prefs),
+              precision: "pinned",
+              colorClass: "text-ink-500",
+              hint: "Straight-line distance to the nearest beach or sea coast",
+            }
           : null,
         l.distanceToMountainKm != null
           ? {
@@ -643,6 +614,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               value: formatDistanceKm(l.distanceToMountainKm, prefs),
               precision: "pinned",
               colorClass: "text-ink-500",
+              hint: "Straight-line distance to the nearest peak of 1,000 m or higher",
             }
           : null,
         l.distanceToForestKm != null
@@ -651,6 +623,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               value: formatDistanceKm(l.distanceToForestKm, prefs),
               precision: "pinned",
               colorClass: "text-ink-500",
+              hint: "Straight-line distance to the nearest mapped forest or woodland",
             }
           : null,
         l.distanceToCapitalKm != null
@@ -703,7 +676,7 @@ export function buildLiveabilityTransportRows(data: CityExploreData): KpiRow[] {
       ? { label: "Train station", value: l.hasTrainStation ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasTrainStation) }
       : null,
     l.hasSubway != null
-      ? { label: "Subway", value: l.hasSubway ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasSubway) }
+      ? { label: "Metro / light rail", value: l.hasSubway ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasSubway) }
       : null,
     l.hasTramway != null
       ? { label: "Tramway", value: l.hasTramway ? "Yes" : "No", precision: "pinned", colorClass: yesNoColorClass(l.hasTramway) }

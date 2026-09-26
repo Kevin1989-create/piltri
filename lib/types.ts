@@ -271,8 +271,8 @@ export interface ClimateFields {
 }
 
 export interface LiveabilityFields {
-  // restaurantsBarsDensityPer10k / greenSpaceScore / culturalVenuesDensityPer10k
-  // / familyKidsActivitiesDensityPer10k / hasTrainStation / hasSubway /
+  // restaurantsBarsWithin5km / parksWithin5km / culturalVenuesWithin5km
+  // / familyActivitiesWithin5km / hasTrainStation / hasSubway /
   // hasTramway / hasAirport / hasBusStation / hasSchool / hasUniversity all
   // come from ONE combined Overpass call (getCityOverpassData) - genuinely
   // null (not 0/false) when that single call fails/times out, so a real
@@ -292,7 +292,7 @@ export interface LiveabilityFields {
   // Overpass call entirely, same pattern as osmLandAreaKm2/
   // wikidataPopulation already use. A city outside the shortlist (a search
   // Explore hasn't seen before) still falls back to the live call.
-  restaurantsBarsDensityPer10k: number | null;
+  restaurantsBarsWithin5km: number | null;
   /** 0-100, Overpass parks/gardens count within 5km of centre normalised
    *  against a reasonable-range ceiling - a density SCORE, not a literal
    *  percentage of the city's land area (renamed from
@@ -300,9 +300,9 @@ export interface LiveabilityFields {
    *  ("X% of city area") implied a real area computation this never did -
    *  computing genuine area coverage would need OSM polygon geometry, not
    *  just a point/way count, a bigger change than this rename). */
-  greenSpaceScore: number | null;
-  culturalVenuesDensityPer10k: number | null;
-  familyKidsActivitiesDensityPer10k: number | null;
+  parksWithin5km: number | null;
+  culturalVenuesWithin5km: number | null;
+  familyActivitiesWithin5km: number | null;
   healthcareQualityScore: number; // 0-100, WHO UHC Service Coverage Index
   // Presence flags (Overpass/OpenStreetMap-sourced, computed from this
   // city's exact coordinates - see lib/data-sources/overpass.ts). Null,
@@ -460,6 +460,19 @@ export interface CityExploreData {
   sectionScores: SectionScores;
   piltriScore: number; // 0-100 weighted average
   lastUpdated: string; // ISO date
+  /** World rank among every city in the dataset (1 = best), overall (at
+   *  the default weighting) and per section - precomputed by the offline
+   *  pipeline, which is the only place every city's score is known at once. */
+  ranks?: CityRanks;
+}
+
+export interface CityRanks {
+  piltri: number;
+  economy: number;
+  safetyStability: number;
+  climate: number;
+  liveability: number;
+  outOf: number;
 }
 
 /** Point-to-point directions in Pin mode (see MapView's route effect and

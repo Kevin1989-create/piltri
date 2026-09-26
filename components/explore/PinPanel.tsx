@@ -96,7 +96,9 @@ export function PinPanel({
           {ROWS.map((row) => {
             const place = data ? row.getPlace(data) : null;
             const canRoute = data != null && place?.lat != null && place?.lng != null;
-            const minutesText = data == null ? "···" : place?.minutes != null ? `${place.minutes} min` : "N/A";
+            // "~" + distance-based estimate: travel times come from straight-
+            // line distance, not a routing engine (see lib/dataset/pin.ts).
+            const minutesText = data == null ? "···" : place?.minutes != null ? `~${place.minutes} min` : "N/A";
             return (
               <div key={row.label} className="min-w-0">
                 <dt className="text-[9px] font-semibold uppercase tracking-wide text-ink-600 leading-tight">{row.label}</dt>
@@ -141,9 +143,12 @@ export function PinPanel({
                 >
                   → {destination.label ?? "Second pin"}
                 </p>
-                <p className="text-[10px] font-semibold text-piltri-amber tabular-nums text-center leading-tight">
+                <p
+                  className="text-[10px] font-semibold text-piltri-amber tabular-nums text-center leading-tight"
+                  title="Estimated from straight-line distance (no live routing) - roughly 40 km/h driving, 5 km/h walking"
+                >
                   {routeInfo
-                    ? `${routeInfo.car.minutes} min driving / ${routeInfo.walkingMinutes != null ? `${routeInfo.walkingMinutes} min walking` : "walking n/a"}`
+                    ? `~${routeInfo.car.minutes} min driving / ${routeInfo.walkingMinutes != null ? `~${routeInfo.walkingMinutes} min walking` : "walking n/a"}`
                     : "Calculating…"}
                 </p>
                 <button

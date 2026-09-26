@@ -126,18 +126,15 @@ function ReportContent() {
                   label="Population"
                   value={data.demographics.cityPopulation != null ? data.demographics.cityPopulation.toLocaleString() : "Not available"}
                 />
-                <ReportStat
-                  label="Land area"
-                  value={data.demographics.cityAreaKm2 != null ? formatAreaKm2(data.demographics.cityAreaKm2, prefs) : "Not available"}
-                />
-                <ReportStat
-                  label="Population density"
-                  value={
-                    data.demographics.cityPopulationDensityPerKm2 != null
-                      ? formatDensityPerKm2(data.demographics.cityPopulationDensityPerKm2, prefs, (n) => Math.round(n).toLocaleString())
-                      : "Not available"
-                  }
-                />
+                {data.demographics.cityAreaKm2 != null && (
+                  <ReportStat label="Land area" value={formatAreaKm2(data.demographics.cityAreaKm2, prefs)} />
+                )}
+                {data.demographics.cityPopulationDensityPerKm2 != null && (
+                  <ReportStat
+                    label="Population density"
+                    value={formatDensityPerKm2(data.demographics.cityPopulationDensityPerKm2, prefs, (n) => Math.round(n).toLocaleString())}
+                  />
+                )}
               </div>
 
               <p className="font-serif text-base text-piltri-amber-dark mb-1.5 mt-4">{data.country}</p>

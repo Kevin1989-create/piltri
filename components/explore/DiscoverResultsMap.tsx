@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { scoreColor } from "@/lib/design-tokens";
+import { autoCollapseAttribution } from "@/lib/mapAttribution";
+
+/** OpenFreeMap's minimal "positron" style (free, keyless) - the closest
+ *  match to the plain Mapbox Light style this used, which suits an
+ *  overview of up to 50 markers better than a busy POI-rich style. */
+const OVERVIEW_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 
 export interface MapPoint {
   key: string;
@@ -50,42 +56,27 @@ function createScoreMarkerElement(score: number): HTMLDivElement {
  *  with a second, unrelated responsibility. */
 export function DiscoverResultsMap({ points }: DiscoverResultsMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const markersRef = useRef<maplibregl.Marker[]>([]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-    if (!token) {
-      console.warn("NEXT_PUBLIC_MAPBOX_TOKEN is not set — map will not render.");
-      return;
-    }
-    mapboxgl.accessToken = token;
-
-    const map = new mapboxgl.Map({
+    const map = new maplibregl.Map({
       container: containerRef.current,
-      style: "mapbox://styles/mapbox/light-v11",
+      style: OVERVIEW_STYLE_URL,
       center: [0, 20],
       zoom: 1.5,
+      attributionControl: { compact: true },
     });
-    map.addControl(new mapboxgl.NavigationControl(), "top-right");
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
+    autoCollapseAttribution(map);
     mapRef.current = map;
 
-    // light-v11 is monochrome by default (grey land, near-white water) - a
-    // deliberate choice for the single-pin Pin mode map, but too flat for
-    // this world-view overview. Recolour water to a soft blue (matching the
-    // site's warm, muted palette rather than a saturated "map app" blue) so
-    // oceans/lakes read as water at a glance, without switching to a busier
-    // style (streets-v12's POI icons/labels would be noisy at world-zoom
-    // with up to 50 markers already on screen).
-    //
-    // Matched by each layer's underlying vector-tile `source-layer`
-    // ("water"/"waterway" in the Mapbox Streets tileset every base style is
-    // built on) rather than a specific layer id — a fixed id like "water"
-    // is not guaranteed to exist under that exact name in every style
-    // revision, whereas the source-layer naming is the stable, documented
-    // part of the schema.
+    // Positron is near-monochrome - recolour water to a soft blue (the
+    // site's muted palette) so oceans/lakes read as water at world zoom.
+    // Matched by `source-layer` ("water"/"waterway" in the OpenMapTiles
+    // schema OpenFreeMap uses) rather than a style-specific layer id.
     function recolourWater() {
       const layers = map.getStyle()?.layers ?? [];
       for (const layer of layers) {
@@ -120,18 +111,18 @@ export function DiscoverResultsMap({ points }: DiscoverResultsMapProps) {
 
       if (points.length === 0) return;
 
-      const bounds = new mapboxgl.LngLatBounds();
+      const bounds = new maplibregl.LngLatBounds();
       for (const point of points) {
         const el = createScoreMarkerElement(point.piltriScore);
         el.addEventListener("click", () => window.open(point.detailHref, "_blank", "noopener,noreferrer"));
 
-        const popup = new mapboxgl.Popup({ offset: 18, closeButton: false }).setHTML(
+        const popup = new maplibregl.Popup({ offset: 18, closeButton: false }).setHTML(
           `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;font-size:12px;">
             <strong>${escapeHtml(point.name)}</strong><br/>Piltri Score: ${Math.round(point.piltriScore)}
           </div>`
         );
 
-        const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
+        const marker = new maplibregl.Marker({ element: el, anchor: "center" })
           .setLngLat([point.lng, point.lat])
           .setPopup(popup)
           .addTo(map!);

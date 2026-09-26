@@ -25,12 +25,14 @@ interface SectionRowProps {
    *  scroll the clicked button into view via `e.currentTarget` when opening
    *  it - see SectionColumn's `autoScrollOnOpen`. */
   onToggle: (e: MouseEvent<HTMLButtonElement>) => void;
+  /** World rank for this section (shown on hover over the score). */
+  rank?: { position: number; outOf: number };
 }
 
 /** One row in the vertical section column: icon + name + score + chevron.
  *  Narrower than the old horizontal SectionCard — designed to stack 5-deep
  *  in a floating left column over the map. */
-export function SectionRow({ sectionKey, score, isOpen, compact = false, onToggle }: SectionRowProps) {
+export function SectionRow({ sectionKey, score, isOpen, compact = false, onToggle, rank }: SectionRowProps) {
   const Icon = SECTION_ICONS[sectionKey];
   return (
     <button
@@ -46,7 +48,9 @@ export function SectionRow({ sectionKey, score, isOpen, compact = false, onToggl
       <span className={cn("text-ink-900 flex-1 truncate", compact ? "text-xs" : "text-sm")}>
         {SECTION_LABELS[sectionKey]}
       </span>
-      <ScoreBadge score={score} size="sm" />
+      <span title={rank ? `#${rank.position.toLocaleString()} of ${rank.outOf.toLocaleString()} cities for ${SECTION_LABELS[sectionKey]}` : undefined}>
+        <ScoreBadge score={score} size="sm" />
+      </span>
       {!compact && (
         <ChevronDown
           className={cn("w-3.5 h-3.5 text-ink-500 transition-transform flex-shrink-0", isOpen && "rotate-180")}

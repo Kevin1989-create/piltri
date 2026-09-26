@@ -9,3 +9,7 @@ node_modules
 # Unrelated files that ended up in this project folder - not part of Piltri,
 # never intended to be pushed to this repo.
 MPF-training-update*.zip
+
+# Offline data pipeline cache (downloads + intermediate files, ~2 GB) - normally
+# lives outside the repo (~/.piltri-pipeline-cache); this covers CI runs.
+.pipeline-cache/

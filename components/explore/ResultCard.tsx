@@ -78,17 +78,10 @@ function CityPhoto({ result }: { result: DisplayResult }) {
   return <StaticMapFallback result={result} />;
 }
 
-/** Guarantees every city card shows an actual picture rather than the plain
- *  placeholder glyph — Wikipedia has no page (or no lead image) for plenty
- *  of smaller cities, but every result always has coordinates, so a small
- *  Mapbox static map centred on the city fills that gap reliably. Uses the
- *  same public token already loaded for the results map view. */
-function StaticMapFallback({ result }: { result: DisplayResult }) {
-  const [failed, setFailed] = useState(false);
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-  if (failed || !token) return <PlaceholderGlyph />;
-  const src = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${result.lng},${result.lat},11,0/300x225@2x?access_token=${token}`;
-  return <img src={src} alt={result.name} className="w-full h-full object-cover" loading="lazy" onError={() => setFailed(true)} />;
+/** No Wikipedia photo for this city - show the neutral placeholder (this
+ *  used to be a Mapbox static map image, a keyed per-card API call). */
+function StaticMapFallback(_props: { result: DisplayResult }) {
+  return <PlaceholderGlyph />;
 }
 
 function PlaceholderGlyph() {

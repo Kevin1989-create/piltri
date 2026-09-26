@@ -126,6 +126,7 @@ export function SectionColumn({
               isOpen={isOpen}
               compact={!externalDetail && isOtherRow}
               onToggle={(e) => toggle(key, e)}
+              rank={data.ranks ? { position: data.ranks[key], outOf: data.ranks.outOf } : undefined}
             />
             {!externalDetail && isOpen && <SectionDetail section={key} data={data} />}
           </div>

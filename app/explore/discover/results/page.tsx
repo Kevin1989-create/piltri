@@ -5,7 +5,13 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { ResultCard, type DisplayResult } from "@/components/explore/ResultCard";
-import { DiscoverResultsMap, type MapPoint } from "@/components/explore/DiscoverResultsMap";
+import dynamic from "next/dynamic";
+import type { MapPoint } from "@/components/explore/DiscoverResultsMap";
+
+const DiscoverResultsMap = dynamic(() => import("@/components/explore/DiscoverResultsMap").then((m) => m.DiscoverResultsMap), {
+  ssr: false,
+  loading: () => <div className="w-full h-full rounded-card bg-surface-muted" />,
+});
 import { SECTION_LABELS, type AdvancedSearchResponse, type SectionKey } from "@/lib/types";
 import { cn } from "@/lib/cn";
 

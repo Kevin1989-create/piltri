@@ -6,7 +6,14 @@ import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { DiscoverIcon } from "@/components/ui/icons";
-import { MapView } from "@/components/explore/MapView";
+import dynamic from "next/dynamic";
+
+// Loaded separately (client-only), so the score panel renders without
+// waiting for the map library's bundle to download and parse.
+const MapView = dynamic(() => import("@/components/explore/MapView").then((m) => m.MapView), {
+  ssr: false,
+  loading: () => <div className="w-full h-full bg-surface-muted" />,
+});
 import { CityHeader } from "@/components/explore/CityHeader";
 import { SectionColumn, type OpenSectionKey } from "@/components/explore/SectionColumn";
 import { SectionDetailPanel } from "@/components/explore/SectionDetailPanel";
@@ -356,6 +363,7 @@ function ResultsContent() {
                   compareHref={compareHref}
                   reportHref={reportHref}
                   weights={weights}
+                  rank={data.ranks ? { position: data.ranks.piltri, outOf: data.ranks.outOf } : undefined}
                 />
                 <SectionColumn
                   data={data}

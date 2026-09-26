@@ -1,11 +1,30 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
-import type { PlaceBoundary } from "@/lib/data-sources/nominatim";
-import { drivingRoute, reverseGeocodePoi, travelMinutes } from "@/lib/data-sources/mapbox";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { autoCollapseAttribution } from "@/lib/mapAttribution";
 import type { TravelTimes } from "@/lib/types";
+
+/** OpenFreeMap: free OpenStreetMap vector tiles, no API key, no usage
+ *  limits (https://openfreemap.org). "liberty" is the richer style with POI
+ *  icons, the closest match to the Mapbox Streets style this replaced. */
+export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+
+/** Straight-line travel estimates - there's no routing engine by design
+ *  (no live API calls), so these are clearly-labelled approximations:
+ *  ~40 km/h door-to-door by car (city driving incl. stops), 5 km/h walking,
+ *  on a distance inflated by 1.3 for real roads not running straight. */
+const ROAD_DETOUR_FACTOR = 1.3;
+const CAR_KMH = 40;
+const WALK_KMH = 5;
+
+function straightLineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
 
 interface MapViewProps {
   lat: number;
@@ -207,9 +226,9 @@ export function MapView({
   compact = false,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markerRef = useRef<mapboxgl.Marker | null>(null);
-  const destMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const markerRef = useRef<maplibregl.Marker | null>(null);
+  const destMarkerRef = useRef<maplibregl.Marker | null>(null);
   // Whether a route was actually drawn on the last pass through the route
   // effect below - lets it tell "destination just got cleared" apart from
   // "no destination has ever been set yet" so it only flies back to the pin
@@ -218,7 +237,7 @@ export function MapView({
   const mapLoadedRef = useRef(false);
   // Camera position from just before a pin was dropped, so closing the pin
   // can fly back to the same view rather than staying zoomed in on it.
-  const preDropCameraRef = useRef<{ center: mapboxgl.LngLat; zoom: number } | null>(null);
+  const preDropCameraRef = useRef<{ center: maplibregl.LngLat; zoom: number } | null>(null);
   // The map's own click listener is registered once, in the mount-only
   // effect below, so it can't close over fresh props on every render - kept
   // up to date via this ref instead (updated by its own effect further
@@ -239,22 +258,19 @@ export function MapView({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-    if (!token) {
-      console.warn("NEXT_PUBLIC_MAPBOX_TOKEN is not set — map will not render.");
-      return;
-    }
-    mapboxgl.accessToken = token;
-
-    const map = new mapboxgl.Map({
+    const map = new maplibregl.Map({
       container: containerRef.current,
-      style: "mapbox://styles/mapbox/streets-v12", // trial: richer style with POI icons (was light-v11, the minimal "design spec" style)
+      style: MAP_STYLE_URL,
       center: [lng, lat],
       zoom,
       attributionControl: false,
     });
 
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    // OpenStreetMap's licence requires visible attribution - compact (an
+    // "i" button) keeps it out of the way.
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+    autoCollapseAttribution(map);
 
     // Shared by both click branches below (main pin and destination pin) -
     // resolves whatever labelled map feature (if any) sits at/near a click,
@@ -263,7 +279,7 @@ export function MapView({
     // ran for the destination/second-pin branch; the main pin got no
     // snapping or name resolution at all, which is what this unifies.
     async function resolveClickedFeature(
-      e: mapboxgl.MapMouseEvent
+      e: maplibregl.MapMouseEvent
     ): Promise<{ point: { lat: number; lng: number }; name: string | null }> {
       const clickPoint = { lat: e.lngLat.lat, lng: e.lngLat.lng };
 
@@ -288,7 +304,7 @@ export function MapView({
       if (mapLoadedRef.current) {
         try {
           const HIT_TOLERANCE_PX = 8;
-          const hitBox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
+          const hitBox: [maplibregl.PointLike, maplibregl.PointLike] = [
             [e.point.x - HIT_TOLERANCE_PX, e.point.y - HIT_TOLERANCE_PX],
             [e.point.x + HIT_TOLERANCE_PX, e.point.y + HIT_TOLERANCE_PX],
           ];
@@ -308,34 +324,9 @@ export function MapView({
         }
       }
 
-      // Attempt 2 (fallback): reverse-geocode the click. queryRenderedFeatures
-      // only sees labels Mapbox's own collision/decluttering logic actually
-      // chose to draw at the current zoom - a real POI can exist right at
-      // the click point with its label hidden because it overlapped a
-      // neighbour, which attempt 1 would miss entirely. Reverse geocoding
-      // looks up the underlying place data directly, not the rendered
-      // screen, so it isn't subject to that. A reverse geocode always
-      // returns *something* even when nothing is truly close, so the match
-      // is only accepted within 150m of the actual click - otherwise this
-      // falls through to the plain-coordinates case rather than mislabelling
-      // the spot with an unrelated, far-off POI.
-      try {
-        const poi = await reverseGeocodePoi(clickPoint.lat, clickPoint.lng);
-        if (poi) {
-          const dLat = ((poi.lat - clickPoint.lat) * Math.PI) / 180;
-          const dLng = ((poi.lng - clickPoint.lng) * Math.PI) / 180;
-          const a =
-            Math.sin(dLat / 2) ** 2 +
-            Math.cos((clickPoint.lat * Math.PI) / 180) * Math.cos((poi.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-          const distanceM = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          if (distanceM <= 150) {
-            return { point: { lat: poi.lat, lng: poi.lng }, name: poi.name };
-          }
-        }
-      } catch {
-        // fall through to the plain click below
-      }
-
+      // No reverse-geocoding fallback (that was a live Mapbox call): a click
+      // that doesn't land on a rendered label just keeps its raw
+      // coordinates, and PinPanel names the spot from the nearest town.
       return { point: clickPoint, name: null };
     }
 
@@ -408,7 +399,7 @@ export function MapView({
         type: "line",
         source: ROUTE_SOURCE_ID,
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#BA7517", "line-width": 4, "line-opacity": 0.85 },
+        paint: { "line-color": "#BA7517", "line-width": 3, "line-opacity": 0.85, "line-dasharray": [2, 1.5] },
       });
     });
 
@@ -448,72 +439,37 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Recentre and redraw the researched-area outline whenever the searched
-  // place changes. Prefers the place's real boundary (Nominatim); falls
-  // back to a fixed-radius circle if no boundary was found.
+  // Recentre and redraw the researched area whenever the searched place
+  // changes: a 5 km circle - exactly the radius the dataset's amenity counts
+  // (restaurants, parks, schools, stations...) are measured within, so the
+  // outline shows precisely what was counted. Replaces a live Nominatim
+  // boundary lookup.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     let cancelled = false;
 
-    function applyFallbackCircle() {
+    function applyArea() {
       if (!map || cancelled) return;
-      const source = map.getSource(AREA_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
-      source?.setData(circlePolygon(lat, lng, FALLBACK_RADIUS_KM) as any);
-      // Shift the point of interest right on screen (rather than dead
-      // centre) so it isn't sitting behind the floating left column. Biased
-      // toward the column's *expanded* width (620px), not just its 320px
-      // collapsed width, so opening a section never has to re-centre the
-      // map underneath it — the researched area already sits clear of
-      // where the panel will grow into. Nudged a little further right still
-      // on top of that, on request. Compact mode has no floating column to
-      // dodge (it's below the map, not over it), so it centres normally.
-      map.flyTo({ center: [lng, lat], zoom, offset: compact ? [0, 0] : [325, 0] });
-    }
-
-    async function applyBoundary() {
-      try {
-        const res = await fetch(`/api/explore/boundary?q=${encodeURIComponent(boundaryQuery)}`);
-        const body: { geometry: GeoJSON.Geometry | null; bbox: PlaceBoundary["bbox"] | null } = await res.json();
-        if (cancelled || !map) return;
-
-        if (!body.geometry || !body.bbox) {
-          applyFallbackCircle();
-          return;
-        }
-
-        const source = map.getSource(AREA_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
-        source?.setData({ type: "Feature", geometry: body.geometry, properties: {} } as any);
-
-        const [west, south, east, north] = body.bbox;
-        map.fitBounds(
-          [
-            [west, south],
-            [east, north],
-          ],
-          // Asymmetric padding — extra room on the left accounts for the
-          // floating column, so the researched area gets fitted into the
-          // space actually visible to the right of it, rather than centred
-          // under it. Sized to the column's *expanded* width (620px + 16px
-          // inset + a little breathing room), not just its 320px collapsed
-          // width, so expanding a section never needs its own re-centre.
-          // Nudged a little further still on request. Compact mode has no
-          // floating column (it's below the map on mobile), so it uses
-          // small, symmetric padding instead.
-          compact
-            ? { padding: 40, duration: 800 }
-            : { padding: { top: 60, bottom: 60, left: 700, right: 60 }, duration: 800 }
-        );
-      } catch {
-        applyFallbackCircle();
-      }
+      const source = map.getSource(AREA_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+      const circle = circlePolygon(lat, lng, FALLBACK_RADIUS_KM);
+      source?.setData(circle as any);
+      const bounds = new maplibregl.LngLatBounds();
+      for (const coord of (circle.geometry as GeoJSON.Polygon).coordinates[0]) bounds.extend(coord as [number, number]);
+      // Asymmetric padding keeps the area clear of the floating left column
+      // (sized to its expanded width); compact (mobile) layout has no
+      // floating column, so it uses small symmetric padding.
+      map.fitBounds(
+        bounds,
+        compact ? { padding: 40, duration: 800 } : { padding: { top: 60, bottom: 60, left: 700, right: 60 }, duration: 800 }
+      );
     }
 
     if (mapLoadedRef.current) {
-      applyBoundary();
+      applyArea();
     } else {
-      map.once("load", applyBoundary);
+      map.once("load", applyArea);
     }
 
     return () => {
@@ -535,7 +491,7 @@ export function MapView({
     }
 
     if (pinnedCoords) {
-      const marker = new mapboxgl.Marker({ element: createPinElement("#BA7517"), anchor: "bottom" }).setLngLat([
+      const marker = new maplibregl.Marker({ element: createPinElement("#BA7517"), anchor: "bottom" }).setLngLat([
         pinnedCoords.lng,
         pinnedCoords.lat,
       ]);
@@ -546,7 +502,7 @@ export function MapView({
       // every ordinary click.
       if (pinnedCoords.label) {
         marker.setPopup(
-          new mapboxgl.Popup({ offset: 24, closeButton: false, closeOnClick: false }).setHTML(popupHtml(pinnedCoords.label, ""))
+          new maplibregl.Popup({ offset: 24, closeButton: false, closeOnClick: false }).setHTML(popupHtml(pinnedCoords.label, ""))
         );
       }
       marker.addTo(map);
@@ -589,10 +545,10 @@ export function MapView({
       // click that snapped to a labelled feature. Without this, a plain
       // marker on the map gave no obvious confirmation of *what* had just
       // been selected.
-      destMarkerRef.current = new mapboxgl.Marker({ element: createPinElement("#3B6E8F"), anchor: "bottom" })
+      destMarkerRef.current = new maplibregl.Marker({ element: createPinElement("#3B6E8F"), anchor: "bottom" })
         .setLngLat([destinationCoords.lng, destinationCoords.lat])
         .setPopup(
-          new mapboxgl.Popup({ offset: 24, closeButton: false, closeOnClick: false }).setHTML(
+          new maplibregl.Popup({ offset: 24, closeButton: false, closeOnClick: false }).setHTML(
             popupHtml(destinationCoords.label, "Second pin")
           )
         )
@@ -603,7 +559,7 @@ export function MapView({
     let cancelled = false;
 
     function clearRoute() {
-      const source = map?.getSource(ROUTE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+      const source = map?.getSource(ROUTE_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
       source?.setData({ type: "FeatureCollection", features: [] } as any);
       onRouteInfo?.(null);
     }
@@ -623,45 +579,24 @@ export function MapView({
         hadRouteRef.current = false;
         return;
       }
-      const route = await drivingRoute(pinnedCoords, destinationCoords).catch(() => null);
       if (cancelled || !map) return;
-      if (!route) {
-        clearRoute();
-        hadRouteRef.current = false;
-        return;
-      }
-      const source = map.getSource(ROUTE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
-      source?.setData({ type: "Feature", geometry: route.geometry, properties: {} } as any);
-      // Car is the primary route (drawn on the map, above) and reported
-      // immediately; walking is a duration-only lookup (no second line
-      // drawn - would clutter the map for what's just a supplementary
-      // figure in PinPanel) fetched alongside it rather than blocking the
-      // car time on it. There's no public-transport figure to fetch at all
-      // - Mapbox's free Directions API has no transit profile - PinPanel
-      // discloses that honestly instead of this pretending to have it.
-      onRouteInfo?.({ car: { minutes: route.minutes, km: route.km }, walkingMinutes: null });
+      // Straight dashed line + estimated times (no routing engine - see
+      // ROAD_DETOUR_FACTOR's comment); PinPanel labels these as estimates.
+      const coordinates: [number, number][] = [
+        [pinnedCoords.lng, pinnedCoords.lat],
+        [destinationCoords.lng, destinationCoords.lat],
+      ];
+      const source = map.getSource(ROUTE_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+      source?.setData({ type: "Feature", geometry: { type: "LineString", coordinates }, properties: {} } as any);
+      const roadKm = straightLineKm(pinnedCoords, destinationCoords) * ROAD_DETOUR_FACTOR;
+      onRouteInfo?.({
+        car: { minutes: Math.max(1, Math.round((roadKm / CAR_KMH) * 60)), km: Number(roadKm.toFixed(1)) },
+        walkingMinutes: Math.max(1, Math.round((roadKm / WALK_KMH) * 60)),
+      });
       hadRouteRef.current = true;
-      travelMinutes(pinnedCoords, destinationCoords, "walking")
-        .catch(() => null)
-        .then((walkingMinutes) => {
-          if (cancelled) return;
-          onRouteInfo?.({ car: { minutes: route.minutes, km: route.km }, walkingMinutes });
-        });
 
-      // Bug: this used to only extend the bounds to the two endpoints
-      // (origin + destination), not the actual route line between them. A
-      // real driving route almost never travels in a straight line (it
-      // follows roads, goes around obstacles, etc.), so the drawn line
-      // could bow outside those two-point bounds entirely and end up
-      // clipped off-screen or hidden behind a panel even with generous
-      // padding - fitBounds had no idea the route deviated that far.
-      // Extending on every coordinate in the route geometry fixes this: the
-      // fitted view now always contains the whole visible line, not just
-      // its start and end.
-      const bounds = new mapboxgl.LngLatBounds();
-      for (const coord of route.geometry.coordinates) {
-        bounds.extend(coord as [number, number]);
-      }
+      const bounds = new maplibregl.LngLatBounds();
+      for (const coord of coordinates) bounds.extend(coord);
       // Padding clears both floating UI elements the route could otherwise
       // end up hidden behind: left accounts for the fixed 320px+16px left
       // column, bottom adds the PinPanel bar's own live-measured height

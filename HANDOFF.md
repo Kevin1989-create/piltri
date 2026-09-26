@@ -4,6 +4,79 @@ This file exists so a new Claude Code session in this folder has full context
 without re-deriving it. Read this first, then check `README.md`,
 `DEPLOYMENT.md`, and `KNOWN-ISSUES.md` for more detail on specific areas.
 
+## ⚠️ CURRENT ARCHITECTURE (2026-09-25 rebuild) - read this before anything below
+
+**The site no longer calls any third-party data API at request time.**
+Everything below this section that describes live aggregation (Overpass,
+Open-Meteo, World Bank per-city calls, Wikidata, Nominatim, Mapbox,
+`city_scores` cache, warm-cache cron, the 3 backfills, "clear the cache
+after every deploy") is **historical** - that code was deleted.
+
+How it works now:
+- **Offline pipeline** (`pipeline/`, see `pipeline/README.md`) downloads
+  free bulk datasets (GeoNames, World Bank, WHO, WorldClim rasters,
+  Overture Maps places via DuckDB, Natural Earth coastline, USGS
+  earthquakes), computes every field for all ~66,300 shortlisted cities +
+  245 countries, and publishes static gzipped JSON to the public Supabase
+  Storage bucket `piltri-data` (`manifest.json` + versioned files).
+  `npm run pipeline`. Runs monthly via
+  `.github/workflows/refresh-dataset.yml` (needs repo secrets
+  `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`).
+- **Site** reads that dataset (`lib/dataset/load.ts`): a results page is
+  countries.json + one per-country shard (both cached in memory + at the
+  edge), assembled into the unchanged `CityExploreData` shape by
+  `lib/dataset/assemble.ts` (which also holds the score maths).
+  Advanced Search filters all 66k cities in memory (no "not cached yet").
+  Search = in-memory over the bundled shortlist. Pin mode = published POI
+  tiles (`lib/dataset/pin.ts`). Map = MapLibre + OpenFreeMap tiles (free,
+  no key). Pin-mode directions are straight-line estimates (no routing
+  engine). Area outline = the 5 km circle the amenity counts use.
+- **No cache to clear, ever.** Publishing a dataset flips `manifest.json`;
+  instances pick it up within 5 minutes.
+- **Adding a field**: see "Adding a field" in `pipeline/README.md`.
+- Mapbox is gone entirely - `NEXT_PUBLIC_MAPBOX_TOKEN`, `CRON_SECRET` and
+  `CACHE_TTL_DAYS` are no longer used. The Supabase DB is now only used for
+  Resources links and saved pins; `city_scores` / `cities` tables are unused
+  (safe to drop).
+
+### Data decisions and known gaps (2026-09-26, first full dataset)
+
+- **Amenities are absolute counts within 5 km** of the city centre
+  (Restaurants, bars & cafés / Parks / Cultural venues / Family
+  activities), not per-10k-residents - per-capita exploded for small towns
+  inside big metros. Scored on a log scale (`countScore` + `COUNT_CAPS` in
+  `lib/dataset/assemble.ts`, caps ~95th percentile of 100k+ cities).
+- **Beach** = nearest of Natural Earth coastline and GeoNames beaches.
+  Overture's beach category was too noisy (London showed 0.2 km).
+- **Mountain** = GeoNames peak of 1,000 m+ that also rises 500 m+ above the
+  city (Denver's plateau bumps no longer count). Pin mode applies the same
+  rule using the nearest city's elevation.
+- **Pin-mode train stations** come from GeoNames only (names are shown);
+  Overture's train_station category includes kiosks/ticket machines. City
+  presence flags use both sources.
+- **"Metro / light rail"** (was "Subway"): Overture merges the two.
+- **Tramway = unknown (null)** everywhere: neither source covers trams
+  reliably (Overture had 62 cities worldwide). Row hidden, filter removed.
+- **PM2.5 and UV index dropped** (null): no free bulk global source wired in
+  yet. Candidates: CAMS reanalysis / van Donkelaar PM2.5 rasters, NASA
+  POWER UV - would be new `pipeline/` steps. Their Advanced Search filters
+  were removed.
+- **City land area / density** omitted (no reliable free city boundaries);
+  rows hide when null.
+- **Sunshine hours** are estimated from WorldClim solar radiation (FAO-56
+  Angström-Prescott, ×1.1 calibration); **snowfall** from precipitation in
+  sub-3 °C months. Both are labelled estimates in the UI hints.
+- **World ranks** (#X of 66,295) are computed in the pipeline with default
+  weights and shown under the Piltri score and on section-title tooltips.
+- **Score API** looks a city up by `cityId` first, then nearest city in
+  the country shard (for old links with approximate coordinates).
+- **MapLibre is pinned to v4** (`maplibre-gl@^4.7.1`): v5+ ships an ESM
+  worker Next 14's webpack can't resolve ("Worker failed to load").
+- **Licences**: WHO GHO data is CC BY-NC-SA - fine for a non-commercial
+  site; revisit if Piltri ever monetises. Everything else is CC BY /
+  CDLA-Permissive / public domain (attributions in the manifest `sources`,
+  shown on /admin).
+
 ## What Piltri is
 
 A Next.js app for comparing cities and countries on a weighted "Piltri

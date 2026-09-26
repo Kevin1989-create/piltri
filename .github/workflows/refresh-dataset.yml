@@ -1,0 +1,38 @@
+# Rebuilds Piltri's precomputed dataset from free bulk sources and publishes
+# it to Supabase Storage - the site picks up the new version within ~5
+# minutes, no redeploy needed. See pipeline/README.md.
+#
+# One-time setup: add two repository secrets (GitHub -> Settings -> Secrets
+# and variables -> Actions): NEXT_PUBLIC_SUPABASE_URL and
+# SUPABASE_SERVICE_ROLE_KEY (same values as .env.local).
+name: Refresh dataset
+
+on:
+  schedule:
+    - cron: "0 3 2 * *" # monthly, 03:00 UTC on the 2nd
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PIPELINE_CACHE_DIR: ${{ github.workspace }}/.pipeline-cache
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # WorldClim climate normals never change between runs - cache the
+      # ~1.3 GB of rasters rather than re-downloading them monthly.
+      # Everything else (World Bank, WHO, GeoNames, USGS, Overture) is
+      # fetched fresh every run.
+      - uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.pipeline-cache/raw/wc2.1_*
+          key: worldclim-2.1-2.5m
+      - run: npm run pipeline

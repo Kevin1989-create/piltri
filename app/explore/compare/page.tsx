@@ -141,6 +141,7 @@ function CompareContent() {
                       country={slot.data.country}
                       piltriScore={slot.data.piltriScore}
                       demographics={slot.data.demographics}
+                      rank={slot.data.ranks ? { position: slot.data.ranks.piltri, outOf: slot.data.ranks.outOf } : undefined}
                     />
                     <SectionColumn data={slot.data} />
                   </>
