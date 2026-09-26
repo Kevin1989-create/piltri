@@ -23,6 +23,8 @@ jobs:
     timeout-minutes: 330
     env:
       PIPELINE_CACHE_DIR: ${{ github.workspace }}/.pipeline-cache
+      # Parallel downloads for the Overture extracts (S3 throughput is per connection).
+      OVERTURE_WORKERS: "4"
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
