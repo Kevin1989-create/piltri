@@ -238,6 +238,9 @@ export interface CityExploreData {
   liveability: LiveabilityFields;
 
   sectionScores: SectionScores;
+  /** Sections with no figures at all for this place - shown as "No data";
+   *  their score is a neutral 50 so the overall score isn't skewed. */
+  sectionsWithoutData: SectionKey[];
   piltriScore: number; // 0-100 weighted average
   lastUpdated: string; // ISO date the dataset was built
   /** World rank among every city in the dataset (1 = best), overall at the

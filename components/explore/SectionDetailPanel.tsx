@@ -28,7 +28,7 @@ export function SectionDetailPanel({ section, data }: SectionDetailPanelProps) {
         <div className="px-4 py-3 flex items-center gap-2.5 border-b border-surface-border sticky top-0 bg-surface/95 backdrop-blur">
           <Icon className="w-4 h-4 text-ink-700 flex-shrink-0" />
           <span className="text-sm font-medium text-ink-900 flex-1 truncate">{SECTION_LABELS[section]}</span>
-          <ScoreBadge score={data.sectionScores[section]} size="sm" />
+          <ScoreBadge score={data.sectionsWithoutData.includes(section) ? null : data.sectionScores[section]} size="sm" />
         </div>
         <SectionDetail section={section} data={data} bordered={false} />
       </div>

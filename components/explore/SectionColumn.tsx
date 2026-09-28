@@ -122,7 +122,7 @@ export function SectionColumn({
           <div key={key}>
             <SectionRow
               sectionKey={key}
-              score={data.sectionScores[key]}
+              score={data.sectionsWithoutData.includes(key) ? null : data.sectionScores[key]}
               isOpen={isOpen}
               compact={!externalDetail && isOtherRow}
               onToggle={(e) => toggle(key, e)}

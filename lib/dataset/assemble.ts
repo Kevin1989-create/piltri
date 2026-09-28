@@ -1,6 +1,6 @@
 import { getDaylightRange } from "@/lib/data-sources/daylight";
 import { averageScores, computePiltriScore, normalise } from "@/lib/aggregation/scoring";
-import type { CityExploreData, SectionScores } from "@/lib/types";
+import type { CityExploreData, SectionKey, SectionScores } from "@/lib/types";
 import type { CityRecord, CountryRecord } from "./schema";
 
 /** Reference ranges that normalise raw metrics onto 0-100 for the section
@@ -48,9 +48,8 @@ function exposure(
   return "Low";
 }
 
-/** Section scores. Missing inputs are left out of a section's average
- *  (averageScores skips nulls) rather than counted as zero. */
-export function computeSectionScores(data: CityExploreData, gniPerCapitaUsd: number | null): SectionScores {
+/** Each section's 0-100 sub-scores, null where the input is missing. */
+function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): Record<SectionKey, (number | null)[]> {
   const e = data.economy;
   const s = data.safetyStability;
   const c = data.climate;
@@ -60,26 +59,26 @@ export function computeSectionScores(data: CityExploreData, gniPerCapitaUsd: num
   const orNull = (v: number | null, f: (n: number) => number) => (v == null ? null : f(v));
 
   return {
-    economy: averageScores([
+    economy: [
       orNull(e.economicGrowth5yrGdpPct, (v) => normalise(v, RANGES.gdpGrowth.min, RANGES.gdpGrowth.max)),
       orNull(e.unemploymentRatePct, (v) => normalise(v, RANGES.unemployment.min, RANGES.unemployment.max, true)),
       orNull(gniPerCapitaUsd, (v) => normalise(v, RANGES.salary.min, RANGES.salary.max)),
       orNull(e.costOfLivingIndex, (v) => 100 - v),
       e.purchasingPowerIndex,
-    ]),
-    safetyStability: averageScores([
+    ],
+    safetyStability: [
       s.politicalStabilityScore,
       s.ruleOfLawScore,
       orNull(s.homicideRatePer100k, (v) => normalise(v, RANGES.homicideRate.min, RANGES.homicideRate.max, true)),
-    ]),
-    climate: averageScores([
+    ],
+    climate: [
       orNull(c.avgAnnualTemperatureC, (v) => normalise(Math.abs(v - 20), RANGES.temperatureDistanceFrom20C.min, RANGES.temperatureDistanceFrom20C.max, true)),
       orNull(c.avgAnnualRainfallMm, (v) => normalise(Math.abs(v - 1000), RANGES.rainfallDistanceFromIdeal.min, RANGES.rainfallDistanceFromIdeal.max, true)),
       orNull(c.avgAnnualSunshineHrs, (v) => normalise(v, RANGES.sunshineHrs.min, RANGES.sunshineHrs.max)),
       orNull(c.avgAnnualSnowfallCm, (v) => normalise(v, RANGES.snowfallCm.min, RANGES.snowfallCm.max, true)),
       orNull(c.avgAnnualPm25, (v) => normalise(v, RANGES.pm25.min, RANGES.pm25.max, true)),
-    ]),
-    liveability: averageScores([
+    ],
+    liveability: [
       orNull(l.restaurantsBarsWithin5km, (v) => countScore(v, COUNT_CAPS.restaurantsBars)),
       orNull(l.parksWithin5km, (v) => countScore(v, COUNT_CAPS.parks)),
       orNull(l.culturalVenuesWithin5km, (v) => countScore(v, COUNT_CAPS.cultural)),
@@ -88,7 +87,27 @@ export function computeSectionScores(data: CityExploreData, gniPerCapitaUsd: num
       // Countries that don't sit PISA get ~the OECD average, so not
       // participating neither rewards nor penalises them.
       normalise(pisaAverage ?? 470, RANGES.pisaScore.min, RANGES.pisaScore.max),
-    ]),
+    ],
+  };
+}
+
+const SECTION_KEYS: SectionKey[] = ["economy", "safetyStability", "climate", "liveability"];
+
+/** Section scores. Missing inputs are left out of a section's average
+ *  (averageScores skips nulls) rather than counted as zero. A section with
+ *  no inputs at all scores a neutral 50 - so the overall score isn't
+ *  skewed - and is listed in `withoutData`, which the pages show as
+ *  "No data". */
+function scoreSections(data: CityExploreData, gniPerCapitaUsd: number | null): { scores: SectionScores; withoutData: SectionKey[] } {
+  const inputs = sectionInputs(data, gniPerCapitaUsd);
+  return {
+    scores: {
+      economy: averageScores(inputs.economy),
+      safetyStability: averageScores(inputs.safetyStability),
+      climate: averageScores(inputs.climate),
+      liveability: averageScores(inputs.liveability),
+    },
+    withoutData: SECTION_KEYS.filter((key) => inputs[key].every((v) => v == null)),
   };
 }
 
@@ -178,10 +197,13 @@ export function assembleCityExploreData(
       pisaScienceScore: country.pisaScienceScore,
     },
     sectionScores: { economy: 0, safetyStability: 0, climate: 0, liveability: 0 },
+    sectionsWithoutData: [],
     piltriScore: 0,
     lastUpdated: datasetGeneratedAt,
   };
-  data.sectionScores = computeSectionScores(data, country.gniPerCapitaUsd);
+  const { scores, withoutData } = scoreSections(data, country.gniPerCapitaUsd);
+  data.sectionScores = scores;
+  data.sectionsWithoutData = withoutData;
   data.piltriScore = computePiltriScore(data.sectionScores);
   if (totalCities && city.rankPiltri != null && city.rankEconomy != null && city.rankSafetyStability != null && city.rankClimate != null && city.rankLiveability != null) {
     data.ranks = {

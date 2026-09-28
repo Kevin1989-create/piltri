@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ClimateChart } from "@/components/explore/ClimateChart";
 import { KpiInfoButton } from "@/components/explore/KpiInfo";
 import { ResourcesDetail } from "@/components/explore/ResourcesDetail";
-import { buildGdpSectorRows, buildKpiRows, buildLiveabilityTransportRows, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
+import { buildGdpSectorRows, buildKpiRows, buildLiveabilityTransportRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { cn } from "@/lib/cn";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { isCustomWeights, useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
@@ -187,14 +187,18 @@ function ReportContent() {
               const countryRows = section === "economy" ? allCountryRows.slice(0, 3) : allCountryRows;
               const countryRowsAfterSectors = section === "economy" ? allCountryRows.slice(3) : [];
               const cityTierHasContent = cityRows.length > 0;
+              const noDataNote = noSectionDataNote(section, data);
               return (
                 <section key={section} className="mt-8 break-inside-avoid">
                   <div className="flex items-baseline justify-between border-b border-surface-border pb-1.5">
                     <h2 className="text-sm font-medium text-ink-900">{SECTION_LABELS[section]}</h2>
-                    <span className="text-sm font-medium text-piltri-amber tabular-nums">
-                      {Math.round(data.sectionScores[section])}
-                    </span>
+                    {noDataNote ? (
+                      <span className="text-sm font-medium text-ink-500">No data</span>
+                    ) : (
+                      <span className="text-sm font-medium text-piltri-amber tabular-nums">{Math.round(data.sectionScores[section])}</span>
+                    )}
                   </div>
+                  {noDataNote && <p className="mt-2 text-xs text-ink-500">{noDataNote}</p>}
                   {cityTierHasContent && <ReportGroup title={data.cityName} rows={cityRows} spacing="mt-3" />}
                   {section === "climate" && data.climate.monthly && (
                     <div className="mt-4">

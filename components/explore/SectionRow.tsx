@@ -8,7 +8,8 @@ import { SECTION_LABELS, type SectionKey } from "@/lib/types";
 
 interface SectionRowProps {
   sectionKey: SectionKey;
-  score: number;
+  /** null when the section has no figures for this place ("No data"). */
+  score: number | null;
   isOpen: boolean;
   /** True when a *different* section is open — renders this row as a thin,
    *  quiet line (no chevron, smaller text) instead of the full row, so the
@@ -48,7 +49,15 @@ export function SectionRow({ sectionKey, score, isOpen, compact = false, onToggl
       <span className={cn("text-ink-900 flex-1 truncate", compact ? "text-xs" : "text-sm")}>
         {SECTION_LABELS[sectionKey]}
       </span>
-      <span title={rank ? `#${rank.position.toLocaleString()} of ${rank.outOf.toLocaleString()} cities for ${SECTION_LABELS[sectionKey]}` : undefined}>
+      <span
+        title={
+          score == null
+            ? "No figures available here - a neutral 50 is used in the overall Piltri score"
+            : rank
+              ? `#${rank.position.toLocaleString()} of ${rank.outOf.toLocaleString()} cities for ${SECTION_LABELS[sectionKey]}`
+              : undefined
+        }
+      >
         <ScoreBadge score={score} size="sm" />
       </span>
       {!compact && (

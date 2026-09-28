@@ -2,7 +2,7 @@ import { COUNT_CAPS, RANGES } from "@/lib/dataset/assemble";
 import { legendOf, TIER_CLASS, tierOf, type LegendLine, type NumericScale, type Tier } from "@/lib/colorScales";
 import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
 import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
-import type { CityExploreData, SectionKey } from "@/lib/types";
+import { SECTION_LABELS, type CityExploreData, type SectionKey } from "@/lib/types";
 
 /** Which tier a value describes: "country" (national statistics) or
  *  "pinned" (computed from this city's own coordinates). "city" is kept for
@@ -447,6 +447,14 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
       return rows.filter((r): r is KpiRow => r != null);
     }
   }
+}
+
+/** The explanation shown in a section with no figures at all for this
+ *  place (null when it has data) - shared by the results page and report. */
+export function noSectionDataNote(section: SectionKey, data: CityExploreData): string | null {
+  if (!data.sectionsWithoutData.includes(section)) return null;
+  const where = section === "economy" || section === "safetyStability" ? data.country : data.cityName;
+  return `No ${SECTION_LABELS[section].toLowerCase()} figures are available for ${where}. A neutral 50 is used in the overall Piltri score, so this section neither helps nor hurts it.`;
 }
 
 /** Splits rows into the city's own values and its country's. */

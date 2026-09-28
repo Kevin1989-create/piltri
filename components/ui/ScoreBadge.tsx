@@ -2,7 +2,8 @@ import { cn } from "@/lib/cn";
 import { scoreBand } from "@/lib/design-tokens";
 
 interface ScoreBadgeProps {
-  score: number;
+  /** null = no data for this section: a grey "No data" pill. */
+  score: number | null;
   size?: "sm" | "md" | "lg";
   className?: string;
 }
@@ -15,19 +16,18 @@ const bandClasses = {
 
 /** Colour-coded score pill: green (strong) / amber (moderate) / red (weaker). */
 export function ScoreBadge({ score, size = "md", className }: ScoreBadgeProps) {
-  const band = scoreBand(score);
   return (
     <span
       className={cn(
         "inline-flex items-center justify-center rounded-pill font-semibold tabular-nums",
-        bandClasses[band],
+        score == null ? "text-ink-500 bg-surface-muted font-medium" : bandClasses[scoreBand(score)],
         size === "sm" && "px-2 py-0.5 text-xs",
         size === "md" && "px-3 py-1 text-sm",
         size === "lg" && "px-4 py-1.5 text-lg",
         className
       )}
     >
-      {Math.round(score)}
+      {score == null ? "No data" : Math.round(score)}
     </span>
   );
 }

@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { ClimateChart } from "@/components/explore/ClimateChart";
 import { KpiInfoButton, type KpiInfoHandle } from "@/components/explore/KpiInfo";
 import { cn } from "@/lib/cn";
-import { buildGdpSectorRows, buildKpiRows, buildLiveabilityTransportRows, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
+import { buildGdpSectorRows, buildKpiRows, buildLiveabilityTransportRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { useUnitPreferences } from "@/lib/unitPreferences";
 import type { CityExploreData, SectionKey } from "@/lib/types";
 
@@ -71,9 +71,11 @@ export function SectionDetail({
 
   const hasCountry = countryRows.length > 0 || !!gdpSectorRows?.length;
   const hasCity = cityRows.length > 0;
+  const noDataNote = noSectionDataNote(section, data);
 
   return (
     <div className={cn("bg-piltri-amber-tint/40 px-4 py-2.5", bordered && "border-t border-piltri-amber/20")}>
+      {noDataNote && <p className="text-[11px] leading-snug text-ink-500 mb-2">{noDataNote}</p>}
       {hasCity && (
         <div>
           <p className="font-serif font-semibold text-xs text-black leading-tight mb-1">{data.cityName}</p>
