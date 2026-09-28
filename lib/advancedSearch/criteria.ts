@@ -105,7 +105,7 @@ export const CRITERIA: CriterionDef[] = [
     unit: "K",
     kind: "range",
     suggestedRange: [0, 10],
-    getCityValue: (d) => Math.round((d.economy.averageSalaryGbp / 12 / 1000) * 10) / 10,
+    getCityValue: (d) => (d.economy.averageSalaryGbp == null ? null : Math.round((d.economy.averageSalaryGbp / 12 / 1000) * 10) / 10),
   },
   {
     key: "economy.unemploymentRatePct",

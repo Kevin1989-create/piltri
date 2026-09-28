@@ -27,6 +27,9 @@ export interface ShortlistCity {
 
 export interface CountryInfo {
   name: string;
+  /** ISO 3166 alpha-3 (GeoNames; Kosovo is XKX, as World Bank uses) - the
+   *  key for World Bank and WHO data. */
+  iso3: string | null;
   currencyCode: string | null;
   currencyName: string | null;
   capital: { name: string; lat: number; lng: number } | null;
@@ -50,7 +53,7 @@ export async function loadShortlist(): Promise<Shortlist> {
   const admin1File = await downloadOnce("https://download.geonames.org/export/dump/admin1CodesASCII.txt", "admin1CodesASCII.txt");
   const countryFile = await downloadOnce("https://download.geonames.org/export/dump/countryInfo.txt", "countryInfo.txt");
 
-  return cached("shortlist-v3", async () => {
+  return cached("shortlist-v4", async () => {
     const admin1 = new Map(tsv(admin1File).map(([code, name]) => [code, name]));
     // countryInfo.txt: ISO, ISO3, ISO-Numeric, fips, Country, Capital, Area,
     // Population, Continent, tld, CurrencyCode, CurrencyName, ...
@@ -109,6 +112,7 @@ export async function loadShortlist(): Promise<Shortlist> {
       const row = countryRows.get(cc);
       countries[cc] = {
         name: row?.[4] ?? cc,
+        iso3: row?.[1] || null,
         currencyCode: row?.[10] || null,
         currencyName: row?.[11] || null,
         capital: capitals.get(cc) ?? null,

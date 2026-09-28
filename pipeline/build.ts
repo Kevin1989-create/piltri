@@ -6,7 +6,6 @@ import type { CityRecord } from "@/lib/dataset/schema";
 import { PM25_SOURCE, samplePm25 } from "./airQuality";
 import { sampleBroadband } from "./broadband";
 import { buildCountries, fetchWhoNationalPm25 } from "./countries";
-import { ISO2_TO_ISO3 } from "./sources/countryCodes";
 import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M, type PointSet } from "./geonames";
 import { loadCoastlinePoints, loadEarthquakes, loadLakeShorePoints } from "./hazards";
 import { countNearCities } from "./nearCities";
@@ -129,7 +128,7 @@ async function main() {
   );
   if (uncovered.size) {
     const national = await fetchWhoNationalPm25();
-    for (const cc of uncovered) countries[cc].pm25NationalEstimate = national[ISO2_TO_ISO3[cc]] ?? null;
+    for (const cc of uncovered) countries[cc].pm25NationalEstimate = national[countryInfo[cc].iso3 ?? ""] ?? null;
     log("build", `PM2.5 national fallback: ${[...uncovered].map((cc) => `${cc}=${countries[cc].pm25NationalEstimate}`).join(" ")}`);
   }
   const density = await sampleDensity(points);

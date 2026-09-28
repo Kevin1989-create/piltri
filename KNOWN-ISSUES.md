@@ -22,6 +22,13 @@ Updated 2026-09-26. The data is an offline dataset served as static files
   "beach" pools don't count.
 - **Country-level fields** (economy, safety, healthcare, PISA...) are the
   same for every city in a country - there's no free per-city source.
+- **Missing figures** show "No data" and are left out of the scores, never
+  filled with a stand-in. World Bank has no data at all for about 30
+  places - notably Taiwan, Western Sahara, the French overseas departments
+  (Réunion, Martinique, Guadeloupe, French Guiana, Mayotte) and
+  Jersey/Guernsey - and no homicide figure for some countries (DR Congo,
+  Somalia, Libya...). A free source for Taiwan would be the most useful
+  addition.
 - **City population** is GeoNames' city-proper figure; districts of big
   cities are listed as their own places.
 - **Places left out**: GeoNames entries whose point isn't a town (a

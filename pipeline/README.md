@@ -60,6 +60,14 @@ credited on the site at /explore/sources (built from the manifest).
   at ~30 km/h (no routing).
 
 ### Data-quality rules
+- **No stand-in values**: a figure a source doesn't have for a place is
+  stored as null - the site shows "No data" and leaves it out of the
+  section score (a section with no data at all scores a neutral 50).
+- **Country codes** come from GeoNames' countryInfo.txt (ISO3; Kosovo is
+  XKX, as World Bank uses), so territories World Bank covers (Kosovo,
+  Palestine, Curaçao, Guam...) get their data. About 30 places have no
+  World Bank data at all (Taiwan, Western Sahara, the French overseas
+  departments, Jersey/Guernsey, small islands).
 - **Duplicate names** in a country (~2,400 GeoNames pairs): the largest
   entry whose point is a town (5,000+ people, or a fifth of its stated
   population, within 5 km) - so a municipality centre point in empty land

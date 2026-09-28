@@ -26,6 +26,8 @@ export interface KpiRow {
   colorClass?: string;
   /** Smaller secondary text after the value, e.g. "(73.1%)". */
   valueSuffix?: string;
+  /** The source has no figure for this place: shown as "No data". */
+  noData?: boolean;
   info: KpiInfo;
 }
 
@@ -57,6 +59,26 @@ function neutral(label: string, value: string, precision: PrecisionTier, about: 
   return { label, value, precision, valueSuffix, colorClass: NEUTRAL, info: { ...about, legend: null } };
 }
 
+/** A figure the source has no value for here - "No data" in grey (and
+ *  left out of the section score), never a stand-in number. */
+function missing(label: string, precision: PrecisionTier, about: Described): KpiRow {
+  return { label, value: "No data", precision, colorClass: NEUTRAL, noData: true, info: { ...about, legend: null } };
+}
+
+/** scored(), or a "No data" row when `raw` is missing. */
+function scoredOrMissing(
+  label: string,
+  raw: number | null,
+  value: (n: number) => string,
+  precision: PrecisionTier,
+  scale: NumericScale,
+  fmt: (n: number) => string,
+  about: Described,
+  valueSuffix?: string
+): KpiRow {
+  return raw == null ? missing(label, precision, about) : scored(label, raw, value(raw), precision, scale, fmt, about, valueSuffix);
+}
+
 // ---- Formatting helpers -----------------------------------------------------
 
 const num = (n: number, digits = 0) => (Math.round(n * 10 ** digits) / 10 ** digits).toLocaleString(undefined, { maximumFractionDigits: digits });
@@ -79,8 +101,9 @@ function ordinal(n: number): string {
 
 // ---- Colour scales -------------------------------------------------------------
 // Where a field feeds a section score, its scale matches lib/dataset/assemble.ts's
-// RANGES; the others are disclosed judgement calls for comparing places (a
-// comfortable ~20 °C year, ~50% humidity, UV ~3, a 25 °C summer high...).
+// RANGES - except PM2.5 and the homicide rate, coloured by fixed bands that
+// match how they're usually judged. The others are disclosed judgement calls
+// for comparing places (a comfortable ~20 °C year, ~50% humidity, UV ~3...).
 
 const SCALES = {
   gdp: { kind: "log", minLog: 9, maxLog: 13.5 }, // $1bn to ~$30tn
@@ -89,7 +112,9 @@ const SCALES = {
   // averageSalaryGbp is GNI per capita x 0.79 - the scoring range, converted.
   salaryGbp: { kind: "higher", min: 1580, max: 71100 },
   unemployment: { kind: "lower", ...RANGES.unemployment },
-  homicide: { kind: "lower", ...RANGES.homicideRate },
+  // Under 2 per 100k is Western Europe / East Asia; above 10 is among the
+  // world's most violent (the global average is ~6).
+  homicide: { kind: "bands", goodMax: 2, moderateMax: 10 },
   temperature: { kind: "ideal", ideal: 20, range: RANGES.temperatureDistanceFrom20C.max },
   summerHigh: { kind: "ideal", ideal: 25, range: 15 },
   winterLow: { kind: "ideal", ideal: 8, range: 20 },
@@ -100,7 +125,10 @@ const SCALES = {
   // After the WHO's interim targets: 10 (target 4) and 25 (target 2) µg/m³.
   pm25: { kind: "bands", goodMax: 10, moderateMax: 25 },
   uv: { kind: "ideal", ideal: 3, range: 8, floor: 0 },
-  earthquakes: { kind: "lower", min: 0, max: 100 },
+  // Half of all places have had 2 or fewer; above 30 is about the most
+  // active fifth (Tokyo 841, Santiago 563, Athens 106, Los Angeles 80;
+  // San Francisco's 27 is amber).
+  earthquakes: { kind: "bands", goodMax: 5, moderateMax: 30, integer: true },
   volcanoKm: { kind: "higher", min: 0, max: 50 },
   lifeExpectancy: { kind: "higher", min: 50, max: 85 },
   internetUsers: { kind: "higher", min: 0, max: 100 },
@@ -108,7 +136,6 @@ const SCALES = {
   mobile: { kind: "higher", min: 5, max: 150 },
   pisa: { kind: "higher", ...RANGES.pisaScore },
   score: { kind: "score" },
-  scoreLowerIsBetter: { kind: "score", invert: true },
 } satisfies Record<string, NumericScale>;
 
 const WB = (code: string) => `World Bank, World Development Indicators (${code}), latest year available`;
@@ -124,6 +151,11 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
   switch (section) {
     case "economy": {
       const e = data.economy;
+      const costOfLivingAbout = {
+        definition:
+          "How expensive everyday goods and services are, rescaled 0-100 (higher is more expensive). Shown in grey because cheaper isn't simply better: low prices usually come with low incomes - purchasing power shows what money actually buys.",
+        source: WB("PA.NUS.PRVT.PLI, price level index"),
+      };
       // GDP, GDP world rank and growth lead (SectionDetail/report splice the
       // GDP sectors in after these three).
       const rows: (KpiRow | null)[] = [
@@ -139,7 +171,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               source: WB("NY.GDP.MKTP.CD"),
             })
           : null,
-        scored("Economic growth (5yr GDP)", e.economicGrowth5yrGdpPct, signedPct(e.economicGrowth5yrGdpPct), "country", SCALES.gdpGrowth, signedPct, {
+        scoredOrMissing("Economic growth (5yr GDP)", e.economicGrowth5yrGdpPct, signedPct, "country", SCALES.gdpGrowth, signedPct, {
           definition: "How much the economy has grown over roughly the last five years, after inflation.",
           source: WB("NY.GDP.MKTP.KD, constant 2015 US$"),
         }),
@@ -149,19 +181,18 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               source: WB("GC.TAX.TOTL.GD.ZS"),
             })
           : null,
-        scored("Average salary", e.averageSalaryGbp, formatCurrency(e.averageSalaryGbp, prefs), "country", SCALES.salaryGbp, (n) => formatCurrency(n, prefs), {
+        scoredOrMissing("Average salary", e.averageSalaryGbp, (n) => formatCurrency(n, prefs), "country", SCALES.salaryGbp, (n) => formatCurrency(n, prefs), {
           definition: "Gross national income per person per year, in your currency - a guide to average income rather than a measured wage.",
           source: WB("NY.GNP.PCAP.CD"),
         }, "/ year"),
-        scored("Unemployment rate", e.unemploymentRatePct, `${e.unemploymentRatePct.toFixed(1)}%`, "country", SCALES.unemployment, withUnit("%", 1), {
+        scoredOrMissing("Unemployment rate", e.unemploymentRatePct, (n) => `${n.toFixed(1)}%`, "country", SCALES.unemployment, withUnit("%", 1), {
           definition: "Share of people who want to work but have no job (International Labour Organization estimate).",
           source: WB("SL.UEM.TOTL.ZS"),
         }),
-        scored("Cost of living index", e.costOfLivingIndex, `${e.costOfLivingIndex}`, "country", SCALES.scoreLowerIsBetter, String, {
-          definition: "How expensive everyday goods and services are, rescaled 0-100 (higher is more expensive). Cheaper counts as better here.",
-          source: WB("PA.NUS.PRVT.PLI, price level index"),
-        }),
-        scored("Purchasing power index", e.purchasingPowerIndex, `${e.purchasingPowerIndex}`, "country", SCALES.score, String, {
+        e.costOfLivingIndex != null
+          ? neutral("Cost of living index", `${e.costOfLivingIndex}`, "country", costOfLivingAbout)
+          : missing("Cost of living index", "country", costOfLivingAbout),
+        scoredOrMissing("Purchasing power index", e.purchasingPowerIndex, String, "country", SCALES.score, String, {
           definition: "What an average income buys locally - income per person adjusted for local prices, rescaled 0-100.",
           source: WB("NY.GDP.PCAP.PP.CD"),
         }),
@@ -176,37 +207,40 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
     }
     case "safetyStability": {
       const s = data.safetyStability;
+      const trendAbout = { definition: "The direction of the political stability score over roughly the last five years.", source: WGI };
       return [
-        scored("Political stability score", s.politicalStabilityScore, `${s.politicalStabilityScore}`, "country", SCALES.score, String, {
+        scoredOrMissing("Political stability score", s.politicalStabilityScore, String, "country", SCALES.score, String, {
           definition: "How unlikely political instability or politically motivated violence is, as a 0-100 rank among countries (higher is more stable).",
           source: WGI,
         }),
-        scored("Rule of law score", s.ruleOfLawScore, `${s.ruleOfLawScore}`, "country", SCALES.score, String, {
+        scoredOrMissing("Rule of law score", s.ruleOfLawScore, String, "country", SCALES.score, String, {
           definition: "Confidence in the rules of society - contracts, property rights, police and courts - as a 0-100 rank among countries.",
           source: WGI,
         }),
-        scored("Homicide rate", s.homicideRatePer100k, `${s.homicideRatePer100k.toFixed(1)} / 100k`, "country", SCALES.homicide, withUnit(" per 100k", 1), {
+        scoredOrMissing("Homicide rate", s.homicideRatePer100k, (n) => `${n.toFixed(1)} / 100k`, "country", SCALES.homicide, withUnit(" per 100k", 1), {
           definition: "Intentional homicides per 100,000 people per year - the most comparable crime statistic between countries.",
           source: "UNODC, via " + WB("VC.IHR.PSRC.P5"),
         }),
-        categorical(
-          "Safety trend",
-          s.safetyTrend,
-          "country",
-          s.safetyTrend === "Improving" ? "good" : s.safetyTrend === "Worsening" ? "poor" : "moderate",
-          [
-            { tier: "good", text: "Improving - political stability up 5% or more" },
-            { tier: "moderate", text: "Stable - within 5% either way" },
-            { tier: "poor", text: "Worsening - down 5% or more" },
-          ],
-          { definition: "The direction of the political stability score over roughly the last five years.", source: WGI }
-        ),
+        s.safetyTrend
+          ? categorical(
+              "Safety trend",
+              s.safetyTrend,
+              "country",
+              s.safetyTrend === "Improving" ? "good" : s.safetyTrend === "Worsening" ? "poor" : "moderate",
+              [
+                { tier: "good", text: "Improving - political stability up 5% or more" },
+                { tier: "moderate", text: "Stable - within 5% either way" },
+                { tier: "poor", text: "Worsening - down 5% or more" },
+              ],
+              trendAbout
+            )
+          : missing("Safety trend", "country", trendAbout),
       ];
     }
     case "climate": {
       const c = data.climate;
       const rows: (KpiRow | null)[] = [
-        scored("Avg annual temperature", c.avgAnnualTemperatureC, temp(c.avgAnnualTemperatureC), "pinned", SCALES.temperature, temp, {
+        scoredOrMissing("Avg annual temperature", c.avgAnnualTemperatureC, temp, "pinned", SCALES.temperature, temp, {
           definition: "The average of day and night temperatures across the whole year.",
           source: WORLDCLIM,
         }),
@@ -222,19 +256,19 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               source: WORLDCLIM,
             })
           : null,
-        scored("Avg annual rainfall", c.avgAnnualRainfallMm, `${c.avgAnnualRainfallMm} mm`, "pinned", SCALES.rainfall, withUnit(" mm"), {
+        scoredOrMissing("Avg annual rainfall", c.avgAnnualRainfallMm, (n) => `${n} mm`, "pinned", SCALES.rainfall, withUnit(" mm"), {
           definition: "Total rain and snow (measured as water) in an average year.",
           source: WORLDCLIM,
         }),
-        scored("Avg annual sunshine", c.avgAnnualSunshineHrs, `${c.avgAnnualSunshineHrs} hrs`, "pinned", SCALES.sunshine, withUnit(" hrs"), {
+        scoredOrMissing("Avg annual sunshine", c.avgAnnualSunshineHrs, (n) => `${n} hrs`, "pinned", SCALES.sunshine, withUnit(" hrs"), {
           definition: "Hours of direct sunshine in a year - an estimate derived from solar radiation, not a measured count.",
           source: `${WORLDCLIM}; FAO-56 sunshine estimate`,
         }),
-        scored("Avg annual snowfall", c.avgAnnualSnowfallCm, `${c.avgAnnualSnowfallCm} cm`, "pinned", SCALES.snowfall, withUnit(" cm"), {
+        scoredOrMissing("Avg annual snowfall", c.avgAnnualSnowfallCm, (n) => `${n} cm`, "pinned", SCALES.snowfall, withUnit(" cm"), {
           definition: "Snow in a year - an estimate from the precipitation falling in months cold enough for snow.",
           source: WORLDCLIM,
         }),
-        scored("Avg annual humidity", c.avgAnnualHumidityPct, `${c.avgAnnualHumidityPct}%`, "pinned", SCALES.humidity, withUnit("%"), {
+        scoredOrMissing("Avg annual humidity", c.avgAnnualHumidityPct, (n) => `${n}%`, "pinned", SCALES.humidity, withUnit("%"), {
           definition: "Average relative humidity across the year. Around 50% is usually the most comfortable.",
           source: WORLDCLIM,
         }),
@@ -378,7 +412,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         countRow("Family activities", l.familyActivitiesWithin5km, COUNT_CAPS.family, "Playgrounds, zoos, aquariums and amusement or water parks"),
         speedRow("Broadband speed", l.broadbandDownloadMbps, l.broadbandRadiusKm, SCALES.broadband, "home broadband"),
         speedRow("Mobile speed", l.mobileDownloadMbps, l.mobileRadiusKm, SCALES.mobile, "mobile"),
-        scored("Healthcare quality score", l.healthcareQualityScore, `${l.healthcareQualityScore}`, "country", SCALES.score, String, {
+        scoredOrMissing("Healthcare quality score", l.healthcareQualityScore, String, "country", SCALES.score, String, {
           definition: "How well essential health services reach the population - mother and child care, infectious and chronic diseases, access - on a 0-100 index.",
           source: "World Health Organization, data.who.int (UHC service coverage index)",
         }),

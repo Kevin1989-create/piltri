@@ -52,17 +52,17 @@ export interface GdpSectorShare {
 /** All country-level (World Bank unless noted). */
 export interface EconomyFields {
   /** Real GDP change over ~5 years (constant 2015 US$). */
-  economicGrowth5yrGdpPct: number;
+  economicGrowth5yrGdpPct: number | null;
   /** GNI per capita converted to GBP - an average-income proxy. */
-  averageSalaryGbp: number;
-  unemploymentRatePct: number;
+  averageSalaryGbp: number | null;
+  unemploymentRatePct: number | null;
   /** Agriculture/Industry/Services by share of GDP, largest first (0-3
    *  entries - only sectors World Bank has a value for). */
   gdpSectorRanking: GdpSectorShare[];
   /** Price level index (PA.NUS.PRVT.PLI) normalised to 0-100. */
-  costOfLivingIndex: number;
+  costOfLivingIndex: number | null;
   /** GDP per capita PPP normalised to 0-100. */
-  purchasingPowerIndex: number;
+  purchasingPowerIndex: number | null;
   /** GDP, current US$. */
   gdpUsd: number | null;
   /** Rank by gdpUsd among ~214 economies (1 = largest). */
@@ -75,27 +75,28 @@ export interface EconomyFields {
 /** World Bank Worldwide Governance Indicators (0-100) and UNODC homicide
  *  rate - national by nature. */
 export interface SafetyStabilityFields {
-  politicalStabilityScore: number;
-  ruleOfLawScore: number;
-  safetyTrend: TrendDirection;
-  homicideRatePer100k: number;
+  politicalStabilityScore: number | null;
+  ruleOfLawScore: number | null;
+  safetyTrend: TrendDirection | null;
+  homicideRatePer100k: number | null;
 }
 
-/** Climate normals are WorldClim 2.1 (1970-2000) at the city's coordinates;
- *  hazards and air quality are also per city. */
+/** Climate normals are WorldClim 2.1 (1970-2000) at the city's coordinates
+ *  (null for a few remote islands off its land grid); hazards and air
+ *  quality are also per city. */
 export interface ClimateFields {
-  avgAnnualTemperatureC: number;
-  avgAnnualRainfallMm: number;
+  avgAnnualTemperatureC: number | null;
+  avgAnnualRainfallMm: number | null;
   /** Estimated from solar radiation (FAO-56 Angström-Prescott). */
-  avgAnnualSunshineHrs: number;
+  avgAnnualSunshineHrs: number | null;
   /** Estimated from precipitation in below-freezing months. */
-  avgAnnualSnowfallCm: number;
+  avgAnnualSnowfallCm: number | null;
   /** Köppen-Geiger climate type, e.g. "Cfb" (temperate oceanic) - Beck et
    *  al. (2023) map, 1991-2020 - and its projection for 2071-2099 under a
    *  middle-of-the-road emissions scenario (SSP2-4.5). */
   koppenCode: string | null;
   koppenCode2085: string | null;
-  avgAnnualHumidityPct: number;
+  avgAnnualHumidityPct: number | null;
   /** Average daily high of the warmest month / low of the coldest month. */
   hottestMonthHighC: number | null;
   coldestMonthLowC: number | null;
@@ -136,7 +137,7 @@ export interface LiveabilityFields {
   culturalVenuesWithin5km: number | null;
   familyActivitiesWithin5km: number | null;
   /** WHO UHC service coverage index (0-100). */
-  healthcareQualityScore: number;
+  healthcareQualityScore: number | null;
   /** Within 5 km of the centre (40 km for airports). Metro = subway or
    *  monorail line or station; tram = tram or light rail track (Overture
    *  Maps / OpenStreetMap). */

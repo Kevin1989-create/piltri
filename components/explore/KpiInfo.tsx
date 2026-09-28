@@ -123,7 +123,11 @@ export const KpiInfoButton = forwardRef<KpiInfoHandle, { row: KpiRow; className?
               {row.valueSuffix && <span className="ml-1 text-[11px] font-normal">{row.valueSuffix}</span>}
             </p>
             <p className="mt-2">{info.definition}</p>
-            {info.legend ? (
+            {row.noData ? (
+              <p className="mt-2.5 text-ink-500">
+                The source has no figure for {row.precision === "country" ? "this country" : "this place"}, so it's left out of the scores rather than guessed.
+              </p>
+            ) : info.legend ? (
               <div className="mt-2.5">
                 <p className="text-[10px] uppercase tracking-wide text-ink-500 mb-1">Colour guide</p>
                 <ul className="space-y-1">

@@ -31,8 +31,9 @@ export type NumericScale =
   | { kind: "count"; cap: number }
   /** More is better on a log10 scale (GDP). */
   | { kind: "log"; minLog: number; maxLog: number }
-  /** Less is better, with explicit cut-offs (PM2.5, after WHO targets). */
-  | { kind: "bands"; goodMax: number; moderateMax: number }
+  /** Less is better, with explicit cut-offs (PM2.5 after WHO targets,
+   *  homicide rate, earthquake counts). `integer` for whole-number counts. */
+  | { kind: "bands"; goodMax: number; moderateMax: number; integer?: boolean }
   /** A rank, 1 = best, out of `of`. */
   | { kind: "rank"; of: number }
   /** Already a 0-100 score, higher is better (or lower, with `invert`). */
@@ -151,8 +152,8 @@ export function legendOf(scale: NumericScale, fmt: (value: number) => string): L
     case "bands":
       return [
         { tier: "good", text: `up to ${fmt(scale.goodMax)}` },
-        { tier: "moderate", text: between(scale.goodMax, scale.moderateMax) },
-        { tier: "poor", text: `above ${fmt(scale.moderateMax)}` },
+        { tier: "moderate", text: between(scale.integer ? scale.goodMax + 1 : scale.goodMax, scale.moderateMax) },
+        { tier: "poor", text: scale.integer ? `${fmt(scale.moderateMax + 1)} or more` : `above ${fmt(scale.moderateMax)}` },
       ];
     case "rank": {
       // Largest rank still in each tier, found the same way tierOf decides.

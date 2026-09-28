@@ -1,4 +1,3 @@
-import { ISO2_TO_ISO3 } from "./sources/countryCodes";
 import { getCountryLanguages } from "./sources/languages";
 import { getCountryMedianAge } from "./sources/medianAge";
 import { getClimateReadiness } from "./sources/climateReadiness";
@@ -67,8 +66,8 @@ function pctChange(s: Series | undefined): number | null {
   return Number((((last - first) / Math.abs(first)) * 100).toFixed(1));
 }
 
-function trendFromPctChange(pct: number | null): TrendDirection {
-  if (pct == null) return "Stable";
+function trendFromPctChange(pct: number | null): TrendDirection | null {
+  if (pct == null) return null;
   if (pct >= 5) return "Improving";
   if (pct <= -5) return "Worsening";
   return "Stable";
@@ -131,9 +130,9 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
   });
   const who = await cached("who-uhc", fetchWhoUhc);
 
-  // GDP world rank among real countries only (the bulk endpoint also returns
-  // aggregates like "World"/"Euro area" - filtered via the ISO map).
-  const realIso3 = new Set(Object.values(ISO2_TO_ISO3));
+  // GDP world rank among real economies only (the bulk endpoint also
+  // returns aggregates like "World"/"Euro area", which have no ISO code).
+  const realIso3 = new Set(Object.values(countryInfo).map((info) => info.iso3));
   const gdpRanked = Object.entries(series.gdpCurrent)
     .filter(([iso3]) => realIso3.has(iso3))
     .map(([iso3, s]) => [iso3, latest(s)] as const)
@@ -143,13 +142,17 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
 
   const countries: Record<string, CountryRecord> = {};
   for (const [cc, info] of Object.entries(countryInfo)) {
-    const iso3 = ISO2_TO_ISO3[cc];
+    const iso3 = info.iso3;
     const get = (key: IndicatorKey) => (iso3 ? series[key][iso3] : undefined);
     const priceLevel = latest(get("priceLevel"));
     const gni = latest(get("gni"));
+    const ppp = latest(get("ppp"));
     const politicalStability = latest(get("politicalStability"));
     const ruleOfLaw = latest(get("ruleOfLaw"));
     const languages = getCountryLanguages(cc);
+
+    // A figure the source doesn't have for this country stays null (shown
+    // as "No data", left out of the scores) - never a stand-in value.
 
     countries[cc] = {
       name: info.name,
@@ -162,22 +165,22 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
         countryMostWidelySpokenLanguage: languages.mostWidelySpokenLanguage,
       },
       economy: {
-        economicGrowth5yrGdpPct: pctChange(get("gdpLevel")) ?? 0,
-        averageSalaryGbp: Math.round((gni ?? 0) * 0.79),
-        unemploymentRatePct: latest(get("unemployment")) ?? 0,
+        economicGrowth5yrGdpPct: pctChange(get("gdpLevel")),
+        averageSalaryGbp: gni != null ? Math.round(gni * 0.79) : null,
+        unemploymentRatePct: latest(get("unemployment")),
         gdpSectorRanking: rankGdpSectors(latest(get("agriculture")), latest(get("industry")), latest(get("services"))),
-        costOfLivingIndex: priceLevel != null ? normalise(priceLevel, RANGES.priceLevel.min, RANGES.priceLevel.max) : 50,
-        purchasingPowerIndex: normalise(latest(get("ppp")) ?? 0, RANGES.ppp.min, RANGES.ppp.max),
+        costOfLivingIndex: priceLevel != null ? normalise(priceLevel, RANGES.priceLevel.min, RANGES.priceLevel.max) : null,
+        purchasingPowerIndex: ppp != null ? normalise(ppp, RANGES.ppp.min, RANGES.ppp.max) : null,
         gdpUsd: latest(get("gdpCurrent")),
         gdpWorldRank: iso3 ? gdpRank.get(iso3) ?? null : null,
         taxRevenuePctGdp: latest(get("taxRevenue")),
         currency: info.currencyCode ? { code: info.currencyCode, name: info.currencyName ?? info.currencyCode } : null,
       },
       safetyStability: {
-        politicalStabilityScore: politicalStability != null ? Math.round(politicalStability) : 50,
-        ruleOfLawScore: ruleOfLaw != null ? Math.round(ruleOfLaw) : 50,
+        politicalStabilityScore: politicalStability != null ? Math.round(politicalStability) : null,
+        ruleOfLawScore: ruleOfLaw != null ? Math.round(ruleOfLaw) : null,
         safetyTrend: trendFromPctChange(pctChange(get("politicalStability"))),
-        homicideRatePer100k: latest(get("homicideRate")) ?? RANGES.homicideRate.min,
+        homicideRatePer100k: latest(get("homicideRate")),
       },
       climateReadinessScore: getClimateReadiness(cc)?.gainScore ?? null,
       healthcareQualityScore: iso3 ? who[iso3] ?? null : null,
