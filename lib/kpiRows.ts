@@ -156,8 +156,8 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           "How expensive everyday goods and services are, rescaled 0-100 (higher is more expensive). Shown in grey because cheaper isn't simply better: low prices usually come with low incomes - purchasing power shows what money actually buys.",
         source: WB("PA.NUS.PRVT.PLI, price level index"),
       };
-      // GDP, GDP world rank and growth lead (SectionDetail/report splice the
-      // GDP sectors in after these three).
+      // GDP, GDP world rank and growth lead (the GDP sectors are spliced in
+      // after the first two by SectionDetail, after three by the report).
       const rows: (KpiRow | null)[] = [
         e.gdpUsd != null
           ? scored("GDP", e.gdpUsd, formatGdpUsd(e.gdpUsd), "country", SCALES.gdp, formatGdpUsd, {

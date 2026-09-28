@@ -76,7 +76,7 @@ function StatCell({ stat }: { stat: { label: string; value: string; colorClass: 
  *  can't get silently normalised back to a plain space by any editing
  *  step) between "5" and "yr" — makes "(5 yr)" wrap as one whole unit onto
  *  its own line instead of splitting mid-bracket. */
-const TREND_LABEL = "Population Trend (5\u00A0yr)";
+const TREND_LABEL = "Trend (5\u00A0yr)";
 
 /** City name + Piltri score. Sits at the top of the floating left column on
  *  the results page, so it's sized for a narrow column rather than a full
@@ -97,7 +97,7 @@ export function CityHeader({
   const { prefs } = useUnitPreferences();
 
   type Stat = { label: string; value: string; colorClass: string; title?: string };
-  const NOT_AVAILABLE = "Not available";
+  const NOT_AVAILABLE = "No data";
 
   // Country and City are two genuinely separate data tiers (see
   // lib/types.ts's DemographicsFields comment) - shown as two clearly
@@ -121,7 +121,7 @@ export function CityHeader({
           colorClass: demographics.countryPopulation != null ? "text-ink-900" : "text-ink-500",
         },
         {
-          label: "Population Density",
+          label: "Density",
           value:
             demographics.countryPopulationDensityPerKm2 != null
               ? formatDensityPerKm2(demographics.countryPopulationDensityPerKm2, prefs, formatCompactNumber)
@@ -142,7 +142,7 @@ export function CityHeader({
           colorClass: demographics.countryAverageAge != null ? "text-ink-900" : "text-ink-500",
         },
         {
-          label: "Main Language",
+          label: "Language",
           value: demographics.countryMostWidelySpokenLanguage ?? NOT_AVAILABLE,
           colorClass: demographics.countryMostWidelySpokenLanguage != null ? "text-ink-900" : "text-ink-500",
         },
@@ -247,7 +247,7 @@ export function CityHeader({
            *  uneven blank space below the shorter cells before the next
            *  row's fixed gap-y-0.5 started - every cell now has the same
            *  1-line footprint regardless of label length. */}
-          <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
+          <div className="mt-0.5 grid grid-cols-3 gap-x-3 gap-y-0.5">
             {cityStats.map((stat) => (
               <StatCell key={stat.label} stat={stat} />
             ))}
@@ -258,7 +258,7 @@ export function CityHeader({
       {countryStats && (
         <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
           <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{country}</p>
-          <div className="mt-0.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
+          <div className="mt-0.5 grid grid-cols-3 gap-x-3 gap-y-0.5">
             {countryStats.map((stat) => (
               <StatCell key={stat.label} stat={stat} />
             ))}

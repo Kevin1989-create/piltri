@@ -23,7 +23,7 @@ interface SectionDetailPanelProps {
 export function SectionDetailPanel({ section, data }: SectionDetailPanelProps) {
   const Icon = SECTION_ICONS[section];
   return (
-    <div className="absolute top-4 left-[344px] bottom-4 flex flex-col w-[320px]">
+    <div className="absolute top-4 left-[344px] bottom-4 flex flex-col w-[400px]">
       <div className="bg-surface/95 backdrop-blur rounded-card shadow-card overflow-y-auto flex-shrink">
         <div className="px-4 py-3 flex items-center gap-2.5 border-b border-surface-border sticky top-0 bg-surface/95 backdrop-blur">
           <Icon className="w-4 h-4 text-ink-700 flex-shrink-0" />

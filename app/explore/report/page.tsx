@@ -313,16 +313,17 @@ function ReportStat({
   /** A section KPI - adds the info button (screen only, not printed). */
   row?: KpiRow;
 }) {
+  // The info button sits top right of every cell, so they line up.
   return (
-    <div className="min-w-0">
-      <p className={`font-medium leading-snug ${colorClass ?? "text-ink-900"}`}>
-        {value}
-        {valueSuffix && <span className="text-[11px] font-normal ml-1">{valueSuffix}</span>}
-      </p>
-      <p className="text-[11px] text-ink-500 leading-snug flex items-center gap-1">
-        <span>{label}</span>
-        {row && <KpiInfoButton row={row} className="print:hidden" />}
-      </p>
+    <div className="min-w-0 flex items-start gap-1.5">
+      <div className="min-w-0 flex-1">
+        <p className={`font-medium leading-snug break-words ${colorClass ?? "text-ink-900"}`}>
+          {value}
+          {valueSuffix && <span className="text-[11px] font-normal ml-1 whitespace-nowrap">{valueSuffix}</span>}
+        </p>
+        <p className="text-[11px] text-ink-500 leading-snug break-words">{label}</p>
+      </div>
+      {row && <KpiInfoButton row={row} className="mt-1 print:hidden" />}
     </div>
   );
 }
