@@ -21,17 +21,41 @@ export const RANGES = {
   pisaScore: { min: 350, max: 590 },
 };
 
-/** Amenity counts within 5 km run from 0 to tens of thousands (a village
- *  vs central London), so they're scored on a log scale: each order of
- *  magnitude counts the same. `cap` scores 100 - roughly the 95th
- *  percentile across cities of 100k+ people (calibrated 2026-09-26: eating
- *  3,286 / cultural 171 / family 28 / parks 145). A median town (36 places
- *  to eat) scores ~45; 600 scores ~80. kpiRows.ts colours with the same
- *  function. */
-export const COUNT_CAPS = { restaurantsBars: 3000, cultural: 200, family: 30, parks: 150 };
+/** Amenities are shown and scored per resident: the places within 5 km of
+ *  the centre per 1,000 people living within those 5 km (GHS-POP) - per
+ *  10,000 for the rarer kinds, so they don't all read "0.0". `cap` scores
+ *  100 on logScore: about the 95th percentile of all places (calibrated
+ *  2026-09-28 - median / 95th: eating 1.5 / 6.8 per 1,000; parks 0.7 / 6.4,
+ *  cultural 0.4 / 5.6, family 0 / 1.4 per 10,000). kpiRows.ts colours with
+ *  the same scale. */
+export const AMENITY_RATIOS = {
+  restaurantsBars: { per: 1000, cap: 7 },
+  parks: { per: 10000, cap: 6 },
+  cultural: { per: 10000, cap: 5 },
+  family: { per: 10000, cap: 1.5 },
+};
 
-export function countScore(count: number, cap: number): number {
-  return normalise(Math.log10(1 + count), 0, Math.log10(1 + cap));
+/** Small islands the population grid undercounts are treated as having at
+ *  least this many residents, so a handful of places can't produce an
+ *  absurd ratio. */
+const MIN_RESIDENTS = 1000;
+
+/** People living within 5 km of the centre, from the density over that area. */
+export function residentsWithin5km(densityPerKm2: number | null): number | null {
+  return densityPerKm2 == null ? null : Math.round(densityPerKm2 * Math.PI * 25);
+}
+
+function perResidents(count: number | null, densityPerKm2: number | null, per: number): number | null {
+  const residents = residentsWithin5km(densityPerKm2);
+  if (count == null || residents == null) return null;
+  return Math.round((count / Math.max(residents, MIN_RESIDENTS)) * per * 10) / 10;
+}
+
+/** 0-100 on a log scale, `cap` scoring 100: each doubling counts about the
+ *  same, so the step from none to a few matters more than from many to
+ *  more. */
+export function logScore(value: number, cap: number): number {
+  return normalise(Math.log10(1 + value), 0, Math.log10(1 + cap));
 }
 
 /** Coastal flood / sea-level-rise exposure proxies (see ClimateFields).
@@ -79,10 +103,10 @@ function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): R
       orNull(c.avgAnnualPm25, (v) => normalise(v, RANGES.pm25.min, RANGES.pm25.max, true)),
     ],
     liveability: [
-      orNull(l.restaurantsBarsWithin5km, (v) => countScore(v, COUNT_CAPS.restaurantsBars)),
-      orNull(l.parksWithin5km, (v) => countScore(v, COUNT_CAPS.parks)),
-      orNull(l.culturalVenuesWithin5km, (v) => countScore(v, COUNT_CAPS.cultural)),
-      orNull(l.familyActivitiesWithin5km, (v) => countScore(v, COUNT_CAPS.family)),
+      orNull(l.restaurantsBarsPer1k, (v) => logScore(v, AMENITY_RATIOS.restaurantsBars.cap)),
+      orNull(l.parksPer10k, (v) => logScore(v, AMENITY_RATIOS.parks.cap)),
+      orNull(l.culturalVenuesPer10k, (v) => logScore(v, AMENITY_RATIOS.cultural.cap)),
+      orNull(l.familyActivitiesPer10k, (v) => logScore(v, AMENITY_RATIOS.family.cap)),
       l.healthcareQualityScore,
       // Countries that don't sit PISA get ~the OECD average, so not
       // participating neither rewards nor penalises them.
@@ -168,6 +192,10 @@ export function assembleCityExploreData(
       parksWithin5km: city.parksWithin5km,
       culturalVenuesWithin5km: city.culturalVenuesWithin5km,
       familyActivitiesWithin5km: city.familyActivitiesWithin5km,
+      restaurantsBarsPer1k: perResidents(city.restaurantsBarsWithin5km, city.densityPerKm2, AMENITY_RATIOS.restaurantsBars.per),
+      parksPer10k: perResidents(city.parksWithin5km, city.densityPerKm2, AMENITY_RATIOS.parks.per),
+      culturalVenuesPer10k: perResidents(city.culturalVenuesWithin5km, city.densityPerKm2, AMENITY_RATIOS.cultural.per),
+      familyActivitiesPer10k: perResidents(city.familyActivitiesWithin5km, city.densityPerKm2, AMENITY_RATIOS.family.per),
       healthcareQualityScore: country.healthcareQualityScore,
       hasTrainStation: city.hasTrainStation,
       hasSubway: city.hasSubway,

@@ -2,10 +2,11 @@ import path from "path";
 import KDBush from "kdbush";
 import { around } from "geokdbush";
 import { assembleCityExploreData } from "@/lib/dataset/assemble";
-import type { CityRecord } from "@/lib/dataset/schema";
+import type { CityRecord, EncodedBoundary } from "@/lib/dataset/schema";
 import { PM25_SOURCE, samplePm25 } from "./airQuality";
 import { sampleBroadband } from "./broadband";
 import { buildCountries, fetchWhoNationalPm25 } from "./countries";
+import { BOUNDARY_SOURCE, sampleBoundaries } from "./boundaries";
 import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M, type PointSet } from "./geonames";
 import { loadCoastlinePoints, loadEarthquakes, loadLakeShorePoints } from "./hazards";
 import { countNearCities } from "./nearCities";
@@ -136,6 +137,7 @@ async function main() {
 
   const { glob: placesGlob, release } = await extractOverturePlaces();
   const { glob: railGlob } = await extractOvertureRail();
+  const outlines = await sampleBoundaries(shortlist);
   // Counting within 5 km runs inside DuckDB (millions of restaurants never
   // enter JavaScript); only points needed for nearest distances are loaded.
   log("build", "counting Overture places within 5 km of every city (DuckDB)...");
@@ -262,14 +264,11 @@ async function main() {
   const records = allRecords.filter((r) => !isGhost(r));
   log("build", `left out ${ghosts.length} places with no town at the listed point, e.g. ${ghosts.slice(0, 5).map((g) => `${g.record.name} (${g.cc})`).join(", ")}`);
 
-  // Distribution report - for calibrating COUNT_CAPS and sanity-checking.
-  const big = records.filter((r) => (r.record.population ?? 0) >= 100000);
+  // Distribution report - for sanity-checking and calibrating scales.
   const report = (label: string, values: (number | null)[]) => {
     const v = values.filter((x): x is number => x != null);
     log("dist", `${label}: n=${v.length} p10=${percentile(v, 0.1)} p50=${percentile(v, 0.5)} p90=${percentile(v, 0.9)} p99=${percentile(v, 0.99)}`);
   };
-  report("restaurants (100k+)", big.map((r) => r.record.restaurantsBarsWithin5km));
-  report("parks (100k+)", big.map((r) => r.record.parksWithin5km));
   report("PM2.5", records.map((r) => r.record.avgAnnualPm25));
   report("UV index", records.map((r) => r.record.avgAnnualUvIndexMax));
   report("density /km2", records.map((r) => r.record.densityPerKm2));
@@ -282,6 +281,9 @@ async function main() {
   log("build", "scoring and ranking...");
   const generatedAt = new Date().toISOString();
   const scored = records.map(({ cc, record }) => ({ cc, record, data: assembleCityExploreData(cc, record, countries[cc], generatedAt) }));
+  // For calibrating AMENITY_RATIOS (lib/dataset/assemble.ts).
+  report("places to eat per 1,000 residents", scored.map((x) => x.data.liveability.restaurantsBarsPer1k));
+  report("parks per 10,000 residents", scored.map((x) => x.data.liveability.parksPer10k));
   const assignRanks = (value: (x: (typeof scored)[number]) => number, set: (r: CityRecord, rank: number) => void) => {
     const sorted = [...scored].sort((a, b) => value(b) - value(a));
     let rank = 0;
@@ -298,11 +300,17 @@ async function main() {
 
   const version = generatedAt.slice(0, 10).replace(/-/g, "") + "-" + Date.now().toString(36);
   const outDir = path.join(OUT_DIR, version);
+  const bounds = new Map<string, EncodedBoundary>();
+  shortlist.forEach((c, i) => {
+    const outline = outlines[i];
+    if (outline) bounds.set(c.cityId, outline);
+  });
   writeDataset(outDir, {
     version,
     generatedAt,
     countries,
     cities: scored,
+    bounds,
     poi: {
       airport: gn.airport,
       // GeoNames stations only, since pin mode shows the NAME: Overture's
@@ -335,6 +343,7 @@ async function main() {
       mountains: `GeoNames peaks of ${MOUNTAIN_MIN_ELEVATION_M} m+ that rise ${MOUNTAIN_MIN_RISE_M} m+ above the city`,
       coast: "Natural Earth 1:10m coastline and lakes (public domain); beaches count when on the sea or a large lake",
       earthquakes: "USGS earthquake catalogue, magnitude 5+ since 1970 (public domain)",
+      outlines: `${BOUNDARY_SOURCE}, release ${release}`,
     },
   });
   log("build", `dataset ${version} written to ${outDir} in ${Math.round((Date.now() - startedAt) / 1000)}s`);

@@ -30,6 +30,10 @@ interface MapViewProps {
   lat: number;
   lng: number;
   zoom?: number;
+  /** The city's outline: drawn and framed when present; null = the dataset
+   *  has none, so the 5 km circle is drawn instead; undefined = still
+   *  loading (nothing drawn yet, so the circle never flashes first). */
+  outline?: GeoJSON.MultiPolygon | null;
   /** A click on the map while NOT in pickingDestination mode - drops/moves
    *  the main pin. Like onDestinationPick below, `name` carries a nearby
    *  labelled map feature's name (POI, transit stop, neighbourhood) when
@@ -73,7 +77,7 @@ interface MapViewProps {
   /** True on the results page's mobile layout, where the score column and
    *  pin panel sit in normal document flow below the map instead of
    *  floating on top of it — every padding/offset below tuned to dodge that
-   *  floating desktop column (fitBounds' 700px/380px left padding, the
+   *  floating desktop column (fitBounds' large left padding, the
    *  camera's [-30,-50]/[325,0] offsets) would just waste space or push the
    *  view off-centre on a map that has nothing floating over it. Compact
    *  mode uses small, symmetric padding instead. */
@@ -82,8 +86,8 @@ interface MapViewProps {
 
 const AREA_SOURCE_ID = "piltri-research-area";
 const ROUTE_SOURCE_ID = "piltri-route";
-// The researched area: the same 5 km radius the dataset counts amenities in
-// (pipeline/build.ts LOCAL_RADIUS_KM).
+// Fallback area when a city has no outline: the same 5 km radius the
+// dataset counts amenities in (pipeline/build.ts LOCAL_RADIUS_KM).
 const AREA_RADIUS_KM = 5;
 
 /** Custom marker element for the main dropped pin - white teardrop body with
@@ -210,6 +214,7 @@ export function MapView({
   lat,
   lng,
   zoom = 10,
+  outline,
   onMapClick,
   pinnedCoords,
   destinationCoords,
@@ -431,34 +436,41 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Recentre and redraw the researched area whenever the searched place
-  // changes: a 5 km circle - exactly the radius the dataset's amenity counts
-  // (restaurants, parks, schools, stations...) are measured within, so the
-  // outline shows precisely what was counted.
+  // A new place: the camera saved before a pin was dropped belongs to the
+  // previous place - forget it, or clearing that pin (which happens when the
+  // page switches place) would fly back there.
+  useEffect(() => {
+    preDropCameraRef.current = null;
+  }, [lat, lng]);
+
+  // Draw and frame the searched place: its real outline, or the 5 km circle
+  // when the dataset has none. Nothing is drawn while the outline is still
+  // loading (a few KB, cached), so the circle never flashes up first.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-
-    // A new place: the camera saved before a pin was dropped belongs to the
-    // previous place - forget it, or clearing that pin (which happens when
-    // the page switches place) would fly back there.
-    preDropCameraRef.current = null;
     let cancelled = false;
 
     function applyArea() {
       if (!map || cancelled) return;
       const source = map.getSource(AREA_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
-      const circle = circlePolygon(lat, lng, AREA_RADIUS_KM);
-      source?.setData(circle as any);
+      if (outline === undefined) {
+        source?.setData({ type: "FeatureCollection", features: [] });
+        return;
+      }
+      const area: GeoJSON.Feature = outline
+        ? { type: "Feature", geometry: outline, properties: {} }
+        : circlePolygon(lat, lng, AREA_RADIUS_KM);
+      source?.setData(area as any);
       const bounds = new maplibregl.LngLatBounds();
-      for (const coord of (circle.geometry as GeoJSON.Polygon).coordinates[0]) bounds.extend(coord as [number, number]);
+      const rings = area.geometry.type === "MultiPolygon" ? area.geometry.coordinates.flat() : (area.geometry as GeoJSON.Polygon).coordinates;
+      for (const ring of rings) for (const coord of ring) bounds.extend(coord as [number, number]);
       // Asymmetric padding keeps the area clear of the floating left column
-      // (sized to its expanded width); compact (mobile) layout has no
-      // floating column, so it uses small symmetric padding.
-      map.fitBounds(
-        bounds,
-        compact ? { padding: 40, duration: 800 } : { padding: { top: 60, bottom: 60, left: 700, right: 60 }, duration: 800 }
-      );
+      // and the section panel beside it (at their open widths, but never
+      // more than the map can spare); compact (mobile) layout has nothing
+      // floating over the map, so it uses small symmetric padding.
+      const left = Math.max(60, Math.min(780, map.getContainer().clientWidth - 420));
+      map.fitBounds(bounds, compact ? { padding: 40, duration: 800 } : { padding: { top: 60, bottom: 60, left, right: 60 }, duration: 800 });
     }
 
     if (mapLoadedRef.current) {
@@ -470,7 +482,7 @@ export function MapView({
     return () => {
       cancelled = true;
     };
-  }, [lat, lng, zoom, compact]);
+  }, [lat, lng, zoom, compact, outline]);
 
   // Show/hide the dropped pin marker — persists correctly now that MapView
   // is never remounted when pin mode toggles. Also zooms in on the pinned

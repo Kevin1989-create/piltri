@@ -1,5 +1,5 @@
 import { normalise } from "@/lib/aggregation/scoring";
-import { countScore } from "@/lib/dataset/assemble";
+import { logScore } from "@/lib/dataset/assemble";
 
 /**
  * How a KPI's value maps to green / amber / red - defined once per row, and
@@ -27,8 +27,9 @@ export type NumericScale =
   | { kind: "lower"; min: number; max: number }
   /** Closest to `ideal` is best; `range` away from it scores 0. */
   | { kind: "ideal"; ideal: number; range: number; floor?: number }
-  /** Place counts on a log scale; `cap` scores 100 (see countScore). */
-  | { kind: "count"; cap: number }
+  /** More is better on a log scale from 0; `cap` scores 100 (see logScore) -
+   *  amenities per resident. */
+  | { kind: "ratio"; cap: number }
   /** More is better on a log10 scale (GDP). */
   | { kind: "log"; minLog: number; maxLog: number }
   /** Less is better, with explicit cut-offs (PM2.5 after WHO targets,
@@ -58,8 +59,8 @@ export function tierOf(scale: NumericScale, value: number): Tier {
       return tierFromScore(normalise(value, scale.min, scale.max, true));
     case "ideal":
       return tierFromScore(normalise(Math.abs(value - scale.ideal), 0, scale.range, true));
-    case "count":
-      return tierFromScore(countScore(value, scale.cap));
+    case "ratio":
+      return tierFromScore(logScore(value, scale.cap));
     case "log":
       return tierFromScore(normalise(Math.log10(Math.max(value, 1)), scale.minLog, scale.maxLog));
     case "bands":
@@ -129,15 +130,14 @@ export function legendOf(scale: NumericScale, fmt: (value: number) => string): L
         { tier: "poor", text: poor },
       ];
     }
-    case "count": {
-      let good = 0;
-      while (countScore(good, scale.cap) < 67) good++;
-      let moderate = 0;
-      while (countScore(moderate, scale.cap) < 34) moderate++;
+    case "ratio": {
+      // Inverse of logScore at the 66.5 / 33.5 crossings.
+      const hi = (1 + scale.cap) ** 0.665 - 1;
+      const lo = (1 + scale.cap) ** 0.335 - 1;
       return [
-        { tier: "good", text: `${good.toLocaleString()} or more` },
-        { tier: "moderate", text: `${moderate.toLocaleString()} to ${(good - 1).toLocaleString()}` },
-        { tier: "poor", text: moderate <= 1 ? "none" : `${(moderate - 1).toLocaleString()} or fewer` },
+        { tier: "good", text: `${fmt(hi)} or more` },
+        { tier: "moderate", text: between(lo, hi) },
+        { tier: "poor", text: `under ${fmt(lo)}` },
       ];
     }
     case "log": {

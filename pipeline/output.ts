@@ -13,9 +13,11 @@ import {
   type AdvCountries,
   type AdvPlaces,
   type AdvScores,
+  type BoundaryChunkFile,
   type CityRecord,
   type CountryRecord,
   type DatasetManifest,
+  type EncodedBoundary,
   type SearchEntry,
 } from "@/lib/dataset/schema";
 import type { CityExploreData, CriterionValue } from "@/lib/types";
@@ -28,6 +30,7 @@ import { log } from "./util";
  *   manifest.json            version, counts, chunk counts, tile list
  *   countries.json           every country's record (~20 KB compressed)
  *   cities/<CC>-<n>.json     city rows, ~250 per chunk (a city page = 1 chunk)
+ *   bounds/<CC>-<n>.json     the same chunk's city outlines, for the map
  *   search/<xx>.json         search-as-you-type index by a word's first 2 characters
  *   search/<x>.json          the 300 largest places per first letter (first keystroke)
  *   adv/scores.json          Advanced Search: every city's section scores
@@ -46,6 +49,8 @@ export interface DatasetToWrite {
   countries: Record<string, CountryRecord>;
   /** Largest first. */
   cities: { cc: string; record: CityRecord; data: CityExploreData }[];
+  /** City outlines by city id (see pipeline/boundaries.ts). */
+  bounds: Map<string, EncodedBoundary>;
   poi: Parameters<typeof buildPoiTiles>[1];
   sources: Record<string, string>;
 }
@@ -72,13 +77,27 @@ export function writeDataset(outDir: string, ds: DatasetToWrite): DatasetManifes
   }
   const countryCodes = [...byCountry.keys()].sort();
   const chunks: Record<string, number> = {};
+  const boundaryChunks: string[] = [];
   for (const cc of countryCodes) {
     const group = byCountry.get(cc)!;
     const count = Math.max(1, Math.ceil(group.length / CITY_CHUNK_SIZE));
     chunks[cc] = count;
     const files: CityRecord[][] = Array.from({ length: count }, () => []);
     for (const { record } of group) files[cityChunk(record.id, count)].push(record);
-    files.forEach((records, n) => writeJson(outDir, `cities/${cc}-${n}.json`, { rows: records.map(encodeCity) }));
+    files.forEach((records, n) => {
+      writeJson(outDir, `cities/${cc}-${n}.json`, { rows: records.map(encodeCity) });
+      // Outlines go in a parallel file, so a city page's data isn't
+      // held up by them.
+      const outlines: BoundaryChunkFile = {};
+      for (const { id } of records) {
+        const outline = ds.bounds.get(id);
+        if (outline) outlines[id] = outline;
+      }
+      if (Object.keys(outlines).length) {
+        writeJson(outDir, `bounds/${cc}-${n}.json`, outlines);
+        boundaryChunks.push(`${cc}-${n}`);
+      }
+    });
   }
 
   // ---- Search index --------------------------------------------------------
@@ -179,6 +198,7 @@ export function writeDataset(outDir: string, ds: DatasetToWrite): DatasetManifes
     tiles,
     searchFiles: [...letters.keys()].sort(),
     advCityColumns,
+    boundaryChunks,
     sources: ds.sources,
   };
   writeJson(outDir, "manifest.json", manifest);

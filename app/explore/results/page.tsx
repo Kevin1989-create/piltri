@@ -22,7 +22,7 @@ import { PinPanel } from "@/components/explore/PinPanel";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { useMediaQuery } from "@/lib/useMediaQuery";
-import { getCityExploreData } from "@/lib/dataset/cities";
+import { getCityBoundary, getCityExploreData } from "@/lib/dataset/cities";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
 function ResultsContent() {
@@ -159,6 +159,8 @@ function ResultsContent() {
     setError(null);
     setData(null);
     closePin();
+    // Start the outline's download alongside the city's data.
+    if (cityId) getCityBoundary(countryCode, cityId).catch(() => null);
     getCityExploreData(countryCode, cityId || null, lat, lng)
       .then((result) => {
         if (!result) throw new Error("No data for this place.");
@@ -167,6 +169,21 @@ function ResultsContent() {
       .catch((err) => setError(err.message ?? "Something went wrong loading this city."))
       .finally(() => setLoading(false));
   }, [cityId, cityName, countryCode, lat, lng]);
+
+  // The map's outline of the place: undefined while loading, null when the
+  // dataset has none (the map then draws the 5 km circle).
+  const [outline, setOutline] = useState<GeoJSON.MultiPolygon | null | undefined>(undefined);
+  useEffect(() => {
+    setOutline(undefined);
+    if (!data) return;
+    let cancelled = false;
+    getCityBoundary(data.countryCode, data.cityId)
+      .catch(() => null)
+      .then((geometry) => !cancelled && setOutline(geometry));
+    return () => {
+      cancelled = true;
+    };
+  }, [data]);
 
   useEffect(() => {
     function onEscape(e: KeyboardEvent) {
@@ -305,6 +322,7 @@ function ResultsContent() {
           <MapView
             lat={lat}
             lng={lng}
+            outline={outline}
             onMapClick={handleMapClick}
             pinnedCoords={pin}
             destinationCoords={destination}

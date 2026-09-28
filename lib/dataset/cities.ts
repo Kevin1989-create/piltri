@@ -1,7 +1,7 @@
 import type { CityExploreData } from "@/lib/types";
 import { assembleCityExploreData } from "./assemble";
 import { loadFile, manifest, memo } from "./files";
-import { cityChunk, decodeCity, type CityChunkFile, type CityRecord, type CountryRecord } from "./schema";
+import { cityChunk, decodeBoundary, decodeCity, type BoundaryChunkFile, type CityChunkFile, type CityRecord, type CountryRecord } from "./schema";
 
 export function getCountries(): Promise<Record<string, CountryRecord>> {
   return loadFile("countries.json");
@@ -41,6 +41,20 @@ async function findCity(countryCode: string, cityId: string | null, lat: number,
     }
   }
   return best;
+}
+
+const boundaryChunks = new Set(manifest.boundaryChunks ?? []);
+
+/** The city's outline for the map (from its chunk's bounds file), or null
+ *  when the dataset has none for it - the map then draws the 5 km circle. */
+export async function getCityBoundary(countryCode: string, cityId: string): Promise<GeoJSON.MultiPolygon | null> {
+  const cc = countryCode.toUpperCase();
+  const count = manifest.chunks[cc];
+  if (!count) return null;
+  const key = `${cc}-${cityChunk(cityId, count)}`;
+  if (!boundaryChunks.has(key)) return null;
+  const encoded = (await loadFile<BoundaryChunkFile>(`bounds/${key}.json`))[cityId];
+  return encoded ? { type: "MultiPolygon", coordinates: decodeBoundary(encoded) } : null;
 }
 
 /** Everything a city page shows - two small cached files (the country list

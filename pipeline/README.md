@@ -40,6 +40,7 @@ also picks up the latest published dataset.
 | Coastline, major lakes (which beaches count) | Natural Earth 1:10m | public domain |
 | Restaurants/bars/cafés, cultural venues, family activities, parks, schools, universities, stations | Overture Maps places | CDLA-Permissive-2.0 |
 | Tram / light rail / metro lines | Overture Maps transportation (OpenStreetMap rail) | ODbL |
+| City outlines on the map | Overture Maps divisions (OpenStreetMap boundaries) | ODbL |
 | Airports, rail/metro/bus stations, beaches, 1,000 m+ peaks, forests, volcanoes | GeoNames `allCountries` | CC BY 4.0 |
 | Earthquakes (M5+ since 1970) | USGS catalogue | public domain |
 
@@ -58,6 +59,11 @@ credited on the site at /explore/sources (built from the manifest).
   coastline - proxies, not inundation models.
 - **Pin-mode / "distance from city centre" minutes**: straight-line distance
   at ~30 km/h (no routing).
+- **Amenities per resident**: Overture places within 5 km / GHS-POP
+  residents within 5 km (at least 1,000), per 1,000 (places to eat) or
+  10,000 (parks, cultural, family). Computed on the site from the stored
+  counts and density; scored on a log scale capped near the 95th
+  percentile (AMENITY_RATIOS in lib/dataset/assemble.ts).
 
 ### Data-quality rules
 - **No stand-in values**: a figure a source doesn't have for a place is
@@ -79,6 +85,13 @@ credited on the site at /explore/sources (built from the manifest).
 - **PM2.5**: grid-edge value for towns just beyond the satellite map;
   WHO national estimate (labelled) for small countries it misses.
 - **Beaches**: only on the sea or a Natural Earth major lake (scalerank <= 7).
+- **City outlines**: the Overture division polygon with the city's own name
+  (ignoring "City of" / "Greater" / " City") that contains its point, within
+  ~1 km, between 0.3 and 6,000 km² - a locality first, a region only for
+  city-states (Berlin, Tokyo); parts over ~50 km away (islands) dropped.
+  Otherwise none, and the map draws the 5 km circle - never a neighbouring
+  town's outline. ~58% of places get one. Simplified to ~100-300 points and
+  stored as integer deltas (bounds/<CC>-<n>.json).
 
 ## How it's organised
 
@@ -90,6 +103,8 @@ credited on the site at /explore/sources (built from the manifest).
   full GeoNames dump
 - `overture.ts` - resumable per-file extracts of Overture places and urban
   rail from their public S3 bucket
+- `boundaries.ts` - each city's outline from Overture divisions, matched by
+  name and location
 - `nearCities.ts` - "within 5 km of each city" counts and averages, run
   **inside DuckDB** (millions of points never enter JavaScript)
 - `worldclim.ts`, `koppenMap.ts`, `uv.ts`, `airQuality.ts`, `population.ts`,

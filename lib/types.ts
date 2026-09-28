@@ -136,6 +136,13 @@ export interface LiveabilityFields {
   parksWithin5km: number | null;
   culturalVenuesWithin5km: number | null;
   familyActivitiesWithin5km: number | null;
+  /** The same per resident within those 5 km (GHS-POP) - what the page
+   *  shows and scores: per 1,000 for places to eat, per 10,000 for the
+   *  rarer kinds (see AMENITY_RATIOS). */
+  restaurantsBarsPer1k: number | null;
+  parksPer10k: number | null;
+  culturalVenuesPer10k: number | null;
+  familyActivitiesPer10k: number | null;
   /** WHO UHC service coverage index (0-100). */
   healthcareQualityScore: number | null;
   /** Within 5 km of the centre (40 km for airports). Metro = subway or

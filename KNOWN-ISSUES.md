@@ -17,6 +17,18 @@ Updated 2026-09-26. The data is an offline dataset served as static files
   nations the map misses (Marshall Islands, Nauru, Tuvalu, Palau) show
   WHO's national estimate, labelled "national estimate". Three places
   have no value (Lakshadweep, a Venezuelan island, Svalbard).
+- **Amenities per resident** (restaurants per 1,000 residents; parks,
+  cultural venues, family activities per 10,000): places within 5 km
+  divided by the people living within 5 km. Visitors and commuters aren't
+  counted, so resort and tourist towns (Chamonix, Venice) and business
+  districts score high, and very dense cities lower than their choice of
+  places suggests. The raw count is in each figure's info popover.
+- **City outlines** on the map come from OpenStreetMap boundaries (via
+  Overture), matched by name and location. Where no boundary carries the
+  city's name - many districts (Paris arrondissements, London boroughs'
+  towns), and places mapped only as a point - the map shows the 5 km
+  circle the local figures are measured in. Local figures (restaurants,
+  density...) are always "within 5 km of the centre", whatever the outline.
 - **Beaches**: sea coast, or a mapped beach on the sea or a large lake
   (Natural Earth's major lakes). River spots, small reservoirs and
   "beach" pools don't count.

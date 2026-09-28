@@ -130,16 +130,18 @@ export async function extractOvertureRail(): Promise<{ glob: string; release: st
   return { glob, release };
 }
 
-interface ExtractSpec {
+export interface ExtractSpec {
   /** Local folder suffix, e.g. "places". */
   name: string;
   /** Path under the release, e.g. "theme=places/type=place". */
   source: string;
   select: string;
   where: string;
+  /** Runs once before extracting, e.g. to load a table `where` joins on. */
+  setup?: (con: Awaited<ReturnType<DuckDBInstance["connect"]>>) => Promise<void>;
 }
 
-async function extractParts(OVERTURE_RELEASE: string, spec: ExtractSpec): Promise<string> {
+export async function extractParts(OVERTURE_RELEASE: string, spec: ExtractSpec): Promise<string> {
   const partsDir = path.join(WORK_DIR, `overture-${spec.name}-${OVERTURE_RELEASE}`).replace(/\\/g, "/");
   const doneMarker = path.join(partsDir, "_DONE");
   const glob = `${partsDir}/part-*.parquet`;
@@ -154,6 +156,7 @@ async function extractParts(OVERTURE_RELEASE: string, spec: ExtractSpec): Promis
   await con.run(
     "INSTALL httpfs; LOAD httpfs; SET s3_region='us-west-2'; SET threads=8; SET http_retries=10; SET http_retry_wait_ms=2000; SET http_retry_backoff=2;"
   );
+  await spec.setup?.(con);
   const files = (
     await con.runAndReadAll(`SELECT file FROM glob('s3://overturemaps-us-west-2/release/${OVERTURE_RELEASE}/${spec.source}/*')`)
   )

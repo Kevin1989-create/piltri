@@ -245,8 +245,37 @@ export interface DatasetManifest {
   /** Advanced Search criteria stored as per-city columns (adv/col/<key>.json);
    *  every other criterion is either country-level or derived from scores. */
   advCityColumns: string[];
+  /** City chunks with an outline file (bounds/<CC>-<n>.json). Absent in
+   *  datasets built before outlines existed - the map then draws the 5 km
+   *  circle. */
+  boundaryChunks?: string[];
   /** Human-readable source + vintage notes, shown on /admin. */
   sources: Record<string, string>;
+}
+
+/** A city's outline (bounds/<CC>-<n>.json, keyed by city id, in the same
+ *  chunk as the city's row): polygons -> rings -> [x0, y0, dx1, dy1, ...],
+ *  integers in 1/BOUNDARY_PRECISION degrees (~11 m), each point relative
+ *  to the one before - about a third of the size of plain coordinates. */
+export type EncodedBoundary = number[][][];
+export type BoundaryChunkFile = Record<string, EncodedBoundary>;
+export const BOUNDARY_PRECISION = 1e4;
+
+/** EncodedBoundary -> GeoJSON MultiPolygon coordinates. */
+export function decodeBoundary(polygons: EncodedBoundary): number[][][][] {
+  return polygons.map((rings) =>
+    rings.map((flat) => {
+      const ring: number[][] = [];
+      let x = 0;
+      let y = 0;
+      for (let i = 0; i < flat.length; i += 2) {
+        x += flat[i];
+        y += flat[i + 1];
+        ring.push([x / BOUNDARY_PRECISION, y / BOUNDARY_PRECISION]);
+      }
+      return ring;
+    })
+  );
 }
 
 /** Search-as-you-type index entries: [name, region, countryCode, lat, lng],

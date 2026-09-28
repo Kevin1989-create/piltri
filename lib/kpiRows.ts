@@ -1,4 +1,4 @@
-import { COUNT_CAPS, RANGES } from "@/lib/dataset/assemble";
+import { AMENITY_RATIOS, RANGES, residentsWithin5km } from "@/lib/dataset/assemble";
 import { legendOf, TIER_CLASS, tierOf, type LegendLine, type NumericScale, type Tier } from "@/lib/colorScales";
 import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
 import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
@@ -84,6 +84,8 @@ function scoredOrMissing(
 const num = (n: number, digits = 0) => (Math.round(n * 10 ** digits) / 10 ** digits).toLocaleString(undefined, { maximumFractionDigits: digits });
 const withUnit = (unit: string, digits = 0) => (n: number) => `${num(n, digits)}${unit}`;
 const signedPct = (n: number) => `${n > 0 ? "+" : ""}${num(n, 1)}%`;
+/** "2.1 million" / "6,800" - a population estimate, not a census count. */
+const roughPeople = (n: number) => (n >= 1e6 ? `${num(n / 1e6, 1)} million` : num(Math.round(n / 100) * 100));
 
 /** "$4.0 trillion" / "$312.5 billion" - GDP is always quoted in US dollars. */
 function formatGdpUsd(value: number): string {
@@ -368,15 +370,23 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
     }
     case "liveability": {
       const l = data.liveability;
-      // Places within 5 km of the centre - a fixed area, so comparable
-      // between cities of any size; coloured on the score's log scale.
-      const countRow = (label: string, count: number | null, cap: number, what: string): KpiRow | null =>
-        count == null
-          ? null
-          : scored(label, count, count.toLocaleString(), "pinned", { kind: "count", cap }, (n) => n.toLocaleString(), {
-              definition: `${what} within 5 km of the centre.`,
-              source: OVERTURE,
-            });
+      // Places within 5 km of the centre per resident of those 5 km -
+      // coloured on the score's log scale; the raw count is in the popover.
+      const residents = residentsWithin5km(data.demographics.cityDensityPerKm2);
+      const ratioRow = (label: string, ratio: number | null, count: number | null, ratioOf: keyof typeof AMENITY_RATIOS, what: string): KpiRow | null => {
+        if (count == null) return null;
+        const { per, cap } = AMENITY_RATIOS[ratioOf];
+        const perText = `per ${per.toLocaleString()} residents`;
+        const about = {
+          definition:
+            `${what} within 5 km of the centre, ${perText} of those 5 km` +
+            (residents != null ? ` - ${count.toLocaleString()} places for about ${roughPeople(residents)} people.` : "."),
+          source: `${OVERTURE}; residents from GHS-POP 2025 (EC JRC)`,
+        };
+        return ratio == null
+          ? missing(label, "pinned", about)
+          : scored(label, ratio, num(ratio, 1), "pinned", { kind: "ratio", cap }, (n) => `${num(n, 1)} ${perText}`, about, perText);
+      };
       const speedRow = (label: string, mbps: number | null, radiusKm: number | null, scale: NumericScale, kind: string): KpiRow | null => {
         if (mbps == null) return null;
         const radius = radiusKm ?? 5;
@@ -406,10 +416,10 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
       const distanceRow = (label: string, km: number | null, definition: string, source: string): KpiRow | null =>
         km == null ? null : neutral(label, distance(km), "pinned", { definition: `${definition} Whether closer is better depends on you, so it's shown in grey.`, source });
       const rows: (KpiRow | null)[] = [
-        countRow("Restaurants, bars & cafés", l.restaurantsBarsWithin5km, COUNT_CAPS.restaurantsBars, "Places to eat and drink"),
-        countRow("Parks", l.parksWithin5km, COUNT_CAPS.parks, "Parks and public gardens"),
-        countRow("Cultural venues", l.culturalVenuesWithin5km, COUNT_CAPS.cultural, "Museums, galleries, theatres and cinemas"),
-        countRow("Family activities", l.familyActivitiesWithin5km, COUNT_CAPS.family, "Playgrounds, zoos, aquariums and amusement or water parks"),
+        ratioRow("Restaurants, bars & cafés", l.restaurantsBarsPer1k, l.restaurantsBarsWithin5km, "restaurantsBars", "Places to eat and drink"),
+        ratioRow("Parks", l.parksPer10k, l.parksWithin5km, "parks", "Parks and public gardens"),
+        ratioRow("Cultural venues", l.culturalVenuesPer10k, l.culturalVenuesWithin5km, "cultural", "Museums, galleries, theatres and cinemas"),
+        ratioRow("Family activities", l.familyActivitiesPer10k, l.familyActivitiesWithin5km, "family", "Playgrounds, zoos, aquariums and amusement or water parks"),
         speedRow("Broadband speed", l.broadbandDownloadMbps, l.broadbandRadiusKm, SCALES.broadband, "home broadband"),
         speedRow("Mobile speed", l.mobileDownloadMbps, l.mobileRadiusKm, SCALES.mobile, "mobile"),
         scoredOrMissing("Healthcare quality score", l.healthcareQualityScore, String, "country", SCALES.score, String, {
