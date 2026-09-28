@@ -8,9 +8,12 @@ links table + public dataset bucket), GitHub Actions (monthly data refresh).
 1. SQL Editor -> run `lib/supabase/schema.sql` (creates the Resources links
    table).
 2. Storage -> New bucket `piltri-data`, **public**.
-3. Project Settings -> API: copy the project URL
-   (`NEXT_PUBLIC_SUPABASE_URL`) and the `service_role` key
+3. Project Settings -> API Keys: copy the project URL
+   (`NEXT_PUBLIC_SUPABASE_URL`) and a **secret** key, `sb_secret_...`
    (`SUPABASE_SERVICE_ROLE_KEY` - server/pipeline only, never client-side).
+   The legacy JWT keys (`anon`, `service_role`) are disabled and unused.
+   To rotate: create a new secret key, update it in `.env.local`, Vercel
+   (then redeploy) and the GitHub secret, then delete the old one.
 
 ## Data
 
