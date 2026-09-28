@@ -1,4 +1,4 @@
-import { kmToMinutes } from "@/lib/dataset/assemble";
+import { driveMinutes } from "@/lib/dataset/assemble";
 import type { AdvancedSearchCriterionFilter, AdvancedSearchScope, CityExploreData, CriterionValue, SectionKey } from "@/lib/types";
 
 /**
@@ -58,7 +58,7 @@ function minutesFrom(key: string, label: string, pick: (d: CityExploreData) => n
     kind: "range",
     countryKind: "boolean",
     suggestedRange: [0, 500],
-    getCityValue: (d) => kmToMinutes(pick(d)),
+    getCityValue: (d) => driveMinutes(pick(d)),
   };
 }
 
@@ -483,6 +483,13 @@ export const CRITERIA: CriterionDef[] = [
     label: "Has bus station",
     kind: "boolean",
     getCityValue: (d) => d.liveability.hasBusStation,
+  },
+  {
+    key: "liveability.hasNursery",
+    category: "liveability",
+    label: "Has nursery / day care",
+    kind: "boolean",
+    getCityValue: (d) => d.liveability.hasNursery,
   },
   {
     key: "liveability.hasSchool",

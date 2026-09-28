@@ -1,4 +1,4 @@
-import { AMENITY_RATIOS, RANGES, residentsWithin5km } from "@/lib/dataset/assemble";
+import { AMENITY_RATIOS, driveMinutes, formatDriveTime, RANGES, residentsWithin5km } from "@/lib/dataset/assemble";
 import { legendOf, TIER_CLASS, tierOf, type LegendLine, type NumericScale, type Tier } from "@/lib/colorScales";
 import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
 import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
@@ -140,6 +140,10 @@ const SCALES = {
   score: { kind: "score" },
 } satisfies Record<string, NumericScale>;
 
+/** Beyond this straight-line distance a drive-time estimate isn't shown
+ *  (~6 hours; often across water, or better flown). */
+const MAX_DRIVE_KM = 500;
+
 const WB = (code: string) => `World Bank, World Development Indicators (${code}), latest year available`;
 const WGI = "World Bank, Worldwide Governance Indicators";
 const WORLDCLIM = "WorldClim 2.1 climate normals, 1970-2000 averages";
@@ -158,8 +162,9 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           "How expensive everyday goods and services are, rescaled 0-100 (higher is more expensive). Shown in grey because cheaper isn't simply better: low prices usually come with low incomes - purchasing power shows what money actually buys.",
         source: WB("PA.NUS.PRVT.PLI, price level index"),
       };
-      // GDP, GDP world rank and growth lead (the GDP sectors are spliced in
-      // after the first two by SectionDetail, after three by the report).
+      // Two per line on the results page: GDP | rank, growth | tax, salary |
+      // unemployment, cost of living | purchasing power, the three GDP
+      // sectors, currency.
       const rows: (KpiRow | null)[] = [
         e.gdpUsd != null
           ? scored("GDP", e.gdpUsd, formatGdpUsd(e.gdpUsd), "country", SCALES.gdp, formatGdpUsd, {
@@ -198,6 +203,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           definition: "What an average income buys locally - income per person adjusted for local prices, rescaled 0-100.",
           source: WB("NY.GDP.PCAP.PP.CD"),
         }),
+        ...gdpSectorRows(data),
         e.currency
           ? neutral("Currency", `${e.currency.name} (${e.currency.code})`, "country", {
               definition: "The country's official currency.",
@@ -413,8 +419,23 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               definition: `The average ${subject} score of 15-year-olds in the OECD's PISA test. Only countries that take part have a score.`,
               source: "OECD PISA, via " + WB(`LO.PISA.${subject === "mathematics" ? "MAT" : subject === "reading" ? "REA" : "SCI"}`),
             });
+      // Distances, with an estimated drive time up to MAX_DRIVE_KM.
+      const driveNote =
+        " The drive time is an estimate from the straight-line distance, not a route: roads about 30% longer, ~30 km/h in town rising to ~100 km/h on longer trips.";
+      const byCar = (km: number) => {
+        const minutes = km >= 1 && km <= MAX_DRIVE_KM ? driveMinutes(km) : null;
+        return minutes != null ? `· ~${formatDriveTime(minutes)} by car` : undefined;
+      };
       const distanceRow = (label: string, km: number | null, definition: string, source: string): KpiRow | null =>
-        km == null ? null : neutral(label, distance(km), "pinned", { definition: `${definition} Whether closer is better depends on you, so it's shown in grey.`, source });
+        km == null
+          ? null
+          : neutral(
+              label,
+              distance(km),
+              "pinned",
+              { definition: `${definition}${byCar(km) ? driveNote : ""} Whether closer is better depends on you, so it's shown in grey.`, source },
+              byCar(km)
+            );
       const rows: (KpiRow | null)[] = [
         ratioRow("Restaurants, bars & cafés", l.restaurantsBarsPer1k, l.restaurantsBarsWithin5km, "restaurantsBars", "Places to eat and drink"),
         ratioRow("Parks", l.parksPer10k, l.parksWithin5km, "parks", "Parks and public gardens"),
@@ -422,6 +443,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         ratioRow("Family activities", l.familyActivitiesPer10k, l.familyActivitiesWithin5km, "family", "Playgrounds, zoos, aquariums and amusement or water parks"),
         speedRow("Broadband speed", l.broadbandDownloadMbps, l.broadbandRadiusKm, SCALES.broadband, "home broadband"),
         speedRow("Mobile speed", l.mobileDownloadMbps, l.mobileRadiusKm, SCALES.mobile, "mobile"),
+        ...presenceRows(data),
         scoredOrMissing("Healthcare quality score", l.healthcareQualityScore, String, "country", SCALES.score, String, {
           definition: "How well essential health services reach the population - mother and child care, infectious and chronic diseases, access - on a 0-100 index.",
           source: "World Health Organization, data.who.int (UHC service coverage index)",
@@ -447,10 +469,16 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         distanceRow("Nearest airport", l.distanceToAirportKm, "Straight-line distance to the nearest airport.", "GeoNames"),
         distanceRow("Nearest train station", l.distanceToTrainStationKm, "Straight-line distance to the nearest railway station.", "GeoNames and Overture Maps"),
         l.nearestLargeCity
-          ? neutral("Nearest large city", `${l.nearestLargeCity.name}, ${distance(l.nearestLargeCity.km)}`, "pinned", {
-              definition: "The nearest other city of 500,000+ people, straight-line.",
-              source: "GeoNames",
-            })
+          ? neutral(
+              "Nearest large city",
+              `${l.nearestLargeCity.name}, ${distance(l.nearestLargeCity.km)}`,
+              "pinned",
+              {
+                definition: `The nearest other city of 500,000+ people, straight-line.${byCar(l.nearestLargeCity.km) ? driveNote : ""}`,
+                source: "GeoNames",
+              },
+              byCar(l.nearestLargeCity.km)
+            )
           : null,
         distanceRow("Distance to capital city", l.distanceToCapitalKm, "Straight-line distance to the national capital.", "GeoNames"),
       ];
@@ -477,7 +505,7 @@ export function splitKpiRowsByTier(rows: KpiRow[]): { countryRows: KpiRow[]; cit
 
 /** Transport and education presence within 5 km of the centre (40 km for
  *  airports), from Overture Maps / OpenStreetMap and GeoNames. */
-export function buildLiveabilityTransportRows(data: CityExploreData): KpiRow[] {
+function presenceRows(data: CityExploreData): KpiRow[] {
   const l = data.liveability;
   const flag = (label: string, value: boolean | null, what: string, km: number, source: string): KpiRow | null =>
     value == null
@@ -499,6 +527,7 @@ export function buildLiveabilityTransportRows(data: CityExploreData): KpiRow[] {
     flag("Tram / light rail", l.hasTramway, "tram or light rail track", 5, "Overture Maps (OpenStreetMap rail lines)"),
     flag("Airport", l.hasAirport, "an airport", 40, "GeoNames"),
     flag("Bus station", l.hasBusStation, "a bus station", 5, "GeoNames and Overture Maps"),
+    flag("Nursery / day care", l.hasNursery, "a nursery, day care or preschool", 5, OVERTURE),
     flag("School", l.hasSchool, "a school", 5, "GeoNames and Overture Maps"),
     flag("University", l.hasUniversity, "a university", 5, "GeoNames and Overture Maps"),
   ];
@@ -507,9 +536,9 @@ export function buildLiveabilityTransportRows(data: CityExploreData): KpiRow[] {
 
 const GDP_SECTOR_RANK_LABELS = ["1st GDP sector", "2nd GDP sector", "3rd GDP sector"] as const;
 
-/** Agriculture/Industry/Services ranked by share of GDP, rendered as one
- *  fixed row of 3 - only sectors World Bank has a value for. */
-export function buildGdpSectorRows(data: CityExploreData): KpiRow[] {
+/** Agriculture/Industry/Services ranked by share of GDP - only sectors
+ *  World Bank has a value for. */
+function gdpSectorRows(data: CityExploreData): KpiRow[] {
   return data.economy.gdpSectorRanking.slice(0, 3).map((entry, i) =>
     neutral(
       GDP_SECTOR_RANK_LABELS[i],

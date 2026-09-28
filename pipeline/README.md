@@ -38,7 +38,7 @@ also picks up the latest published dataset.
 | Population density (5 km) | GHS-POP R2023A, 2025, 1 km (EC JRC) | CC BY 4.0 |
 | Broadband / mobile speed | Ookla Speedtest open data, latest quarter (AWS Open Data) | CC BY-NC-SA 4.0* |
 | Coastline, major lakes (which beaches count) | Natural Earth 1:10m | public domain |
-| Restaurants/bars/cafés, cultural venues, family activities, parks, schools, universities, stations | Overture Maps places | CDLA-Permissive-2.0 |
+| Restaurants/bars/cafés, cultural venues, family activities, parks, nurseries, schools, universities, stations | Overture Maps places | CDLA-Permissive-2.0 |
 | Tram / light rail / metro lines | Overture Maps transportation (OpenStreetMap rail) | ODbL |
 | City outlines on the map | Overture Maps divisions (OpenStreetMap boundaries) | ODbL |
 | Airports, rail/metro/bus stations, beaches, 1,000 m+ peaks, forests, volcanoes | GeoNames `allCountries` | CC BY 4.0 |
@@ -57,8 +57,10 @@ credited on the site at /explore/sources (built from the manifest).
   Includes cloud, so it reads lower than clear-sky forecast values.
 - **Coastal flood / sea-level-rise exposure**: elevation + distance to the
   coastline - proxies, not inundation models.
-- **Pin-mode / "distance from city centre" minutes**: straight-line distance
-  at ~30 km/h (no routing).
+- **Drive times** (distance rows, pin mode, directions, "distance from city
+  centre" filters): from the straight-line distance, no routing - roads
+  ~30% longer, the first 10 km at ~30 km/h, the next 40 at ~60, the rest at
+  ~100 (driveMinutes in lib/dataset/assemble.ts). Shown up to 500 km.
 - **Amenities per resident**: Overture places within 5 km / GHS-POP
   residents within 5 km (at least 1,000), per 1,000 (places to eat) or
   10,000 (parks, cultural, family). Computed on the site from the stored

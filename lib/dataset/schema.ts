@@ -8,8 +8,10 @@ import type { EconomyFields, SafetyStabilityFields } from "@/lib/types";
  * serves the files as static assets from its own CDN (/data/<version>/),
  * so reading a city is one cached file fetch, with no server code at all.
  *
- * Bump DATASET_SCHEMA_VERSION whenever CITY_FIELDS or a file layout
- * changes - the build refuses a dataset built for a different schema.
+ * Bump DATASET_SCHEMA_VERSION whenever CITY_FIELDS is reordered or a file
+ * layout changes - the build refuses a dataset built for a different
+ * schema. (Appending a field, or adding an optional file, doesn't need a
+ * bump: older datasets read the new value as null.)
  */
 export const DATASET_SCHEMA_VERSION = 3;
 
@@ -135,6 +137,9 @@ export const CITY_FIELDS = [
   "rankSafetyStability",
   "rankClimate",
   "rankLiveability",
+  // Added later: new fields go at the end, so a dataset built before them
+  // still decodes (the missing values read as null) - no schema bump.
+  "hasNursery",
 ] as const;
 
 export type CityFieldKey = (typeof CITY_FIELDS)[number];
@@ -190,6 +195,7 @@ export interface CityRecord {
   hasBusStation: boolean | null;
   hasSchool: boolean | null;
   hasUniversity: boolean | null;
+  hasNursery: boolean | null;
   /** Test-weighted average download speed (Ookla) within the stored
    *  radius: 5 km, or 15/30 km where there were too few tests nearer. */
   broadbandDownloadMbps: number | null;

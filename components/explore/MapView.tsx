@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { driveMinutes, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
 import { autoCollapseAttribution } from "@/lib/mapAttribution";
 import type { TravelTimes } from "@/lib/types";
 
@@ -11,12 +12,9 @@ import type { TravelTimes } from "@/lib/types";
  *  icons. */
 export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 
-/** Straight-line travel estimates - there's no routing engine by design
- *  (no live API calls), so these are clearly-labelled approximations:
- *  ~40 km/h door-to-door by car (city driving incl. stops), 5 km/h walking,
- *  on a distance inflated by 1.3 for real roads not running straight. */
-const ROAD_DETOUR_FACTOR = 1.3;
-const CAR_KMH = 40;
+/** Directions are estimates from the straight-line distance - there's no
+ *  routing engine by design (no live API calls): by car via driveMinutes,
+ *  walking at 5 km/h, both on roads ~30% longer than the straight line. */
 const WALK_KMH = 5;
 
 function straightLineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
@@ -588,16 +586,17 @@ export function MapView({
       }
       if (cancelled || !map) return;
       // Straight dashed line + estimated times (no routing engine - see
-      // ROAD_DETOUR_FACTOR's comment); PinPanel labels these as estimates.
+      // WALK_KMH's comment); PinPanel labels these as estimates.
       const coordinates: [number, number][] = [
         [pinnedCoords.lng, pinnedCoords.lat],
         [destinationCoords.lng, destinationCoords.lat],
       ];
       const source = map.getSource(ROUTE_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
       source?.setData({ type: "Feature", geometry: { type: "LineString", coordinates }, properties: {} } as any);
-      const roadKm = straightLineKm(pinnedCoords, destinationCoords) * ROAD_DETOUR_FACTOR;
+      const straightKm = straightLineKm(pinnedCoords, destinationCoords);
+      const roadKm = straightKm * ROAD_DETOUR_FACTOR;
       onRouteInfo?.({
-        car: { minutes: Math.max(1, Math.round((roadKm / CAR_KMH) * 60)), km: Number(roadKm.toFixed(1)) },
+        car: { minutes: driveMinutes(straightKm) ?? 1, km: Number(roadKm.toFixed(1)) },
         walkingMinutes: Math.max(1, Math.round((roadKm / WALK_KMH) * 60)),
       });
       hadRouteRef.current = true;

@@ -1,5 +1,5 @@
 import type { NearbyPlace, PinnedLocationData } from "@/lib/types";
-import { kmToMinutes } from "./assemble";
+import { driveMinutes } from "./assemble";
 import { loadFile, manifest } from "./files";
 import { POI_TILE_DEG } from "./schema";
 
@@ -7,7 +7,8 @@ import { POI_TILE_DEG } from "./schema";
  *  station and airport to any dropped pin, from the published 5°x5° point
  *  tiles (pipeline/poiTiles.ts). Starts with the pin's own tile and only
  *  widens while something farther away could still be closer. Travel times
- *  are straight-line estimates (~30 km/h), labelled as such in the UI. */
+ *  are estimates from the straight-line distance (driveMinutes), labelled as
+ *  such in the UI. */
 
 /** [lng, lat, name, elevation?] */
 type Point = [number, number, string, (number | null)?];
@@ -81,7 +82,7 @@ async function nearest(lat: number, lng: number, categories: Category[], accept:
 }
 
 const toPlace = (hit: { p: Point; km: number } | null, fallbackName: string | null = null): NearbyPlace =>
-  hit ? { minutes: kmToMinutes(hit.km), name: hit.p[2] || fallbackName, lat: hit.p[1], lng: hit.p[0] } : { minutes: null, name: null, lat: null, lng: null };
+  hit ? { minutes: driveMinutes(hit.km), name: hit.p[2] || fallbackName, lat: hit.p[1], lng: hit.p[0] } : { minutes: null, name: null, lat: null, lng: null };
 
 export async function getPinnedLocationData(lat: number, lng: number): Promise<PinnedLocationData> {
   // The nearest town gives the "near <town>" label and the local ground

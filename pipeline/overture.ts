@@ -38,6 +38,7 @@ export const POI = {
   airport: 10,
   beach: 11,
   tram: 12,
+  nursery: 13, // nurseries, day care, preschools
 } as const;
 
 const BASIC_CATEGORY_TO_CODE: Record<string, number> = {
@@ -67,13 +68,17 @@ const BASIC_CATEGORY_TO_CODE: Record<string, number> = {
   beach: POI.beach,
 };
 
-/** Transit categories live in the finer-grained taxonomy, not basic_category. */
+/** Transit and childcare categories live in the finer-grained taxonomy
+ *  (childcare's basic_category is the broad "family_service"). */
 const TAXONOMY_TO_CODE: Record<string, number> = {
   bus_station: POI.bus,
   metro_station: POI.metro,
   light_rail_and_subway_station: POI.metro,
   tram_station: POI.tram,
   tram_stop: POI.tram,
+  child_care_and_day_care: POI.nursery,
+  day_care_preschool: POI.nursery,
+  preschool: POI.nursery,
 };
 
 function sqlCase(column: string, map: Record<string, number>): string {
@@ -92,7 +97,8 @@ export async function extractOverturePlaces(): Promise<{ glob: string; release: 
   const basicList = Object.keys(BASIC_CATEGORY_TO_CODE).map((c) => `'${c}'`).join(",");
   const taxList = Object.keys(TAXONOMY_TO_CODE).map((c) => `'${c}'`).join(",");
   const glob = await extractParts(release, {
-    name: "places",
+    // Versioned: a changed category list needs a fresh extract.
+    name: "places-v2",
     source: "theme=places/type=place",
     select: `
       CASE ${sqlCase("taxonomy.primary", TAXONOMY_TO_CODE)} ${sqlCase("basic_category", BASIC_CATEGORY_TO_CODE)} END::TINYINT AS cat,

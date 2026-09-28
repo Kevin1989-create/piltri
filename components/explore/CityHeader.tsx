@@ -54,19 +54,17 @@ function formatCompactNumber(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
-/** A demographics stat: value over label, one line each; hover shows the
- *  full text, and a tap expands it in place (phones have no hover). */
+/** A demographics stat: value over label. The label is always shown in
+ *  full (wrapping if it must); a long value is cut short - hover shows it,
+ *  and a tap expands it in place (phones have no hover). */
 function StatCell({ stat }: { stat: { label: string; value: string; colorClass: string; title?: string } }) {
   const [open, setOpen] = useState(false);
-  const wrap = open ? "break-words" : "truncate";
   return (
     <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="block w-full min-w-0 text-left cursor-default">
-      <p className={`text-[11px] font-medium leading-snug ${wrap} ${stat.colorClass}`} title={stat.title ?? stat.value}>
+      <p className={`text-[11px] font-medium leading-snug ${open ? "break-words" : "truncate"} ${stat.colorClass}`} title={stat.title ?? stat.value}>
         {stat.value}
       </p>
-      <p className={`text-[9px] text-ink-500 uppercase tracking-wide leading-snug ${wrap}`} title={stat.label}>
-        {stat.label}
-      </p>
+      <p className="text-[9px] text-ink-500 uppercase tracking-wide leading-snug break-words">{stat.label}</p>
       {open && stat.title && <p className="text-[9px] text-ink-300 leading-snug break-words">{stat.title}</p>}
     </button>
   );
@@ -76,7 +74,7 @@ function StatCell({ stat }: { stat: { label: string; value: string; colorClass: 
  *  can't get silently normalised back to a plain space by any editing
  *  step) between "5" and "yr" — makes "(5 yr)" wrap as one whole unit onto
  *  its own line instead of splitting mid-bracket. */
-const TREND_LABEL = "Trend (5\u00A0yr)";
+const TREND_LABEL = "Population growth (5\u00A0yrs)";
 
 /** City name + Piltri score. Sits at the top of the floating left column on
  *  the results page, so it's sized for a narrow column rather than a full
@@ -240,13 +238,9 @@ export function CityHeader({
       {cityStats && (
         <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
           <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{cityName}</p>
-          {/* truncate on both lines (2026-09-26, on request - same fix as
-           *  SectionDetail.tsx's StatCell): a longer label like
-           *  "Population trend (5 yr)" wrapping to 2 lines made its whole
-           *  grid row taller than a row of single-line labels, leaving
-           *  uneven blank space below the shorter cells before the next
-           *  row's fixed gap-y-0.5 started - every cell now has the same
-           *  1-line footprint regardless of label length. */}
+          {/* Labels are kept short so a row stays one line; the one that
+           *  can't be ("Population growth (5 yrs)") wraps rather than being
+           *  cut to something unclear. */}
           <div className="mt-0.5 grid grid-cols-3 gap-x-3 gap-y-0.5">
             {cityStats.map((stat) => (
               <StatCell key={stat.label} stat={stat} />

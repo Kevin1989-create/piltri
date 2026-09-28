@@ -141,7 +141,7 @@ async function main() {
   // Counting within 5 km runs inside DuckDB (millions of restaurants never
   // enter JavaScript); only points needed for nearest distances are loaded.
   log("build", "counting Overture places within 5 km of every city (DuckDB)...");
-  const counted = [POI.eating, POI.cultural, POI.family, POI.park, POI.school, POI.university, POI.train, POI.bus];
+  const counted = [POI.eating, POI.cultural, POI.family, POI.park, POI.school, POI.university, POI.train, POI.bus, POI.nursery];
   const counts = await countNearCities(`SELECT cat, lat, lng FROM read_parquet('${placesGlob}') WHERE cat IN (${counted.join(",")})`, points, LOCAL_RADIUS_KM);
   const ovCount = (i: number, cat: number) => counts.get(i)?.get(cat) ?? 0;
   const ovTrain = await loadOvertureCategory(placesGlob, POI.train);
@@ -235,6 +235,7 @@ async function main() {
         hasBusStation: has(idx.bus, POI.bus),
         hasSchool: has(idx.school, POI.school),
         hasUniversity: has(idx.university, POI.university),
+        hasNursery: ovCount(i, POI.nursery) > 0,
         broadbandDownloadMbps: broadband.fixed.mbps[i],
         broadbandRadiusKm: broadband.fixed.radiusKm[i],
         mobileDownloadMbps: broadband.mobile.mbps[i],

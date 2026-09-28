@@ -6,8 +6,7 @@ import Link from "next/link";
 import { ClimateChart } from "@/components/explore/ClimateChart";
 import { KpiInfoButton } from "@/components/explore/KpiInfo";
 import { ResourcesDetail } from "@/components/explore/ResourcesDetail";
-import { buildGdpSectorRows, buildKpiRows, buildLiveabilityTransportRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
-import { cn } from "@/lib/cn";
+import { buildKpiRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { isCustomWeights, useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { getCityExploreData } from "@/lib/dataset/cities";
@@ -169,23 +168,8 @@ function ReportContent() {
             </section>
 
             {ORDER.map((section) => {
-              const rows = buildKpiRows(section, data, prefs);
-              // Transport Access + Notable Institutions - folded directly
-              // into the main City group below, no separate "Local
-              // Signals" sub-heading (2026-09-26, on request).
-              const localSignalRows = section === "liveability" ? buildLiveabilityTransportRows(data) : null;
-              // Split out of the main row list into its own fixed-3-column
-              // block, same reasoning and same function as
-              // SectionDetail.tsx uses (see buildGdpSectorRows).
-              const gdpSectorRows = section === "economy" ? buildGdpSectorRows(data) : null;
-              const { countryRows: allCountryRows, cityRows: cityRowsOwn } = splitKpiRowsByTier(rows);
-              const cityRows = localSignalRows ? [...cityRowsOwn, ...localSignalRows] : cityRowsOwn;
-              // See SectionDetail.tsx's same split - Economy's first 3
-              // country rows (GDP/GDP world rank/Economic growth) lead,
-              // GDP sector ranking is spliced in right after, then the
-              // remaining country rows.
-              const countryRows = section === "economy" ? allCountryRows.slice(0, 3) : allCountryRows;
-              const countryRowsAfterSectors = section === "economy" ? allCountryRows.slice(3) : [];
+              // Same rows, in the same order, as the results page.
+              const { countryRows, cityRows } = splitKpiRowsByTier(buildKpiRows(section, data, prefs));
               const cityTierHasContent = cityRows.length > 0;
               const noDataNote = noSectionDataNote(section, data);
               return (
@@ -205,13 +189,7 @@ function ReportContent() {
                       <ClimateChart monthly={data.climate.monthly} />
                     </div>
                   )}
-                  <ReportGroup
-                    title={data.country}
-                    rows={countryRows}
-                    extraRows={gdpSectorRows}
-                    rowsAfterExtra={countryRowsAfterSectors}
-                    spacing={cityTierHasContent ? "mt-4" : "mt-3"}
-                  />
+                  <ReportGroup title={data.country} rows={countryRows} spacing={cityTierHasContent ? "mt-4" : "mt-3"} />
                 </section>
               );
             })}
@@ -251,50 +229,16 @@ function ReportContent() {
  *  lets the caller give whichever group lands first the tighter "mt-3"
  *  the original single grid used, since an empty group renders nothing
  *  and shouldn't leave a gap in its place. */
-function ReportGroup({
-  title,
-  rows,
-  extraRows,
-  rowsAfterExtra,
-  spacing = "mt-4",
-}: {
-  title: string;
-  rows: KpiRow[];
-  /** Rendered as its own fixed-3-column grid below the main one, always
-   *  together on one row - see buildGdpSectorRows' comment for why this
-   *  can't just share the main grid's rows/columns. */
-  extraRows?: KpiRow[] | null;
-  /** Economy-only: the remaining country rows (Tax revenue/Average
-   *  salary/... onward), rendered after extraRows instead of before it -
-   *  see SectionDetail.tsx's countryRowsAfterSectors for the same split. */
-  rowsAfterExtra?: KpiRow[];
-  spacing?: string;
-}) {
-  if (rows.length === 0 && !extraRows?.length && !rowsAfterExtra?.length) return null;
+function ReportGroup({ title, rows, spacing = "mt-4" }: { title: string; rows: KpiRow[]; spacing?: string }) {
+  if (rows.length === 0) return null;
   return (
     <div className={spacing}>
       <p className="font-serif font-semibold text-sm text-black mb-1.5">{title}</p>
-      {rows.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
-          {rows.map((row) => (
-            <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} row={row} />
-          ))}
-        </div>
-      )}
-      {!!extraRows?.length && (
-        <div className={cn("grid grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm", rows.length > 0 && "mt-3")}>
-          {extraRows.map((row) => (
-            <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} row={row} />
-          ))}
-        </div>
-      )}
-      {!!rowsAfterExtra?.length && (
-        <div className={cn("grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm", (rows.length > 0 || !!extraRows?.length) && "mt-3")}>
-          {rowsAfterExtra.map((row) => (
-            <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} row={row} />
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
+        {rows.map((row) => (
+          <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} row={row} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -319,7 +263,12 @@ function ReportStat({
       <div className="min-w-0 flex-1">
         <p className={`font-medium leading-snug break-words ${colorClass ?? "text-ink-900"}`}>
           {value}
-          {valueSuffix && <span className="text-[11px] font-normal ml-1 whitespace-nowrap">{valueSuffix}</span>}
+          {valueSuffix && (
+            <>
+              {" "}
+              <span className="text-[11px] font-normal whitespace-nowrap">{valueSuffix}</span>
+            </>
+          )}
         </p>
         <p className="text-[11px] text-ink-500 leading-snug break-words">{label}</p>
       </div>

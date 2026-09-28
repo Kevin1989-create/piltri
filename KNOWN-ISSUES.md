@@ -6,8 +6,9 @@ Updated 2026-09-26. The data is an offline dataset served as static files
 ## Data limitations, and how each is handled
 - **Estimates**: sunshine hours, snowfall and UV index are derived from
   climate normals; flood / sea-level exposure are proxies (elevation +
-  distance to the coast); travel times are straight-line (~30 km/h). All
-  are labelled as such in the row hints and on /explore/sources.
+  distance to the coast); drive times come from the straight-line distance
+  (no route planner - so a trip across water still gets one, up to 500 km).
+  All are labelled as such in the row hints and on /explore/sources.
 - **Internet speed** needs 30+ Speedtest results: taken within 5 km, widened
   to 15 or 30 km for small places (the page shows "(15 km)"). About 7,000
   places (broadband) / 9,000 (mobile) have no tests within 30 km and show

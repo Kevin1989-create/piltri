@@ -204,6 +204,7 @@ export function assembleCityExploreData(
       hasBusStation: city.hasBusStation,
       hasSchool: city.hasSchool,
       hasUniversity: city.hasUniversity,
+      hasNursery: city.hasNursery,
       broadbandDownloadMbps: city.broadbandDownloadMbps,
       broadbandRadiusKm: city.broadbandRadiusKm,
       mobileDownloadMbps: city.mobileDownloadMbps,
@@ -246,9 +247,29 @@ export function assembleCityExploreData(
   return data;
 }
 
-/** Straight-line km -> rough minutes at ~30 km/h average local travel -
- *  the disclosed estimate pin mode and the "distance from city centre"
- *  filters both use (there's no routing engine). */
-export function kmToMinutes(km: number | null): number | null {
-  return km == null ? null : Math.round((km / 30) * 60);
+/** Roads run ~30% longer than the straight line. */
+export const ROAD_DETOUR_FACTOR = 1.3;
+
+/** Estimated minutes by car for a straight-line distance - there's no
+ *  routing engine (by design: no live API), so it's a disclosed estimate:
+ *  roads ~30% longer, the first 10 km at ~30 km/h (town), the next 40 at
+ *  ~60, the rest at ~100 (main roads) - Paris to the coast (149 km) comes
+ *  out at ~2 h 25 (real: ~2 h 15). Used by the distance rows, pin mode,
+ *  directions and the "distance from city centre" filters alike. */
+export function driveMinutes(straightKm: number | null): number | null {
+  if (straightKm == null) return null;
+  const road = straightKm * ROAD_DETOUR_FACTOR;
+  const town = Math.min(road, 10);
+  const regional = Math.min(Math.max(road - 10, 0), 40);
+  const main = Math.max(road - 50, 0);
+  return Math.max(1, Math.round((town / 30 + regional / 60 + main / 100) * 60));
+}
+
+/** "25 min" / "1 h 35 min" / "4 h" - rounded to 5 minutes past an hour. */
+export function formatDriveTime(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const rounded = Math.round(minutes / 5) * 5;
+  const h = Math.floor(rounded / 60);
+  const m = rounded % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
 }

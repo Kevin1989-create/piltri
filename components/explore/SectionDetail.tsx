@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { ClimateChart } from "@/components/explore/ClimateChart";
 import { KpiInfoButton, type KpiInfoHandle } from "@/components/explore/KpiInfo";
 import { cn } from "@/lib/cn";
-import { buildGdpSectorRows, buildKpiRows, buildLiveabilityTransportRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
+import { buildKpiRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { useUnitPreferences } from "@/lib/unitPreferences";
 import type { CityExploreData, SectionKey } from "@/lib/types";
 
@@ -12,14 +12,20 @@ import type { CityExploreData, SectionKey } from "@/lib/types";
  *  "i" sits at the same spot in every cell, top right, so they line up
  *  down each column; it explains the metric - definition, colour guide and
  *  source - on hover, and tapping anywhere on the cell opens it on a phone. */
-function StatCell({ row, bold = false }: { row: KpiRow; bold?: boolean }) {
+function StatCell({ row }: { row: KpiRow }) {
   const info = useRef<KpiInfoHandle>(null);
   return (
     <div data-kpi-cell className="min-w-0 flex items-start gap-1.5 cursor-default" onClick={() => info.current?.toggle()}>
       <div className="min-w-0 flex-1">
-        <p className={cn("text-xs leading-tight break-words", bold ? "font-semibold" : "font-medium", row.colorClass ?? "text-ink-900")}>
+        <p className={cn("text-xs font-medium leading-tight break-words", row.colorClass ?? "text-ink-900")}>
           {row.value}
-          {row.valueSuffix && <span className="text-[10px] font-normal ml-1 whitespace-nowrap">{row.valueSuffix}</span>}
+          {/* The space lets a long suffix drop to its own line whole. */}
+          {row.valueSuffix && (
+            <>
+              {" "}
+              <span className="text-[10px] font-normal whitespace-nowrap">{row.valueSuffix}</span>
+            </>
+          )}
         </p>
         <p className="text-[10px] text-ink-500 leading-tight break-words">{row.label}</p>
       </div>
@@ -28,18 +34,19 @@ function StatCell({ row, bold = false }: { row: KpiRow; bold?: boolean }) {
   );
 }
 
-function StatGrid({ rows, cols, bold = false }: { rows: KpiRow[]; cols: 2 | 3; bold?: boolean }) {
+/** Two per line, so every label and value fits in full. */
+function StatGrid({ rows }: { rows: KpiRow[] }) {
   return (
-    <div className={cn("grid gap-x-4 gap-y-3", cols === 3 ? "grid-cols-3" : "grid-cols-2")}>
+    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
       {rows.map((row) => (
-        <StatCell key={row.label} row={row} bold={bold} />
+        <StatCell key={row.label} row={row} />
       ))}
     </div>
   );
 }
 
-/** A section's KPIs as a grid of small stat cells (two per line; the GDP
- *  sectors three), split into this city's own values, then its country's (from
+/** A section's KPIs as a grid of small stat cells, two per line, split
+ *  into this city's own values, then its country's (from
  *  each row's precision tier). A tier with no rows isn't rendered.
  *  `bordered` adds the top divider used when this sits inline under its
  *  SectionRow (Compare page). */
@@ -53,20 +60,8 @@ export function SectionDetail({
   bordered?: boolean;
 }) {
   const { prefs } = useUnitPreferences();
-  const rows = buildKpiRows(section, data, prefs);
-  const localSignalRows = section === "liveability" ? buildLiveabilityTransportRows(data) : null;
-  // GDP sectors always render as their own row of 3.
-  const gdpSectorRows = section === "economy" ? buildGdpSectorRows(data) : null;
-  // Two per line, so every label and value fits in full.
-  const cols = 2;
-
-  const { countryRows: allCountryRows, cityRows: cityRowsOwn } = splitKpiRowsByTier(rows);
-  const cityRows = localSignalRows ? [...cityRowsOwn, ...localSignalRows] : cityRowsOwn;
-  // Economy: GDP and GDP rank first (one line), then the sectors, then the rest.
-  const countryRows = section === "economy" ? allCountryRows.slice(0, 2) : allCountryRows;
-  const countryRowsAfterSectors = section === "economy" ? allCountryRows.slice(2) : [];
-
-  const hasCountry = countryRows.length > 0 || !!gdpSectorRows?.length;
+  const { countryRows, cityRows } = splitKpiRowsByTier(buildKpiRows(section, data, prefs));
+  const hasCountry = countryRows.length > 0;
   const hasCity = cityRows.length > 0;
   const noDataNote = noSectionDataNote(section, data);
 
@@ -76,7 +71,7 @@ export function SectionDetail({
       {hasCity && (
         <div>
           <p className="font-serif font-semibold text-xs text-black leading-tight mb-1">{data.cityName}</p>
-          <StatGrid rows={cityRows} cols={cols} />
+          <StatGrid rows={cityRows} />
           {section === "climate" && data.climate.monthly && (
             <div className="mt-3">
               <ClimateChart monthly={data.climate.monthly} />
@@ -88,17 +83,7 @@ export function SectionDetail({
       {hasCountry && (
         <div className={cn(hasCity && "mt-2 pt-1.5 border-t border-piltri-amber/20")}>
           <p className="font-serif font-semibold text-xs text-black leading-tight mb-1">{data.country}</p>
-          {countryRows.length > 0 && <StatGrid rows={countryRows} cols={cols} />}
-          {!!gdpSectorRows?.length && (
-            <div className={cn(countryRows.length > 0 && "mt-3")}>
-              <StatGrid rows={gdpSectorRows} cols={3} />
-            </div>
-          )}
-          {countryRowsAfterSectors.length > 0 && (
-            <div className="mt-3">
-              <StatGrid rows={countryRowsAfterSectors} cols={cols} />
-            </div>
-          )}
+          <StatGrid rows={countryRows} />
         </div>
       )}
     </div>
