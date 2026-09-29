@@ -198,8 +198,8 @@ export const DISPLAYED_RESOURCE_LINK_CATEGORIES: ResourceLinkCategory[] = ["immi
 
 export const RESOURCE_LINK_CATEGORY_LABELS: Record<ResourceLinkCategory, string> = {
   home: "Property",
-  immigration: "Visa and Immigration",
-  health: "Health System",
+  immigration: "Visa and immigration",
+  health: "Health system",
   jobs: "Jobs",
 };
 

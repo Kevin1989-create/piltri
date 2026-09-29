@@ -152,7 +152,7 @@ function ReportContent() {
                   }
                 />
                 <ReportStat
-                  label="Population trend (5 yr)"
+                  label="Population growth (5 yrs)"
                   value={
                     data.demographics.countryPopulationTrend5yrPct != null
                       ? `${data.demographics.countryPopulationTrend5yrPct > 0 ? "+" : ""}${data.demographics.countryPopulationTrend5yrPct}%`
@@ -188,7 +188,7 @@ function ReportContent() {
                   {noDataNote && <p className="mt-2 text-xs text-ink-500">{noDataNote}</p>}
                   {cityTierHasContent && <ReportGroup title={data.cityName} rows={cityRows} spacing="mt-3" />}
                   {section === "climate" && data.climate.monthly && (
-                    <div className="mt-4">
+                    <div className="mt-4 max-w-sm">
                       <ClimateChart monthly={data.climate.monthly} />
                     </div>
                   )}
@@ -204,8 +204,8 @@ function ReportContent() {
               <div className="flex items-baseline justify-between border-b border-surface-border pb-1.5">
                 <h2 className="text-sm font-medium text-ink-900">Resources</h2>
               </div>
-              <div className="mt-3 -mx-4 sm:-mx-6">
-                <ResourcesDetail countryCode={data.countryCode} bordered={false} />
+              <div className="mt-3">
+                <ResourcesDetail countryCode={data.countryCode} variant="report" />
               </div>
             </section>
 
