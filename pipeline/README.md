@@ -41,6 +41,7 @@ also picks up the latest published dataset.
 | Restaurants/bars/cafés, cultural venues, family activities, parks, nurseries, schools, universities, stations | Overture Maps places | CDLA-Permissive-2.0 |
 | Tram / light rail / metro lines | Overture Maps transportation (OpenStreetMap rail) | ODbL |
 | City outlines on the map | Overture Maps divisions (OpenStreetMap boundaries) | ODbL |
+| Official languages | Unicode CLDR territory data (+ constitutional corrections in `sources/languages.ts`) | Unicode License |
 | Airports, rail/metro/bus stations, beaches, 1,000 m+ peaks, forests, volcanoes | GeoNames `allCountries` | CC BY 4.0 |
 | Earthquakes (M5+ since 1970) | USGS catalogue | public domain |
 
@@ -87,8 +88,14 @@ credited on the site at /explore/sources (built from the manifest).
 - **PM2.5**: grid-edge value for towns just beyond the satellite map;
   WHO national estimate (labelled) for small countries it misses.
 - **Beaches**: only on the sea or a Natural Earth major lake (scalerank <= 7).
-- **City outlines**: the Overture division polygon with the city's own name
-  (ignoring "City of" / "Greater" / " City") that contains its point, within
+- **Official languages**: CLDR status "official" only (not regional, not
+  de facto unless spoken by a majority or the only one), alphabetical, and
+  corrected to the constitution where CLDR differs (South Africa,
+  Montenegro, Nigeria, Algeria, Iraq, Morocco, Afghanistan, Israel - each
+  with its reason in `sources/languages.ts`).
+- **City outlines**: the Overture division polygon carrying any of the
+  city's GeoNames names (any script; ignoring "City of" / "Greater" /
+  " City" / " Municipality" / 市) that contains its point, within
   ~1 km, between 0.3 and 6,000 km² - a locality first, a region only for
   city-states (Berlin, Tokyo); parts over ~50 km away (islands) dropped.
   Otherwise none, and the map draws the 5 km circle - never a neighbouring

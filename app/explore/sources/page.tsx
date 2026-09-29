@@ -19,6 +19,7 @@ const LABELS: Record<string, string> = {
   coast: "Coast & beaches",
   earthquakes: "Earthquakes",
   outlines: "City outlines on the map",
+  languages: "Official languages",
 };
 
 /** Every source behind the numbers, with its licence - the attribution most

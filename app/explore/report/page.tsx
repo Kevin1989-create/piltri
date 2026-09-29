@@ -163,7 +163,10 @@ function ReportContent() {
                   label="Average age"
                   value={data.demographics.countryAverageAge != null ? String(data.demographics.countryAverageAge) : "Not available"}
                 />
-                <ReportStat label="Main language" value={data.demographics.countryMostWidelySpokenLanguage ?? "Not available"} />
+                <ReportStat
+                  label={data.demographics.countryOfficialLanguages?.length === 1 ? "Official language" : "Official languages"}
+                  value={data.demographics.countryOfficialLanguages?.join(", ") || "Not available"}
+                />
               </div>
             </section>
 

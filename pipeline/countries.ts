@@ -1,4 +1,4 @@
-import { getCountryLanguages } from "./sources/languages";
+import { loadOfficialLanguages } from "./sources/languages";
 import { getCountryMedianAge } from "./sources/medianAge";
 import { getClimateReadiness } from "./sources/climateReadiness";
 import { normalise } from "@/lib/aggregation/scoring";
@@ -129,6 +129,7 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
     return out as Record<IndicatorKey, Record<string, Series>>;
   });
   const who = await cached("who-uhc", fetchWhoUhc);
+  const officialLanguages = await loadOfficialLanguages();
 
   // GDP world rank among real economies only (the bulk endpoint also
   // returns aggregates like "World"/"Euro area", which have no ISO code).
@@ -149,11 +150,9 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
     const ppp = latest(get("ppp"));
     const politicalStability = latest(get("politicalStability"));
     const ruleOfLaw = latest(get("ruleOfLaw"));
-    const languages = getCountryLanguages(cc);
 
     // A figure the source doesn't have for this country stays null (shown
     // as "No data", left out of the scores) - never a stand-in value.
-
     countries[cc] = {
       name: info.name,
       demographics: {
@@ -162,7 +161,7 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
         countryLandAreaKm2: latest(get("landArea")),
         countryAverageAge: getCountryMedianAge(cc),
         countryPopulationTrend5yrPct: pctChange(get("population")),
-        countryMostWidelySpokenLanguage: languages.mostWidelySpokenLanguage,
+        countryOfficialLanguages: officialLanguages[cc] ?? null,
       },
       economy: {
         economicGrowth5yrGdpPct: pctChange(get("gdpLevel")),

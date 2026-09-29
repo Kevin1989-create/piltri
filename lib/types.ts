@@ -28,8 +28,10 @@ export interface DemographicsFields {
   countryAverageAge: number | null;
   /** World Bank SP.POP.TOTL, change over the last ~5 years. */
   countryPopulationTrend5yrPct: number | null;
-  /** GeoNames countryInfo.txt, first listed language. */
-  countryMostWidelySpokenLanguage: string | null;
+  /** Official languages, alphabetical (Unicode CLDR - see
+   *  pipeline/sources/languages.ts for the rules). Absent in datasets
+   *  built before 2026-09-28. */
+  countryOfficialLanguages?: string[] | null;
 
   /** GeoNames population of the place itself (city proper, or a district
    *  of a larger city). */

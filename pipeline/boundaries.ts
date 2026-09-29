@@ -24,28 +24,39 @@ const MAX_KM2 = 6000; // above this it's a province, not a city (Chongqing)
  *  frames the city itself. */
 const MAX_PART_DEG = 0.5;
 
-/** Accent- and case-insensitive name without "City of" / "Greater" / " City"
- *  ("Greater London" = "London", "Mexico City" = "Ciudad de México"'s
- *  English name "Mexico City"), as SQL. */
+/** Accent- and case-insensitive name, in any script, without the words
+ *  that differ between sources: "City of" / "Greater" / "Ciudad de" /
+ *  " City" / " Metropolitan Municipality" / " Municipal Corporation" /
+ *  a trailing 市 ("Greater London" = "London", "City of Johannesburg
+ *  Metropolitan Municipality" = "Johannesburg", 札幌市 = 札幌), as SQL.
+ *  Not "District": a district is usually much bigger than its town. */
 const coreName = (x: string) =>
-  `regexp_replace(trim(regexp_replace(lower(strip_accents(${x})), '[^a-z0-9]+', ' ', 'g')), '^(city of|greater|town of|municipality of) | (city|municipality|town)$', '', 'g')`;
+  `regexp_replace(regexp_replace(trim(regexp_replace(lower(strip_accents(${x})), '[^\\p{L}\\p{N}]+', ' ', 'g')),
+    '^(city of|greater|town of|municipality of|ciudad de|municipio de|ville de) | (city|town|municipality|metropolitan municipality|local municipality|municipal corporation|municipal council)$', '', 'g'),
+    '市$', '')`;
 
-type City = { cityName: string; countryCode: string; lat: number; lng: number };
+/** A city and every name it's known by (GeoNames' name, ASCII name and
+ *  alternate names). */
+type City = { cityName: string; altNames?: string[]; countryCode: string; lat: number; lng: number };
 type Con = Awaited<ReturnType<DuckDBInstance["connect"]>>;
 
+/** pts: one row per city name variant; k is its core name (never empty). */
 async function loadCities(con: Con, cities: City[]) {
-  await con.run("CREATE OR REPLACE TABLE pts (idx INTEGER, cc VARCHAR, name VARCHAR, lng DOUBLE, lat DOUBLE)");
-  const appender = await con.createAppender("pts");
+  await con.run("CREATE OR REPLACE TABLE pts_raw (idx INTEGER, cc VARCHAR, name VARCHAR, lng DOUBLE, lat DOUBLE)");
+  const appender = await con.createAppender("pts_raw");
   cities.forEach((c, i) => {
-    appender.appendInteger(i);
-    appender.appendVarchar(c.countryCode);
-    appender.appendVarchar(c.cityName);
-    appender.appendDouble(c.lng);
-    appender.appendDouble(c.lat);
-    appender.endRow();
+    for (const name of [c.cityName, ...(c.altNames ?? [])]) {
+      appender.appendInteger(i);
+      appender.appendVarchar(c.countryCode);
+      appender.appendVarchar(name);
+      appender.appendDouble(c.lng);
+      appender.appendDouble(c.lat);
+      appender.endRow();
+    }
   });
   appender.closeSync();
-  await con.run(`ALTER TABLE pts ADD COLUMN k VARCHAR; UPDATE pts SET k = ${coreName("name")}`);
+  await con.run(`CREATE OR REPLACE TABLE pts AS
+    SELECT DISTINCT idx, cc, lng, lat, k FROM (SELECT *, ${coreName("name")} AS k FROM pts_raw) WHERE k <> ''`);
 }
 
 function encodeRing(ring: number[][]): number[] {
@@ -76,11 +87,11 @@ function encodeGeoJson(json: string): EncodedBoundary | null {
 export async function sampleBoundaries(cities: City[]): Promise<(EncodedBoundary | null)[]> {
   const release = await resolveOvertureRelease();
   const key = pointsKey(cities);
-  return cached(`bounds-v2-${release}-${key}`, async () => {
+  return cached(`bounds-v3-${release}-${key}`, async () => {
     // Pass 1 (remote, resumable): only polygons whose name matches a city's
     // name in the same country - a few percent of the ~1M land divisions.
     const glob = await extractParts(release, {
-      name: `bounds-v2-${key}`,
+      name: `bounds-v3-${key}`,
       source: "theme=divisions/type=division_area",
       setup: async (con) => {
         await loadCities(con, cities);
@@ -105,13 +116,26 @@ export async function chooseOutlines(glob: string, cities: City[]): Promise<(Enc
   const con = await instance.connect();
   await con.run("INSTALL spatial; LOAD spatial;");
   await loadCities(con, cities);
+  const extract = `read_parquet('${glob}', filename = true, file_row_number = true)`;
+  // City-outline pairs by name, without touching the geometries: two
+  // equality joins (fast hash joins) - a single join on "k1 = k OR k2 = k"
+  // can't use a hash and grows with the square of the name variants (it
+  // took hours). Then the geometries of just those pairs.
+  await con.run(`
+    CREATE TABLE pairs AS
+    SELECT DISTINCT idx, filename, file_row_number FROM (
+      SELECT p.idx, p.lng, p.lat, a.* FROM (SELECT filename, file_row_number, country, k1, bbox FROM ${extract}) a JOIN pts p ON a.country = p.cc AND a.k1 = p.k
+      UNION ALL
+      SELECT p.idx, p.lng, p.lat, a.* FROM (SELECT filename, file_row_number, country, k2 AS k1, bbox FROM ${extract}) a JOIN pts p ON a.country = p.cc AND a.k1 = p.k
+    )
+    WHERE lng BETWEEN bbox.xmin - 0.02 AND bbox.xmax + 0.02 AND lat BETWEEN bbox.ymin - 0.02 AND bbox.ymax + 0.02`);
+  await con.run("CREATE TABLE centres AS SELECT DISTINCT idx, lng, lat FROM pts");
   const reader = await con.runAndReadAll(`
       WITH cand AS (
-        SELECT p.idx, p.lng, p.lat, a.subtype, a.geometry AS whole, ST_Distance(a.geometry, ST_Point(p.lng, p.lat)) AS dist
-        FROM read_parquet('${glob}') a
-        JOIN pts p ON a.country = p.cc AND (a.k1 = p.k OR a.k2 = p.k)
-          AND p.lng BETWEEN a.bbox.xmin - 0.02 AND a.bbox.xmax + 0.02
-          AND p.lat BETWEEN a.bbox.ymin - 0.02 AND a.bbox.ymax + 0.02
+        SELECT pr.idx, c.lng, c.lat, a.subtype, a.geometry AS whole, ST_Distance(a.geometry, ST_Point(c.lng, c.lat)) AS dist
+        FROM pairs pr
+        JOIN ${extract} a ON a.filename = pr.filename AND a.file_row_number = pr.file_row_number
+        JOIN centres c ON c.idx = pr.idx
       ), near AS (
         SELECT idx, subtype, dist,
           ST_Collect(list_transform(list_filter(ST_Dump(whole), d -> ST_Distance(d.geom, ST_Point(lng, lat)) < ${MAX_PART_DEG}), d -> d.geom)) AS geom

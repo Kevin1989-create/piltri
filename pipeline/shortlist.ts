@@ -23,6 +23,9 @@ export interface ShortlistCity {
   elevationM: number | null;
   /** IANA time zone, e.g. "Europe/Lisbon". */
   timezone: string | null;
+  /** GeoNames' ASCII and alternate names (other spellings and languages) -
+   *  used to find the city's outline (pipeline/boundaries.ts). */
+  altNames: string[];
 }
 
 export interface CountryInfo {
@@ -53,7 +56,7 @@ export async function loadShortlist(): Promise<Shortlist> {
   const admin1File = await downloadOnce("https://download.geonames.org/export/dump/admin1CodesASCII.txt", "admin1CodesASCII.txt");
   const countryFile = await downloadOnce("https://download.geonames.org/export/dump/countryInfo.txt", "countryInfo.txt");
 
-  return cached("shortlist-v4", async () => {
+  return cached("shortlist-v5", async () => {
     const admin1 = new Map(tsv(admin1File).map(([code, name]) => [code, name]));
     // countryInfo.txt: ISO, ISO3, ISO-Numeric, fips, Country, Capital, Area,
     // Population, Continent, tld, CurrencyCode, CurrencyName, ...
@@ -65,7 +68,7 @@ export async function loadShortlist(): Promise<Shortlist> {
     // feature class, feature code, country, cc2, admin1, admin2, admin3,
     // admin4, population, elevation, dem, timezone, modification date
     for (const cols of tsv(path.join(dir, "cities5000.txt"))) {
-      const [, name, , , latStr, lngStr, , featureCode, cc, , admin1Code, , , , popStr, elevStr, demStr, timezone] = cols;
+      const [, name, asciiName, alternateNames, latStr, lngStr, , featureCode, cc, , admin1Code, , , , popStr, elevStr, demStr, timezone] = cols;
       const population = Number(popStr);
       const lat = Number(latStr);
       const lng = Number(lngStr);
@@ -86,6 +89,7 @@ export async function loadShortlist(): Promise<Shortlist> {
         // -9999 is GeoNames' "no data" for dem.
         elevationM: Number.isFinite(elevation) && elevation > -1000 ? Math.round(elevation) : null,
         timezone: timezone || null,
+        altNames: [...new Set([asciiName, ...(alternateNames ? alternateNames.split(",") : [])].filter((n) => n && n !== name))],
       });
     }
     // The same name twice in one country (~2,400 cases): keep the largest

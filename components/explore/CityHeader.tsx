@@ -54,13 +54,21 @@ function formatCompactNumber(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
+/** `span`: columns of the 3-column grid it takes (default 1). */
+type Stat = { label: string; value: string; colorClass: string; title?: string; span?: 2 | 3 };
+
 /** A demographics stat: value over label. The label is always shown in
  *  full (wrapping if it must); a long value is cut short - hover shows it,
  *  and a tap expands it in place (phones have no hover). */
-function StatCell({ stat }: { stat: { label: string; value: string; colorClass: string; title?: string } }) {
+function StatCell({ stat }: { stat: Stat }) {
   const [open, setOpen] = useState(false);
   return (
-    <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="block w-full min-w-0 text-left cursor-default">
+    <button
+      type="button"
+      onClick={() => setOpen((o) => !o)}
+      aria-expanded={open}
+      className={`block w-full min-w-0 text-left cursor-default ${stat.span === 3 ? "col-span-3" : stat.span === 2 ? "col-span-2" : ""}`}
+    >
       <p className={`text-[11px] font-medium leading-snug ${open ? "break-words" : "truncate"} ${stat.colorClass}`} title={stat.title ?? stat.value}>
         {stat.value}
       </p>
@@ -94,7 +102,6 @@ export function CityHeader({
   const isCustomised = weights != null && isCustomWeights(weights);
   const { prefs } = useUnitPreferences();
 
-  type Stat = { label: string; value: string; colorClass: string; title?: string };
   const NOT_AVAILABLE = "No data";
 
   // Country and City are two genuinely separate data tiers (see
@@ -140,18 +147,30 @@ export function CityHeader({
           colorClass: demographics.countryAverageAge != null ? "text-ink-900" : "text-ink-500",
         },
         {
-          label: "Language",
-          value: demographics.countryMostWidelySpokenLanguage ?? NOT_AVAILABLE,
-          colorClass: demographics.countryMostWidelySpokenLanguage != null ? "text-ink-900" : "text-ink-500",
-        },
-        {
           label: TREND_LABEL,
           value:
             demographics.countryPopulationTrend5yrPct != null
               ? `${demographics.countryPopulationTrend5yrPct > 0 ? "+" : ""}${demographics.countryPopulationTrend5yrPct}%`
               : NOT_AVAILABLE,
           colorClass: demographics.countryPopulationTrend5yrPct != null ? "text-ink-900" : "text-ink-500",
+          span: 2,
         },
+        // Its own full-width line: the list is the point. Alphabetical - an
+        // order of importance would be a political statement.
+        (() => {
+          const languages = demographics.countryOfficialLanguages ?? [];
+          return {
+            label: languages.length === 1 ? "Official language" : "Official languages",
+            value: !languages.length
+              ? NOT_AVAILABLE
+              : languages.length <= 3
+                ? languages.join(", ")
+                : `${languages.slice(0, 2).join(", ")} +${languages.length - 2} more`,
+            colorClass: languages.length ? "text-ink-900" : "text-ink-500",
+            title: languages.length > 3 ? `${languages.join(", ")} (alphabetical)` : undefined,
+            span: 3 as const,
+          };
+        })(),
       ]
     : null;
 
@@ -238,10 +257,9 @@ export function CityHeader({
       {cityStats && (
         <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
           <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{cityName}</p>
-          {/* Labels are kept short so a row stays one line; the one that
-           *  can't be ("Population growth (5 yrs)") wraps rather than being
-           *  cut to something unclear. */}
-          <div className="mt-0.5 grid grid-cols-3 gap-x-3 gap-y-0.5">
+          {/* Labels are kept short so each fits on one line; longer ones
+           *  span more columns (Stat.span) rather than being cut. */}
+          <div className="mt-0.5 grid grid-cols-3 items-start gap-x-3 gap-y-0.5">
             {cityStats.map((stat) => (
               <StatCell key={stat.label} stat={stat} />
             ))}
@@ -252,7 +270,7 @@ export function CityHeader({
       {countryStats && (
         <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
           <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{country}</p>
-          <div className="mt-0.5 grid grid-cols-3 gap-x-3 gap-y-0.5">
+          <div className="mt-0.5 grid grid-cols-3 items-start gap-x-3 gap-y-0.5">
             {countryStats.map((stat) => (
               <StatCell key={stat.label} stat={stat} />
             ))}

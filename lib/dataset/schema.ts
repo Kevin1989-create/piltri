@@ -60,7 +60,7 @@ export interface CountryRecord {
     countryLandAreaKm2: number | null;
     countryAverageAge: number | null;
     countryPopulationTrend5yrPct: number | null;
-    countryMostWidelySpokenLanguage: string | null;
+    countryOfficialLanguages: string[] | null;
   };
   economy: EconomyFields;
   safetyStability: SafetyStabilityFields;

@@ -35,6 +35,11 @@ Updated 2026-09-26. The data is an offline dataset served as static files
   "beach" pools don't count.
 - **Country-level fields** (economy, safety, healthcare, PISA...) are the
   same for every city in a country - there's no free per-city source.
+- **Official languages** are national-level legal status only (regional
+  co-official languages such as Catalan or Welsh aren't listed), in
+  alphabetical order - politically sensitive, so the rules and each
+  correction to CLDR are written down in pipeline/sources/languages.ts.
+  Worth re-checking when a country changes its language law.
 - **Missing figures** show "No data" and are left out of the scores, never
   filled with a stand-in. World Bank has no data at all for about 30
   places - notably Taiwan, Western Sahara, the French overseas departments
