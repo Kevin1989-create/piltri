@@ -13,7 +13,7 @@ import { CompassIcon, PulseIcon, TrendIcon } from "@/components/ui/icons";
  *  deleted outright. */
 export default function LegacyHomePage() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6 py-20">
+    <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-20">
       <Logo size="wordmark" withTagline href="" />
 
       {/* Grid (not flex) guarantees exactly equal-width columns regardless of

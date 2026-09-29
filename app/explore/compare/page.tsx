@@ -96,7 +96,7 @@ function CompareContent() {
   }
 
   return (
-    <main className="h-screen flex flex-col">
+    <main className="h-dvh flex flex-col">
       <NavBar logoSide="left" />
 
       <div className="px-6 pt-4 pb-3 flex items-end justify-between border-b border-surface-border">

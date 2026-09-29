@@ -13,7 +13,7 @@ import { FilterIcon } from "@/components/ui/icons";
  *  page's original borderless, minimal top edge. */
 export default function ExploreLandingPage() {
   return (
-    <main className="min-h-screen flex flex-col">
+    <main className="min-h-dvh flex flex-col">
       <NavBar logoSide="left" border={false} />
 
       {/* -mt-12 only from sm: up (2026-09-26, on request - "the search bar

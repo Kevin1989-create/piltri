@@ -19,7 +19,7 @@ export default function ScoreWeightsPage() {
   const { prefs, setPrefs } = useUnitPreferences();
 
   return (
-    <main className="min-h-screen flex flex-col">
+    <main className="min-h-dvh flex flex-col">
       <NavBar logoSide="left" border={false} />
 
       <div className="px-6 pt-8">

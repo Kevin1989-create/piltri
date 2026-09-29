@@ -55,7 +55,7 @@ function ReportContent() {
 
   if (Number.isNaN(lat) || Number.isNaN(lng) || !cityName) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-6 text-center">
+      <main className="min-h-dvh flex items-center justify-center px-6 text-center">
         <p className="text-ink-500">No location selected.</p>
       </main>
     );
@@ -67,7 +67,7 @@ function ReportContent() {
     : 0;
 
   return (
-    <main className="min-h-screen bg-surface-muted print:bg-white">
+    <main className="min-h-dvh bg-surface-muted print:bg-white">
       {/* Screen-only toolbar — never appears in the printed/saved output. */}
       <div className="print:hidden sticky top-0 z-10 bg-surface border-b border-surface-border px-6 py-3 flex items-center justify-between">
         <Link href="/explore" className="text-xs text-ink-500 hover:text-ink-900">

@@ -28,7 +28,7 @@ const LABELS: Record<string, string> = {
 export default function SourcesPage() {
   const built = new Date(manifest.generatedAt).toLocaleDateString("en-GB", { dateStyle: "long" });
   return (
-    <main className="min-h-screen flex flex-col">
+    <main className="min-h-dvh flex flex-col">
       <NavBar logoSide="left" border={false} />
       <div className="px-6 pt-8 pb-16">
         <div className="max-w-2xl mx-auto">

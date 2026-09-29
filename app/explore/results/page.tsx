@@ -25,6 +25,12 @@ import { useMediaQuery } from "@/lib/useMediaQuery";
 import { getCityBoundary, getCityExploreData } from "@/lib/dataset/cities";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
+/** Pin mode (click the map for local details and directions) - switched
+ *  off for now (2026-09-29, on request) while the rest is polished; the
+ *  map is view-only and the pin panel never opens. Set to true to bring
+ *  it back as it was. */
+const PIN_MODE = false;
+
 function ResultsContent() {
   const params = useSearchParams();
   const cityId = params.get("cityId") ?? "";
@@ -235,7 +241,7 @@ function ResultsContent() {
 
   if (Number.isNaN(lat) || Number.isNaN(lng) || !cityName) {
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
+      <main className="min-h-dvh flex flex-col items-center justify-center px-6 text-center">
         <p className="text-ink-500">No location selected.</p>
       </main>
     );
@@ -323,7 +329,7 @@ function ResultsContent() {
             lat={lat}
             lng={lng}
             outline={outline}
-            onMapClick={handleMapClick}
+            onMapClick={PIN_MODE ? handleMapClick : undefined}
             pinnedCoords={pin}
             destinationCoords={destination}
             pickingDestination={pickingDestination}

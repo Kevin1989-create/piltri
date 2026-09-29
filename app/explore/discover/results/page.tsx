@@ -164,7 +164,7 @@ function DiscoverResultsContent() {
   }, [sort, response]);
 
   return (
-    <main className="min-h-screen flex flex-col">
+    <main className="min-h-dvh flex flex-col">
       <NavBar logoSide="left" border={false} />
 
       <div className="px-6 pt-4 pb-3 flex items-start justify-between gap-4 flex-wrap">

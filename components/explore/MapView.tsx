@@ -38,8 +38,8 @@ interface MapViewProps {
    *  the click landed on or near one, so the very first pin gets the same
    *  "snap to what you actually clicked, and show what it is" treatment as
    *  the second one - not just raw coordinates with no confirmation of
-   *  what's there. */
-  onMapClick: (coords: { lat: number; lng: number }, name: string | null) => void;
+   *  what's there. Omit it for a view-only map (no pins, no pin hint). */
+  onMapClick?: (coords: { lat: number; lng: number }, name: string | null) => void;
   /** `label`, if given, is shown in an always-open popup on the main pin's
    *  marker, the same highlight treatment the destination marker gets. */
   pinnedCoords: { lat: number; lng: number; label?: string } | null;
@@ -327,6 +327,7 @@ export function MapView({
     }
 
     map.on("click", async (e) => {
+      if (!onMapClickRef.current && !pickingDestinationRef.current) return; // view-only map
       // Belt-and-braces fallback: whatever goes wrong inside feature
       // resolution (network hiccup, an unforeseen map error, etc.), the
       // click itself should never be silently dropped - worst case, the pin
@@ -335,7 +336,7 @@ export function MapView({
       const clickPoint = { lat: e.lngLat.lat, lng: e.lngLat.lng };
       const { point, name } = await resolveClickedFeature(e).catch(() => ({ point: clickPoint, name: null }));
       if (!pickingDestinationRef.current) {
-        onMapClickRef.current(point, name);
+        onMapClickRef.current?.(point, name);
       } else {
         onDestinationPickRef.current?.(point, name);
       }
@@ -352,8 +353,9 @@ export function MapView({
     // grab/drag cursor - clicking the map is always a meaningful action
     // here (drop a pin, or pick a directions target), so it should read as
     // clickable the same way the place-name buttons in PinPanel do, rather
-    // than implying it's just a pannable surface.
-    map.getCanvas().style.cursor = "pointer";
+    // than implying it's just a pannable surface. (A view-only map keeps
+    // the default drag cursor.)
+    if (onMapClick) map.getCanvas().style.cursor = "pointer";
 
     map.on("load", () => {
       mapLoadedRef.current = true;
@@ -637,7 +639,7 @@ export function MapView({
           Click the map to place your second pin
         </div>
       )}
-      {!pinnedCoords && !pickingDestination && (
+      {onMapClick && !pinnedCoords && !pickingDestination && (
         <div className="absolute bottom-4 right-4 rounded-pill bg-ink-900/80 text-white text-xs px-4 py-2">
           Drop a pin for local details
         </div>
