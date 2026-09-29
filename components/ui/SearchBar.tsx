@@ -9,6 +9,7 @@ import type { CitySearchResult } from "@/lib/types";
 interface SearchBarProps {
   initialValue?: string;
   placeholder?: string;
+  /** Focus on load - with a mouse/trackpad only (not on phones). */
   autoFocus?: boolean;
   variant?: "landing" | "compact";
   className?: string;
@@ -50,7 +51,15 @@ export function SearchBar({
   const [hasUserTyped, setHasUserTyped] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestQueryRef = useRef("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
+
+  // Focus on load only with a mouse/trackpad: on a phone, a focused field
+  // pops the keyboard up over the page and the browser shifts it to keep
+  // the field in view - the landing page stopped being centred.
+  useEffect(() => {
+    if (autoFocus && window.matchMedia("(hover: hover) and (pointer: fine)").matches) inputRef.current?.focus();
+  }, [autoFocus]);
 
   useEffect(() => {
     if (!hasUserTyped) return;
@@ -139,9 +148,9 @@ export function SearchBar({
   return (
     <div className={cn("relative", className)}>
       <input
+        ref={inputRef}
         type="text"
         value={value}
-        autoFocus={autoFocus}
         placeholder={placeholder}
         autoComplete="off"
         onChange={(e) => {
