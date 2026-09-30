@@ -268,7 +268,7 @@ function ResultsContent() {
             <SearchBar
               variant="compact"
               initialValue={`${cityName}${country ? `, ${country}` : ""}`}
-              placeholder="Explore a place here"
+              placeholder="Search for a place you could call home"
               className="flex-1 min-w-0 md:w-[300px] md:flex-none"
             />
             {/* Discover mode's entry point, relocated here from the Explore
