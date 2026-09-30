@@ -57,7 +57,7 @@ export default function ExploreLandingPage() {
 
       <footer className="pb-4 text-center">
         <Link href={sourcesUrl()} className="text-[11px] text-ink-300 hover:text-ink-500">
-          Data &amp; sources
+          Data &amp; Sources
         </Link>
       </footer>
     </main>

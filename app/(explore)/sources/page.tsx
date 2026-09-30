@@ -2,7 +2,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { NavBar } from "@/components/ui/NavBar";
 import { manifest } from "@/lib/dataset/files";
 
-export const metadata = { title: "Data & sources — Piltri" };
+export const metadata = { title: "Data & Sources — Piltri" };
 
 const LABELS: Record<string, string> = {
   shortlist: "Places",
@@ -33,7 +33,7 @@ export default function SourcesPage() {
       <div className="px-6 pt-8 pb-16">
         <div className="max-w-2xl mx-auto">
           <BackLink />
-          <h1 className="font-serif text-2xl text-ink-900 mt-1">Data &amp; sources</h1>
+          <h1 className="font-serif text-2xl text-ink-900 mt-1">Data &amp; Sources</h1>
           <p className="text-sm text-ink-700 mt-3 leading-relaxed">
             Every figure on Piltri is computed from free, openly licensed datasets - nothing is estimated by hand or bought.
             The data was last rebuilt on {built} for {manifest.cityCount.toLocaleString()} places in {manifest.countryCount}{" "}

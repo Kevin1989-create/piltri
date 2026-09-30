@@ -24,7 +24,7 @@ import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring"
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/cn";
 import { getCityBoundary, getCityExploreData } from "@/lib/dataset/cities";
-import { cityUrl, compareUrl, readCityRef, reportUrl, scoreSettingsUrl, searchUrl, sourcesUrl } from "@/lib/urls";
+import { cityUrl, compareUrl, readCityRef, reportUrl, scoreSettingsUrl, searchUrl } from "@/lib/urls";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
 /** Pin mode (click the map for local details and directions) - switched
@@ -53,11 +53,10 @@ function CityContent() {
   // PDF via the browser's own print dialog rather than a bespoke PDF
   // pipeline in the app itself.
   const reportHref = reportUrl(cityId);
-  // `from` lets Advanced search, Score settings and Sources offer a way
+  // `from` lets Advanced search and Score settings offer a way
   // back to this city.
   const searchHref = searchUrl(cityId);
   const scoreSettingsHref = scoreSettingsUrl(cityId);
-  const sourcesHref = sourcesUrl(cityId);
 
   const [data, setData] = useState<CityExploreData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -317,13 +316,11 @@ function CityContent() {
             // no height. Nudged down on phones to line up with the logo's
             // lettering, which sits low in its box.
             <div className="flex flex-col items-end gap-0.5 translate-y-1.5 md:translate-y-0">
-              <Link
-                href={sourcesHref}
-                className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap"
-                title="Where every figure comes from"
-              >
-                Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })} · Sources
-              </Link>
+              {/* Data & Sources is linked from the home page only (2026-09-30,
+               *  on request); the date stays, as plain text. */}
+              <span className="text-[11px] text-ink-300 whitespace-nowrap">
+                Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })}
+              </span>
               <Link href={scoreSettingsHref} className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap" title="How much each section counts in the Piltri score">
                 Score settings
               </Link>
