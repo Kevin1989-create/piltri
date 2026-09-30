@@ -60,10 +60,12 @@ export function ResourcesDetail({
   countryCode,
   bordered = true,
   variant = "panel",
+  className,
 }: {
   countryCode: string;
   bordered?: boolean;
   variant?: "panel" | "report";
+  className?: string;
 }) {
   const [links, setLinks] = useState<ResourceLinksByCategory | null>(null);
 
@@ -81,7 +83,7 @@ export function ResourcesDetail({
   const report = variant === "report";
 
   return (
-    <div className={cn(!report && "bg-piltri-amber-tint/40 px-4 py-2.5", !report && bordered && "border-t border-piltri-amber/20")}>
+    <div className={cn(!report && "bg-piltri-amber-tint/40 px-4 py-2.5", !report && bordered && "border-t border-piltri-amber/20", className)}>
       {links == null && <p className="text-xs text-ink-500">Loading…</p>}
       {links != null && categories.length === 0 && <p className="text-xs text-ink-500">No Resources links have been added for this country yet.</p>}
       {categories.length > 0 && (

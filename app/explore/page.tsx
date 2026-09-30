@@ -23,11 +23,18 @@ export default function ExploreLandingPage() {
           empty gap below - unscoped, it was making every mobile visit look
           off, not just a one-off. */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 sm:-mt-12">
-        <h1 className="font-serif text-4xl sm:text-5xl text-ink-900 text-center">Find your Piltri.</h1>
+        {/* On phones the search bar itself is what sits in the middle of the
+         *  screen (2026-09-30, on request): the heading hangs above it, out
+         *  of the flow, so it doesn't count in the centring. From sm: up the
+         *  heading is back in the flow, as before. -mt-8 lifts it 16px,
+         *  making up for the logo bar being taller than the footer. */}
+        <div className="relative w-full max-w-xl -mt-8 sm:mt-0">
+          <h1 className="absolute inset-x-0 bottom-full mb-8 sm:static font-serif text-4xl sm:text-5xl text-ink-900 text-center">
+            Find your Piltri.
+          </h1>
 
-        {/* Just the search - score Settings live on the results page, under
-         *  "Updated · Sources" (2026-09-30, on request). */}
-        <div className="mt-8 w-full max-w-xl">
+          {/* Just the search - score Settings live on the results page, under
+           *  "Updated · Sources" (2026-09-30, on request). */}
           <SearchBar autoFocus placeholder="Search for a place you could call home" />
         </div>
       </div>

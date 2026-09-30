@@ -1,6 +1,8 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { NavBar } from "@/components/ui/NavBar";
 import { WeightEditor } from "@/components/explore/WeightEditor";
 import { UnitPreferencesEditor } from "@/components/explore/UnitPreferencesEditor";
@@ -13,10 +15,24 @@ import { useUnitPreferences } from "@/lib/unitPreferences";
  * the Piltri Score be calculated," not "which cities match my criteria."
  * Saved as you adjust each slider, no separate save step.
  */
-export default function ScoreWeightsPage() {
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <SettingsContent />
+    </Suspense>
+  );
+}
+
+function SettingsContent() {
   const { weights, setWeights, resetWeights } = useScoreWeights();
   const customised = isCustomWeights(weights);
   const { prefs, setPrefs } = useUnitPreferences();
+  // Opened from a city (the results page passes its query along): "Back"
+  // returns to that city rather than the generic landing page.
+  const params = useSearchParams();
+  const fromCity = params.get("city");
+  const backHref = fromCity ? `/explore/results?${params.toString()}` : "/explore";
+  const backLabel = fromCity ? "← Back to results" : "← Back to Explore";
 
   return (
     <main className="min-h-dvh flex flex-col">
@@ -24,8 +40,8 @@ export default function ScoreWeightsPage() {
 
       <div className="px-6 pt-8">
         <div className="max-w-xl mx-auto">
-          <Link href="/explore" className="text-xs text-ink-500 hover:text-ink-900">
-            ← Back to Explore
+          <Link href={backHref} className="text-xs text-ink-500 hover:text-ink-900">
+            {backLabel}
           </Link>
           <h1 className="font-serif text-2xl text-ink-900 mt-1">Customise score settings</h1>
           <p className="text-sm text-ink-500 mt-1">

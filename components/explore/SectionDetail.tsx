@@ -54,10 +54,12 @@ export function SectionDetail({
   section,
   data,
   bordered = true,
+  className,
 }: {
   section: SectionKey;
   data: CityExploreData;
   bordered?: boolean;
+  className?: string;
 }) {
   const { prefs } = useUnitPreferences();
   const { countryRows, cityRows } = splitKpiRowsByTier(buildKpiRows(section, data, prefs));
@@ -66,7 +68,7 @@ export function SectionDetail({
   const noDataNote = noSectionDataNote(section, data);
 
   return (
-    <div className={cn("bg-piltri-amber-tint/40 px-4 py-2.5", bordered && "border-t border-piltri-amber/20")}>
+    <div className={cn("bg-piltri-amber-tint/40 px-4 py-2.5", bordered && "border-t border-piltri-amber/20", className)}>
       {noDataNote && <p className="text-[11px] leading-snug text-ink-500 mb-2">{noDataNote}</p>}
       {hasCity && (
         <div>

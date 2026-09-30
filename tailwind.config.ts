@@ -64,6 +64,12 @@ const config: Config = {
       spacing: {
         18: "4.5rem",
       },
+      keyframes: {
+        "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
+      },
+      animation: {
+        "fade-in": "fade-in 200ms ease-out",
+      },
     },
   },
   plugins: [],

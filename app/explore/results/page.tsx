@@ -59,6 +59,8 @@ function ResultsContent() {
   // Carries this city's context along so Advanced search's "Back" link can
   // return here instead of the generic /explore landing page.
   const discoverHref = `/explore/discover?${new URLSearchParams(cityQueryParams).toString()}`;
+  // Same for Settings.
+  const settingsHref = `/explore/settings?${new URLSearchParams(cityQueryParams).toString()}`;
 
   const [data, setData] = useState<CityExploreData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -105,7 +107,7 @@ function ResultsContent() {
   const [openSectionKey, setOpenSectionKey] = useState<OpenSectionKey | null>(null);
   // Persisted, shared preference (lib/scoreWeights.ts) — same weighting
   // applies here, in Discover mode's ranking, and on every other city you
-  // look at. Read-only here: editing lives on /explore/weights only, to
+  // look at. Read-only here: editing lives on /explore/settings only, to
   // keep it clear this is a global setting, not a per-city control.
   const { weights } = useScoreWeights();
   // Below `md`, the floating map-overlay layout (score column pinned over
@@ -119,6 +121,12 @@ function ResultsContent() {
   useEffect(() => {
     if (!isDesktop) window.scrollTo({ top: 0 });
   }, [openSectionKey, isDesktop]);
+  // Phone, with a section open: the page is exactly one screen tall, the
+  // map folds away, and the open section takes the height that's left,
+  // scrolling inside its own box (see SectionColumn's `fill`) while the
+  // header, city info and other rows stay where they are (2026-09-30, on
+  // request).
+  const sectionView = !isDesktop && openSectionKey !== null;
 
   // Clears the dropped pin and everything that depends on it (destination
   // pin, computed route, "picking a second pin" mode) - used whenever the
@@ -254,7 +262,7 @@ function ResultsContent() {
     : 0;
 
   return (
-    <main className="flex flex-col md:h-screen">
+    <main className={cn("flex flex-col md:h-screen", sectionView && "h-dvh")}>
       <NavBar
         logoSide="left"
         center={
@@ -297,7 +305,7 @@ function ResultsContent() {
               >
                 Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })} · Sources
               </Link>
-              <Link href="/explore/weights" className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap" title="How much each section counts in the Piltri score">
+              <Link href={settingsHref} className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap" title="How much each section counts in the Piltri score">
                 Settings
               </Link>
             </div>
@@ -314,25 +322,35 @@ function ResultsContent() {
        *  (`main` above drops `h-screen` below `md` for exactly this reason).
        *  `relative` stays on unconditionally since it's still needed as the
        *  positioning context for the `md:absolute` children. */}
-      <div ref={mapAreaRef} className="relative flex flex-col md:flex-1 md:overflow-hidden">
+      <div ref={mapAreaRef} className={cn("relative flex flex-col md:flex-1 md:overflow-hidden", sectionView && "flex-1")}>
         {/* Mobile: 23dvh - leaves a safety margin for the rows below on
-         *  real phones - and hidden outright (not animated: a live WebGL
-         *  map fighting a height transition read as janky) while a section
-         *  is open. It stays mounted, so it comes back as it was. */}
-        <div className={cn("h-[23dvh] md:h-full md:flex-1 relative", !isDesktop && openSectionKey && "hidden")}>
-          <MapView
-            lat={lat}
-            lng={lng}
-            outline={outline}
-            onMapClick={PIN_MODE ? handleMapClick : undefined}
-            pinnedCoords={pin}
-            destinationCoords={destination}
-            pickingDestination={pickingDestination}
-            onDestinationPick={handleDestinationPick}
-            onRouteInfo={setRouteInfo}
-            reservedBottomPx={isDesktop && pin ? pinPanelHeight : 0}
-            compact={!isDesktop}
-          />
+         *  real phones - folding smoothly away while a section is open and
+         *  back when it closes. Only this outer box changes height: the map
+         *  inside keeps its size and is just uncovered or covered, since a
+         *  live WebGL map resizing on every frame read as janky. It stays
+         *  mounted, so it comes back as it was. */}
+        <div
+          aria-hidden={sectionView || undefined}
+          className={cn(
+            "relative overflow-hidden md:h-full md:flex-1 transition-[height,opacity] duration-300 ease-out motion-reduce:transition-none md:transition-none",
+            sectionView ? "h-0 opacity-0" : "h-[23dvh]"
+          )}
+        >
+          <div className="h-[23dvh] md:h-full relative">
+            <MapView
+              lat={lat}
+              lng={lng}
+              outline={outline}
+              onMapClick={PIN_MODE ? handleMapClick : undefined}
+              pinnedCoords={pin}
+              destinationCoords={destination}
+              pickingDestination={pickingDestination}
+              onDestinationPick={handleDestinationPick}
+              onRouteInfo={setRouteInfo}
+              reservedBottomPx={isDesktop && pin ? pinPanelHeight : 0}
+              compact={!isDesktop}
+            />
+          </div>
         </div>
 
         {/* Score column — floats on top of the map on desktop (fixed size
@@ -343,10 +361,18 @@ function ResultsContent() {
             expanding a section uses SectionColumn's own inline accordion
             (`externalDetail={isDesktop}` below) since there's no room for a
             side panel. */}
-        <div className="static md:absolute md:top-4 md:left-4 md:bottom-4 flex flex-col w-full md:w-[320px] px-4 md:px-0 mt-3 md:mt-0">
+        <div
+          className={cn(
+            "static md:absolute md:top-4 md:left-4 md:bottom-4 flex flex-col w-full md:w-[320px] px-4 md:px-0 mt-3 md:mt-0",
+            sectionView && "flex-1 pb-3"
+          )}
+        >
           <div
             ref={leftColumnBoxRef}
-            className="bg-surface md:bg-surface/95 md:backdrop-blur rounded-card shadow-card md:overflow-y-auto md:flex-shrink"
+            className={cn(
+              "bg-surface md:bg-surface/95 md:backdrop-blur rounded-card shadow-card md:overflow-y-auto md:flex-shrink",
+              sectionView && "flex-1 flex flex-col overflow-hidden"
+            )}
           >
             {loading && <p className="px-4 py-6 text-sm text-ink-500">Loading Piltri score…</p>}
             {error && (
@@ -363,21 +389,23 @@ function ResultsContent() {
                   demographics={data.demographics}
                   compareHref={compareHref}
                   reportHref={reportHref}
+                  settingsHref={settingsHref}
                   weights={weights}
                   rank={data.ranks ? { position: data.ranks.piltri, outOf: data.ranks.outOf } : undefined}
                 />
-                <SectionColumn data={data} externalDetail={isDesktop} onOpenSectionChange={setOpenSectionKey} />
+                <SectionColumn data={data} externalDetail={isDesktop} fill onOpenSectionChange={setOpenSectionKey} />
               </>
             )}
           </div>
-          {/* Phones have no room for these in the header. */}
-          {data && (
+          {/* Phones have no room for these in the header. Left out while a
+           *  section is open, to give it that room too. */}
+          {data && !sectionView && (
             <p className="md:hidden mt-2 mb-4 text-center text-[11px] text-ink-300">
               <Link href="/explore/sources" className="hover:text-ink-500">
                 Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })} · Sources
               </Link>
               {" · "}
-              <Link href="/explore/weights" className="hover:text-ink-500">
+              <Link href={settingsHref} className="hover:text-ink-500">
                 Settings
               </Link>
             </p>

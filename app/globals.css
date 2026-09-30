@@ -42,4 +42,13 @@
   .piltri-popup-link:hover {
     text-decoration: underline;
   }
+
+  /* Hides the browser's own scroll bar, for boxes that draw their own
+   *  (see components/ui/ScrollArea.tsx). */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }

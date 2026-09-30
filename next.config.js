@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  async redirects() {
+    // The settings page used to live at /explore/weights; keep old links
+    // and bookmarks working.
+    return [{ source: "/explore/weights", destination: "/explore/settings", permanent: true }];
+  },
   async headers() {
     return [
       {
