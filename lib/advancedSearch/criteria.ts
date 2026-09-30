@@ -3,7 +3,7 @@ import type { AdvancedSearchCriterionFilter, AdvancedSearchScope, CityExploreDat
 
 /**
  * Advanced search's criteria registry - the single source of truth for
- * every filter /explore/discover offers. Each entry knows its label/unit
+ * every filter /search offers. Each entry knows its label/unit
  * and how to read its value off a city's CityExploreData (the same object
  * the city page renders). The offline pipeline evaluates every criterion
  * for every city with these same getters (pipeline/output.ts), so the

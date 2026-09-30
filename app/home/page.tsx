@@ -6,7 +6,7 @@ import { CompassIcon, PulseIcon, TrendIcon } from "@/components/ui/icons";
  *  request: "remove the current Home page (keep it in mind for later
  *  though) and replace it by the current Piltri explore page" - the root
  *  domain now goes straight to Explore (see app/page.tsx re-exporting
- *  app/explore/page.tsx) so a piltri.me visit lands on a working search,
+ *  app/(explore)/page.tsx) so a piltri.me visit lands on a working search,
  *  not a 3-card teaser for 2 products that don't exist yet. Kept here,
  *  fully intact and unlinked from anywhere else in the app, in case this
  *  is wanted back (e.g. once Assess/Invest actually ship) rather than

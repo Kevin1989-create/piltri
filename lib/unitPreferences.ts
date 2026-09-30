@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
  * Persisted display-unit preference — currency, temperature, and
  * area/density units. Same localStorage-hook pattern as lib/scoreWeights.ts
  * (single shared setting across the whole app, editable from the
- * /explore/settings page).
+ * /settings page).
  *
  * Important, disclosed limitation: this only affects how values are
  * *displayed*. The underlying data is stored in GBP / Celsius / km² (see

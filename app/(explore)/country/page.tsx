@@ -13,6 +13,8 @@ import {
 import { getCountryResult } from "@/lib/advancedSearch/engine";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { countryUrl, HOME_URL } from "@/lib/urls";
+import { ReportSectionHeading } from "@/components/explore/ReportHeadings";
+import { ScoreBadge } from "@/components/ui/ScoreBadge";
 import { SECTION_LABELS, type AdvancedSearchCountryResult, type SectionKey } from "@/lib/types";
 
 const ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveability"];
@@ -112,11 +114,12 @@ function CountryReportContent() {
         </p>
 
         <section className="mt-8">
-          <h2 className="text-xs uppercase tracking-wide text-ink-500 mb-2">Section scores</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-4 text-sm">
+          <ReportSectionHeading title="Section scores" />
+          {/* Colour-coded like the section rows on a city page. */}
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-x-4 sm:gap-x-6 gap-y-4 text-sm">
             {ORDER.map((section) => (
-              <div key={section} className="min-w-0">
-                <p className="font-serif text-2xl text-piltri-amber tabular-nums">{Math.round(sectionScores[section])}</p>
+              <div key={section} className="min-w-0 flex flex-col items-start gap-1">
+                <ScoreBadge score={sectionScores[section]} />
                 <p className="text-[11px] text-ink-500 leading-snug">{SECTION_LABELS[section]}</p>
               </div>
             ))}
@@ -129,8 +132,8 @@ function CountryReportContent() {
           if (rows.length === 0) return null;
           return (
             <section key={category} className="mt-8 break-inside-avoid">
-              <h2 className="text-xs uppercase tracking-wide text-ink-500 mb-2">{CATEGORY_LABELS[category]}</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
+              <ReportSectionHeading title={CATEGORY_LABELS[category]} />
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
                 {rows.map((def) => (
                   <div key={def.key} className="min-w-0">
                     <p className="font-medium text-ink-900 leading-snug">{formatCriterionValue(def, allValues[def.key])}</p>

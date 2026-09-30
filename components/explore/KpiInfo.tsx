@@ -2,6 +2,7 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { CloseIcon } from "@/components/ui/icons";
 import { TIER_LABEL, type Tier } from "@/lib/colorScales";
 import { cn } from "@/lib/cn";
 import type { KpiRow } from "@/lib/kpiRows";
@@ -22,7 +23,8 @@ export interface KpiInfoHandle {
 /** The small "i" next to a KPI label. Hover (or keyboard focus) shows a
  *  popover with the full value, what the metric means, how its colours are
  *  decided and where the data comes from; a click or tap pins it open
- *  (phones have no hover), and a tap anywhere else or Escape closes it.
+ *  (phones have no hover), and the cross in its corner, a tap anywhere
+ *  else or Escape closes it.
  *  Rendered into document.body so scrolling panels can't clip it. */
 export const KpiInfoButton = forwardRef<KpiInfoHandle, { row: KpiRow; className?: string }>(function KpiInfoButton({ row, className }, ref) {
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -34,6 +36,11 @@ export const KpiInfoButton = forwardRef<KpiInfoHandle, { row: KpiRow; className?
   const open = hovering || pinned;
 
   const toggle = useCallback(() => setPinned((p) => !p), []);
+  const close = useCallback(() => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setPinned(false);
+    setHovering(false);
+  }, []);
   useImperativeHandle(ref, () => ({ toggle }), [toggle]);
 
   // Hover in and out with a short grace period, so the pointer can travel
@@ -61,10 +68,6 @@ export const KpiInfoButton = forwardRef<KpiInfoHandle, { row: KpiRow; className?
   // Close on outside tap, Escape, scroll or resize (the anchor would move).
   useEffect(() => {
     if (!open) return;
-    const close = () => {
-      setPinned(false);
-      setHovering(false);
-    };
     const onPointer = (e: PointerEvent) => {
       const t = e.target as Node;
       if (!buttonRef.current?.contains(t) && !popoverRef.current?.contains(t) && !buttonRef.current?.closest("[data-kpi-cell]")?.contains(t)) close();
@@ -80,7 +83,7 @@ export const KpiInfoButton = forwardRef<KpiInfoHandle, { row: KpiRow; className?
       window.removeEventListener("scroll", close, true);
       window.removeEventListener("resize", close);
     };
-  }, [open]);
+  }, [open, close]);
 
   const { info } = row;
   return (
@@ -112,12 +115,29 @@ export const KpiInfoButton = forwardRef<KpiInfoHandle, { row: KpiRow; className?
           <div
             ref={popoverRef}
             role="tooltip"
+            // Rendered elsewhere in the page, but React still passes its clicks
+            // up to the stat cell, whose tap would toggle it shut.
+            onClick={(e) => e.stopPropagation()}
             onMouseEnter={() => hover(true)}
             onMouseLeave={() => hover(false)}
             style={{ position: "fixed", top: position?.top ?? -9999, left: position?.left ?? -9999, width: WIDTH }}
             className="z-[1000] rounded-lg border border-surface-border bg-surface shadow-card p-3 text-[11px] leading-snug text-ink-700"
           >
-            <p className="text-[10px] uppercase tracking-wide text-ink-500">{row.label}</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[10px] uppercase tracking-wide text-ink-500">{row.label}</p>
+              {/* Generous tap area around a small cross. */}
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  close();
+                }}
+                className="-mt-1.5 -mr-1.5 p-1.5 flex-shrink-0 rounded text-ink-500 hover:text-ink-900 focus:outline-none focus-visible:ring-1 focus-visible:ring-piltri-amber"
+              >
+                <CloseIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
             <p className={cn("mt-0.5 text-sm font-semibold", row.colorClass ?? "text-ink-900")}>
               {row.value}
               {row.valueSuffix && <span className="ml-1 text-[11px] font-normal">{row.valueSuffix}</span>}

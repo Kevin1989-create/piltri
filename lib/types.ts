@@ -308,7 +308,7 @@ export interface CitySearchResult {
 }
 
 /* ------------------------------------------------------------------------
- * Advanced search (/explore/discover). Two scopes:
+ * Advanced search (/search). Two scopes:
  *  - "city": individual cities.
  *  - "country": countries, each a roll-up of its tracked cities (mean for
  *    numbers, "any" for Yes/No) - disclosed via citiesTracked, not
