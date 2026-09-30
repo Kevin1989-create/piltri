@@ -1,6 +1,5 @@
 "use client";
 
-import type { MouseEvent } from "react";
 import { cn } from "@/lib/cn";
 import { ChevronDown, SECTION_ICONS } from "@/components/ui/icons";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
@@ -22,10 +21,7 @@ interface SectionRowProps {
    *  Still clickable, so tapping a dimmed row switches which section is
    *  open. */
   compact?: boolean;
-  /** Receives the click event (not just a plain callback) so the caller can
-   *  scroll the clicked button into view via `e.currentTarget` when opening
-   *  it - see SectionColumn's `autoScrollOnOpen`. */
-  onToggle: (e: MouseEvent<HTMLButtonElement>) => void;
+  onToggle: () => void;
   /** World rank for this section (shown on hover over the score). */
   rank?: { position: number; outOf: number };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useState } from "react";
 import { SectionRow } from "./SectionRow";
 import { SectionDetail } from "./SectionDetail";
 import { ResourcesRow } from "./ResourcesRow";
@@ -28,27 +28,6 @@ interface SectionColumnProps {
    *  keeps the original inline-detail-with-dimmed-siblings behaviour. */
   externalDetail?: boolean;
   onOpenSectionChange?: (key: OpenSectionKey | null) => void;
-  /** Scrolls the row just opened to the top of the viewport, and scrolls
-   *  the whole page back to the top when the last open row closes
-   *  (2026-09-23, on request - closing should return to exactly the
-   *  "nothing expanded" layout the page started at, not leave it wherever
-   *  the scroll happened to land) - mobile results only, where this
-   *  column's inline detail is the only place a section's data ever
-   *  shows, so opening a row several rows down otherwise leaves its
-   *  newly-revealed content mostly or entirely below the fold. Left off
-   *  by default: Compare page's columns sit side by side, and
-   *  auto-scrolling the whole page from one column's click would fight
-   *  whatever the other columns are showing. */
-  autoScrollOnOpen?: boolean;
-  /** Removes the other 4 rows entirely (not just dims them to a thin
-   *  "compact" line - see SectionRow's `compact` prop) while one is open
-   *  (2026-09-23, on request, alongside CityHeader's Demographics blocks
-   *  disappearing in results/page.tsx - the same "only show what's
-   *  actually relevant right now" idea applied to this column's own
-   *  rows). Mobile results only, same reasoning as `autoScrollOnOpen`:
-   *  Compare page's columns need their compact siblings to stay
-   *  glanceable since there's no separate place their scores show. */
-  hideOthersOnOpen?: boolean;
 }
 
 /** Single-open accordion: only one section can be open at a time (a Set of
@@ -63,18 +42,8 @@ interface SectionColumnProps {
  *  does still kick off `prefetchResourceLinks` as soon as it mounts, purely
  *  so the request is already in flight (or done) by the time a user
  *  actually opens Resources, rather than starting fresh on click. */
-export function SectionColumn({
-  data,
-  externalDetail = false,
-  onOpenSectionChange,
-  autoScrollOnOpen = false,
-  hideOthersOnOpen = false,
-}: SectionColumnProps) {
+export function SectionColumn({ data, externalDetail = false, onOpenSectionChange }: SectionColumnProps) {
   const [openKey, setOpenKey] = useState<OpenSectionKey | null>(null);
-  // The button that triggered the most recent toggle - only read when a
-  // section just opened (see the scroll effect below), so a plain ref
-  // rather than state is fine here; it doesn't need to trigger a render.
-  const lastToggledRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     onOpenSectionChange?.(openKey);
@@ -84,31 +53,7 @@ export function SectionColumn({
     prefetchResourceLinks(data.countryCode);
   }, [data.countryCode]);
 
-  // Runs after the open/close state has committed, so the on-screen layout
-  // already reflects it (a section's detail added or removed, CityHeader
-  // shown/hidden on mobile results - see results/page.tsx) before
-  // scrolling. No artificial delay needed here (there used to be one, to
-  // ride out a CSS transition on the map that no longer exists - see
-  // MapView's ResizeObserver comment for why that got removed): nothing
-  // left in this layout animates, so the DOM already reflects its final
-  // position by the time this effect runs.
-  //
-  // Opening a row scrolls it to the top of the viewport. Closing the last
-  // open one - back to nothing expanded - scrolls the whole page back to
-  // the top instead, on request: this returns the page to the exact
-  // "nothing open" layout it started at, rather than leaving it wherever
-  // the scroll happened to land while a section was open.
-  useEffect(() => {
-    if (!autoScrollOnOpen) return;
-    if (openKey) {
-      lastToggledRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [openKey, autoScrollOnOpen]);
-
-  function toggle(key: OpenSectionKey, e: MouseEvent<HTMLButtonElement>) {
-    lastToggledRef.current = e.currentTarget;
+  function toggle(key: OpenSectionKey) {
     setOpenKey((cur) => (cur === key ? null : key));
   }
 
@@ -117,7 +62,6 @@ export function SectionColumn({
       {ORDER.map((key) => {
         const isOpen = openKey === key;
         const isOtherRow = openKey !== null && !isOpen;
-        if (isOtherRow && hideOthersOnOpen) return null;
         return (
           <div key={key}>
             <SectionRow
@@ -125,7 +69,7 @@ export function SectionColumn({
               score={data.sectionsWithoutData.includes(key) ? null : data.sectionScores[key]}
               isOpen={isOpen}
               compact={!externalDetail && isOtherRow}
-              onToggle={(e) => toggle(key, e)}
+              onToggle={() => toggle(key)}
               rank={data.ranks ? { position: data.ranks[key], outOf: data.ranks.outOf } : undefined}
             />
             {!externalDetail && isOpen && <SectionDetail section={key} data={data} />}
@@ -135,10 +79,9 @@ export function SectionColumn({
       {(() => {
         const isOpen = openKey === "resources";
         const isOtherRow = openKey !== null && !isOpen;
-        if (isOtherRow && hideOthersOnOpen) return null;
         return (
           <div>
-            <ResourcesRow isOpen={isOpen} compact={!externalDetail && isOtherRow} onToggle={(e) => toggle("resources", e)} />
+            <ResourcesRow isOpen={isOpen} compact={!externalDetail && isOtherRow} onToggle={() => toggle("resources")} />
             {!externalDetail && isOpen && <ResourcesDetail countryCode={data.countryCode} />}
           </div>
         );

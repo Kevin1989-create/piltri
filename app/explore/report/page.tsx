@@ -188,7 +188,7 @@ function ReportContent() {
                   {noDataNote && <p className="mt-2 text-xs text-ink-500">{noDataNote}</p>}
                   {cityTierHasContent && <ReportGroup title={data.cityName} rows={cityRows} spacing="mt-3" />}
                   {section === "climate" && data.climate.monthly && (
-                    <div className="mt-4 max-w-sm">
+                    <div className="mt-4 max-w-[300px]">
                       <ClimateChart monthly={data.climate.monthly} />
                     </div>
                   )}

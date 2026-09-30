@@ -167,7 +167,7 @@ export function SearchBar({
           // plain border-surface-border, not the brand amber.
           "w-full rounded-pill border border-surface-border bg-surface font-sans text-ink-900",
           "placeholder:text-ink-300 focus:outline-none transition-colors",
-          variant === "landing" ? "px-6 py-4 text-base shadow-card" : "px-4 py-2 text-sm"
+          variant === "landing" ? "px-4 sm:px-6 py-4 text-base shadow-card" : "px-4 py-2 text-sm"
         )}
         aria-label="Search locations"
         aria-expanded={open}

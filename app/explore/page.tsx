@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
-import { FilterIcon } from "@/components/ui/icons";
 
 /** Page 2 — Explore landing. Piltri logo top left (top right on Home only),
  *  centred search, no description line or Home link.
@@ -23,27 +22,13 @@ export default function ExploreLandingPage() {
           pushing the search bar noticeably above true centre with a big
           empty gap below - unscoped, it was making every mobile visit look
           off, not just a one-off. */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 sm:-mt-12">
+      <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 sm:-mt-12">
         <h1 className="font-serif text-4xl sm:text-5xl text-ink-900 text-center">Find your Piltri.</h1>
 
+        {/* Just the search - score Settings live on the results page, under
+         *  "Updated · Sources" (2026-09-30, on request). */}
         <div className="mt-8 w-full max-w-xl">
-          <SearchBar autoFocus placeholder="Explore a place here" />
-
-          {/* Discover mode's entry point moved to the results page ("Advanced
-           *  search"), so only Settings remains here — it inherits Discover's
-           *  old square-with-border treatment and icon (sliders), icon-only
-           *  now (no caption), centred under the search bar. Border colour
-           *  matches the search bar exactly (border-piltri-amber, 1.5px). */}
-          <div className="mt-3 flex justify-center">
-            <Link
-              href="/explore/weights"
-              aria-label="Customise score settings"
-              title="Settings"
-              className="w-7 h-7 rounded-lg border-[1.5px] border-piltri-amber text-piltri-amber flex items-center justify-center hover:bg-piltri-amber hover:text-white transition-colors"
-            >
-              <FilterIcon className="w-3.5 h-3.5" />
-            </Link>
-          </div>
+          <SearchBar autoFocus placeholder="Your better life might be somewhere else" />
         </div>
       </div>
 

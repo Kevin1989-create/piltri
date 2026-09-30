@@ -22,6 +22,7 @@ import { PinPanel } from "@/components/explore/PinPanel";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { useMediaQuery } from "@/lib/useMediaQuery";
+import { cn } from "@/lib/cn";
 import { getCityBoundary, getCityExploreData } from "@/lib/dataset/cities";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
@@ -97,12 +98,10 @@ function ResultsContent() {
   // Which section's detail panel is showing, if any. On desktop the main
   // column (CityHeader + 5 section rows) is a fixed size and never reacts
   // to this — it only controls whether the separate SectionDetailPanel is
-  // rendered. On mobile it also controls whether CityHeader itself renders
-  // at all (see the JSX below) - freeing up its space for the open row's
-  // detail instead of resizing the map, which used to animate open/closed
-  // alongside it and was reported as janky (a live WebGL canvas fighting a
-  // CSS height transition for the main thread). The map now stays a fixed
-  // size on mobile at all times.
+  // rendered. On mobile, opening a section hides the map (only the map:
+  // header, city and country info and the other rows stay) and returns to
+  // the top, so the open section sits right under the city info; closing
+  // it brings the map back (2026-09-30, on request).
   const [openSectionKey, setOpenSectionKey] = useState<OpenSectionKey | null>(null);
   // Persisted, shared preference (lib/scoreWeights.ts) — same weighting
   // applies here, in Discover mode's ranking, and on every other city you
@@ -117,6 +116,9 @@ function ResultsContent() {
   // instead of a separate floating panel. See the JSX below and
   // MapView's `compact` prop for the other half of this.
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  useEffect(() => {
+    if (!isDesktop) window.scrollTo({ top: 0 });
+  }, [openSectionKey, isDesktop]);
 
   // Clears the dropped pin and everything that depends on it (destination
   // pin, computed route, "picking a second pin" mode) - used whenever the
@@ -287,13 +289,18 @@ function ResultsContent() {
         }
         right={
           data && (
-            <Link
-              href="/explore/sources"
-              className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap hidden md:block"
-              title="Where every figure comes from"
-            >
-              Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })} · Sources
-            </Link>
+            <div className="hidden md:flex flex-col items-end gap-0.5">
+              <Link
+                href="/explore/sources"
+                className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap"
+                title="Where every figure comes from"
+              >
+                Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })} · Sources
+              </Link>
+              <Link href="/explore/weights" className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap" title="How much each section counts in the Piltri score">
+                Settings
+              </Link>
+            </div>
           )
         }
       />
@@ -308,23 +315,11 @@ function ResultsContent() {
        *  `relative` stays on unconditionally since it's still needed as the
        *  positioning context for the `md:absolute` children. */}
       <div ref={mapAreaRef} className="relative flex flex-col md:flex-1 md:overflow-hidden">
-        {/* Fixed size always on mobile now (2026-09-23, on request) - this
-         *  used to shrink while a section was open, animated via a CSS
-         *  height transition, but a live WebGL map fighting that transition
-         *  for the main thread (see MapView's ResizeObserver comment) read
-         *  as janky no matter how that resize was debounced. CityHeader
-         *  disappearing instead (below) frees the same space without ever
-         *  touching the map.
-         *
-         *  23dvh, not 26dvh (2026-09-23, on request - Resources still cut
-         *  off on a real phone despite this fitting with 0px to spare in
-         *  this session's own testing tooling). dvh already accounts for
-         *  the browser chrome showing/hiding, but a razor-thin exact fit is
-         *  still fragile against small real-device differences (nav
-         *  buttons, a slightly taller status bar, etc.) that this tooling
-         *  can't reproduce - trading a little more map for a genuine
-         *  safety margin instead of a mathematically-exact one. */}
-        <div className="h-[23dvh] md:h-full md:flex-1 relative">
+        {/* Mobile: 23dvh - leaves a safety margin for the rows below on
+         *  real phones - and hidden outright (not animated: a live WebGL
+         *  map fighting a height transition read as janky) while a section
+         *  is open. It stays mounted, so it comes back as it was. */}
+        <div className={cn("h-[23dvh] md:h-full md:flex-1 relative", !isDesktop && openSectionKey && "hidden")}>
           <MapView
             lat={lat}
             lng={lng}
@@ -359,37 +354,34 @@ function ResultsContent() {
             )}
             {data && (
               <>
-                {/* City name + view/compare buttons stay put on mobile even
-                 *  while a section is open (2026-09-23, revised on request -
-                 *  used to hide this whole block, title included). Only the
-                 *  Demographics stat blocks (the `demographics` prop) go
-                 *  away, by passing undefined rather than conditionally
-                 *  rendering CityHeader itself - that reclaimed space is
-                 *  what replaces the map resize that used to make room for
-                 *  the open row's detail; see the map div's comment above.
-                 *  Always shown in full on desktop, where a section opening
-                 *  never touches this column at all (its detail renders in
-                 *  the separate SectionDetailPanel instead). */}
+                {/* Always in full - on mobile too while a section is open
+                 *  (the map is what makes room; see the map div above). */}
                 <CityHeader
                   cityName={data.cityName}
                   country={data.country}
                   piltriScore={displayedScore}
-                  demographics={isDesktop || !openSectionKey ? data.demographics : undefined}
+                  demographics={data.demographics}
                   compareHref={compareHref}
                   reportHref={reportHref}
                   weights={weights}
                   rank={data.ranks ? { position: data.ranks.piltri, outOf: data.ranks.outOf } : undefined}
                 />
-                <SectionColumn
-                  data={data}
-                  externalDetail={isDesktop}
-                  onOpenSectionChange={setOpenSectionKey}
-                  autoScrollOnOpen={!isDesktop}
-                  hideOthersOnOpen={!isDesktop}
-                />
+                <SectionColumn data={data} externalDetail={isDesktop} onOpenSectionChange={setOpenSectionKey} />
               </>
             )}
           </div>
+          {/* Phones have no room for these in the header. */}
+          {data && (
+            <p className="md:hidden mt-2 mb-4 text-center text-[11px] text-ink-300">
+              <Link href="/explore/sources" className="hover:text-ink-500">
+                Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })} · Sources
+              </Link>
+              {" · "}
+              <Link href="/explore/weights" className="hover:text-ink-500">
+                Settings
+              </Link>
+            </p>
+          )}
         </div>
 
         {data && openSectionKey && openSectionKey !== "resources" && isDesktop && (

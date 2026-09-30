@@ -73,7 +73,7 @@ export function SectionDetail({
           <p className="font-serif font-semibold text-xs text-black leading-tight mb-1">{data.cityName}</p>
           <StatGrid rows={cityRows} />
           {section === "climate" && data.climate.monthly && (
-            <div className="mt-3">
+            <div className="mt-3 mx-auto max-w-[280px]">
               <ClimateChart monthly={data.climate.monthly} />
             </div>
           )}
