@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
+import { FilterIcon } from "@/components/ui/icons";
 
 /** Page 2 — Explore landing. Piltri logo top left (top right on Home only),
  *  centred search, no description line or Home link.
@@ -33,9 +34,23 @@ export default function ExploreLandingPage() {
             Find your Piltri.
           </h1>
 
-          {/* Just the search - score Settings live on the results page, under
-           *  "Updated · Sources" (2026-09-30, on request). */}
           <SearchBar autoFocus placeholder="Search for a place you could call home" />
+
+          {/* Settings (units and language), back under the search bar, icon
+           *  only, bordered to match it (2026-09-30, on request). The score
+           *  weighting is separate: Score settings, on the results page.
+           *  Like the heading, it hangs outside the flow on phones so the
+           *  search bar stays in the middle. */}
+          <div className="absolute inset-x-0 top-full mt-3 flex justify-center sm:static">
+            <Link
+              href="/explore/settings"
+              aria-label="Settings: units and language"
+              title="Settings"
+              className="w-7 h-7 rounded-lg border-[1.5px] border-piltri-amber text-piltri-amber flex items-center justify-center hover:bg-piltri-amber hover:text-white transition-colors"
+            >
+              <FilterIcon className="w-3.5 h-3.5" />
+            </Link>
+          </div>
         </div>
       </div>
 

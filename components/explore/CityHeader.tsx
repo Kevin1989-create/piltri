@@ -30,14 +30,14 @@ interface CityHeaderProps {
   reportHref?: string;
   /** Current section weights (whole percentages) driving `piltriScore`, used
    *  only to show the "(custom)" label when they differ from default.
-   *  Editing lives solely on /explore/settings now — kept out of this page
+   *  Editing lives solely on /explore/score-settings now — kept out of this page
    *  to avoid the confusion of a per-city-looking control that's actually a
    *  global, shared preference. Optional so CityHeader can still be used
    *  read-only (e.g. inside a Compare column) without this label. */
   weights?: Record<SectionKey, number>;
   /** Where "manage weights" goes - the results page passes a link that
-   *  carries this city along, so Settings can offer a way back to it. */
-  settingsHref?: string;
+   *  carries this city along, so Score settings can offer a way back to it. */
+  scoreSettingsHref?: string;
   /** World rank at the default weighting (see CityExploreData.ranks) -
    *  hidden when custom weights are active, since the rank was computed
    *  for the default score, not the customised one. */
@@ -100,7 +100,7 @@ export function CityHeader({
   compareHref,
   reportHref,
   weights,
-  settingsHref = "/explore/settings",
+  scoreSettingsHref = "/explore/score-settings",
   rank,
 }: CityHeaderProps) {
   const isCustomised = weights != null && isCustomWeights(weights);
@@ -299,7 +299,7 @@ export function CityHeader({
       {isCustomised && (
         <p className="mt-1.5 text-[11px] text-ink-500">
           Using a custom weighting —{" "}
-          <Link href={settingsHref} className="underline underline-offset-2 hover:text-piltri-amber">
+          <Link href={scoreSettingsHref} className="underline underline-offset-2 hover:text-piltri-amber">
             manage weights
           </Link>
         </p>

@@ -59,8 +59,8 @@ function ResultsContent() {
   // Carries this city's context along so Advanced search's "Back" link can
   // return here instead of the generic /explore landing page.
   const discoverHref = `/explore/discover?${new URLSearchParams(cityQueryParams).toString()}`;
-  // Same for Settings.
-  const settingsHref = `/explore/settings?${new URLSearchParams(cityQueryParams).toString()}`;
+  // Same for Score settings.
+  const scoreSettingsHref = `/explore/score-settings?${new URLSearchParams(cityQueryParams).toString()}`;
 
   const [data, setData] = useState<CityExploreData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,7 +107,7 @@ function ResultsContent() {
   const [openSectionKey, setOpenSectionKey] = useState<OpenSectionKey | null>(null);
   // Persisted, shared preference (lib/scoreWeights.ts) — same weighting
   // applies here, in Discover mode's ranking, and on every other city you
-  // look at. Read-only here: editing lives on /explore/settings only, to
+  // look at. Read-only here: editing lives on /explore/score-settings only, to
   // keep it clear this is a global setting, not a per-city control.
   const { weights } = useScoreWeights();
   // Below `md`, the floating map-overlay layout (score column pinned over
@@ -305,8 +305,8 @@ function ResultsContent() {
               >
                 Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })} · Sources
               </Link>
-              <Link href={settingsHref} className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap" title="How much each section counts in the Piltri score">
-                Settings
+              <Link href={scoreSettingsHref} className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap" title="How much each section counts in the Piltri score">
+                Score settings
               </Link>
             </div>
           )
@@ -389,7 +389,7 @@ function ResultsContent() {
                   demographics={data.demographics}
                   compareHref={compareHref}
                   reportHref={reportHref}
-                  settingsHref={settingsHref}
+                  scoreSettingsHref={scoreSettingsHref}
                   weights={weights}
                   rank={data.ranks ? { position: data.ranks.piltri, outOf: data.ranks.outOf } : undefined}
                 />
@@ -405,8 +405,8 @@ function ResultsContent() {
                 Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })} · Sources
               </Link>
               {" · "}
-              <Link href={settingsHref} className="hover:text-ink-500">
-                Settings
+              <Link href={scoreSettingsHref} className="hover:text-ink-500">
+                Score settings
               </Link>
             </p>
           )}

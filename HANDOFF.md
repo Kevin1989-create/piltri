@@ -11,7 +11,7 @@ instructions).
 Compare ~66,000 cities (every GeoNames place with 5,000+ people) in 245
 countries on a weighted **Piltri Score**: Safety 30%, Economy 25%,
 Environment 25%, Quality of Life 20% (users can re-weight on
-`/explore/settings`). Demographics are shown but not scored. There is **no
+`/explore/score-settings`; display units are on `/explore/settings`). Demographics are shown but not scored. There is **no
 Real Estate section** - no free, reliable global price source exists.
 
 - **Explore** (`/explore`, also the site root): search a city -> map, score,

@@ -51,9 +51,9 @@ function PillGroup<T extends string>({
 }
 
 /** Currency / temperature / distance display-unit picker — saved
- *  automatically, same pattern as the score-weight sliders above it on the
- *  /explore/settings page. Only changes how values are *shown*; see
- *  lib/unitPreferences.ts for the disclosed limitation around Advanced
+ *  automatically, same pattern as the score-weight sliders on
+ *  /explore/score-settings; shown on the /explore/settings page. Only
+ *  changes how values are *shown*; see lib/unitPreferences.ts for the disclosed limitation around Advanced
  *  search's filter inputs, which stay in the base units (GBP/°C/km²). */
 export function UnitPreferencesEditor({ prefs, onChange }: UnitPreferencesEditorProps) {
   return (

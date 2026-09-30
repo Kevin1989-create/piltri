@@ -1,38 +1,23 @@
 "use client";
 
-import { Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { NavBar } from "@/components/ui/NavBar";
-import { WeightEditor } from "@/components/explore/WeightEditor";
 import { UnitPreferencesEditor } from "@/components/explore/UnitPreferencesEditor";
-import { useScoreWeights, isCustomWeights } from "@/lib/scoreWeights";
 import { useUnitPreferences } from "@/lib/unitPreferences";
 
 /**
- * Dedicated page for the persisted score-weight preference (lib/scoreWeights.ts).
- * Deliberately separate from Discover mode's filters — this is "how should
- * the Piltri Score be calculated," not "which cities match my criteria."
- * Saved as you adjust each slider, no separate save step.
+ * Settings, reached from the landing page: how figures are shown (currency,
+ * temperature, measurement - lib/unitPreferences.ts) and the site's
+ * language. Saved as you change them. The score weighting has its own page,
+ * /explore/score-settings, reached from a city's results (2026-09-30, on
+ * request).
+ *
+ * Language: the site is English only for now, so this says so and points
+ * to the browser's own translate option, which works on every page at no
+ * cost. A real language switch needs the interface text translated first.
  */
 export default function SettingsPage() {
-  return (
-    <Suspense fallback={null}>
-      <SettingsContent />
-    </Suspense>
-  );
-}
-
-function SettingsContent() {
-  const { weights, setWeights, resetWeights } = useScoreWeights();
-  const customised = isCustomWeights(weights);
   const { prefs, setPrefs } = useUnitPreferences();
-  // Opened from a city (the results page passes its query along): "Back"
-  // returns to that city rather than the generic landing page.
-  const params = useSearchParams();
-  const fromCity = params.get("city");
-  const backHref = fromCity ? `/explore/results?${params.toString()}` : "/explore";
-  const backLabel = fromCity ? "← Back to results" : "← Back to Explore";
 
   return (
     <main className="min-h-dvh flex flex-col">
@@ -40,41 +25,31 @@ function SettingsContent() {
 
       <div className="px-6 pt-8">
         <div className="max-w-xl mx-auto">
-          <Link href={backHref} className="text-xs text-ink-500 hover:text-ink-900">
-            {backLabel}
+          <Link href="/explore" className="text-xs text-ink-500 hover:text-ink-900">
+            ← Back to Explore
           </Link>
-          <h1 className="font-serif text-2xl text-ink-900 mt-1">Customise score settings</h1>
-          <p className="text-sm text-ink-500 mt-1">
-            Choose how much each section counts toward the overall Piltri Score ; saved automatically as you adjust it.
-          </p>
+          <h1 className="font-serif text-2xl text-ink-900 mt-1">Settings</h1>
+          <p className="text-sm text-ink-500 mt-1">How figures are shown across Piltri; saved automatically as you change them.</p>
         </div>
       </div>
 
-      {/* flex-1 + justify-center: lets this block sit in the middle of the
-       *  remaining page height rather than clinging to the top. Padding is
-       *  intentionally asymmetric (more bottom than top) so the visual
-       *  centre sits a little above dead-centre rather than perfectly
-       *  mid-page. */}
+      {/* Same placement as Score settings: the block sits a little above
+       *  the middle of the remaining height. */}
       <div className="flex-1 flex flex-col justify-center px-6 pt-6 pb-24">
         <div className="max-w-xl mx-auto w-full">
-          <WeightEditor weights={weights} onChange={setWeights} />
-
-          <div className="mt-4 flex items-center gap-3">
-            {customised ? (
-              <button
-                onClick={resetWeights}
-                className="text-sm text-ink-500 hover:text-piltri-amber underline underline-offset-2"
-              >
-                Reset to default weighting
-              </button>
-            ) : (
-              <p className="text-sm text-ink-300">Default weighting in place</p>
-            )}
-          </div>
+          <h2 className="text-sm font-medium text-ink-900 mb-4">Units &amp; currency</h2>
+          <UnitPreferencesEditor prefs={prefs} onChange={setPrefs} />
 
           <div className="mt-10 pt-6 border-t border-surface-border">
-            <h2 className="text-sm font-medium text-ink-900 mb-4">Units & Currency</h2>
-            <UnitPreferencesEditor prefs={prefs} onChange={setPrefs} />
+            <h2 className="text-sm font-medium text-ink-900 mb-4">Language</h2>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-ink-700 w-36 flex-shrink-0">Site language</span>
+              <span className="rounded-pill bg-piltri-amber text-white text-xs px-4 py-1.5">English</span>
+            </div>
+            <p className="mt-3 text-xs text-ink-500 leading-relaxed">
+              Piltri is in English for now; more languages are on the way. Meanwhile, your browser&apos;s translate option
+              works on every page.
+            </p>
           </div>
         </div>
       </div>
