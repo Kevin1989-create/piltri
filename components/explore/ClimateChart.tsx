@@ -10,7 +10,9 @@ const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "Ju
 // renders at roughly 8-10 px.
 const W = 330;
 const H = 160;
-const PAD = { top: 8, right: 6, bottom: 30, left: 28 };
+// Equal side margins, so the plot itself sits in the middle of the chart;
+// the temperature labels use the left one.
+const PAD = { top: 8, right: 26, bottom: 30, left: 26 };
 const FONT = 9;
 const HIGH = "#B4472F";
 const LOW = "#4F7A94";
@@ -119,7 +121,7 @@ export function ClimateChart({ monthly }: { monthly: { highC: number[]; lowC: nu
           </p>
         </div>
       )}
-      <figcaption className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-ink-500">
+      <figcaption className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-[10px] text-ink-500">
         <span className="flex items-center gap-1">
           <span className="inline-block w-2.5 h-0.5" style={{ background: HIGH }} /> Avg high ({tUnit})
         </span>
