@@ -291,7 +291,7 @@ function CityContent() {
               key={data?.cityId ?? "loading"}
               variant="compact"
               initialValue={data ? `${data.cityName}, ${data.country}` : ""}
-              placeholder="Search for a place you could call home"
+              placeholder="Search for a place you will call home"
               className="flex-1 min-w-0 md:w-[300px] md:flex-none"
             />
             {/* Discover mode's entry point, relocated here from the Explore

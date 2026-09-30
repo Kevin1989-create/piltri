@@ -35,7 +35,7 @@ export default function ExploreLandingPage() {
             Find your Piltri.
           </h1>
 
-          <SearchBar autoFocus placeholder="Search for a place you could call home" />
+          <SearchBar autoFocus placeholder="Search for a place you will call home" />
 
           {/* Settings (units and language), back under the search bar, icon
            *  only, bordered to match it (2026-09-30, on request). The score
