@@ -39,6 +39,7 @@ export const POI = {
   beach: 11,
   tram: 12,
   nursery: 13, // nurseries, day care, preschools
+  careHome: 14, // care, nursing, retirement and assisted-living homes
 } as const;
 
 const BASIC_CATEGORY_TO_CODE: Record<string, number> = {
@@ -66,6 +67,10 @@ const BASIC_CATEGORY_TO_CODE: Record<string, number> = {
   train_station: POI.train,
   airport: POI.airport,
   beach: POI.beach,
+  // Residential homes for older people: retirement / nursing homes and
+  // assisted living. Home-help services, nurses, hospices and senior
+  // activity centres are separate categories and are left out.
+  senior_living_facility: POI.careHome,
 };
 
 /** Transit and childcare categories live in the finer-grained taxonomy
@@ -98,7 +103,7 @@ export async function extractOverturePlaces(): Promise<{ glob: string; release: 
   const taxList = Object.keys(TAXONOMY_TO_CODE).map((c) => `'${c}'`).join(",");
   const glob = await extractParts(release, {
     // Versioned: a changed category list needs a fresh extract.
-    name: "places-v2",
+    name: "places-v3",
     source: "theme=places/type=place",
     select: `
       CASE ${sqlCase("taxonomy.primary", TAXONOMY_TO_CODE)} ${sqlCase("basic_category", BASIC_CATEGORY_TO_CODE)} END::TINYINT AS cat,

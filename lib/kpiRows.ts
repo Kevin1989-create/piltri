@@ -503,8 +503,8 @@ export function splitKpiRowsByTier(rows: KpiRow[]): { countryRows: KpiRow[]; cit
   };
 }
 
-/** Transport and education presence within 5 km of the centre (40 km for
- *  airports), from Overture Maps / OpenStreetMap and GeoNames. */
+/** Transport, education and care presence within 5 km of the centre (40 km
+ *  for airports), from Overture Maps / OpenStreetMap and GeoNames. */
 function presenceRows(data: CityExploreData): KpiRow[] {
   const l = data.liveability;
   const flag = (label: string, value: boolean | null, what: string, km: number, source: string): KpiRow | null =>
@@ -530,6 +530,7 @@ function presenceRows(data: CityExploreData): KpiRow[] {
     flag("Nursery / day care", l.hasNursery, "a nursery, day care or preschool", 5, OVERTURE),
     flag("School", l.hasSchool, "a school", 5, "GeoNames and Overture Maps"),
     flag("University", l.hasUniversity, "a university", 5, "GeoNames and Overture Maps"),
+    flag("Care home (elderly)", l.hasCareHome, "a care home for older people (nursing, retirement or assisted living)", 5, OVERTURE),
   ];
   return rows.filter((r): r is KpiRow => r != null);
 }

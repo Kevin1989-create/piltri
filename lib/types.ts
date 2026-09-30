@@ -159,6 +159,9 @@ export interface LiveabilityFields {
   hasUniversity: boolean | null;
   /** A nursery, day care or preschool (Overture Maps). */
   hasNursery: boolean | null;
+  /** A care home for older people - nursing, retirement or assisted
+   *  living (Overture Maps). */
+  hasCareHome: boolean | null;
   /** Average download speed of Speedtest results (Ookla open data, latest
    *  quarter), in Mbps, over the given radius: 5 km, widened to 15 or 30 km
    *  where too few tests were taken closer in. */

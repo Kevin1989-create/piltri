@@ -205,6 +205,7 @@ export function assembleCityExploreData(
       hasSchool: city.hasSchool,
       hasUniversity: city.hasUniversity,
       hasNursery: city.hasNursery,
+      hasCareHome: city.hasCareHome,
       broadbandDownloadMbps: city.broadbandDownloadMbps,
       broadbandRadiusKm: city.broadbandRadiusKm,
       mobileDownloadMbps: city.mobileDownloadMbps,

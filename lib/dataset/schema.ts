@@ -140,6 +140,7 @@ export const CITY_FIELDS = [
   // Added later: new fields go at the end, so a dataset built before them
   // still decodes (the missing values read as null) - no schema bump.
   "hasNursery",
+  "hasCareHome",
 ] as const;
 
 export type CityFieldKey = (typeof CITY_FIELDS)[number];
@@ -196,6 +197,7 @@ export interface CityRecord {
   hasSchool: boolean | null;
   hasUniversity: boolean | null;
   hasNursery: boolean | null;
+  hasCareHome: boolean | null;
   /** Test-weighted average download speed (Ookla) within the stored
    *  radius: 5 km, or 15/30 km where there were too few tests nearer. */
   broadbandDownloadMbps: number | null;

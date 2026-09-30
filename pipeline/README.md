@@ -38,7 +38,7 @@ also picks up the latest published dataset.
 | Population density (5 km) | GHS-POP R2023A, 2025, 1 km (EC JRC) | CC BY 4.0 |
 | Broadband / mobile speed | Ookla Speedtest open data, latest quarter (AWS Open Data) | CC BY-NC-SA 4.0* |
 | Coastline, major lakes (which beaches count) | Natural Earth 1:10m | public domain |
-| Restaurants/bars/cafés, cultural venues, family activities, parks, nurseries, schools, universities, stations | Overture Maps places | CDLA-Permissive-2.0 |
+| Restaurants/bars/cafés, cultural venues, family activities, parks, nurseries, care homes, schools, universities, stations | Overture Maps places | CDLA-Permissive-2.0 |
 | Tram / light rail / metro lines | Overture Maps transportation (OpenStreetMap rail) | ODbL |
 | City outlines on the map | Overture Maps divisions (OpenStreetMap boundaries) | ODbL |
 | Official languages | Unicode CLDR territory data (+ constitutional corrections in `sources/languages.ts`) | Unicode License |
