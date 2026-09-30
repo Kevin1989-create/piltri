@@ -28,7 +28,7 @@ export default function ExploreLandingPage() {
         {/* Just the search - score Settings live on the results page, under
          *  "Updated · Sources" (2026-09-30, on request). */}
         <div className="mt-8 w-full max-w-xl">
-          <SearchBar autoFocus placeholder="Your better life might be somewhere else" />
+          <SearchBar autoFocus placeholder="Search for a place you could call home" />
         </div>
       </div>
 
