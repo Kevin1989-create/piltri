@@ -128,28 +128,28 @@ function ReportContent() {
 
               <ReportSubheading className="mt-3">{data.cityName}</ReportSubheading>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
-                <ReportStat
+                <DemographicStat
                   label="Population"
                   value={data.demographics.cityPopulation != null ? data.demographics.cityPopulation.toLocaleString() : "Not available"}
                 />
                 {data.demographics.cityDensityPerKm2 != null && (
-                  <ReportStat
+                  <DemographicStat
                     label="Density (within 5 km)"
                     value={formatDensityPerKm2(data.demographics.cityDensityPerKm2, prefs, (n) => Math.round(n).toLocaleString())}
                   />
                 )}
                 {data.demographics.timezone && formatUtcOffset(data.demographics.timezone) && (
-                  <ReportStat label="Time zone" value={`${formatUtcOffset(data.demographics.timezone)} (${data.demographics.timezone})`} />
+                  <DemographicStat label="Time zone" value={`${formatUtcOffset(data.demographics.timezone)} (${data.demographics.timezone})`} />
                 )}
               </div>
 
               <ReportSubheading className="mt-4">{data.country}</ReportSubheading>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
-                <ReportStat
+                <DemographicStat
                   label="Population"
                   value={data.demographics.countryPopulation != null ? data.demographics.countryPopulation.toLocaleString() : "Not available"}
                 />
-                <ReportStat
+                <DemographicStat
                   label="Population density"
                   value={
                     data.demographics.countryPopulationDensityPerKm2 != null
@@ -157,13 +157,13 @@ function ReportContent() {
                       : "Not available"
                   }
                 />
-                <ReportStat
+                <DemographicStat
                   label="Land area"
                   value={
                     data.demographics.countryLandAreaKm2 != null ? formatAreaKm2(data.demographics.countryLandAreaKm2, prefs) : "Not available"
                   }
                 />
-                <ReportStat
+                <DemographicStat
                   label="Population growth (5 yrs)"
                   value={
                     data.demographics.countryPopulationTrend5yrPct != null
@@ -171,11 +171,11 @@ function ReportContent() {
                       : "Not available"
                   }
                 />
-                <ReportStat
+                <DemographicStat
                   label="Average age"
                   value={data.demographics.countryAverageAge != null ? String(data.demographics.countryAverageAge) : "Not available"}
                 />
-                <ReportStat
+                <DemographicStat
                   label={data.demographics.countryOfficialLanguages?.length === 1 ? "Official language" : "Official languages"}
                   value={data.demographics.countryOfficialLanguages?.join(", ") || "Not available"}
                 />
@@ -247,6 +247,13 @@ function ReportGroup({ title, rows, spacing = "mt-4" }: { title: string; rows: K
       </div>
     </div>
   );
+}
+
+/** Demographics figures are descriptive, neither good nor bad: grey, like
+ *  such figures on the city page, so only the place names stand out in
+ *  black (2026-09-30, on request). */
+function DemographicStat(props: { label: string; value: string }) {
+  return <ReportStat {...props} colorClass="text-ink-500" />;
 }
 
 function ReportStat({

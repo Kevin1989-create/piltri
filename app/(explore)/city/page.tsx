@@ -312,7 +312,11 @@ function CityContent() {
         }
         right={
           data && (
-            <div className="hidden md:flex flex-col items-end gap-0.5">
+            // Top right on phones too (2026-09-30, on request - visible without
+            // scrolling): the logo row has room beside the logo, and it adds
+            // no height. Nudged down on phones to line up with the logo's
+            // lettering, which sits low in its box.
+            <div className="flex flex-col items-end gap-0.5 translate-y-1.5 md:translate-y-0">
               <Link
                 href={sourcesHref}
                 className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap"
@@ -382,8 +386,8 @@ function CityContent() {
             side panel. */}
         <div
           className={cn(
-            "static md:absolute md:top-4 md:left-4 md:bottom-4 flex flex-col w-full md:w-[320px] px-4 md:px-0 mt-3 md:mt-0",
-            sectionView && "flex-1 pb-3"
+            "static md:absolute md:top-4 md:left-4 md:bottom-4 flex flex-col w-full md:w-[320px] px-4 md:px-0 mt-3 md:mt-0 pb-3 md:pb-0",
+            sectionView && "flex-1"
           )}
         >
           <div
@@ -416,19 +420,6 @@ function CityContent() {
               </>
             )}
           </div>
-          {/* Phones have no room for these in the header. Left out while a
-           *  section is open, to give it that room too. */}
-          {data && !sectionView && (
-            <p className="md:hidden mt-2 mb-4 text-center text-[11px] text-ink-300">
-              <Link href={sourcesHref} className="hover:text-ink-500">
-                Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })} · Sources
-              </Link>
-              {" · "}
-              <Link href={scoreSettingsHref} className="hover:text-ink-500">
-                Score settings
-              </Link>
-            </p>
-          )}
         </div>
 
         {data && openSectionKey && openSectionKey !== "resources" && isDesktop && (
