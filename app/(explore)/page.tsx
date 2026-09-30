@@ -2,6 +2,7 @@ import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { FilterIcon } from "@/components/ui/icons";
+import { SETTINGS_URL, sourcesUrl } from "@/lib/urls";
 
 /** Page 2 — Explore landing. Piltri logo top left (top right on Home only),
  *  centred search, no description line or Home link.
@@ -43,7 +44,7 @@ export default function ExploreLandingPage() {
            *  search bar stays in the middle. */}
           <div className="absolute inset-x-0 top-full mt-3 flex justify-center sm:static">
             <Link
-              href="/explore/settings"
+              href={SETTINGS_URL}
               aria-label="Settings: units and language"
               title="Settings"
               className="w-7 h-7 rounded-lg border-[1.5px] border-piltri-amber text-piltri-amber flex items-center justify-center hover:bg-piltri-amber hover:text-white transition-colors"
@@ -55,7 +56,7 @@ export default function ExploreLandingPage() {
       </div>
 
       <footer className="pb-4 text-center">
-        <Link href="/explore/sources" className="text-[11px] text-ink-300 hover:text-ink-500">
+        <Link href={sourcesUrl()} className="text-[11px] text-ink-300 hover:text-ink-500">
           Data &amp; sources
         </Link>
       </footer>

@@ -23,7 +23,7 @@ export default function LegacyHomePage() {
           icon={CompassIcon}
           name="Explore"
           description="Compare locations by what matters most — cost of living, safety, lifestyle, and opportunity — before you commit to a move."
-          href="/explore"
+          href="/"
         />
         <LandingSectionCard
           icon={PulseIcon}

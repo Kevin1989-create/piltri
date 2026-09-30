@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ClimateChart } from "@/components/explore/ClimateChart";
 import { KpiInfoButton } from "@/components/explore/KpiInfo";
@@ -10,6 +10,7 @@ import { buildKpiRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { isCustomWeights, useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { getCityExploreData } from "@/lib/dataset/cities";
+import { cityUrl, HOME_URL, readCityRef, reportUrl } from "@/lib/urls";
 import { formatUtcOffset } from "@/lib/timezone";
 import { formatAreaKm2, formatDensityPerKm2, useUnitPreferences } from "@/lib/unitPreferences";
 import { SECTION_LABELS, type CityExploreData, type SectionKey } from "@/lib/types";
@@ -28,11 +29,10 @@ const ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveabili
  *  headless-browser render, or a hand-laid-out PDF library). */
 function ReportContent() {
   const params = useSearchParams();
-  const cityId = params.get("cityId") ?? "";
-  const cityName = params.get("city") ?? "";
-  const countryCode = params.get("countryCode") ?? "";
-  const lat = Number(params.get("lat"));
-  const lng = Number(params.get("lng"));
+  const router = useRouter();
+  // /report?id=lyon-fr, or an older link's parameters (lib/urls.ts).
+  const ref = readCityRef(params);
+  const refKey = ref ? [ref.countryCode, ref.id, ref.lat, ref.lng].join("|") : "";
 
   const [data, setData] = useState<CityExploreData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,19 +41,27 @@ function ReportContent() {
   const { prefs } = useUnitPreferences();
 
   useEffect(() => {
-    if (!cityName || Number.isNaN(lat) || Number.isNaN(lng)) return;
+    if (!ref) return;
+    if (ref.id && !ref.legacy && ref.id === data?.cityId) return;
     setLoading(true);
     setError(null);
-    getCityExploreData(countryCode, cityId || null, lat, lng)
+    getCityExploreData(ref.countryCode, ref.id, ref.lat, ref.lng)
       .then((result) => {
         if (!result) throw new Error("No data for this place.");
         setData(result);
+        setLoading(false);
+        // An older link: swap in the short address.
+        if (ref.legacy) router.replace(reportUrl(result.cityId), { scroll: false });
       })
-      .catch((err) => setError(err.message ?? "Something went wrong loading this city."))
-      .finally(() => setLoading(false));
-  }, [cityId, cityName, countryCode, lat, lng]);
+      .catch((err) => {
+        setError(err.message ?? "Something went wrong loading this city.");
+        setLoading(false);
+      });
+    // refKey stands for `ref`, a new object on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refKey]);
 
-  if (Number.isNaN(lat) || Number.isNaN(lng) || !cityName) {
+  if (!ref) {
     return (
       <main className="min-h-dvh flex items-center justify-center px-6 text-center">
         <p className="text-ink-500">No location selected.</p>
@@ -70,8 +78,10 @@ function ReportContent() {
     <main className="min-h-dvh bg-surface-muted print:bg-white">
       {/* Screen-only toolbar — never appears in the printed/saved output. */}
       <div className="print:hidden sticky top-0 z-10 bg-surface border-b border-surface-border px-6 py-3 flex items-center justify-between">
-        <Link href="/explore" className="text-xs text-ink-500 hover:text-ink-900">
-          ← Back to Explore
+        {/* Opened in a new tab (from a city, or an Advanced search result):
+         *  the way back is to the city itself. */}
+        <Link href={data ? cityUrl(data.cityId) : HOME_URL} className="text-xs text-ink-500 hover:text-ink-900">
+          {data ? `← Back to ${data.cityName}` : "← Back to home"}
         </Link>
         <button
           onClick={() => window.print()}

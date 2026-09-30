@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { prefetchSearch, searchCities } from "@/lib/dataset/search";
+import { cityUrl } from "@/lib/urls";
 import type { CitySearchResult } from "@/lib/types";
 
 interface SearchBarProps {
@@ -107,16 +108,7 @@ export function SearchBar({
       return;
     }
     setValue(`${city.cityName}, ${city.country}`);
-    const qs = new URLSearchParams({
-      cityId: city.cityId,
-      city: city.cityName,
-      region: city.region ?? "",
-      country: city.country,
-      countryCode: city.countryCode,
-      lat: String(city.lat),
-      lng: String(city.lng),
-    });
-    router.push(`/explore/results?${qs.toString()}`);
+    router.push(cityUrl(city.cityId));
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {

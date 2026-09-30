@@ -11,15 +11,19 @@ instructions).
 Compare ~66,000 cities (every GeoNames place with 5,000+ people) in 245
 countries on a weighted **Piltri Score**: Safety 30%, Economy 25%,
 Environment 25%, Quality of Life 20% (users can re-weight on
-`/explore/score-settings`; display units are on `/explore/settings`). Demographics are shown but not scored. There is **no
+`/score-settings`; display units are on `/settings`). Demographics are
+shown but not scored. There is **no
 Real Estate section** - no free, reliable global price source exists.
 
-- **Explore** (`/explore`, also the site root): search a city -> map, score,
-  section panels, world rank (#X of 66,295), a printable report, Compare (up
-  to 10 places), and pin mode (drop a pin anywhere for the nearest beach,
+- **Explore** (`/`): search a city -> `/city?id=lyon-fr`: map, score,
+  section panels, world rank (#X of 66,295), a printable report
+  (`/report?id=`), Compare (`/compare?id=…&id=…`, up to 10 places), and pin mode (drop a pin anywhere for the nearest beach,
   mountain, train station and airport, with straight-line travel estimates).
-- **Advanced search** (`/explore/discover`): filter cities or countries on
-  any criterion with a live match count; results as a photo grid or map.
+- **Advanced search** (`/search`): filter cities or countries on any
+  criterion with a live match count; results (`/search/results`) as a photo
+  grid or map; a country's figures at `/country?code=FR`.
+- Every page address is listed in `lib/urls.ts`; the older `/explore/...`
+  addresses redirect (next.config.js).
 - **/admin** (password): dataset status and the Resources links editor.
 
 ## Constraints (from the owner)
@@ -89,7 +93,7 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
   time zone (GeoNames; UTC offset computed in the browser), currency.
 - Country-level: World Bank (economy, safety, demographics, life expectancy,
   internet use, PISA), WHO UHC (healthcare), ND-GAIN, UN median age.
-- **Licences**: all open; credited publicly at /explore/sources. Only Ookla
+- **Licences**: all open; credited publicly at /sources. Only Ookla
   is non-commercial - build with `PIPELINE_COMMERCIAL=1` to drop it. WHO
   data is CC BY 4.0.
 - **Shortlist hygiene**: duplicate names resolved to the largest entry whose

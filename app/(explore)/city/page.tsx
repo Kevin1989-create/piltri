@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
@@ -24,6 +24,7 @@ import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring"
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/cn";
 import { getCityBoundary, getCityExploreData } from "@/lib/dataset/cities";
+import { cityUrl, compareUrl, readCityRef, reportUrl, scoreSettingsUrl, searchUrl, sourcesUrl } from "@/lib/urls";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
 /** Pin mode (click the map for local details and directions) - switched
@@ -32,35 +33,31 @@ import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
  *  it back as it was. */
 const PIN_MODE = false;
 
-function ResultsContent() {
+function CityContent() {
   const params = useSearchParams();
-  const cityId = params.get("cityId") ?? "";
-  const cityName = params.get("city") ?? "";
-  const region = params.get("region") ?? "";
-  const country = params.get("country") ?? "";
-  const countryCode = params.get("countryCode") ?? "";
-  const lat = Number(params.get("lat"));
-  const lng = Number(params.get("lng"));
-  const cityQueryParams = {
-    cityId,
-    city: cityName,
-    region,
-    country,
-    countryCode,
-    lat: String(lat),
-    lng: String(lng),
-  };
-  const compareHref = `/explore/compare?${new URLSearchParams(cityQueryParams).toString()}`;
+  const router = useRouter();
+  // Which city: /city?id=lyon-fr, or an older link's parameters (see
+  // lib/urls.ts) - the name, country and position all come from the data.
+  const ref = readCityRef(params);
+  const refKey = ref ? [ref.countryCode, ref.id, ref.lat, ref.lng].join("|") : "";
+  const cityId = ref?.id ?? "";
+  // The city on screen, so tidying an older address (below) doesn't load
+  // it all over again.
+  const loadedIdRef = useRef<string | null>(null);
+  // Where the map looks: the loaded city's position, kept while the next
+  // city loads so the map moves across rather than starting over.
+  const [center, setCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const compareHref = compareUrl([cityId]);
   // Opens in a new tab (see CityHeader) — a print-styled page that lays out
   // the same score/KPI data as the results column, meant to be saved as a
   // PDF via the browser's own print dialog rather than a bespoke PDF
   // pipeline in the app itself.
-  const reportHref = `/explore/report?${new URLSearchParams(cityQueryParams).toString()}`;
-  // Carries this city's context along so Advanced search's "Back" link can
-  // return here instead of the generic /explore landing page.
-  const discoverHref = `/explore/discover?${new URLSearchParams(cityQueryParams).toString()}`;
-  // Same for Score settings.
-  const scoreSettingsHref = `/explore/score-settings?${new URLSearchParams(cityQueryParams).toString()}`;
+  const reportHref = reportUrl(cityId);
+  // `from` lets Advanced search, Score settings and Sources offer a way
+  // back to this city.
+  const searchHref = searchUrl(cityId);
+  const scoreSettingsHref = scoreSettingsUrl(cityId);
+  const sourcesHref = sourcesUrl(cityId);
 
   const [data, setData] = useState<CityExploreData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,7 +104,7 @@ function ResultsContent() {
   const [openSectionKey, setOpenSectionKey] = useState<OpenSectionKey | null>(null);
   // Persisted, shared preference (lib/scoreWeights.ts) — same weighting
   // applies here, in Discover mode's ranking, and on every other city you
-  // look at. Read-only here: editing lives on /explore/score-settings only, to
+  // look at. Read-only here: editing lives on /score-settings only, to
   // keep it clear this is a global setting, not a per-city control.
   const { weights } = useScoreWeights();
   // Below `md`, the floating map-overlay layout (score column pinned over
@@ -170,21 +167,38 @@ function ResultsContent() {
   }
 
   useEffect(() => {
-    if (!cityName || Number.isNaN(lat) || Number.isNaN(lng)) return;
+    if (!ref) return;
+    // Already showing it: the address was only tidied (see below).
+    if (ref.id && !ref.legacy && ref.id === loadedIdRef.current) return;
+    let cancelled = false;
     setLoading(true);
     setError(null);
     setData(null);
     closePin();
     // Start the outline's download alongside the city's data.
-    if (cityId) getCityBoundary(countryCode, cityId).catch(() => null);
-    getCityExploreData(countryCode, cityId || null, lat, lng)
+    if (ref.id) getCityBoundary(ref.countryCode, ref.id).catch(() => null);
+    getCityExploreData(ref.countryCode, ref.id, ref.lat, ref.lng)
       .then((result) => {
+        if (cancelled) return;
         if (!result) throw new Error("No data for this place.");
+        loadedIdRef.current = result.cityId;
         setData(result);
+        setCenter({ lat: result.lat, lng: result.lng });
+        setLoading(false);
+        // An older link: swap in the short address.
+        if (ref.legacy) router.replace(cityUrl(result.cityId), { scroll: false });
       })
-      .catch((err) => setError(err.message ?? "Something went wrong loading this city."))
-      .finally(() => setLoading(false));
-  }, [cityId, cityName, countryCode, lat, lng]);
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err.message ?? "Something went wrong loading this city.");
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // refKey stands for `ref`, which is a new object on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refKey]);
 
   // The map's outline of the place: undefined while loading, null when the
   // dataset has none (the map then draws the 5 km circle).
@@ -249,7 +263,7 @@ function ResultsContent() {
     return () => observer.disconnect();
   }, [loading, data]);
 
-  if (Number.isNaN(lat) || Number.isNaN(lng) || !cityName) {
+  if (!ref) {
     return (
       <main className="min-h-dvh flex flex-col items-center justify-center px-6 text-center">
         <p className="text-ink-500">No location selected.</p>
@@ -274,8 +288,10 @@ function ResultsContent() {
           // search" link instead of the desktop's fixed 300px.
           <div className="flex items-center gap-2 md:gap-3 w-full max-w-md md:max-w-none md:w-auto">
             <SearchBar
+              // Remounted once the city has loaded, to show its name.
+              key={data?.cityId ?? "loading"}
               variant="compact"
-              initialValue={`${cityName}${country ? `, ${country}` : ""}`}
+              initialValue={data ? `${data.cityName}, ${data.country}` : ""}
               placeholder="Search for a place you could call home"
               className="flex-1 min-w-0 md:w-[300px] md:flex-none"
             />
@@ -283,11 +299,10 @@ function ResultsContent() {
              *  landing page and relabelled — makes more sense reachable
              *  while you're already looking at a city, if you want to widen
              *  the search with criteria instead of another single lookup.
-             *  Carries this city's context via discoverHref so Advanced
-             *  search's "Back" link can return here instead of the generic
-             *  /explore landing page. */}
+             *  Carries this city along (searchHref) so Advanced search's
+             *  "Back" link can return here instead of the home page. */}
             <Link
-              href={discoverHref}
+              href={searchHref}
               className="flex items-center gap-1.5 text-xs text-ink-500 hover:text-piltri-amber-dark whitespace-nowrap flex-shrink-0"
             >
               <DiscoverIcon className="w-3.5 h-3.5" />
@@ -299,7 +314,7 @@ function ResultsContent() {
           data && (
             <div className="hidden md:flex flex-col items-end gap-0.5">
               <Link
-                href="/explore/sources"
+                href={sourcesHref}
                 className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap"
                 title="Where every figure comes from"
               >
@@ -337,19 +352,23 @@ function ResultsContent() {
           )}
         >
           <div className="h-[23dvh] md:h-full relative">
-            <MapView
-              lat={lat}
-              lng={lng}
-              outline={outline}
-              onMapClick={PIN_MODE ? handleMapClick : undefined}
-              pinnedCoords={pin}
-              destinationCoords={destination}
-              pickingDestination={pickingDestination}
-              onDestinationPick={handleDestinationPick}
-              onRouteInfo={setRouteInfo}
-              reservedBottomPx={isDesktop && pin ? pinPanelHeight : 0}
-              compact={!isDesktop}
-            />
+            {center ? (
+              <MapView
+                lat={center.lat}
+                lng={center.lng}
+                outline={outline}
+                onMapClick={PIN_MODE ? handleMapClick : undefined}
+                pinnedCoords={pin}
+                destinationCoords={destination}
+                pickingDestination={pickingDestination}
+                onDestinationPick={handleDestinationPick}
+                onRouteInfo={setRouteInfo}
+                reservedBottomPx={isDesktop && pin ? pinPanelHeight : 0}
+                compact={!isDesktop}
+              />
+            ) : (
+              <div className="w-full h-full bg-surface-muted" />
+            )}
           </div>
         </div>
 
@@ -401,7 +420,7 @@ function ResultsContent() {
            *  section is open, to give it that room too. */}
           {data && !sectionView && (
             <p className="md:hidden mt-2 mb-4 text-center text-[11px] text-ink-300">
-              <Link href="/explore/sources" className="hover:text-ink-500">
+              <Link href={sourcesHref} className="hover:text-ink-500">
                 Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })} · Sources
               </Link>
               {" · "}
@@ -449,10 +468,10 @@ function ResultsContent() {
   );
 }
 
-export default function ExploreResultsPage() {
+export default function CityPage() {
   return (
     <Suspense fallback={null}>
-      <ResultsContent />
+      <CityContent />
     </Suspense>
   );
 }

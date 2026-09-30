@@ -159,3 +159,12 @@ export function runAdvancedSearch(request: AdvancedSearchRequest, limit = MAX_RE
 export async function countMatches(request: AdvancedSearchRequest): Promise<number> {
   return (await runAdvancedSearch(request, 0)).matchCount;
 }
+
+/** One country's roll-up, for the country page (/country?code=FR). */
+export async function getCountryResult(
+  countryCode: string,
+  weights?: AdvancedSearchRequest["weights"]
+): Promise<AdvancedSearchCountryResult | null> {
+  const { countryResults } = await countrySearch({ scope: "country", filters: [], weights }, Number.MAX_SAFE_INTEGER);
+  return countryResults?.find((r) => r.countryCode === countryCode.toUpperCase()) ?? null;
+}

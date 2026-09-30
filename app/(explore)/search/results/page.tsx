@@ -13,6 +13,8 @@ const DiscoverResultsMap = dynamic(() => import("@/components/explore/DiscoverRe
   loading: () => <div className="w-full h-full rounded-card bg-surface-muted" />,
 });
 import { runAdvancedSearch } from "@/lib/advancedSearch/engine";
+import { getScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
+import { countryUrl, readFrom, reportUrl, searchUrl } from "@/lib/urls";
 import { SECTION_LABELS, type AdvancedSearchRequest, type AdvancedSearchResponse, type SectionKey } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
@@ -35,19 +37,10 @@ const SORT_ORDER: SortKey[] = ["piltri", ...SECTION_KEYS, "alpha"];
  *  and map can both render without caring whether each entry started as a
  *  city or a country. `detailHref` always opens the same kind of "View all
  *  data" report page CityHeader's eye icon uses elsewhere — a country
- *  equivalent (/explore/country-report) since there wasn't one before. */
+ *  equivalent (/country) since there wasn't one before. */
 function buildDisplayResults(response: AdvancedSearchResponse): DisplayResult[] {
   if (response.scope === "city") {
     return (response.cityResults ?? []).map((r) => {
-      const qs = new URLSearchParams({
-        cityId: r.cityId,
-        city: r.cityName,
-        region: r.region ?? "",
-        country: r.country,
-        countryCode: r.countryCode,
-        lat: String(r.lat),
-        lng: String(r.lng),
-      });
       return {
         key: r.cityId,
         name: r.cityName,
@@ -58,20 +51,12 @@ function buildDisplayResults(response: AdvancedSearchResponse): DisplayResult[] 
         lng: r.lng,
         wikiTitle: r.cityName,
         wikiFallbackTitle: `${r.cityName}, ${r.country}`,
-        detailHref: `/explore/report?${qs.toString()}`,
+        detailHref: reportUrl(r.cityId),
       };
     });
   }
 
   return (response.countryResults ?? []).map((r) => {
-    const qs = new URLSearchParams({
-      country: r.country,
-      countryCode: r.countryCode,
-      citiesTracked: String(r.citiesTracked),
-      piltriScore: String(r.piltriScore),
-      sectionScores: JSON.stringify(r.sectionScores),
-      allValues: JSON.stringify(r.allValues),
-    });
     return {
       key: r.countryCode,
       name: r.country,
@@ -82,7 +67,7 @@ function buildDisplayResults(response: AdvancedSearchResponse): DisplayResult[] 
       lng: r.lng,
       wikiTitle: r.country,
       flagCountryCode: r.countryCode,
-      detailHref: `/explore/country-report?${qs.toString()}`,
+      detailHref: countryUrl(r.countryCode),
     };
   });
 }
@@ -100,7 +85,7 @@ function buildMapPoints(results: DisplayResult[]): MapPoint[] {
 function DiscoverResultsContent() {
   const params = useSearchParams();
   const scope = params.get("scope") === "country" ? "country" : "city";
-  const backHref = `/explore/discover?${params.toString()}`;
+  const backHref = searchUrl(readFrom(params));
 
   const [response, setResponse] = useState<AdvancedSearchResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,7 +100,8 @@ function DiscoverResultsContent() {
     setError(null);
 
     let filters: AdvancedSearchRequest["filters"] = [];
-    let weights: Record<string, number> | undefined;
+    // The saved weighting (an older address may still carry its own).
+    let weights: AdvancedSearchRequest["weights"] = weightPercentagesToScores(getScoreWeights());
     try {
       filters = JSON.parse(params.get("filters") ?? "[]");
     } catch {
@@ -123,9 +109,9 @@ function DiscoverResultsContent() {
     }
     try {
       const rawWeights = params.get("weights");
-      weights = rawWeights ? JSON.parse(rawWeights) : undefined;
+      if (rawWeights) weights = JSON.parse(rawWeights);
     } catch {
-      weights = undefined;
+      // keep the saved weighting
     }
 
     runAdvancedSearch({ scope, filters, weights })

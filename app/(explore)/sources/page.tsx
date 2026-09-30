@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
 import { NavBar } from "@/components/ui/NavBar";
 import { manifest } from "@/lib/dataset/files";
 
@@ -32,9 +32,7 @@ export default function SourcesPage() {
       <NavBar logoSide="left" border={false} />
       <div className="px-6 pt-8 pb-16">
         <div className="max-w-2xl mx-auto">
-          <Link href="/explore" className="text-xs text-ink-500 hover:text-ink-900">
-            ← Back to Explore
-          </Link>
+          <BackLink />
           <h1 className="font-serif text-2xl text-ink-900 mt-1">Data &amp; sources</h1>
           <p className="text-sm text-ink-700 mt-3 leading-relaxed">
             Every figure on Piltri is computed from free, openly licensed datasets - nothing is estimated by hand or bought.

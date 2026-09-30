@@ -10,6 +10,7 @@ import { CompassIcon, IconDemographics, PrecisionCityIcon, PrecisionCountryIcon,
 import { AdvancedSearchCategoryCard } from "@/components/explore/AdvancedSearchCategoryCard";
 import { isFilterActive, type FilterInputValue } from "@/components/explore/AdvancedSearchCriterionRow";
 import { getScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
+import { cityUrl, HOME_URL, readFrom } from "@/lib/urls";
 import type { AdvancedSearchCriterionFilter, AdvancedSearchScope } from "@/lib/types";
 import { CATEGORY_ORDER, criteriaByCategory, getCriterion, kindForScope, type CategoryKey } from "@/lib/advancedSearch/criteria";
 import { cn } from "@/lib/cn";
@@ -60,13 +61,12 @@ function buildRequestFilters(scope: AdvancedSearchScope, filters: FiltersState):
 function DiscoverContent() {
   const router = useRouter();
   const params = useSearchParams();
-  // If we arrived here from a city's results page (see discoverHref there),
-  // its query params are carried along so "Back" can return to that same
-  // city instead of the generic /explore landing page - going back to
-  // "somewhere that isn't where you came from" doesn't make sense.
-  const originCityName = params.get("city");
-  const backHref = originCityName ? `/explore/results?${params.toString()}` : "/explore";
-  const backLabel = originCityName ? "← Back to results" : "← Back to Explore";
+  // Opened from a city page (/search?from=<city id>): "Back" returns to
+  // that city instead of the home page - going back to "somewhere that
+  // isn't where you came from" doesn't make sense.
+  const from = readFrom(params);
+  const backHref = from ? cityUrl(from) : HOME_URL;
+  const backLabel = from ? "← Back to results" : "← Back to home";
 
   const [scope, setScope] = useState<AdvancedSearchScope | null>(null);
   const [filters, setFilters] = useState<FiltersState>({});
@@ -137,20 +137,19 @@ function DiscoverContent() {
   }
 
   // Results now live on their own page (list/map, sort, pagination — see
-  // discover/results/page.tsx) rather than rendered inline here, so this
-  // just hands off scope/filters/weights via the URL and navigates - the
-  // actual search request happens on the destination page. Origin params
-  // (e.g. `city` from the results page's "Advanced search" link) are
-  // carried along unchanged so the results page's own "Back" link can
-  // still return to where this page's "Back" link would have.
+  // search/results/page.tsx) rather than rendered inline here, so this
+  // just hands off scope and filters via the URL and navigates - the
+  // actual search request (with the saved weighting) happens on the
+  // destination page. `from` is carried along so its "Back" link can
+  // return here with the same way back to the city.
   function goToResults() {
     if (!scope) return;
     setNavigating(true);
-    const qs = new URLSearchParams(params.toString());
+    const qs = new URLSearchParams();
+    if (from) qs.set("from", from);
     qs.set("scope", scope);
     qs.set("filters", JSON.stringify(buildRequestFilters(scope, filters)));
-    qs.set("weights", JSON.stringify(weightPercentagesToScores(getScoreWeights())));
-    router.push(`/explore/discover/results?${qs.toString()}`);
+    router.push(`/search/results?${qs.toString()}`);
   }
 
   return (

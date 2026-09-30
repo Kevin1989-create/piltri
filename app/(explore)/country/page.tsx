@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   CATEGORY_LABELS,
@@ -10,7 +10,10 @@ import {
   formatCriterionValue,
   type CategoryKey,
 } from "@/lib/advancedSearch/criteria";
-import { SECTION_LABELS, type CriterionValue, type SectionKey, type SectionScores } from "@/lib/types";
+import { getCountryResult } from "@/lib/advancedSearch/engine";
+import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
+import { countryUrl, HOME_URL } from "@/lib/urls";
+import { SECTION_LABELS, type AdvancedSearchCountryResult, type SectionKey } from "@/lib/types";
 
 const ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveability"];
 // Piltri Score (Overall) and each section's own "X score" criterion are
@@ -19,44 +22,67 @@ const ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveabili
 // as a KPI row further down.
 const SKIP_CATEGORIES: CategoryKey[] = ["overall", "nearby"];
 
-function safeParse<T>(raw: string | null, fallback: T): T {
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-/** Country-scope counterpart to /explore/report, opened from an Advanced
- *  search country card: every criterion's roll-up across the country's
- *  tracked cities (see AdvancedSearchCountryResult), grouped like the search
- *  page. Everything arrives in the URL from the result card - nothing is
- *  fetched. "Distance from city centre" is skipped: per country it's only
- *  "found near at least one city". */
+/** Country-scope counterpart to /report, opened from an Advanced search
+ *  country card: every criterion's roll-up across the country's tracked
+ *  cities (see AdvancedSearchCountryResult), grouped like the search page,
+ *  with the saved weighting. /country?code=FR - worked out here from the
+ *  Advanced search files (older links carried every figure in the address;
+ *  their countryCode is still read). "Distance from city centre" is
+ *  skipped: per country it's only "found near at least one city". */
 function CountryReportContent() {
   const params = useSearchParams();
-  const country = params.get("country") ?? "";
-  const countryCode = params.get("countryCode") ?? "";
-  const citiesTracked = Number(params.get("citiesTracked") ?? "0");
-  const piltriScore = Number(params.get("piltriScore") ?? "0");
-  const sectionScores = safeParse<SectionScores | null>(params.get("sectionScores"), null);
-  const allValues = safeParse<Record<string, CriterionValue>>(params.get("allValues"), {});
+  const router = useRouter();
+  const legacyCode = params.get("countryCode");
+  const code = (params.get("code") || legacyCode || "").toUpperCase();
+  const { weights } = useScoreWeights();
+  const weightsKey = JSON.stringify(weights);
+  const [result, setResult] = useState<AdvancedSearchCountryResult | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "missing">("loading");
   const categories = criteriaByCategory();
 
-  if (!country || !sectionScores) {
+  useEffect(() => {
+    if (!code) {
+      setStatus("missing");
+      return;
+    }
+    let cancelled = false;
+    getCountryResult(code, weightPercentagesToScores(weights))
+      .then((r) => {
+        if (cancelled) return;
+        setResult(r);
+        setStatus(r ? "ready" : "missing");
+        // An older link: swap in the short address.
+        if (r && legacyCode) router.replace(countryUrl(code), { scroll: false });
+      })
+      .catch(() => !cancelled && setStatus("missing"));
+    return () => {
+      cancelled = true;
+    };
+    // weightsKey stands for `weights`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, weightsKey]);
+
+  if (status === "loading") {
+    return (
+      <main className="min-h-dvh flex items-center justify-center px-6 text-center">
+        <p className="text-sm text-ink-500">Loading…</p>
+      </main>
+    );
+  }
+  if (!result) {
     return (
       <main className="min-h-dvh flex items-center justify-center px-6 text-center">
         <p className="text-ink-500">No country selected.</p>
       </main>
     );
   }
+  const { country, countryCode, citiesTracked, piltriScore, sectionScores, allValues } = result;
 
   return (
     <main className="min-h-dvh bg-surface-muted print:bg-white">
       <div className="print:hidden sticky top-0 z-10 bg-surface border-b border-surface-border px-6 py-3 flex items-center justify-between">
-        <Link href="/explore" className="text-xs text-ink-500 hover:text-ink-900">
-          ← Back to Explore
+        <Link href={HOME_URL} className="text-xs text-ink-500 hover:text-ink-900">
+          ← Back to home
         </Link>
         <button
           onClick={() => window.print()}

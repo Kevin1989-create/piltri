@@ -6,6 +6,7 @@ import { PiltriScoreDisplay } from "@/components/ui/ScoreBadge";
 import { EyeIcon, PlusIcon } from "@/components/ui/icons";
 import { isCustomWeights } from "@/lib/scoreWeights";
 import { formatUtcOffset } from "@/lib/timezone";
+import { scoreSettingsUrl } from "@/lib/urls";
 import { formatAreaKm2Compact, formatDensityPerKm2, useUnitPreferences } from "@/lib/unitPreferences";
 import type { DemographicsFields, SectionKey } from "@/lib/types";
 
@@ -30,7 +31,7 @@ interface CityHeaderProps {
   reportHref?: string;
   /** Current section weights (whole percentages) driving `piltriScore`, used
    *  only to show the "(custom)" label when they differ from default.
-   *  Editing lives solely on /explore/score-settings now — kept out of this page
+   *  Editing lives solely on /score-settings now — kept out of this page
    *  to avoid the confusion of a per-city-looking control that's actually a
    *  global, shared preference. Optional so CityHeader can still be used
    *  read-only (e.g. inside a Compare column) without this label. */
@@ -100,7 +101,7 @@ export function CityHeader({
   compareHref,
   reportHref,
   weights,
-  scoreSettingsHref = "/explore/score-settings",
+  scoreSettingsHref = scoreSettingsUrl(),
   rank,
 }: CityHeaderProps) {
   const isCustomised = weights != null && isCustomWeights(weights);

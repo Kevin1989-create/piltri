@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
@@ -9,64 +9,76 @@ import { CityHeader } from "@/components/explore/CityHeader";
 import { SectionColumn } from "@/components/explore/SectionColumn";
 import { CloseIcon } from "@/components/ui/icons";
 import { getCityExploreData } from "@/lib/dataset/cities";
+import { cityUrl, compareUrl, HOME_URL, readCityRef, type CityRef } from "@/lib/urls";
 import type { CityExploreData, CitySearchResult } from "@/lib/types";
 
 const MAX_COLUMNS = 10;
 
 interface ColumnState {
+  /** The place's city id once known (it's what the address lists). */
+  id: string | null;
   data: CityExploreData | null;
   loading: boolean;
   error: string | null;
 }
 
-function paramsToCity(params: URLSearchParams): CitySearchResult | null {
-  const cityName = params.get("city");
-  const lat = Number(params.get("lat"));
-  const lng = Number(params.get("lng"));
-  if (!cityName || Number.isNaN(lat) || Number.isNaN(lng)) return null;
-  return {
-    cityId: params.get("cityId") ?? "",
-    cityName,
-    region: params.get("region") || null,
-    country: params.get("country") ?? "",
-    countryCode: params.get("countryCode") ?? "",
-    lat,
-    lng,
-  };
+/** The places in the address: /compare?id=lyon-fr&id=paris-fr, or an older
+ *  link's single place (lib/urls.ts). */
+function refsFromParams(params: URLSearchParams): CityRef[] {
+  const ids = params.getAll("id").filter(Boolean);
+  if (ids.length) return ids.slice(0, MAX_COLUMNS).map((id) => readCityRef(new URLSearchParams({ id }))!);
+  const legacy = readCityRef(params);
+  return legacy ? [legacy] : [];
 }
 
-async function fetchScore(city: CitySearchResult): Promise<CityExploreData> {
-  const data = await getCityExploreData(city.countryCode, city.cityId || null, city.lat, city.lng);
+async function fetchScore(ref: Pick<CityRef, "id" | "countryCode" | "lat" | "lng">): Promise<CityExploreData> {
+  const data = await getCityExploreData(ref.countryCode, ref.id, ref.lat, ref.lng);
   if (!data) throw new Error("No data for this place.");
   return data;
 }
 
 /**
  * Compare Data — reuses the same left-column pieces from the results page
- * (CityHeader + SectionColumn) side by side, up to 6 at a time, with no map.
- * Reached via the "+" next to a place's name on the results page, which
- * pre-loads that place as the first column here.
+ * (CityHeader + SectionColumn) side by side, up to 10 at a time, with no
+ * map. Reached via the "+" next to a place's name on a city page, which
+ * pre-loads that place as the first column here. Every place is kept in the
+ * address, so a comparison can be reloaded or shared.
  */
 function CompareContent() {
   const params = useSearchParams();
+  const router = useRouter();
   const [columns, setColumns] = useState<ColumnState[]>([]);
-  // Reconstructs the results-page URL for whichever place was pre-loaded
-  // here (this page's own query params are exactly that place's), so "Back"
-  // returns to the actual map/research view rather than the generic
-  // Explore landing search page.
-  const backHref = `/explore/results?${params.toString()}`;
+  // The city this page was opened from (its first place), so "Back"
+  // returns to that city's page rather than the home page.
+  const [originId, setOriginId] = useState<string | null>(null);
 
   useEffect(() => {
-    const initialCity = paramsToCity(params);
-    if (!initialCity) return;
-    setColumns([{ data: null, loading: true, error: null }]);
-    fetchScore(initialCity)
-      .then((data) => setColumns([{ data, loading: false, error: null }]))
-      .catch((err) => setColumns([{ data: null, loading: false, error: err.message ?? "Failed to load." }]));
-    // Only meant to seed the initial column once, from whatever the URL had
-    // on first load — not on every params identity change.
+    const refs = refsFromParams(params);
+    if (!refs.length) return;
+    setOriginId(refs[0].id);
+    setColumns(refs.map((ref) => ({ id: ref.id, data: null, loading: true, error: null })));
+    refs.forEach((ref, index) => {
+      fetchScore(ref)
+        .then((data) => setColumns((cur) => cur.map((slot, i) => (i === index ? { id: data.cityId, data, loading: false, error: null } : slot))))
+        .catch((err) =>
+          setColumns((cur) => cur.map((slot, i) => (i === index ? { ...slot, loading: false, error: err.message ?? "Failed to load." } : slot)))
+        );
+    });
+    // Only meant to seed the columns once, from whatever the URL had on
+    // first load — the address then follows the columns (below), not the
+    // other way round.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keeps the address listing the places shown (and tidies an older link).
+  const idsKey = columns.map((c) => (c.loading ? "…" : c.id ?? "")).join(",");
+  useEffect(() => {
+    const ids = columns.flatMap((c) => (c.id ? [c.id] : []));
+    if (!ids.length || columns.some((c) => c.loading)) return;
+    const next = compareUrl(ids);
+    if (`${window.location.pathname}${window.location.search}` !== next) router.replace(next, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey]);
 
   function addCity(city: CitySearchResult) {
     // Capture the exact slot index synchronously (rather than searching for
@@ -75,17 +87,17 @@ function CompareContent() {
     let insertedIndex = -1;
     setColumns((cur) => {
       insertedIndex = cur.length;
-      return [...cur, { data: null, loading: true, error: null }];
+      return [...cur, { id: city.cityId, data: null, loading: true, error: null }];
     });
 
-    fetchScore(city)
+    fetchScore({ id: city.cityId, countryCode: city.countryCode, lat: city.lat, lng: city.lng })
       .then((data) => {
-        setColumns((cur) => cur.map((slot, i) => (i === insertedIndex ? { data, loading: false, error: null } : slot)));
+        setColumns((cur) => cur.map((slot, i) => (i === insertedIndex ? { id: data.cityId, data, loading: false, error: null } : slot)));
       })
       .catch((err) => {
         setColumns((cur) =>
           cur.map((slot, i) =>
-            i === insertedIndex ? { data: null, loading: false, error: err.message ?? "Failed to load." } : slot
+            i === insertedIndex ? { ...slot, loading: false, error: err.message ?? "Failed to load." } : slot
           )
         );
       });
@@ -101,8 +113,8 @@ function CompareContent() {
 
       <div className="px-6 pt-4 pb-3 flex items-end justify-between border-b border-surface-border">
         <div>
-          <Link href={backHref} className="text-xs text-ink-500 hover:text-ink-900">
-            ← Back to Explore
+          <Link href={originId ? cityUrl(originId) : HOME_URL} className="text-xs text-ink-500 hover:text-ink-900">
+            {originId ? "← Back to results" : "← Back to home"}
           </Link>
           <h1 className="font-serif text-2xl text-ink-900 mt-1">Compare Data</h1>
         </div>

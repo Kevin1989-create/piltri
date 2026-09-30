@@ -47,7 +47,7 @@ also picks up the latest published dataset.
 
 \* Non-commercial: fine for Piltri today. A commercial deployment builds with
 `PIPELINE_COMMERCIAL=1`, which leaves the speed fields out. Every source is
-credited on the site at /explore/sources (built from the manifest).
+credited on the site at /sources (built from the manifest).
 
 ### Disclosed estimates
 - **Sunshine hours**: WorldClim solar radiation via FAO-56 Angström-Prescott,

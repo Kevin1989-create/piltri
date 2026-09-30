@@ -8,7 +8,7 @@ Updated 2026-09-26. The data is an offline dataset served as static files
   climate normals; flood / sea-level exposure are proxies (elevation +
   distance to the coast); drive times come from the straight-line distance
   (no route planner - so a trip across water still gets one, up to 500 km).
-  All are labelled as such in the row hints and on /explore/sources.
+  All are labelled as such in the row hints and on /sources.
 - **Internet speed** needs 30+ Speedtest results: taken within 5 km, widened
   to 15 or 30 km for small places (the page shows "(15 km)"). About 7,000
   places (broadband) / 9,000 (mobile) have no tests within 30 km and show
@@ -56,7 +56,7 @@ Updated 2026-09-26. The data is an offline dataset served as static files
   whose point is actually a town wins.
 
 ## Licensing
-All sources are open (see /explore/sources, which carries the required
+All sources are open (see /sources, which carries the required
 attributions). One is non-commercial: Ookla's speed data (CC BY-NC-SA 4.0).
 A commercial deployment builds the dataset with `PIPELINE_COMMERCIAL=1`,
 which leaves the speed fields out. (WHO's datasets are CC BY 4.0 under the

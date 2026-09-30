@@ -30,7 +30,8 @@ Open http://localhost:3000.
 ## Project structure
 
 ```
-app/                  Pages; app/api/ only has Resources links + /admin
+app/                  Pages (the public ones in app/(explore)/, addresses in
+                      lib/urls.ts); app/api/ only has Resources links + /admin
 components/ui/        Design system building blocks
 components/explore/   Explore pages' components (map, panels, charts)
 lib/dataset/          Dataset schema (shared with the pipeline), browser loaders,

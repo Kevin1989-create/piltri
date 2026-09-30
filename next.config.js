@@ -2,10 +2,24 @@
 const nextConfig = {
   reactStrictMode: true,
   async redirects() {
-    // The score weighting used to live at /explore/weights; keep old links
-    // and bookmarks working. Not permanent: browsers keep permanent
-    // redirects, and this one already changed target once.
-    return [{ source: "/explore/weights", destination: "/explore/score-settings", permanent: false }];
+    // Pages used to live under /explore/ (2026-09-30 clean-up, see
+    // lib/urls.ts). Old links and bookmarks keep working: the query string
+    // is passed along, and each page still reads an older link's
+    // parameters before swapping in its short address.
+    const moved = {
+      "/explore": "/",
+      "/explore/results": "/city",
+      "/explore/report": "/report",
+      "/explore/compare": "/compare",
+      "/explore/discover": "/search",
+      "/explore/discover/results": "/search/results",
+      "/explore/country-report": "/country",
+      "/explore/settings": "/settings",
+      "/explore/score-settings": "/score-settings",
+      "/explore/weights": "/score-settings",
+      "/explore/sources": "/sources",
+    };
+    return Object.entries(moved).map(([source, destination]) => ({ source, destination, permanent: true }));
   },
   async headers() {
     return [

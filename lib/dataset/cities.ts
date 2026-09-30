@@ -22,14 +22,16 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 }
 
 /** A city by id (one small chunk file), or - for old links whose id no
- *  longer matches - the country's city nearest the given point. */
-async function findCity(countryCode: string, cityId: string | null, lat: number, lng: number): Promise<CityRecord | null> {
+ *  longer matches, when they carry a point - the country's city nearest
+ *  that point. */
+async function findCity(countryCode: string, cityId: string | null, lat: number | null, lng: number | null): Promise<CityRecord | null> {
   const count = manifest.chunks[countryCode];
   if (!count) return null;
   if (cityId) {
     const hit = (await loadChunk(countryCode, cityChunk(cityId, count))).find((c) => c.id === cityId);
     if (hit) return hit;
   }
+  if (lat == null || lng == null) return null;
   const all = (await Promise.all(Array.from({ length: count }, (_, n) => loadChunk(countryCode, n)))).flat();
   let best: CityRecord | null = null;
   let bestKm = Infinity;
@@ -59,7 +61,12 @@ export async function getCityBoundary(countryCode: string, cityId: string): Prom
 
 /** Everything a city page shows - two small cached files (the country list
  *  and the city's chunk), assembled in the browser. */
-export async function getCityExploreData(countryCode: string, cityId: string | null, lat: number, lng: number): Promise<CityExploreData | null> {
+export async function getCityExploreData(
+  countryCode: string,
+  cityId: string | null,
+  lat: number | null = null,
+  lng: number | null = null
+): Promise<CityExploreData | null> {
   const cc = countryCode.toUpperCase();
   const [countries, city] = await Promise.all([getCountries(), findCity(cc, cityId, lat, lng)]);
   const country = countries[cc];
