@@ -12,9 +12,9 @@ import { useUnitPreferences } from "@/lib/unitPreferences";
  * /explore/score-settings, reached from a city's results (2026-09-30, on
  * request).
  *
- * Language: the site is English only for now, so this says so and points
- * to the browser's own translate option, which works on every page at no
- * cost. A real language switch needs the interface text translated first.
+ * Language: the site is English only for now, so it just shows English
+ * (no explanatory lines, on request). A real language switch needs the
+ * interface text translated first.
  */
 export default function SettingsPage() {
   const { prefs, setPrefs } = useUnitPreferences();
@@ -29,7 +29,6 @@ export default function SettingsPage() {
             ← Back to Explore
           </Link>
           <h1 className="font-serif text-2xl text-ink-900 mt-1">Settings</h1>
-          <p className="text-sm text-ink-500 mt-1">How figures are shown across Piltri; saved automatically as you change them.</p>
         </div>
       </div>
 
@@ -46,10 +45,6 @@ export default function SettingsPage() {
               <span className="text-sm text-ink-700 w-36 flex-shrink-0">Site language</span>
               <span className="rounded-pill bg-piltri-amber text-white text-xs px-4 py-1.5">English</span>
             </div>
-            <p className="mt-3 text-xs text-ink-500 leading-relaxed">
-              Piltri is in English for now; more languages are on the way. Meanwhile, your browser&apos;s translate option
-              works on every page.
-            </p>
           </div>
         </div>
       </div>
