@@ -24,6 +24,8 @@ const MAX_KM2 = 6000; // above this it's a province, not a city (Chongqing)
  *  are dropped - Tokyo's Pacific islands, far-flung exclaves - so the map
  *  frames the city itself. */
 const MAX_PART_DEG = 0.5;
+/** The polygon-heavy steps run over this many slices of the cities. */
+const BATCHES = 8;
 
 /** Accent- and case-insensitive name, in any script, without the words
  *  that differ between sources: "City of" / "Greater" / "Ciudad de" /
@@ -120,9 +122,12 @@ export async function sampleBoundaries(cities: City[]): Promise<(EncodedBoundary
  *  them and, at the end, for the ~40k winners. DuckDB is capped and spills
  *  to disk rather than taking the machine down. */
 export async function chooseOutlines(glob: string, cities: City[]): Promise<(EncodedBoundary | null)[]> {
+  // 2 threads, 3 GB: the polygon maths (GEOS) allocates outside DuckDB's
+  // own memory limit, per thread - at ~148k places, 4 threads at the end of
+  // a long build ran the runner out of memory (2026-10-01).
   const instance = await DuckDBInstance.create(":memory:", {
-    memory_limit: "4GB",
-    threads: "4",
+    memory_limit: "3GB",
+    threads: "2",
     preserve_insertion_order: "false",
     temp_directory: path.join(WORK_DIR, "duckdb-tmp").replace(/\\/g, "/"),
   });
@@ -157,11 +162,16 @@ export async function chooseOutlines(glob: string, cities: City[]): Promise<(Enc
     FROM pairs pr ${byRow("pr")} JOIN centres c ON c.idx = pr.idx`);
   await con.run("DELETE FROM near WHERE dist >= 0.01");
   log("bounds", `${await count("near")} contain their city; measuring them`);
-  // ST_Area_Spheroid reads coordinates as lat/lng, hence the flip.
-  await con.run(`
-    CREATE TABLE sized AS
-    SELECT n.*, ST_Area_Spheroid(ST_FlipCoordinates(near_parts(a.geometry, c.lng, c.lat))) / 1e6 AS km2
-    FROM near n ${byRow("n")} JOIN centres c ON c.idx = n.idx`);
+  // ST_Area_Spheroid reads coordinates as lat/lng, hence the flip. In
+  // batches, so only a slice of the polygons is in memory at once.
+  await con.run("CREATE TABLE sized AS SELECT *, 0.0::DOUBLE AS km2 FROM near LIMIT 0");
+  for (let b = 0; b < BATCHES; b++) {
+    await con.run(`
+      INSERT INTO sized
+      SELECT n.*, ST_Area_Spheroid(ST_FlipCoordinates(near_parts(a.geometry, c.lng, c.lat))) / 1e6 AS km2
+      FROM near n ${byRow("n")} JOIN centres c ON c.idx = n.idx
+      WHERE n.idx % ${BATCHES} = ${b}`);
+  }
   await con.run(`
     CREATE TABLE best AS
     SELECT idx, filename, file_row_number FROM (
@@ -169,17 +179,21 @@ export async function chooseOutlines(glob: string, cities: City[]): Promise<(Enc
       FROM sized WHERE km2 BETWEEN ${MIN_KM2} AND ${MAX_KM2}
     ) WHERE rn = 1`);
   log("bounds", `${await count("best")} chosen; simplifying`);
-  // The winners' geometries: trimmed, simplified, as GeoJSON.
-  const reader = await con.runAndReadAll(`
-    WITH g AS (
-      SELECT b.idx, near_parts(a.geometry, c.lng, c.lat) AS geom
-      FROM best b ${byRow("b")} JOIN centres c ON c.idx = b.idx
-    ), simple AS (
-      SELECT idx, ST_SimplifyPreserveTopology(geom, greatest(0.00005, sqrt(ST_Area(geom)) / 150)) AS g FROM g
-    )
-    SELECT idx, ST_AsGeoJSON(CASE WHEN ST_NPoints(g) > 300 THEN ST_SimplifyPreserveTopology(g, sqrt(ST_Area(g)) / 60) ELSE g END)
-    FROM simple`);
+  // The winners' geometries: trimmed, simplified, as GeoJSON - in batches
+  // too.
   const out: (EncodedBoundary | null)[] = cities.map(() => null);
-  for (const [idx, json] of reader.getRows()) if (json) out[Number(idx)] = encodeGeoJson(String(json));
+  for (let batch = 0; batch < BATCHES; batch++) {
+    const reader = await con.runAndReadAll(`
+      WITH g AS (
+        SELECT b.idx, near_parts(a.geometry, c.lng, c.lat) AS geom
+        FROM best b ${byRow("b")} JOIN centres c ON c.idx = b.idx
+        WHERE b.idx % ${BATCHES} = ${batch}
+      ), simple AS (
+        SELECT idx, ST_SimplifyPreserveTopology(geom, greatest(0.00005, sqrt(ST_Area(geom)) / 150)) AS g FROM g
+      )
+      SELECT idx, ST_AsGeoJSON(CASE WHEN ST_NPoints(g) > 300 THEN ST_SimplifyPreserveTopology(g, sqrt(ST_Area(g)) / 60) ELSE g END)
+      FROM simple`);
+    for (const [idx, json] of reader.getRows()) if (json) out[Number(idx)] = encodeGeoJson(String(json));
+  }
   return out;
 }

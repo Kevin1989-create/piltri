@@ -13,7 +13,7 @@ import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M,
 import { loadCoastlinePoints, loadEarthquakes, loadLakeShorePoints } from "./hazards";
 import { countNearCities } from "./nearCities";
 import { writeDataset } from "./output";
-import { extractOverturePlaces, extractOvertureRail, loadOvertureCategory, POI } from "./overture";
+import { extractOverturePlaces, extractOvertureRail, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
 import { POPULATION_SOURCE, sampleDensity } from "./population";
 import { KOPPEN_SOURCE, sampleKoppen } from "./koppenMap";
 import { loadShortlist } from "./shortlist";
@@ -114,6 +114,17 @@ async function main() {
   const { cities: shortlist, countries: countryInfo } = await loadShortlist();
   const points = shortlist.map((c) => ({ lat: c.lat, lng: c.lng }));
   const countries = await buildCountries(countryInfo);
+  // Outlines first, while the build holds little else in memory: matching
+  // and measuring ~100k polygons is the heaviest step, and late in the
+  // build it ran the GitHub runner out of memory (2026-10-01).
+  const outlines = await sampleBoundaries(shortlist);
+  // A town with no border of its own in the map data gets the outline of
+  // its built-up area instead (drawn differently on the site).
+  const withoutOutline = shortlist.flatMap((c, i) => (outlines[i] ? [] : [i]));
+  const builtUpList = await cached(`builtup-v1-${await resolveOvertureRelease()}-${pointsKey(shortlist)}`, () =>
+    sampleBuiltUp(shortlist.map((c) => ({ lat: c.lat, lng: c.lng, population: c.population })), withoutOutline)
+  );
+  log("build", `outlines: ${shortlist.length - withoutOutline.length} borders + ${builtUpList.filter(Boolean).length} built-up areas, of ${shortlist.length} cities`);
 
   const [gn, coast, lakeShores, quakes] = await Promise.all([extractGeoNamesFeatures(), loadCoastlinePoints(), loadLakeShorePoints(), loadEarthquakes()]);
   const climate = await sampleClimate(points);
@@ -139,14 +150,6 @@ async function main() {
 
   const { glob: placesGlob, release } = await extractOverturePlaces();
   const { glob: railGlob } = await extractOvertureRail();
-  const outlines = await sampleBoundaries(shortlist);
-  // A town with no border of its own in the map data gets the outline of
-  // its built-up area instead (drawn differently on the site).
-  const withoutOutline = shortlist.flatMap((c, i) => (outlines[i] ? [] : [i]));
-  const builtUpList = await cached(`builtup-v1-${release}-${pointsKey(shortlist)}`, () =>
-    sampleBuiltUp(shortlist.map((c) => ({ lat: c.lat, lng: c.lng, population: c.population })), withoutOutline)
-  );
-  log("build", `outlines: ${shortlist.length - withoutOutline.length} borders + ${builtUpList.filter(Boolean).length} built-up areas, of ${shortlist.length} cities`);
   // Counting within 5 km runs inside DuckDB (millions of restaurants never
   // enter JavaScript); only points needed for nearest distances are loaded.
   log("build", "counting Overture places within 5 km of every city (DuckDB)...");
