@@ -23,6 +23,28 @@ const LABELS: Record<string, string> = {
   languages: "Official languages",
 };
 
+/** A short sample of each kind of outline the city map draws, in its
+ *  colours: an official boundary (solid), a built-up area (dashed), the
+ *  5 km circle. */
+function OutlineSample({ kind }: { kind: "border" | "builtUp" | "circle" }) {
+  return (
+    <svg viewBox="0 0 40 24" className="w-10 h-6 flex-shrink-0 mt-0.5" aria-hidden>
+      {kind === "circle" ? (
+        <circle cx="20" cy="12" r="9.5" fill="#E3B27A" fillOpacity="0.22" stroke="#96600F" strokeWidth="2" />
+      ) : (
+        <path
+          d="M4 15 C 8 5, 15 4, 20 7 S 32 3, 36 10 S 30 21, 20 19 S 6 21, 4 15 Z"
+          fill="#E3B27A"
+          fillOpacity="0.22"
+          stroke="#96600F"
+          strokeWidth="2"
+          strokeDasharray={kind === "builtUp" ? "4 3" : undefined}
+        />
+      )}
+    </svg>
+  );
+}
+
 /** Every source behind the numbers, with its licence - the attribution most
  *  of these licences (CC BY, ODbL) require, in one public place. Built from
  *  the dataset's own manifest, so it always matches the data being served. */
@@ -41,6 +63,44 @@ export default function SourcesPage() {
             countries, and is refreshed monthly. Some values are disclosed estimates (sunshine, snowfall, UV index, flood
             exposure, travel times) - their hover notes say so.
           </p>
+
+          {/* The map's outlines aren't all borders (2026-10-01, on request:
+           *  "make sure there isn't any confusion"); the map's note on a
+           *  built-up area links here. */}
+          <section id="map-outlines" className="mt-8 scroll-mt-6">
+            <h2 className="text-sm font-medium text-ink-900">Outlines on the map</h2>
+            <ul className="mt-3 space-y-3 text-sm text-ink-700 leading-relaxed">
+              <li className="flex gap-3">
+                <OutlineSample kind="border" />
+                <p>
+                  <span className="font-medium text-ink-900">Solid line: the official boundary.</span> The town&apos;s
+                  administrative boundary, from OpenStreetMap via Overture Maps.
+                </p>
+              </li>
+              <li className="flex gap-3">
+                <OutlineSample kind="builtUp" />
+                <p>
+                  <span className="font-medium text-ink-900">Dashed line: the built-up area (approximate).</span> Where the open
+                  map data has no boundary for the town itself - common in India, China, Vietnam, Pakistan and South Africa,
+                  where only much larger districts are mapped - the outline shows where the town is actually built up
+                  instead: the continuous area around its centre with at least about 300 people per km² (up to 1,500 in dense
+                  cities), from the GHS-POP population grid of about 1 km squares. It is an estimate, not a legal border, and
+                  its edges are accurate to about a kilometre.
+                </p>
+              </li>
+              <li className="flex gap-3">
+                <OutlineSample kind="circle" />
+                <p>
+                  <span className="font-medium text-ink-900">Circle: 5 km around the centre.</span> For very sparse places,
+                  where neither is available.
+                </p>
+              </li>
+            </ul>
+            <p className="mt-3 text-xs text-ink-500 leading-relaxed">
+              Whatever the outline, local figures (restaurants, parks, density, schools...) are measured within 5 km of the
+              town centre.
+            </p>
+          </section>
 
           <dl className="mt-8 divide-y divide-surface-border border-y border-surface-border">
             {Object.entries(manifest.sources).map(([key, text]) => (

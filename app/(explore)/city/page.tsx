@@ -25,7 +25,7 @@ import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/cn";
 import { getCityBoundary, getCityExploreData, type CityOutline } from "@/lib/dataset/cities";
 import { cityIdFor } from "@/lib/dataset/schema";
-import { cityUrl, compareUrl, readCityRef, reportUrl, scoreSettingsUrl, searchUrl } from "@/lib/urls";
+import { cityUrl, compareUrl, readCityRef, reportUrl, scoreSettingsUrl, searchUrl, sourcesUrl } from "@/lib/urls";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
 /** Pin mode (click the map for local details and directions) - switched
@@ -368,6 +368,7 @@ function CityContent() {
                 lng={center.lng}
                 outline={outline === undefined ? undefined : outline?.geometry ?? null}
                 outlineIsBuiltUp={outline?.builtUp ?? false}
+                outlineInfoHref={`${sourcesUrl(cityId)}#map-outlines`}
                 onMapClick={PIN_MODE ? handleMapClick : undefined}
                 pinnedCoords={pin}
                 destinationCoords={destination}

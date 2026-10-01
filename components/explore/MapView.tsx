@@ -6,6 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { driveMinutes, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
 import { autoCollapseAttribution } from "@/lib/mapAttribution";
 import { cn } from "@/lib/cn";
+import Link from "next/link";
 import type { TravelTimes } from "@/lib/types";
 
 /** OpenFreeMap: free OpenStreetMap vector tiles, no API key, no usage
@@ -36,6 +37,8 @@ interface MapViewProps {
   /** The outline is the town's built-up area, not a border (towns with no
    *  border in the map data): drawn dashed, with a note saying so. */
   outlineIsBuiltUp?: boolean;
+  /** Where the built-up note links to: the explanation of the outlines. */
+  outlineInfoHref?: string;
   /** A click on the map while NOT in pickingDestination mode - drops/moves
    *  the main pin. Like onDestinationPick below, `name` carries a nearby
    *  labelled map feature's name (POI, transit stop, neighbourhood) when
@@ -218,6 +221,7 @@ export function MapView({
   zoom = 10,
   outline,
   outlineIsBuiltUp = false,
+  outlineInfoHref,
   onMapClick,
   pinnedCoords,
   destinationCoords,
@@ -642,15 +646,20 @@ export function MapView({
       <div ref={containerRef} className="w-full h-full" />
       {outline && outlineIsBuiltUp && (
         // At the top on the small phone map, where the attribution line takes
-        // the bottom.
-        <div
+        // the bottom. Links to what the outlines mean (Data & Sources).
+        <Link
+          href={outlineInfoHref ?? "/sources#map-outlines"}
+          title="What the outlines on the map mean"
           className={cn(
-            "absolute left-1/2 -translate-x-1/2 rounded-pill bg-surface/90 shadow-card text-ink-700 text-[11px] px-3 py-1 whitespace-nowrap pointer-events-none",
+            "absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-pill bg-surface/90 shadow-card text-ink-700 text-[11px] px-3 py-1 whitespace-nowrap hover:text-ink-900",
             compact ? "top-4" : "bottom-4"
           )}
         >
           Dashed outline: built-up area (approximate)
-        </div>
+          <span className="inline-flex items-center justify-center w-3 h-3 rounded-full border border-ink-300 text-ink-500 text-[8px] font-semibold leading-none">
+            i
+          </span>
+        </Link>
       )}
       {pickingDestination && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 rounded-pill bg-ink-900/80 text-white text-xs px-4 py-2">
