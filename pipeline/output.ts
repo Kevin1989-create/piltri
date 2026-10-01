@@ -33,6 +33,7 @@ import { log } from "./util";
  *   countries.json           every country's record (~20 KB compressed)
  *   cities/<CC>-<n>.json     city rows, ~250 per chunk (a city page = 1 chunk)
  *   bounds/<CC>-<n>.json     the same chunk's city outlines, for the map
+ *   builtup/<CC>-<n>.json    built-up area outlines of its towns with none
  *   search/<xx>.json         search-as-you-type index by a word's first 2 characters
  *   search/<x>.json          the 300 largest places per first letter (first keystroke)
  *   adv/scores.json          Advanced Search: every city's section scores
@@ -53,6 +54,8 @@ export interface DatasetToWrite {
   cities: { cc: string; record: CityRecord; data: CityExploreData }[];
   /** City outlines by city id (see pipeline/boundaries.ts). */
   bounds: Map<string, EncodedBoundary>;
+  /** Built-up area outlines (pipeline/builtup.ts) of towns not in `bounds`. */
+  builtUp: Map<string, EncodedBoundary>;
   poi: Parameters<typeof buildPoiTiles>[1];
   sources: Record<string, string>;
 }
@@ -80,6 +83,7 @@ export function writeDataset(outDir: string, ds: DatasetToWrite): DatasetManifes
   const countryCodes = [...byCountry.keys()].sort();
   const chunks: Record<string, number> = {};
   const boundaryChunks: string[] = [];
+  const builtUpChunks: string[] = [];
   for (const cc of countryCodes) {
     const group = byCountry.get(cc)!;
     const count = Math.max(1, Math.ceil(group.length / CITY_CHUNK_SIZE));
@@ -98,6 +102,15 @@ export function writeDataset(outDir: string, ds: DatasetToWrite): DatasetManifes
       if (Object.keys(outlines).length) {
         writeJson(outDir, `bounds/${cc}-${n}.json`, outlines);
         boundaryChunks.push(`${cc}-${n}`);
+      }
+      const areas: BoundaryChunkFile = {};
+      for (const { id } of records) {
+        const area = ds.builtUp.get(id);
+        if (area) areas[id] = area;
+      }
+      if (Object.keys(areas).length) {
+        writeJson(outDir, `builtup/${cc}-${n}.json`, areas);
+        builtUpChunks.push(`${cc}-${n}`);
       }
     });
   }
@@ -214,6 +227,7 @@ export function writeDataset(outDir: string, ds: DatasetToWrite): DatasetManifes
     searchFiles: [...letters.keys()].sort(),
     advCityColumns,
     boundaryChunks,
+    builtUpChunks,
     sources: ds.sources,
   };
   writeJson(outDir, "manifest.json", manifest);

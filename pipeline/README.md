@@ -41,6 +41,7 @@ also picks up the latest published dataset.
 | Restaurants/bars/cafés, cultural venues, family activities, parks, nurseries, care homes, schools, universities, stations | Overture Maps places | CDLA-Permissive-2.0 |
 | Tram / light rail / metro lines | Overture Maps transportation (OpenStreetMap rail) | ODbL |
 | City outlines on the map | Overture Maps divisions (OpenStreetMap boundaries) | ODbL |
+| Built-up area outlines (towns with no boundary) | GHS-POP R2023A (EC JRC), the density grid above | CC BY 4.0 |
 | Official languages | Unicode CLDR territory data (+ constitutional corrections in `sources/languages.ts`) | Unicode License |
 | Airports, rail/metro/bus stations, beaches, 1,000 m+ peaks, forests, volcanoes | GeoNames `allCountries` | CC BY 4.0 |
 | Earthquakes (M5+ since 1970) | USGS catalogue | public domain |
@@ -103,8 +104,21 @@ credited on the site at /sources (built from the manifest).
   ~1 km, between 0.3 and 6,000 km² - a locality first, a region only for
   city-states (Berlin, Tokyo); parts over ~50 km away (islands) dropped.
   Otherwise none, and the map draws the 5 km circle - never a neighbouring
-  town's outline. ~58% of places get one. Simplified to ~100-300 points and
+  town's outline. ~63% of places get one. Simplified to ~100-300 points and
   stored as integer deltas (bounds/<CC>-<n>.json).
+- **Built-up areas** (builtup/<CC>-<n>.json), for towns with no boundary of
+  their own - most of India, China, Vietnam, Pakistan, South Africa, where
+  OpenStreetMap maps districts, wards or metropolitan municipalities, not
+  towns: the GHS-POP cells (~1 km) around the town dense enough to count
+  as built up - from 300 people/km² up to 1,500 for dense cities (a fifth
+  of the density at the centre) - joined to it, within 1.5x the radius of
+  its population at 1,500/km² (2-40 km). Cells a metropolis shares with
+  its satellites go to the town with the strongest pull (distance /
+  sqrt(population)). Gaps closed, the staircase straightened and corners
+  rounded, holes under 3 km² filled. ~33% of places; together ~96% have an
+  outline. Places with under 150 people/km² at their centre get none (the
+  5 km circle). Drawn dashed on the site, with a note that it's the
+  built-up area, not a border.
 
 ## How it's organised
 
@@ -118,6 +132,7 @@ credited on the site at /sources (built from the manifest).
   rail from their public S3 bucket
 - `boundaries.ts` - each city's outline from Overture divisions, matched by
   name and location
+- `builtup.ts` - the built-up area outline of towns with none, from GHS-POP
 - `nearCities.ts` - "within 5 km of each city" counts and averages, run
   **inside DuckDB** (millions of points never enter JavaScript)
 - `worldclim.ts`, `koppenMap.ts`, `uv.ts`, `airQuality.ts`, `population.ts`,

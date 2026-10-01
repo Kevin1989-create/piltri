@@ -25,10 +25,13 @@ Updated 2026-09-26. The data is an offline dataset served as static files
   districts score high, and very dense cities lower than their choice of
   places suggests. The raw count is in each figure's info popover.
 - **City outlines** on the map come from OpenStreetMap boundaries (via
-  Overture), matched by name and location. Where no boundary carries the
-  city's name - many districts (Paris arrondissements, London boroughs'
-  towns), and places mapped only as a point - the map shows the 5 km
-  circle the local figures are measured in. Local figures (restaurants,
+  Overture), matched by name and location (~63% of places). Where no
+  boundary carries the town's name - most towns in India, China, Vietnam,
+  Pakistan, South Africa, where OpenStreetMap maps districts or wards - the
+  map shows the town's built-up area instead (from the GHS-POP density
+  grid, ~1 km cells), dashed and labelled as such (~33%). Very sparse
+  places (under 150 people/km² at the centre) still show the 5 km circle
+  the local figures are measured in. Local figures (restaurants,
   density...) are always "within 5 km of the centre", whatever the outline.
 - **Beaches**: sea coast, or a mapped beach on the sea or a large lake
   (Natural Earth's major lakes). River spots, small reservoirs and

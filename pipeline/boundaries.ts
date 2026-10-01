@@ -75,7 +75,7 @@ function encodeRing(ring: number[][]): number[] {
   return out;
 }
 
-function encodeGeoJson(json: string): EncodedBoundary | null {
+export function encodeGeoJson(json: string): EncodedBoundary | null {
   const geom = JSON.parse(json) as { type: string; coordinates: number[][][] | number[][][][] };
   const polygons = geom.type === "Polygon" ? [geom.coordinates as number[][][]] : geom.type === "MultiPolygon" ? (geom.coordinates as number[][][][]) : [];
   const encoded = polygons

@@ -275,6 +275,9 @@ export interface DatasetManifest {
    *  datasets built before outlines existed - the map then draws the 5 km
    *  circle. */
   boundaryChunks?: string[];
+  /** Chunks with a builtup/<CC>-<n>.json file: the built-up area outline
+   *  (pipeline/builtup.ts) of towns with no border of their own. */
+  builtUpChunks?: string[];
   /** Human-readable source + vintage notes, shown on /admin. */
   sources: Record<string, string>;
 }

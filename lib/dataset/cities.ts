@@ -46,17 +46,28 @@ async function findCity(countryCode: string, cityId: string | null, lat: number 
 }
 
 const boundaryChunks = new Set(manifest.boundaryChunks ?? []);
+const builtUpChunks = new Set(manifest.builtUpChunks ?? []);
 
-/** The city's outline for the map (from its chunk's bounds file), or null
- *  when the dataset has none for it - the map then draws the 5 km circle. */
-export async function getCityBoundary(countryCode: string, cityId: string): Promise<GeoJSON.MultiPolygon | null> {
+export interface CityOutline {
+  geometry: GeoJSON.MultiPolygon;
+  /** The town's built-up area (pipeline/builtup.ts), not a border. */
+  builtUp: boolean;
+}
+
+/** The city's outline for the map: its border (its chunk's bounds file),
+ *  or else its built-up area (builtup file), or null when the dataset has
+ *  neither - the map then draws the 5 km circle. */
+export async function getCityBoundary(countryCode: string, cityId: string): Promise<CityOutline | null> {
   const cc = countryCode.toUpperCase();
   const count = manifest.chunks[cc];
   if (!count) return null;
   const key = `${cc}-${cityChunk(cityId, count)}`;
-  if (!boundaryChunks.has(key)) return null;
-  const encoded = (await loadFile<BoundaryChunkFile>(`bounds/${key}.json`))[cityId];
-  return encoded ? { type: "MultiPolygon", coordinates: decodeBoundary(encoded) } : null;
+  for (const [set, folder, builtUp] of [[boundaryChunks, "bounds", false], [builtUpChunks, "builtup", true]] as const) {
+    if (!set.has(key)) continue;
+    const encoded = (await loadFile<BoundaryChunkFile>(`${folder}/${key}.json`))[cityId];
+    if (encoded) return { geometry: { type: "MultiPolygon", coordinates: decodeBoundary(encoded) }, builtUp };
+  }
+  return null;
 }
 
 /** Everything a city page shows - two small cached files (the country list

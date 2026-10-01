@@ -8,6 +8,7 @@ import { sampleBroadband } from "./broadband";
 import { buildCountries, fetchWhoNationalPm25 } from "./countries";
 import { LANGUAGES_SOURCE } from "./sources/languages";
 import { BOUNDARY_SOURCE, sampleBoundaries } from "./boundaries";
+import { BUILTUP_SOURCE, sampleBuiltUp } from "./builtup";
 import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M, type PointSet } from "./geonames";
 import { loadCoastlinePoints, loadEarthquakes, loadLakeShorePoints } from "./hazards";
 import { countNearCities } from "./nearCities";
@@ -17,7 +18,7 @@ import { POPULATION_SOURCE, sampleDensity } from "./population";
 import { KOPPEN_SOURCE, sampleKoppen } from "./koppenMap";
 import { loadShortlist } from "./shortlist";
 import { sampleUvIndex } from "./uv";
-import { log, OUT_DIR, round } from "./util";
+import { cached, log, OUT_DIR, pointsKey, round } from "./util";
 import { sampleClimate } from "./worldclim";
 
 const LOCAL_RADIUS_KM = 5;
@@ -139,6 +140,13 @@ async function main() {
   const { glob: placesGlob, release } = await extractOverturePlaces();
   const { glob: railGlob } = await extractOvertureRail();
   const outlines = await sampleBoundaries(shortlist);
+  // A town with no border of its own in the map data gets the outline of
+  // its built-up area instead (drawn differently on the site).
+  const withoutOutline = shortlist.flatMap((c, i) => (outlines[i] ? [] : [i]));
+  const builtUpList = await cached(`builtup-v1-${release}-${pointsKey(shortlist)}`, () =>
+    sampleBuiltUp(shortlist.map((c) => ({ lat: c.lat, lng: c.lng, population: c.population })), withoutOutline)
+  );
+  log("build", `outlines: ${shortlist.length - withoutOutline.length} borders + ${builtUpList.filter(Boolean).length} built-up areas, of ${shortlist.length} cities`);
   // Counting within 5 km runs inside DuckDB (millions of restaurants never
   // enter JavaScript); only points needed for nearest distances are loaded.
   log("build", "counting Overture places within 5 km of every city (DuckDB)...");
@@ -309,12 +317,18 @@ async function main() {
     const outline = outlines[i];
     if (outline) bounds.set(c.cityId, outline);
   });
+  const builtUp = new Map<string, EncodedBoundary>();
+  withoutOutline.forEach((i, k) => {
+    const outline = builtUpList[k];
+    if (outline) builtUp.set(shortlist[i].cityId, outline);
+  });
   writeDataset(outDir, {
     version,
     generatedAt,
     countries,
     cities: scored,
     bounds,
+    builtUp,
     poi: {
       airport: gn.airport,
       // GeoNames stations only, since pin mode shows the NAME: Overture's
@@ -349,6 +363,7 @@ async function main() {
       coast: "Natural Earth 1:10m coastline and lakes (public domain); beaches count when on the sea or a large lake",
       earthquakes: "USGS earthquake catalogue, magnitude 5+ since 1970 (public domain)",
       outlines: `${BOUNDARY_SOURCE}, release ${release}`,
+      builtUp: BUILTUP_SOURCE,
     },
   });
   log("build", `dataset ${version} written to ${outDir} in ${Math.round((Date.now() - startedAt) / 1000)}s`);

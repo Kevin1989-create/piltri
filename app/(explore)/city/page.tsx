@@ -23,7 +23,7 @@ import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/cn";
-import { getCityBoundary, getCityExploreData } from "@/lib/dataset/cities";
+import { getCityBoundary, getCityExploreData, type CityOutline } from "@/lib/dataset/cities";
 import { cityIdFor } from "@/lib/dataset/schema";
 import { cityUrl, compareUrl, readCityRef, reportUrl, scoreSettingsUrl, searchUrl } from "@/lib/urls";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
@@ -210,14 +210,14 @@ function CityContent() {
 
   // The map's outline of the place: undefined while loading, null when the
   // dataset has none (the map then draws the 5 km circle).
-  const [outline, setOutline] = useState<GeoJSON.MultiPolygon | null | undefined>(undefined);
+  const [outline, setOutline] = useState<CityOutline | null | undefined>(undefined);
   useEffect(() => {
     setOutline(undefined);
     if (!data) return;
     let cancelled = false;
     getCityBoundary(data.countryCode, data.cityId)
       .catch(() => null)
-      .then((geometry) => !cancelled && setOutline(geometry));
+      .then((found) => !cancelled && setOutline(found));
     return () => {
       cancelled = true;
     };
@@ -366,7 +366,8 @@ function CityContent() {
               <MapView
                 lat={center.lat}
                 lng={center.lng}
-                outline={outline}
+                outline={outline === undefined ? undefined : outline?.geometry ?? null}
+                outlineIsBuiltUp={outline?.builtUp ?? false}
                 onMapClick={PIN_MODE ? handleMapClick : undefined}
                 pinnedCoords={pin}
                 destinationCoords={destination}

@@ -19,6 +19,7 @@ const LABELS: Record<string, string> = {
   coast: "Coast & beaches",
   earthquakes: "Earthquakes",
   outlines: "City outlines on the map",
+  builtUp: "Built-up areas on the map (towns with no outline)",
   languages: "Official languages",
 };
 

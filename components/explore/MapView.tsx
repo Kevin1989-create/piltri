@@ -5,6 +5,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { driveMinutes, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
 import { autoCollapseAttribution } from "@/lib/mapAttribution";
+import { cn } from "@/lib/cn";
 import type { TravelTimes } from "@/lib/types";
 
 /** OpenFreeMap: free OpenStreetMap vector tiles, no API key, no usage
@@ -32,6 +33,9 @@ interface MapViewProps {
    *  has none, so the 5 km circle is drawn instead; undefined = still
    *  loading (nothing drawn yet, so the circle never flashes first). */
   outline?: GeoJSON.MultiPolygon | null;
+  /** The outline is the town's built-up area, not a border (towns with no
+   *  border in the map data): drawn dashed, with a note saying so. */
+  outlineIsBuiltUp?: boolean;
   /** A click on the map while NOT in pickingDestination mode - drops/moves
    *  the main pin. Like onDestinationPick below, `name` carries a nearby
    *  labelled map feature's name (POI, transit stop, neighbourhood) when
@@ -213,6 +217,7 @@ export function MapView({
   lng,
   zoom = 10,
   outline,
+  outlineIsBuiltUp = false,
   onMapClick,
   pinnedCoords,
   destinationCoords,
@@ -462,6 +467,7 @@ export function MapView({
         ? { type: "Feature", geometry: outline, properties: {} }
         : circlePolygon(lat, lng, AREA_RADIUS_KM);
       source?.setData(area as any);
+      map.setPaintProperty(`${AREA_SOURCE_ID}-line`, "line-dasharray", outline && outlineIsBuiltUp ? [2, 1.5] : [1, 0]);
       const bounds = new maplibregl.LngLatBounds();
       const rings = area.geometry.type === "MultiPolygon" ? area.geometry.coordinates.flat() : (area.geometry as GeoJSON.Polygon).coordinates;
       for (const ring of rings) for (const coord of ring) bounds.extend(coord as [number, number]);
@@ -482,7 +488,7 @@ export function MapView({
     return () => {
       cancelled = true;
     };
-  }, [lat, lng, zoom, compact, outline]);
+  }, [lat, lng, zoom, compact, outline, outlineIsBuiltUp]);
 
   // Show/hide the dropped pin marker — persists correctly now that MapView
   // is never remounted when pin mode toggles. Also zooms in on the pinned
@@ -634,6 +640,18 @@ export function MapView({
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
+      {outline && outlineIsBuiltUp && (
+        // At the top on the small phone map, where the attribution line takes
+        // the bottom.
+        <div
+          className={cn(
+            "absolute left-1/2 -translate-x-1/2 rounded-pill bg-surface/90 shadow-card text-ink-700 text-[11px] px-3 py-1 whitespace-nowrap pointer-events-none",
+            compact ? "top-4" : "bottom-4"
+          )}
+        >
+          Dashed outline: built-up area (approximate)
+        </div>
+      )}
       {pickingDestination && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 rounded-pill bg-ink-900/80 text-white text-xs px-4 py-2">
           Click the map to place your second pin
