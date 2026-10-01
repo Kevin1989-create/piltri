@@ -8,7 +8,7 @@ instructions).
 
 ## What Piltri is
 
-Compare ~66,000 cities (every GeoNames place with 5,000+ people) in 245
+Compare ~140,000 places (every GeoNames place with 1,000+ people) in 245
 countries on a weighted **Piltri Score**: Safety 30%, Economy 25%,
 Environment 25%, Quality of Life 20% (users can re-weight on
 `/score-settings`; display units are on `/settings`). Demographics are

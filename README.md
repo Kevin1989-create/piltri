@@ -1,7 +1,7 @@
 # Piltri — Explore
 
 Compare cities and countries on a weighted Piltri Score (Safety, Economy,
-Environment, Quality of Life) for ~66,000 cities in 245 countries.
+Environment, Quality of Life) for ~140,000 places (every one with 1,000+ people) in 245 countries.
 
 ## How it works
 

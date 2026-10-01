@@ -21,9 +21,18 @@ export const DATASET_SCHEMA_VERSION = 3;
 export const DATA_BUCKET = "piltri-data";
 
 /** City ids are `${name}-${countryCode}` slugs - derivable, so they're not
- *  stored on every row. */
+ *  stored on every row. A smaller town sharing its name with a bigger one
+ *  in the same country gets a qualifier too ("clinton-iowa-us", see
+ *  disambiguatedCityId), and that id is stored: CityRecord.customId, the
+ *  6th item of a search entry, AdvPlaces.customIds. */
 export function cityIdFor(name: string, countryCode: string): string {
   return `${name}-${countryCode}`.toLowerCase().replace(/\s+/g, "-");
+}
+
+/** The id of a town whose plain id is taken by a bigger namesake: name,
+ *  qualifier (its region, or failing that its GeoNames id), country. */
+export function disambiguatedCityId(name: string, qualifier: string, countryCode: string): string {
+  return cityIdFor(`${name}-${qualifier}`, countryCode).replace(/-+/g, "-");
 }
 
 /** Countries' cities are split into chunks of about this many, so opening
@@ -141,6 +150,8 @@ export const CITY_FIELDS = [
   // still decodes (the missing values read as null) - no schema bump.
   "hasNursery",
   "hasCareHome",
+  // Set only when the id isn't the plain name-country one (cityIdFor).
+  "customId",
 ] as const;
 
 export type CityFieldKey = (typeof CITY_FIELDS)[number];
@@ -198,6 +209,9 @@ export interface CityRecord {
   hasUniversity: boolean | null;
   hasNursery: boolean | null;
   hasCareHome: boolean | null;
+  /** The id when it isn't cityIdFor(name, country) - a smaller namesake
+   *  of another town in the same country. */
+  customId: string | null;
   /** Test-weighted average download speed (Ookla) within the stored
    *  radius: 5 km, or 15/30 km where there were too few tests nearer. */
   broadbandDownloadMbps: number | null;
@@ -224,7 +238,7 @@ export function decodeCity(row: CityRow, countryCode: string): CityRecord {
   CITY_FIELDS.forEach((key, i) => {
     out[key] = row[i] ?? null;
   });
-  out.id = cityIdFor(out.name as string, countryCode);
+  out.id = (out.customId as string | null) ?? cityIdFor(out.name as string, countryCode);
   return out as unknown as CityRecord;
 }
 
@@ -286,11 +300,11 @@ export function decodeBoundary(polygons: EncodedBoundary): number[][][][] {
   );
 }
 
-/** Search-as-you-type index entries: [name, region, countryCode, lat, lng],
- *  largest places first. Split by the first two characters of any word in
+/** Search-as-you-type index entries: [name, region, countryCode, lat, lng,
+ *  customId?] (the id only when it isn't the plain one), largest first. Split by the first two characters of any word in
  *  the name (search/<2 chars>.json, a few KB each), plus the 300 largest
  *  places per first letter (search/<1 char>.json) for the first keystroke. */
-export type SearchEntry = [string, string | null, string, number, number];
+export type SearchEntry = [string, string | null, string, number, number, string?];
 export const SEARCH_TOP_PER_LETTER = 300;
 
 /** Accent- and case-insensitive form used for search matching. */
@@ -307,9 +321,20 @@ export function normaliseSearchText(text: string): string {
 /** The two-character index key of a normalised word or query: "lisbon" ->
  *  "li"; a one-letter word, or a query whose second character is a space,
  *  -> "a_". */
+const safeKeyChar = (c: string | undefined) => (c && /[a-z0-9]/.test(c) ? c : "_");
+
 export function searchKey(text: string): string {
-  const safe = (c: string | undefined) => (c && /[a-z0-9]/.test(c) ? c : "_");
-  return safe(text[0]) + safe(text[1]);
+  return safeKeyChar(text[0]) + safeKeyChar(text[1]);
+}
+
+/** A two-character file with more than this many places is split by a
+ *  word's first three characters (search/<3 chars>.json); it then keeps
+ *  only its largest places plus those with a word of exactly those two
+ *  characters, for two-character queries. */
+export const SEARCH_SPLIT_AT = 1000;
+
+export function searchKey3(text: string): string {
+  return searchKey(text) + safeKeyChar(text[2]);
 }
 
 /** Advanced Search scores (adv/scores.json): every city, grouped by country
@@ -331,6 +356,8 @@ export interface AdvPlaces {
   region: (string | null)[];
   lat: number[];
   lng: number[];
+  /** Position -> id, only where it isn't the plain cityIdFor one. */
+  customIds?: Record<number, string>;
 }
 
 /** Advanced Search country file (adv/countries.json). */

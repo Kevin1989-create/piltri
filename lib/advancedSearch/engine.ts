@@ -16,7 +16,7 @@ import { getCriterion, kindForScope, matchesFilter, type CriterionDef } from "./
  * Advanced search, entirely in the browser: every city's section scores
  * (adv/scores.json) plus one small column file per criterion actually used
  * (adv/col/<key>.json), or a per-country value for criteria that don't
- * vary within a country (adv/countries.json). Filtering all ~66,000 cities
+ * vary within a country (adv/countries.json). Filtering all ~140,000 places
  * takes a few milliseconds once the files are cached, so the search page
  * can show a live match count as filters change. Names and positions
  * (adv/places.json) are only needed to show the results.
@@ -108,7 +108,7 @@ async function citySearch(request: AdvancedSearchRequest, limit: number): Promis
   matches.sort((a, b) => b.score - a.score);
   const places = await loadPlaces();
   const cityResults: AdvancedSearchCityResult[] = matches.slice(0, limit).map(({ i, score }) => ({
-    cityId: cityIdFor(places.name[i], base.cc[i]),
+    cityId: places.customIds?.[i] ?? cityIdFor(places.name[i], base.cc[i]),
     cityName: places.name[i],
     region: places.region[i],
     country: manifest.countryNames[base.cc[i]] ?? base.cc[i],

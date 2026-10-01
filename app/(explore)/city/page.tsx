@@ -24,6 +24,7 @@ import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring"
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/cn";
 import { getCityBoundary, getCityExploreData } from "@/lib/dataset/cities";
+import { cityIdFor } from "@/lib/dataset/schema";
 import { cityUrl, compareUrl, readCityRef, reportUrl, scoreSettingsUrl, searchUrl } from "@/lib/urls";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
@@ -32,6 +33,14 @@ import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
  *  map is view-only and the pin panel never opens. Set to true to bring
  *  it back as it was. */
 const PIN_MODE = false;
+
+/** "Lyon, France" - with the region too for a town sharing its name with
+ *  a bigger one in the same country ("Springfield, Illinois, United
+ *  States"), whose id isn't the plain name-country one. */
+function placeLabel(data: CityExploreData): string {
+  const namesake = data.cityId !== cityIdFor(data.cityName, data.countryCode) && data.region;
+  return [data.cityName, namesake ? data.region : null, data.country].filter(Boolean).join(", ");
+}
 
 function CityContent() {
   const params = useSearchParams();
@@ -290,7 +299,7 @@ function CityContent() {
               // Remounted once the city has loaded, to show its name.
               key={data?.cityId ?? "loading"}
               variant="compact"
-              initialValue={data ? `${data.cityName}, ${data.country}` : ""}
+              initialValue={data ? placeLabel(data) : ""}
               placeholder="Search for a place you will call home"
               className="flex-1 min-w-0 md:w-[300px] md:flex-none"
             />

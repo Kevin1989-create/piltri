@@ -27,7 +27,7 @@ also picks up the latest published dataset.
 
 | What | Source | Licence |
 |---|---|---|
-| City shortlist, population, elevation, time zone, capitals, currencies | GeoNames `cities5000` + `countryInfo` | CC BY 4.0 |
+| City shortlist, population, elevation, time zone, capitals, currencies | GeoNames `cities1000` + `countryInfo` | CC BY 4.0 |
 | Country economy, safety, demographics, life expectancy, internet, PISA | World Bank Open Data (bulk, all countries) | CC BY 4.0 |
 | Healthcare quality; PM2.5 fallback for small island nations | WHO (data.who.int: UHC service coverage index, SDG 11.6.2 PM2.5) | CC BY 4.0 |
 | Climate readiness | ND-GAIN (`generateClimateReadiness.mjs`) | free |
@@ -77,10 +77,14 @@ credited on the site at /sources (built from the manifest).
   Palestine, Curaçao, Guam...) get their data. About 30 places have no
   World Bank data at all (Taiwan, Western Sahara, the French overseas
   departments, Jersey/Guernsey, small islands).
-- **Duplicate names** in a country (~2,400 GeoNames pairs): the largest
-  entry whose point is a town (5,000+ people, or a fifth of its stated
-  population, within 5 km) - so a municipality centre point in empty land
-  can't win on population alone.
+- **Duplicate names** in a country (~12,000 GeoNames entries at 1,000+):
+  entries are ranked towns first (5,000+ people, or a fifth of its stated
+  population, within 5 km), then largest - so a municipality centre point
+  in empty land can't win on population alone. One in the same region as
+  a better one, and within 10 km of it or not a town, is the same town
+  entered twice and is dropped; the others are different towns and are
+  kept. The best keeps the plain id (`springfield-us`); the others get
+  their region (`springfield-illinois-us`) or GeoNames id in theirs.
 - **Places left out**: under 1,000 people within 5 km, no restaurant, no
   school, and inland - the listed point isn't a town (~240 places).
 - **Speeds**: averaged within 5 km, widened to 15/30 km below 30 tests;
@@ -104,7 +108,7 @@ credited on the site at /sources (built from the manifest).
 
 ## How it's organised
 
-- `shortlist.ts` - GeoNames cities5000 -> the ~66k cities + per-country
+- `shortlist.ts` - GeoNames cities1000 -> the ~140k places + per-country
   capital/currency
 - `countries.ts` (+ `sources/`, `static/`) - World Bank + WHO + UN + ND-GAIN
   -> one record per country

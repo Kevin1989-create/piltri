@@ -83,13 +83,35 @@ async function main() {
   }
 
   if (!existsSync(path.join(publicData, manifest.version, ".complete"))) {
-    console.log(`[dataset] downloading ${manifest.version}...`);
-    const res = await fetch(`${base}/${manifest.version}/bundle.json.gz`);
-    if (!res.ok) throw new Error(`bundle ${res.status}`);
-    const { files } = JSON.parse(gunzipSync(Buffer.from(await res.arrayBuffer())).toString("utf8"));
-    install(manifest, files);
+    install(manifest, JSON.parse(gunzipSync(await bundleFor(base, manifest.version)).toString("utf8")).files);
   }
   finish(manifest);
+}
+
+// Vercel keeps .next/cache from one build to the next (public/ it doesn't),
+// so the bundle is kept there: a deploy only downloads the dataset when it
+// has changed, instead of every time (Supabase's free plan counts every
+// download).
+const BUNDLE_CACHE = path.join(root, ".next", "cache", "piltri-dataset");
+
+async function bundleFor(base, version) {
+  const cached = path.join(BUNDLE_CACHE, `${version}.json.gz`);
+  if (existsSync(cached)) {
+    console.log(`[dataset] ${version} from the build cache`);
+    return readFileSync(cached);
+  }
+  console.log(`[dataset] downloading ${version}...`);
+  const res = await fetch(`${base}/${version}/bundle.json.gz`);
+  if (!res.ok) throw new Error(`bundle ${res.status}`);
+  const bundle = Buffer.from(await res.arrayBuffer());
+  try {
+    rmSync(BUNDLE_CACHE, { recursive: true, force: true });
+    mkdirSync(BUNDLE_CACHE, { recursive: true });
+    writeFileSync(cached, bundle);
+  } catch (err) {
+    console.warn(`[dataset] couldn't keep a copy in the build cache: ${err.message}`);
+  }
+  return bundle;
 }
 
 main().catch((err) => {

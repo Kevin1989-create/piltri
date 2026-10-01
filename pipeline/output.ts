@@ -8,8 +8,10 @@ import {
   DATASET_SCHEMA_VERSION,
   encodeCity,
   normaliseSearchText,
+  SEARCH_SPLIT_AT,
   SEARCH_TOP_PER_LETTER,
   searchKey,
+  searchKey3,
   type AdvCountries,
   type AdvPlaces,
   type AdvScores,
@@ -109,10 +111,22 @@ export function writeDataset(outDir: string, ds: DatasetToWrite): DatasetManifes
   for (const { cc, record } of ds.cities) {
     const words = normaliseSearchText(record.name).split(" ").filter(Boolean);
     const entry: SearchEntry = [record.name, record.region, cc, round4(record.lat), round4(record.lng)];
+    if (record.customId) entry.push(record.customId);
     for (const key of new Set(words.map(searchKey))) add(key, entry);
     for (const first of new Set(words.map((w) => w[0]))) {
       if ((letters.get(first)?.length ?? 0) < SEARCH_TOP_PER_LETTER) add(first, entry);
     }
+  }
+  // Large two-character files split by three characters (see SEARCH_SPLIT_AT).
+  for (const [key, entries] of [...letters]) {
+    if (key.length !== 2 || entries.length <= SEARCH_SPLIT_AT) continue;
+    const kept: SearchEntry[] = [];
+    for (const entry of entries) {
+      const words = normaliseSearchText(entry[0]).split(" ").filter((w) => w && searchKey(w) === key);
+      for (const key3 of new Set(words.filter((w) => w.length >= 3).map(searchKey3))) add(key3, entry);
+      if (kept.length < SEARCH_TOP_PER_LETTER || words.some((w) => w.length < 3)) kept.push(entry);
+    }
+    letters.set(key, kept);
   }
   for (const [key, entries] of letters) writeJson(outDir, `search/${key}.json`, entries);
 
@@ -134,6 +148,7 @@ export function writeDataset(outDir: string, ds: DatasetToWrite): DatasetManifes
     region: ordered.map((c) => c.record.region),
     lat: ordered.map((c) => round3(c.record.lat)),
     lng: ordered.map((c) => round3(c.record.lng)),
+    customIds: Object.fromEntries(ordered.flatMap((c, i) => (c.record.customId ? [[i, c.record.customId]] : []))),
   };
   writeJson(outDir, "adv/places.json", places);
 

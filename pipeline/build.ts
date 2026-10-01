@@ -200,6 +200,7 @@ async function main() {
       cc: c.countryCode,
       record: {
         id: c.cityId,
+        customId: c.customId,
         name: c.cityName,
         region: c.region,
         lat,
@@ -331,7 +332,7 @@ async function main() {
       },
     },
     sources: {
-      shortlist: "GeoNames cities5000 (CC BY 4.0) - every place with 5,000+ people; time zones, capitals, currencies",
+      shortlist: "GeoNames cities1000 (CC BY 4.0) - every place with 1,000+ people; time zones, capitals, currencies",
       country: "World Bank Open Data (CC BY 4.0); WHO UHC service coverage index (data.who.int, CC BY 4.0); ND-GAIN country index; UN World Population Prospects 2024 median age",
       languages: LANGUAGES_SOURCE,
       climate: "WorldClim 2.1 monthly normals 1970-2000 (CC BY 4.0); sunshine estimated from solar radiation (FAO-56), snowfall from sub-zero monthly precipitation",
