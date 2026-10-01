@@ -5,11 +5,16 @@ import { DATA_BUCKET, DATASET_SCHEMA_VERSION, type DatasetManifest } from "@/lib
 import { log, OUT_DIR } from "./util";
 
 /** Uploads a built dataset (pipeline/build.ts output) to the public Supabase
- *  Storage bucket: v<schema>/<version>/bundle.json.gz, then
+ *  Storage bucket: v<schema>/<version>/bundle.json.gz.<n> (the gzip file
+ *  cut into pieces under the free plan's 50 MB file limit, joined again by
+ *  scripts/sync-dataset.mjs), then
  *  v<schema>/manifest.json LAST, so the switch is atomic. The site picks it
  *  up on its next build (the monthly workflow triggers one). Keeps the
  *  previous version too (rollback = re-upload its manifest) and deletes
  *  anything older. */
+
+/** Supabase's free plan takes files up to 50 MB. */
+const PART_BYTES = 45e6;
 
 function readEnv(): Record<string, string> {
   if (process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.NEXT_PUBLIC_SUPABASE_URL) return process.env as Record<string, string>;
@@ -39,16 +44,21 @@ async function main() {
   if (manifest.schemaVersion !== DATASET_SCHEMA_VERSION) throw new Error(`Dataset ${version} is schema ${manifest.schemaVersion}, expected ${DATASET_SCHEMA_VERSION}`);
 
   const bundle = readFileSync(path.join(dir, "bundle.json.gz"));
-  log("publish", `uploading ${prefix}/${version}/bundle.json.gz (${(bundle.length / 1e6).toFixed(1)} MB)...`);
-  for (let attempt = 1; ; attempt++) {
-    const { error } = await bucket.upload(`${prefix}/${version}/bundle.json.gz`, bundle, {
-      upsert: true,
-      contentType: "application/gzip",
-      cacheControl: "31536000",
-    });
-    if (!error) break;
-    if (attempt >= 5) throw new Error(`bundle upload: ${error.message}`);
-    await new Promise((r) => setTimeout(r, 5000 * attempt));
+  const parts = Math.ceil(bundle.length / PART_BYTES);
+  manifest.bundleParts = parts;
+  for (let i = 0; i < parts; i++) {
+    const part = bundle.subarray(i * PART_BYTES, (i + 1) * PART_BYTES);
+    log("publish", `uploading ${prefix}/${version}/bundle.json.gz.${i} (${(part.length / 1e6).toFixed(1)} MB, ${i + 1}/${parts})...`);
+    for (let attempt = 1; ; attempt++) {
+      const { error } = await bucket.upload(`${prefix}/${version}/bundle.json.gz.${i}`, part, {
+        upsert: true,
+        contentType: "application/gzip",
+        cacheControl: "31536000",
+      });
+      if (!error) break;
+      if (attempt >= 5) throw new Error(`bundle upload: ${error.message}`);
+      await new Promise((r) => setTimeout(r, 5000 * attempt));
+    }
   }
   const { error: manifestError } = await bucket.upload(`${prefix}/manifest.json`, JSON.stringify(manifest), {
     upsert: true,
@@ -63,7 +73,8 @@ async function main() {
   const versions = (entries ?? []).filter((e) => e.id == null).map((e) => e.name).sort();
   for (const old of versions.slice(0, Math.max(0, versions.length - 2))) {
     log("publish", `removing old dataset ${old}`);
-    await bucket.remove([`${prefix}/${old}/bundle.json.gz`]);
+    const { data: oldFiles } = await bucket.list(`${prefix}/${old}`, { limit: 100 });
+    await bucket.remove((oldFiles ?? []).map((f) => `${prefix}/${old}/${f.name}`));
   }
 }
 

@@ -11,7 +11,7 @@ city in the browser in milliseconds.
 ```
 npm run pipeline          # build + publish
 npm run pipeline:build    # compute a dataset into ~/.piltri-pipeline-cache/out/<version>/
-npm run pipeline:publish  # upload it to Supabase Storage (v<schema>/<version>/bundle.json.gz + v<schema>/manifest.json)
+npm run pipeline:publish  # upload it to Supabase Storage (v<schema>/<version>/bundle.json.gz.<n> - pieces under the free plan's 50 MB file limit - + v<schema>/manifest.json)
 ```
 
 Test a local build on the site without publishing it:

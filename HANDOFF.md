@@ -43,7 +43,7 @@ Real Estate section** - no free, reliable global price source exists.
 
 ```
 pipeline/ (offline, monthly GitHub Action)
-   free bulk sources -> ~/.piltri-pipeline-cache -> dataset v<schema>/<version>/bundle.json.gz
+   free bulk sources -> ~/.piltri-pipeline-cache -> dataset v<schema>/<version>/bundle.json.gz.<n> (in pieces under 50 MB)
    -> Supabase Storage bucket "piltri-data" (public) + v<schema>/manifest.json
 site build (Vercel; scripts/sync-dataset.mjs via prebuild/predev)
    -> public/data/<version>/...  (static, immutable-cached on Vercel's CDN)

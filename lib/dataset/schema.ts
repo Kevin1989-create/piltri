@@ -252,6 +252,10 @@ export interface CityChunkFile {
  *  chunk counts and POI tile list without an extra request. */
 export interface DatasetManifest {
   schemaVersion: number;
+  /** The published bundle is in this many pieces, bundle.json.gz.0, .1...
+   *  (Supabase's free plan takes files up to 50 MB); absent: a single
+   *  bundle.json.gz, as before 2026-10-01. */
+  bundleParts?: number;
   version: string;
   generatedAt: string;
   cityCount: number;

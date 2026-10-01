@@ -83,7 +83,7 @@ async function main() {
   }
 
   if (!existsSync(path.join(publicData, manifest.version, ".complete"))) {
-    install(manifest, JSON.parse(gunzipSync(await bundleFor(base, manifest.version)).toString("utf8")).files);
+    install(manifest, JSON.parse(gunzipSync(await bundleFor(base, manifest)).toString("utf8")).files);
   }
   finish(manifest);
 }
@@ -94,16 +94,24 @@ async function main() {
 // download).
 const BUNDLE_CACHE = path.join(root, ".next", "cache", "piltri-dataset");
 
-async function bundleFor(base, version) {
+async function bundleFor(base, manifest) {
+  const { version } = manifest;
   const cached = path.join(BUNDLE_CACHE, `${version}.json.gz`);
   if (existsSync(cached)) {
     console.log(`[dataset] ${version} from the build cache`);
     return readFileSync(cached);
   }
   console.log(`[dataset] downloading ${version}...`);
-  const res = await fetch(`${base}/${version}/bundle.json.gz`);
-  if (!res.ok) throw new Error(`bundle ${res.status}`);
-  const bundle = Buffer.from(await res.arrayBuffer());
+  // Published in pieces (Supabase's free plan takes files up to 50 MB),
+  // or as one file for datasets before 2026-10-01.
+  const names = manifest.bundleParts ? Array.from({ length: manifest.bundleParts }, (_, i) => `bundle.json.gz.${i}`) : ["bundle.json.gz"];
+  const pieces = [];
+  for (const name of names) {
+    const res = await fetch(`${base}/${version}/${name}`);
+    if (!res.ok) throw new Error(`${name} ${res.status}`);
+    pieces.push(Buffer.from(await res.arrayBuffer()));
+  }
+  const bundle = Buffer.concat(pieces);
   try {
     rmSync(BUNDLE_CACHE, { recursive: true, force: true });
     mkdirSync(BUNDLE_CACHE, { recursive: true });
