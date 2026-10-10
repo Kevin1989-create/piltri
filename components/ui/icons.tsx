@@ -86,6 +86,16 @@ export function DiscoverIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** Trophy - the Leaderboards link and its "Best overall" board. */
+export function TrophyIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M7 4h10v4a5 5 0 01-10 0V4z" />
+      <path d="M7 6H4.5a2.5 2.5 0 002.8 3.3M17 6h2.5a2.5 2.5 0 01-2.8 3.3M12 13v4M8.5 20h7M10 17h4" />
+    </svg>
+  );
+}
+
 /** Wrench/tool icon — used for the Customise score settings entry point.
  *  A proper tool glyph rather than a gear, per feedback that the gear read
  *  more like a sun burst than a mechanical icon. */

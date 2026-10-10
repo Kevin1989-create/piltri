@@ -168,3 +168,44 @@ export async function getCountryResult(
   const { countryResults } = await countrySearch({ scope: "country", filters: [], weights }, Number.MAX_SAFE_INTEGER);
   return countryResults?.find((r) => r.countryCode === countryCode.toUpperCase()) ?? null;
 }
+
+/** Every place as the browser has it - for Leaderboards and the search
+ *  page: country, section scores, name, id, plus any criterion's values
+ *  per place on demand (a country-level value, or its column file). */
+export interface PlaceTable {
+  count: number;
+  cc: string[];
+  name: string[];
+  region: (string | null)[];
+  lat: number[];
+  lng: number[];
+  id: (i: number) => string;
+  sections: (i: number) => SectionScores;
+  /** With normalised weights (normaliseWeights). */
+  piltri: (i: number, weights: SectionScores) => number;
+  values: (key: string) => Promise<(i: number) => CriterionValue>;
+}
+
+export async function getPlaceTable(): Promise<PlaceTable> {
+  const [base, places, countries] = await Promise.all([loadBase(), loadPlaces(), loadCountries()]);
+  return {
+    count: base.count,
+    cc: base.cc,
+    name: places.name,
+    region: places.region,
+    lat: places.lat,
+    lng: places.lng,
+    id: (i) => places.customIds?.[i] ?? cityIdFor(places.name[i], base.cc[i]),
+    sections: (i) => sectionsAt(base, i),
+    piltri: (i, weights) => piltriAt(base, i, weights),
+    values: async (key) => {
+      const perCountry = countries.countryLevel[key];
+      if (perCountry) return (i) => perCountry[base.cc[i]] ?? null;
+      if (manifest.advCityColumns.includes(key)) {
+        const column = await loadColumn(key);
+        return (i) => column[i];
+      }
+      return () => null;
+    },
+  };
+}

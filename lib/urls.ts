@@ -14,8 +14,9 @@
  *   /settings              units and language
  *   /score-settings        section weights
  *   /sources               data sources
+ *   /leaderboards          top places, ten ways
  *
- * `from=<city id>` on Advanced search, Score settings and Sources is only
+ * `from=<city id>` on Advanced search, Leaderboards, Score settings and Sources is only
  * there so their Back link can return to that city.
  */
 
@@ -35,6 +36,7 @@ export const countryUrl = (code: string) => withQuery("/country", { code });
 export const searchUrl = (from?: string | null) => withQuery("/search", { from });
 export const scoreSettingsUrl = (from?: string | null) => withQuery("/score-settings", { from });
 export const sourcesUrl = (from?: string | null) => withQuery("/sources", { from });
+export const leaderboardsUrl = (from?: string | null) => withQuery("/leaderboards", { from });
 
 export function compareUrl(ids: string[]): string {
   const qs = new URLSearchParams();

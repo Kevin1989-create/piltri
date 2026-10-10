@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
-import { DiscoverIcon } from "@/components/ui/icons";
+import { DiscoverIcon, TrophyIcon } from "@/components/ui/icons";
 import dynamic from "next/dynamic";
 
 // Loaded separately (client-only), so the score panel renders without
@@ -30,7 +30,7 @@ import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/cn";
 import { getCityBoundary, getCityExploreData, getCityNearby, getCountries, hasNearbyData, type CityOutline } from "@/lib/dataset/cities";
 import { cityIdFor } from "@/lib/dataset/schema";
-import { cityUrl, compareUrl, readCityRef, reportUrl, scoreSettingsUrl, searchUrl, sourcesUrl } from "@/lib/urls";
+import { cityUrl, compareUrl, leaderboardsUrl, readCityRef, reportUrl, scoreSettingsUrl, searchUrl, sourcesUrl } from "@/lib/urls";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
 /** Pin mode (click the map for local details and directions) - switched
@@ -391,6 +391,14 @@ function CityContent() {
             >
               <DiscoverIcon className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Advanced search</span>
+            </Link>
+            <Link
+              href={leaderboardsUrl(cityId)}
+              title="Leaderboards"
+              className="flex items-center gap-1.5 text-xs text-ink-500 hover:text-piltri-amber-dark whitespace-nowrap flex-shrink-0"
+            >
+              <TrophyIcon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Leaderboards</span>
             </Link>
           </div>
         }
