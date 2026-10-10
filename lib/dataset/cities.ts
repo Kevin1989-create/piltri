@@ -1,7 +1,19 @@
 import type { CityExploreData } from "@/lib/types";
 import { assembleCityExploreData } from "./assemble";
 import { loadFile, manifest, memo } from "./files";
-import { cityChunk, decodeBoundary, decodeCity, type BoundaryChunkFile, type CityChunkFile, type CityRecord, type CountryRecord } from "./schema";
+import {
+  cityChunk,
+  decodeBoundary,
+  decodeCity,
+  NEARBY_KINDS,
+  type BoundaryChunkFile,
+  type CityChunkFile,
+  type CityRecord,
+  type CountryRecord,
+  type NearbyChunkFile,
+  type NearbyKind,
+  type NearbyPoint,
+} from "./schema";
 
 export function getCountries(): Promise<Record<string, CountryRecord>> {
   return loadFile("countries.json");
@@ -83,4 +95,27 @@ export async function getCityExploreData(
   const country = countries[cc];
   if (!country || !city) return null;
   return assembleCityExploreData(cc, city, country, manifest.generatedAt, manifest.cityCount);
+}
+
+const nearbyChunks = new Set(manifest.nearbyChunks ?? []);
+/** Whether this dataset has the nearest-place files at all (from
+ *  2026-10-10) - without them, figures don't offer the map. */
+export const hasNearbyData = manifest.nearbyChunks != null;
+
+/** A city's nearest place of each kind (pipeline nearby files), for the
+ *  map behind its Yes/No and distance figures - null when the dataset has
+ *  none for it (older datasets). */
+export async function getCityNearby(countryCode: string, cityId: string): Promise<Partial<Record<NearbyKind, NearbyPoint>> | null> {
+  const cc = countryCode.toUpperCase();
+  const count = manifest.chunks[cc];
+  if (!count) return null;
+  const key = `${cc}-${cityChunk(cityId, count)}`;
+  if (!nearbyChunks.has(key)) return null;
+  const row = (await loadFile<NearbyChunkFile>(`nearby/${key}.json`))[cityId];
+  if (!row) return null;
+  const out: Partial<Record<NearbyKind, NearbyPoint>> = {};
+  NEARBY_KINDS.forEach((kind, i) => {
+    if (row[i]) out[kind] = row[i] as NearbyPoint;
+  });
+  return out;
 }

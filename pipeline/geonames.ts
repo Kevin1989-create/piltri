@@ -25,6 +25,7 @@ export interface GeoNamesFeatures {
   peak1000: PointSet; // T.PK/PKS/MT/MTS with elevation >= 1,000 m
   forest: PointSet; // V.FRST/FRSTS/WDLD, L.RESF
   volcano: PointSet; // T.VLC
+  port: PointSet; // L.PRT port (sea or river), S.FY ferry terminal
 }
 
 const CODE_TO_SET: Record<string, keyof GeoNamesFeatures> = {
@@ -47,6 +48,8 @@ const CODE_TO_SET: Record<string, keyof GeoNamesFeatures> = {
   "V.WDLD": "forest",
   "L.RESF": "forest",
   "T.VLC": "volcano",
+  "L.PRT": "port",
+  "S.FY": "port",
 };
 
 /** "Mountain" means a real one - a peak of at least this height - not any
@@ -64,7 +67,7 @@ async function geonamesDir(): Promise<string> {
 }
 
 export async function extractGeoNamesFeatures(): Promise<GeoNamesFeatures> {
-  return cached("geonames-features", async () => {
+  return cached("geonames-features-v2", async () => {
     const dir = await geonamesDir();
     const empty = (): PointSet => ({ lng: [], lat: [], names: [] });
     const out: GeoNamesFeatures = {
@@ -79,6 +82,7 @@ export async function extractGeoNamesFeatures(): Promise<GeoNamesFeatures> {
       peak1000: empty(),
       forest: empty(),
       volcano: empty(),
+      port: empty(),
     };
     log("geonames", "streaming allCountries.txt (~1.8 GB)...");
     const rl = readline.createInterface({ input: createReadStream(path.join(dir, "allCountries.txt")), crlfDelay: Infinity });
@@ -101,8 +105,8 @@ export async function extractGeoNamesFeatures(): Promise<GeoNamesFeatures> {
       }
       target.lng.push(lng);
       target.lat.push(lat);
-      // Names are only shown for pin-mode categories; keep them small.
-      target.names.push(set === "school" || set === "forest" ? "" : cols[1]);
+      // Names show on the city map ("nearest school: ...").
+      target.names.push(cols[1]);
     }
     log("geonames", `${lines} lines scanned; ` + Object.entries(out).map(([k, v]) => `${k}=${v.lng.length}`).join(" "));
     return out;

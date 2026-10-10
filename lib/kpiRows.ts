@@ -3,6 +3,7 @@ import { legendOf, TIER_CLASS, tierOf, type LegendLine, type NumericScale, type 
 import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
 import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
 import { SECTION_LABELS, type CityExploreData, type SectionKey } from "@/lib/types";
+import type { NearbyKind } from "@/lib/dataset/schema";
 
 /** Which tier a value describes: "country" (national statistics) or
  *  "pinned" (computed from this city's own coordinates). "city" is kept for
@@ -17,6 +18,11 @@ export interface KpiInfo {
   legend: LegendLine[] | null;
 }
 
+export type MapKind = NearbyKind | "capital";
+
+/** The row, pointing at what it can show on the map. */
+const onMap = (row: KpiRow | null, mapKind: MapKind): KpiRow | null => (row ? { ...row, mapKind } : null);
+
 export interface KpiRow {
   label: string;
   value: string;
@@ -28,6 +34,9 @@ export interface KpiRow {
   valueSuffix?: string;
   /** The source has no figure for this place: shown as "No data". */
   noData?: boolean;
+  /** The place it's about can be shown on the city map: the nearest of
+   *  this kind (see NEARBY_KINDS), or the country's capital. */
+  mapKind?: MapKind;
   info: KpiInfo;
 }
 
@@ -426,16 +435,16 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         const minutes = km >= 1 && km <= MAX_DRIVE_KM ? driveMinutes(km) : null;
         return minutes != null ? `· ~${formatDriveTime(minutes)} by car` : undefined;
       };
-      const distanceRow = (label: string, km: number | null, definition: string, source: string): KpiRow | null =>
+      const distanceRow = (label: string, km: number | null, definition: string, source: string, mapKind: MapKind): KpiRow | null =>
         km == null
           ? null
-          : neutral(
+          : onMap(neutral(
               label,
               distance(km),
               "pinned",
               { definition: `${definition}${byCar(km) ? driveNote : ""} Whether closer is better depends on you, so it's shown in grey.`, source },
               byCar(km)
-            );
+            ), mapKind);
       const rows: (KpiRow | null)[] = [
         ratioRow("Restaurants, bars & cafés", l.restaurantsBarsPer1k, l.restaurantsBarsWithin5km, "restaurantsBars", "Places to eat and drink"),
         ratioRow("Parks", l.parksPer10k, l.parksWithin5km, "parks", "Parks and public gardens"),
@@ -463,13 +472,13 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         pisaRow("PISA maths score", l.pisaMathScore, "mathematics"),
         pisaRow("PISA reading score", l.pisaReadingScore, "reading"),
         pisaRow("PISA science score", l.pisaScienceScore, "science"),
-        distanceRow("Distance to beach", l.distanceToBeachKm, "Straight-line distance to the nearest sea coast, or a beach on the sea or a large lake.", "Natural Earth coastline and lakes, GeoNames beaches"),
-        distanceRow("Distance to mountain", l.distanceToMountainKm, "Straight-line distance to the nearest peak of 1,000 m or more that rises at least 500 m above the city.", "GeoNames"),
-        distanceRow("Distance to forest", l.distanceToForestKm, "Straight-line distance to the nearest mapped forest or woodland.", "GeoNames"),
-        distanceRow("Nearest airport", l.distanceToAirportKm, "Straight-line distance to the nearest airport.", "GeoNames"),
-        distanceRow("Nearest train station", l.distanceToTrainStationKm, "Straight-line distance to the nearest railway station.", "GeoNames and Overture Maps"),
+        distanceRow("Distance to beach", l.distanceToBeachKm, "Straight-line distance to the nearest sea coast, or a beach on the sea or a large lake.", "Natural Earth coastline and lakes, GeoNames beaches", "beach"),
+        distanceRow("Distance to mountain", l.distanceToMountainKm, "Straight-line distance to the nearest peak of 1,000 m or more that rises at least 500 m above the city.", "GeoNames", "mountain"),
+        distanceRow("Distance to forest", l.distanceToForestKm, "Straight-line distance to the nearest mapped forest or woodland.", "GeoNames", "forest"),
+        distanceRow("Nearest airport", l.distanceToAirportKm, "Straight-line distance to the nearest airport.", "GeoNames", "airport"),
+        distanceRow("Nearest train station", l.distanceToTrainStationKm, "Straight-line distance to the nearest railway station.", "GeoNames and Overture Maps", "train"),
         l.nearestLargeCity
-          ? neutral(
+          ? onMap(neutral(
               "Nearest large city",
               `${l.nearestLargeCity.name}, ${distance(l.nearestLargeCity.km)}`,
               "pinned",
@@ -478,9 +487,9 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
                 source: "GeoNames",
               },
               byCar(l.nearestLargeCity.km)
-            )
+            ), "large")
           : null,
-        distanceRow("Distance to capital city", l.distanceToCapitalKm, "Straight-line distance to the national capital.", "GeoNames"),
+        distanceRow("Distance to capital city", l.distanceToCapitalKm, "Straight-line distance to the national capital.", "GeoNames", "capital"),
       ];
       return rows.filter((r): r is KpiRow => r != null);
     }
@@ -507,10 +516,10 @@ export function splitKpiRowsByTier(rows: KpiRow[]): { countryRows: KpiRow[]; cit
  *  for airports), from Overture Maps / OpenStreetMap and GeoNames. */
 function presenceRows(data: CityExploreData): KpiRow[] {
   const l = data.liveability;
-  const flag = (label: string, value: boolean | null, what: string, km: number, source: string): KpiRow | null =>
+  const flag = (label: string, value: boolean | null, what: string, km: number, source: string, mapKind: MapKind): KpiRow | null =>
     value == null
       ? null
-      : categorical(
+      : onMap(categorical(
           label,
           value ? "Yes" : "No",
           "pinned",
@@ -520,17 +529,18 @@ function presenceRows(data: CityExploreData): KpiRow[] {
             { tier: "poor", text: `No - none within ${km} km` },
           ],
           { definition: `Whether there is ${what} within ${km} km of the city centre.`, source }
-        );
+        ), mapKind);
   const rows: (KpiRow | null)[] = [
-    flag("Train station", l.hasTrainStation, "a railway station", 5, "GeoNames and Overture Maps"),
-    flag("Metro", l.hasSubway, "a metro or subway line or station", 5, "Overture Maps (OpenStreetMap rail lines) and GeoNames"),
-    flag("Tram / light rail", l.hasTramway, "tram or light rail track", 5, "Overture Maps (OpenStreetMap rail lines)"),
-    flag("Airport", l.hasAirport, "an airport", 40, "GeoNames"),
-    flag("Bus station", l.hasBusStation, "a bus station", 5, "GeoNames and Overture Maps"),
-    flag("Nursery / day care", l.hasNursery, "a nursery, day care or preschool", 5, OVERTURE),
-    flag("School", l.hasSchool, "a school", 5, "GeoNames and Overture Maps"),
-    flag("University", l.hasUniversity, "a university", 5, "GeoNames and Overture Maps"),
-    flag("Care home (elderly)", l.hasCareHome, "a care home for older people (nursing, retirement or assisted living)", 5, OVERTURE),
+    flag("Train station", l.hasTrainStation, "a railway station", 5, "GeoNames and Overture Maps", "train"),
+    flag("Metro", l.hasSubway, "a metro or subway line or station", 5, "Overture Maps (OpenStreetMap rail lines) and GeoNames", "metro"),
+    flag("Tram / light rail", l.hasTramway, "tram or light rail track", 5, "Overture Maps (OpenStreetMap rail lines)", "tram"),
+    flag("Airport", l.hasAirport, "an airport", 40, "GeoNames", "airport"),
+    flag("Bus station", l.hasBusStation, "a bus station", 5, "GeoNames and Overture Maps", "bus"),
+    flag("Port / ferry", l.hasPort, "a sea or river port, or a ferry terminal,", 10, "GeoNames", "port"),
+    flag("Nursery / day care", l.hasNursery, "a nursery, day care or preschool", 5, OVERTURE, "nursery"),
+    flag("School", l.hasSchool, "a school", 5, "GeoNames and Overture Maps", "school"),
+    flag("University", l.hasUniversity, "a university", 5, "GeoNames and Overture Maps", "university"),
+    flag("Care home (elderly)", l.hasCareHome, "a care home for older people (nursing, retirement or assisted living)", 5, OVERTURE, "careHome"),
   ];
   return rows.filter((r): r is KpiRow => r != null);
 }

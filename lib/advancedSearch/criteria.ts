@@ -499,6 +499,13 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.liveability.hasCareHome,
   },
   {
+    key: "liveability.hasPort",
+    category: "liveability",
+    label: "Has port / ferry",
+    kind: "boolean",
+    getCityValue: (d) => d.liveability.hasPort,
+  },
+  {
     key: "liveability.hasSchool",
     category: "liveability",
     label: "Has school",

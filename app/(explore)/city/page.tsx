@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
@@ -19,11 +19,16 @@ import { SectionColumn, type OpenSectionKey } from "@/components/explore/Section
 import { SectionDetailPanel } from "@/components/explore/SectionDetailPanel";
 import { ResourcesDetailPanel } from "@/components/explore/ResourcesDetailPanel";
 import { PinPanel } from "@/components/explore/PinPanel";
+import { ShowOnMapContext } from "@/components/explore/ShowOnMap";
+import type { MapFocus } from "@/components/explore/MapView";
+import type { KpiRow, MapKind } from "@/lib/kpiRows";
+import { driveMinutes, formatDriveTime } from "@/lib/dataset/assemble";
+import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/cn";
-import { getCityBoundary, getCityExploreData, type CityOutline } from "@/lib/dataset/cities";
+import { getCityBoundary, getCityExploreData, getCityNearby, getCountries, hasNearbyData, type CityOutline } from "@/lib/dataset/cities";
 import { cityIdFor } from "@/lib/dataset/schema";
 import { cityUrl, compareUrl, readCityRef, reportUrl, scoreSettingsUrl, searchUrl, sourcesUrl } from "@/lib/urls";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
@@ -40,6 +45,33 @@ const PIN_MODE = false;
 function placeLabel(data: CityExploreData): string {
   const namesake = data.cityId !== cityIdFor(data.cityName, data.countryCode) && data.region;
   return [data.cityName, namesake ? data.region : null, data.country].filter(Boolean).join(", ");
+}
+
+/** The card title when a figure's place is shown on the map. */
+const MAP_TITLES: Record<MapKind, string> = {
+  train: "Nearest train station",
+  metro: "Nearest metro",
+  tram: "Nearest tram / light rail",
+  airport: "Nearest airport",
+  bus: "Nearest bus station",
+  port: "Nearest port / ferry",
+  nursery: "Nearest nursery / day care",
+  school: "Nearest school",
+  university: "Nearest university",
+  careHome: "Nearest care home",
+  beach: "Nearest beach or coast",
+  mountain: "Nearest mountain",
+  forest: "Nearest forest",
+  large: "Nearest large city",
+  capital: "Capital city",
+};
+/** For places the data has no name for. */
+const UNNAMED: Partial<Record<MapKind, string>> = { metro: "Metro line", tram: "Tram line", beach: "Sea coast", forest: "Forest" };
+
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = Math.PI / 180;
+  const h = Math.sin(((b.lat - a.lat) * rad) / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(((b.lng - a.lng) * rad) / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
 }
 
 function CityContent() {
@@ -132,6 +164,49 @@ function CityContent() {
   // header, city info and other rows stay where they are (2026-09-30, on
   // request).
   const sectionView = !isDesktop && openSectionKey !== null;
+
+  // A Yes/No or distance figure's place, shown on the map (2026-10-10, on
+  // request): its point, a dashed line from the centre, a card with its
+  // name and distance. On phones the map opens full screen for it (the
+  // section view hides the map), with the card's cross to close.
+  const { prefs } = useUnitPreferences();
+  const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
+  const [mapFullScreen, setMapFullScreen] = useState(false);
+  const closeMapFocus = useCallback(() => {
+    setMapFocus(null);
+    setMapFullScreen(false);
+  }, []);
+  const showOnMap = useCallback(
+    async (row: KpiRow) => {
+      if (!data || !row.mapKind) return;
+      const kind = row.mapKind;
+      let point: { lng: number; lat: number; name: string } | null = null;
+      if (kind === "capital") {
+        const capital = (await getCountries())[data.countryCode]?.capital;
+        if (capital) point = { lng: capital.lng, lat: capital.lat, name: capital.name };
+      } else {
+        const found = (await getCityNearby(data.countryCode, data.cityId).catch(() => null))?.[kind];
+        if (found) point = { lng: found[0], lat: found[1], name: found[2] };
+      }
+      let detail = "";
+      if (point) {
+        const km = haversineKm(data, point);
+        // Walking for the short ones (5 km/h on roads ~30% longer).
+        const minutes = km <= 2 ? Math.max(1, Math.round(((km * 1.3) / 5) * 60)) : driveMinutes(km);
+        detail = `${formatDistanceKm(km, prefs)} from the centre${minutes ? ` · ~${formatDriveTime(minutes)} ${km <= 2 ? "on foot" : "by car"}` : ""}`;
+      }
+      setMapFocus({
+        title: MAP_TITLES[kind],
+        name: point ? point.name || UNNAMED[kind] || "Unnamed" : "None found nearby",
+        detail,
+        point: point ? { lng: point.lng, lat: point.lat } : null,
+      });
+      if (!isDesktop) setMapFullScreen(true);
+    },
+    [data, isDesktop, prefs]
+  );
+  // A new place, or the phone layout changing, clears it.
+  useEffect(() => closeMapFocus(), [data?.cityId, isDesktop, closeMapFocus]);
 
   // Clears the dropped pin and everything that depends on it (destination
   // pin, computed route, "picking a second pin" mode) - used whenever the
@@ -284,6 +359,7 @@ function CityContent() {
     : 0;
 
   return (
+    <ShowOnMapContext.Provider value={hasNearbyData ? showOnMap : null}>
     <main className={cn("flex flex-col md:h-screen", sectionView && "h-dvh")}>
       <NavBar
         logoSide="left"
@@ -355,13 +431,15 @@ function CityContent() {
          *  live WebGL map resizing on every frame read as janky. It stays
          *  mounted, so it comes back as it was. */}
         <div
-          aria-hidden={sectionView || undefined}
+          aria-hidden={(sectionView && !mapFullScreen) || undefined}
           className={cn(
             "relative overflow-hidden md:h-full md:flex-1 transition-[height,opacity] duration-300 ease-out motion-reduce:transition-none md:transition-none",
-            sectionView ? "h-0 opacity-0" : "h-[23dvh]"
+            sectionView ? "h-0 opacity-0" : "h-[23dvh]",
+            // A figure's place, on a phone: the map takes the whole screen.
+            mapFullScreen && "!fixed !inset-0 !z-50 !h-auto !opacity-100"
           )}
         >
-          <div className="h-[23dvh] md:h-full relative">
+          <div className={cn("h-[23dvh] md:h-full relative", mapFullScreen && "!h-full")}>
             {center ? (
               <MapView
                 lat={center.lat}
@@ -377,6 +455,8 @@ function CityContent() {
                 onRouteInfo={setRouteInfo}
                 reservedBottomPx={isDesktop && pin ? pinPanelHeight : 0}
                 compact={!isDesktop}
+                focus={mapFocus}
+                onCloseFocus={closeMapFocus}
               />
             ) : (
               <div className="w-full h-full bg-surface-muted" />
@@ -464,6 +544,7 @@ function CityContent() {
         )}
       </div>
     </main>
+    </ShowOnMapContext.Provider>
   );
 }
 

@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "node scripts/sync-dataset.mjs && tsc --noEmit",
-    "pipeline:build": "tsx pipeline/build.ts",
+    "pipeline:build": "node --max-old-space-size=6144 --import tsx pipeline/build.ts",
     "pipeline:publish": "tsx pipeline/publish.ts",
     "pipeline": "npm run pipeline:build && npm run pipeline:publish"
   },

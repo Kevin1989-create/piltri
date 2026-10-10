@@ -36,11 +36,40 @@ async function prepare(cities: { lat: number; lng: number }[], radiusKm: number,
   return con;
 }
 
+const DISTANCE = `
+  2 * 6371 * asin(sqrt(
+    pow(sin(radians(p.lat - c.lat) / 2), 2) +
+    cos(radians(c.lat)) * cos(radians(p.lat)) * pow(sin(radians(p.lng - c.lng) / 2), 2)
+  ))`;
+
 const WITHIN = (radiusKm: number) => `
   2 * 6371 * asin(sqrt(
     pow(sin(radians(p.lat - c.lat) / 2), 2) +
     cos(radians(c.lat)) * cos(radians(p.lat)) * pow(sin(radians(p.lng - c.lng) / 2), 2)
   )) <= ${radiusKm}`;
+
+/** Per city, the nearest point of each category within `radiusKm`, with
+ *  its name. `pointsSql` must yield columns cat, lat, lng, name. */
+export async function nearestNearCities(
+  pointsSql: string,
+  cities: { lat: number; lng: number }[],
+  radiusKm: number
+): Promise<Map<number, Map<number, { lat: number; lng: number; name: string; km: number }>>> {
+  const con = await prepare(cities, radiusKm, pointsSql);
+  const reader = await con.runAndReadAll(`
+    SELECT i, cat, arg_min(plat, d), arg_min(plng, d), arg_min(name, d), min(d) FROM (
+      SELECT c.i, p.cat, p.lat AS plat, p.lng AS plng, coalesce(p.name, '') AS name, ${DISTANCE} AS d
+      FROM city_cells c JOIN pts p ON p.cy = c.cy AND p.cx = c.cx
+    ) WHERE d <= ${radiusKm}
+    GROUP BY i, cat`);
+  const out = new Map<number, Map<number, { lat: number; lng: number; name: string; km: number }>>();
+  for (const [i, cat, lat, lng, name, km] of reader.getRows()) {
+    const idx = Number(i);
+    if (!out.has(idx)) out.set(idx, new Map());
+    out.get(idx)!.set(Number(cat), { lat: Number(lat), lng: Number(lng), name: String(name ?? ""), km: Number(km) });
+  }
+  return out;
+}
 
 /** Per-city counts of each category within `radiusKm`. `pointsSql` must
  *  yield columns cat, lat, lng. */

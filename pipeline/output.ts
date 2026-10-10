@@ -1,6 +1,7 @@
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
+import { createWriteStream, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
 import path from "path";
-import { gzipSync } from "zlib";
+import { once } from "events";
+import { createGzip } from "zlib";
 import { aggregateForCountry, CRITERIA, kindForScope } from "@/lib/advancedSearch/criteria";
 import {
   CITY_CHUNK_SIZE,
@@ -20,6 +21,8 @@ import {
   type CountryRecord,
   type DatasetManifest,
   type EncodedBoundary,
+  type NearbyChunkFile,
+  type NearbyPoint,
   type SearchEntry,
 } from "@/lib/dataset/schema";
 import type { CityExploreData, CriterionValue } from "@/lib/types";
@@ -34,6 +37,7 @@ import { log } from "./util";
  *   cities/<CC>-<n>.json     city rows, ~250 per chunk (a city page = 1 chunk)
  *   bounds/<CC>-<n>.json     the same chunk's city outlines, for the map
  *   builtup/<CC>-<n>.json    built-up area outlines of its towns with none
+ *   nearby/<CC>-<n>.json     its cities' nearest place of each kind, for the map
  *   search/<xx>.json         search-as-you-type index by a word's first 2 characters
  *   search/<x>.json          the 300 largest places per first letter (first keystroke)
  *   adv/scores.json          Advanced Search: every city's section scores
@@ -56,6 +60,8 @@ export interface DatasetToWrite {
   bounds: Map<string, EncodedBoundary>;
   /** Built-up area outlines (pipeline/builtup.ts) of towns not in `bounds`. */
   builtUp: Map<string, EncodedBoundary>;
+  /** Each city's nearest place of each NEARBY_KINDS kind. */
+  nearby: Map<string, (NearbyPoint | 0)[]>;
   poi: Parameters<typeof buildPoiTiles>[1];
   sources: Record<string, string>;
 }
@@ -69,7 +75,7 @@ function writeJson(dir: string, rel: string, value: unknown) {
 const round4 = (v: number) => Math.round(v * 1e4) / 1e4;
 const mean = (values: number[]) => (values.length ? Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(1)) : 0);
 
-export function writeDataset(outDir: string, ds: DatasetToWrite): DatasetManifest {
+export async function writeDataset(outDir: string, ds: DatasetToWrite): Promise<DatasetManifest> {
   rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
   writeJson(outDir, "countries.json", ds.countries);
@@ -84,6 +90,7 @@ export function writeDataset(outDir: string, ds: DatasetToWrite): DatasetManifes
   const chunks: Record<string, number> = {};
   const boundaryChunks: string[] = [];
   const builtUpChunks: string[] = [];
+  const nearbyChunks: string[] = [];
   for (const cc of countryCodes) {
     const group = byCountry.get(cc)!;
     const count = Math.max(1, Math.ceil(group.length / CITY_CHUNK_SIZE));
@@ -111,6 +118,15 @@ export function writeDataset(outDir: string, ds: DatasetToWrite): DatasetManifes
       if (Object.keys(areas).length) {
         writeJson(outDir, `builtup/${cc}-${n}.json`, areas);
         builtUpChunks.push(`${cc}-${n}`);
+      }
+      const nearby: NearbyChunkFile = {};
+      for (const { id } of records) {
+        const row = ds.nearby.get(id);
+        if (row) nearby[id] = row;
+      }
+      if (Object.keys(nearby).length) {
+        writeJson(outDir, `nearby/${cc}-${n}.json`, nearby);
+        nearbyChunks.push(`${cc}-${n}`);
       }
     });
   }
@@ -228,10 +244,11 @@ export function writeDataset(outDir: string, ds: DatasetToWrite): DatasetManifes
     advCityColumns,
     boundaryChunks,
     builtUpChunks,
+    nearbyChunks,
     sources: ds.sources,
   };
   writeJson(outDir, "manifest.json", manifest);
-  writeBundle(outDir);
+  await writeBundle(outDir);
   log("output", `${chunks ? Object.values(chunks).reduce((a, b) => a + b, 0) : 0} city chunks, ${letters.size} search files, ${advCityColumns.length} Advanced Search columns, ${tiles.length} tiles`);
   return manifest;
 }
@@ -243,15 +260,25 @@ function listFiles(dir: string, base = dir): string[] {
   });
 }
 
-/** Every file in one gzipped JSON map {path: contents} - one download for
- *  the site build instead of ~2,000. */
-function writeBundle(dir: string) {
-  const files: Record<string, string> = {};
-  for (const rel of listFiles(dir)) {
-    if (rel === "bundle.json.gz") continue;
-    files[rel] = readFileSync(path.join(dir, rel), "utf8");
+/** Every file in one gzipped JSON map {"files": {path: contents}} - one
+ *  download for the site build instead of thousands. Written as a stream,
+ *  a file at a time: built as one string it outgrew the build's memory
+ *  (2026-10-10). */
+async function writeBundle(dir: string) {
+  const target = path.join(dir, "bundle.json.gz");
+  const gzip = createGzip({ level: 9 });
+  const out = createWriteStream(target);
+  gzip.pipe(out);
+  const write = async (text: string) => {
+    if (!gzip.write(text)) await once(gzip, "drain");
+  };
+  const rels = listFiles(dir).filter((rel) => rel !== "bundle.json.gz");
+  await write('{"files":{');
+  for (let i = 0; i < rels.length; i++) {
+    await write(`${i ? "," : ""}${JSON.stringify(rels[i])}:${JSON.stringify(readFileSync(path.join(dir, rels[i]), "utf8"))}`);
   }
-  const bundle = gzipSync(JSON.stringify({ files }), { level: 9 });
-  writeFileSync(path.join(dir, "bundle.json.gz"), bundle);
-  log("output", `bundle.json.gz: ${Object.keys(files).length} files, ${(bundle.length / 1e6).toFixed(1)} MB`);
+  await write("}}");
+  gzip.end();
+  await once(out, "finish");
+  log("output", `bundle.json.gz: ${rels.length} files, ${(statSync(target).size / 1e6).toFixed(1)} MB`);
 }

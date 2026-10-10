@@ -152,6 +152,7 @@ export const CITY_FIELDS = [
   "hasCareHome",
   // Set only when the id isn't the plain name-country one (cityIdFor).
   "customId",
+  "hasPort",
 ] as const;
 
 export type CityFieldKey = (typeof CITY_FIELDS)[number];
@@ -212,6 +213,8 @@ export interface CityRecord {
   /** The id when it isn't cityIdFor(name, country) - a smaller namesake
    *  of another town in the same country. */
   customId: string | null;
+  /** A sea or river port, or a ferry terminal, within 10 km (GeoNames). */
+  hasPort: boolean | null;
   /** Test-weighted average download speed (Ookla) within the stored
    *  radius: 5 km, or 15/30 km where there were too few tests nearer. */
   broadbandDownloadMbps: number | null;
@@ -225,6 +228,31 @@ export interface CityRecord {
   rankClimate: number | null;
   rankLiveability: number | null;
 }
+
+/** What a city page's Yes/No and distance figures can show on its map: the
+ *  nearest place of each kind, in this order in a NearbyChunkFile row. */
+export const NEARBY_KINDS = [
+  "train",
+  "metro",
+  "tram",
+  "airport",
+  "bus",
+  "port",
+  "nursery",
+  "school",
+  "university",
+  "careHome",
+  "beach",
+  "mountain",
+  "forest",
+  "large",
+] as const;
+export type NearbyKind = (typeof NEARBY_KINDS)[number];
+/** [lng, lat, name] - the name can be "" (a stretch of coast, a tram line). */
+export type NearbyPoint = [number, number, string];
+/** nearby/<CC>-<n>.json: city id -> one item per NEARBY_KINDS entry, 0
+ *  where there's none (within reach). */
+export type NearbyChunkFile = Record<string, (NearbyPoint | 0)[]>;
 
 export type CityValue = string | number | boolean | number[] | null;
 export type CityRow = CityValue[];
@@ -278,6 +306,8 @@ export interface DatasetManifest {
   /** Chunks with a builtup/<CC>-<n>.json file: the built-up area outline
    *  (pipeline/builtup.ts) of towns with no border of their own. */
   builtUpChunks?: string[];
+  /** Chunks with a nearby/<CC>-<n>.json file (NearbyChunkFile). */
+  nearbyChunks?: string[];
   /** Human-readable source + vintage notes, shown on /admin. */
   sources: Record<string, string>;
 }

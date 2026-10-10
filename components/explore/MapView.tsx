@@ -7,6 +7,7 @@ import { driveMinutes, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
 import { autoCollapseAttribution } from "@/lib/mapAttribution";
 import { cn } from "@/lib/cn";
 import Link from "next/link";
+import { CloseIcon } from "@/components/ui/icons";
 import type { TravelTimes } from "@/lib/types";
 
 /** OpenFreeMap: free OpenStreetMap vector tiles, no API key, no usage
@@ -24,6 +25,17 @@ function straightLineKm(a: { lat: number; lng: number }, b: { lat: number; lng: 
   const dLng = ((b.lng - a.lng) * Math.PI) / 180;
   const s = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
   return 6371 * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+
+/** A place one of the city's figures is about ("Nearest beach: Plage X"):
+ *  marked on the map with a dashed line from the city centre, framed, and
+ *  described in a small card. No `point` when none was found nearby (the
+ *  card says so). */
+export interface MapFocus {
+  title: string;
+  name: string;
+  detail: string;
+  point: { lng: number; lat: number } | null;
 }
 
 interface MapViewProps {
@@ -87,8 +99,11 @@ interface MapViewProps {
    *  view off-centre on a map that has nothing floating over it. Compact
    *  mode uses small, symmetric padding instead. */
   compact?: boolean;
+  focus?: MapFocus | null;
+  onCloseFocus?: () => void;
 }
 
+const FOCUS_SOURCE_ID = "piltri-focus";
 const AREA_SOURCE_ID = "piltri-research-area";
 const ROUTE_SOURCE_ID = "piltri-route";
 // Fallback area when a city has no outline: the same 5 km radius the
@@ -230,6 +245,8 @@ export function MapView({
   onRouteInfo,
   reservedBottomPx = 0,
   compact = false,
+  focus = null,
+  onCloseFocus,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -241,6 +258,19 @@ export function MapView({
   // focus in the former case.
   const hadRouteRef = useRef(false);
   const mapLoadedRef = useRef(false);
+  // The searched place's framing, to come back to once a figure's place
+  // (focus) is closed.
+  const areaBoundsRef = useRef<maplibregl.LngLatBounds | null>(null);
+  const focusRef = useRef<MapFocus | null>(focus);
+  // Asymmetric padding keeps what's framed clear of the floating left
+  // column and the section panel beside it (at their open widths, but never
+  // more than the map can spare); compact (mobile) layout has nothing
+  // floating over the map, so it uses small symmetric padding.
+  const framePadding = (map: maplibregl.Map, extraTop = 0): maplibregl.PaddingOptions => {
+    if (compact) return { top: 40 + extraTop, bottom: 40, left: 40, right: 40 };
+    const left = Math.max(60, Math.min(780, map.getContainer().clientWidth - 420));
+    return { top: 60 + extraTop, bottom: 60, left, right: 60 };
+  };
   // Camera position from just before a pin was dropped, so closing the pin
   // can fly back to the same view rather than staying zoomed in on it.
   const preDropCameraRef = useRef<{ center: maplibregl.LngLat; zoom: number } | null>(null);
@@ -397,6 +427,25 @@ export function MapView({
         paint: { "line-color": "#96600F", "line-width": 3, "line-opacity": 0.95 },
       });
 
+      // A figure's place ("nearest beach") and the line to it from the
+      // centre - empty until one is shown (see the focus effect below).
+      map.addSource(FOCUS_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({
+        id: `${FOCUS_SOURCE_ID}-line`,
+        type: "line",
+        source: FOCUS_SOURCE_ID,
+        filter: ["==", ["geometry-type"], "LineString"],
+        layout: { "line-cap": "round" },
+        paint: { "line-color": "#1E1A16", "line-width": 2.5, "line-opacity": 0.75, "line-dasharray": [1.5, 1.5] },
+      });
+      map.addLayer({
+        id: `${FOCUS_SOURCE_ID}-point`,
+        type: "circle",
+        source: FOCUS_SOURCE_ID,
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: { "circle-radius": 7, "circle-color": "#BA7517", "circle-stroke-color": "#FFFFFF", "circle-stroke-width": 2.5 },
+      });
+
       // Directions route line - empty until both a main pin and a
       // destination pin exist (see the route effect below).
       map.addSource(ROUTE_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
@@ -475,12 +524,10 @@ export function MapView({
       const bounds = new maplibregl.LngLatBounds();
       const rings = area.geometry.type === "MultiPolygon" ? area.geometry.coordinates.flat() : (area.geometry as GeoJSON.Polygon).coordinates;
       for (const ring of rings) for (const coord of ring) bounds.extend(coord as [number, number]);
-      // Asymmetric padding keeps the area clear of the floating left column
-      // and the section panel beside it (at their open widths, but never
-      // more than the map can spare); compact (mobile) layout has nothing
-      // floating over the map, so it uses small symmetric padding.
-      const left = Math.max(60, Math.min(780, map.getContainer().clientWidth - 420));
-      map.fitBounds(bounds, compact ? { padding: 40, duration: 800 } : { padding: { top: 60, bottom: 60, left, right: 60 }, duration: 800 });
+      areaBoundsRef.current = bounds;
+      // A figure's place being shown takes the framing (see below).
+      if (focusRef.current?.point) return;
+      map.fitBounds(bounds, { padding: framePadding(map), duration: 800 });
     }
 
     if (mapLoadedRef.current) {
@@ -641,10 +688,71 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pinnedCoords, destinationCoords, reservedBottomPx, compact]);
 
+  // Show (or clear) a figure's place: the point, a dashed line from the
+  // centre, framed together - back to the place's own framing when closed.
+  useEffect(() => {
+    focusRef.current = focus;
+    const map = mapRef.current;
+    if (!map) return;
+    // Frames whatever is current when it runs - also after the map has
+    // resized (on phones it goes full screen for a figure's place, and a
+    // framing done at the small size would be off-centre).
+    const frame = (duration = 800) => {
+      const current = focusRef.current?.point;
+      if (current) {
+        const bounds = new maplibregl.LngLatBounds([lng, lat], [lng, lat]).extend([current.lng, current.lat]);
+        // Room for the card above (on phones it spans the top).
+        map.fitBounds(bounds, { padding: framePadding(map, compact ? 90 : 40), maxZoom: 15, duration });
+      } else if (areaBoundsRef.current) {
+        map.fitBounds(areaBoundsRef.current, { padding: framePadding(map), duration });
+      }
+    };
+    const apply = () => {
+      const source = map.getSource(FOCUS_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+      if (!source) return;
+      const point = focus?.point;
+      source.setData({
+        type: "FeatureCollection",
+        features: point
+          ? [
+              { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[lng, lat], [point.lng, point.lat]] } },
+              { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [point.lng, point.lat] } },
+            ]
+          : [],
+      } as any);
+      frame();
+      // Straight to the new framing once it has (the map has just appeared).
+      if (compact) map.once("resize", () => frame(0));
+    };
+    if (mapLoadedRef.current) apply();
+    else map.once("load", apply);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, lat, lng, compact]);
+
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
-      {outline && outlineIsBuiltUp && (
+      {focus && (
+        <div
+          className={cn(
+            "absolute z-10 rounded-card bg-surface shadow-card px-4 py-3 pr-10",
+            compact ? "top-3 left-3 right-3" : "top-4 right-14 w-72"
+          )}
+        >
+          <p className="text-[10px] font-medium uppercase tracking-wide text-ink-500">{focus.title}</p>
+          <p className="text-sm font-medium text-ink-900 leading-snug mt-0.5">{focus.name}</p>
+          {focus.detail && <p className="text-xs text-ink-700 mt-0.5">{focus.detail}</p>}
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onCloseFocus}
+            className="absolute top-2 right-2 p-1.5 rounded text-ink-500 hover:text-ink-900"
+          >
+            <CloseIcon className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      {outline && outlineIsBuiltUp && !(compact && focus) && (
         // At the top on the small phone map, where the attribution line takes
         // the bottom. Links to what the outlines mean (Data & Sources).
         <Link

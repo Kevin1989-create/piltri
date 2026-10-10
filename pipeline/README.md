@@ -43,7 +43,7 @@ also picks up the latest published dataset.
 | City outlines on the map | Overture Maps divisions (OpenStreetMap boundaries) | ODbL |
 | Built-up area outlines (towns with no boundary) | GHS-POP R2023A (EC JRC), the density grid above | CC BY 4.0 |
 | Official languages | Unicode CLDR territory data (+ constitutional corrections in `sources/languages.ts`) | Unicode License |
-| Airports, rail/metro/bus stations, beaches, 1,000 m+ peaks, forests, volcanoes | GeoNames `allCountries` | CC BY 4.0 |
+| Airports, rail/metro/bus stations, ports & ferry terminals, beaches, 1,000 m+ peaks, forests, volcanoes | GeoNames `allCountries` | CC BY 4.0 |
 | Earthquakes (M5+ since 1970) | USGS catalogue | public domain |
 
 \* Non-commercial: fine for Piltri today. A commercial deployment builds with
@@ -106,6 +106,14 @@ credited on the site at /sources (built from the manifest).
   Otherwise none, and the map draws the 5 km circle - never a neighbouring
   town's outline. ~63% of places get one. Simplified to ~100-300 points and
   stored as integer deltas (bounds/<CC>-<n>.json).
+- **Nearest places** (nearby/<CC>-<n>.json): for each city, the nearest
+  train station, metro, tram, airport, bus station, port, nursery, school,
+  university, care home, beach or coast, mountain, forest and large city -
+  [lng, lat, name] - what its Yes/No and distance figures show on the map
+  when tapped. GeoNames points anywhere up to 500 km; Overture places
+  (nurseries, care homes, and schools, universities and bus stations
+  alongside GeoNames') within 10 km. Port / ferry: a GeoNames port (sea or
+  river) or ferry terminal within 10 km.
 - **Built-up areas** (builtup/<CC>-<n>.json), for towns with no boundary of
   their own - most of India, China, Vietnam, Pakistan, South Africa, where
   OpenStreetMap maps districts, wards or metropolitan municipalities, not

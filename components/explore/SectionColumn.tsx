@@ -31,8 +31,8 @@ interface SectionColumnProps {
   externalDetail?: boolean;
   onOpenSectionChange?: (key: OpenSectionKey | null) => void;
   /** Inline detail only: while a section is open, this column fills the
-   *  height its parent gives it, and the open section scrolls inside its
-   *  own box (with a visible bar) while the rows above and below stay put.
+   *  height its parent gives it, the other sections' rows are hidden, and
+   *  the open section scrolls inside its own box (with a visible bar).
    *  The results page uses this on phones (2026-09-30, on request); the
    *  parent has to give the column a height (e.g. as a flex-1 item). */
   fill?: boolean;
@@ -84,7 +84,9 @@ export function SectionColumn({ data, externalDetail = false, onOpenSectionChang
         const isOpen = openKey === key;
         const isOtherRow = openKey !== null && !isOpen;
         return (
-          <div key={key} className={cn(filling && isOpen && "flex-1 flex flex-col")}>
+          // Filling (phones): only the open section shows; the others come
+          // back when it closes (2026-10-10, on request).
+          <div key={key} className={cn(filling && isOpen && "flex-1 flex flex-col", filling && isOtherRow && "hidden")}>
             <SectionRow
               sectionKey={key}
               score={data.sectionsWithoutData.includes(key) ? null : data.sectionScores[key]}
@@ -103,7 +105,7 @@ export function SectionColumn({ data, externalDetail = false, onOpenSectionChang
         const isOpen = openKey === "resources";
         const isOtherRow = openKey !== null && !isOpen;
         return (
-          <div className={cn(filling && isOpen && "flex-1 flex flex-col")}>
+          <div className={cn(filling && isOpen && "flex-1 flex flex-col", filling && isOtherRow && "hidden")}>
             <ResourcesRow isOpen={isOpen} compact={!externalDetail && isOtherRow} onToggle={() => toggle("resources")} />
             {!externalDetail &&
               isOpen &&

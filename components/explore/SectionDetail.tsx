@@ -3,6 +3,8 @@
 import { useRef } from "react";
 import { ClimateChart } from "@/components/explore/ClimateChart";
 import { KpiInfoButton, type KpiInfoHandle } from "@/components/explore/KpiInfo";
+import { useShowOnMap } from "@/components/explore/ShowOnMap";
+import { PrecisionPinnedIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/cn";
 import { buildKpiRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { useUnitPreferences } from "@/lib/unitPreferences";
@@ -11,11 +13,20 @@ import type { CityExploreData, SectionKey } from "@/lib/types";
 /** Value over label, both shown in full (wrapping if they must). The small
  *  "i" sits at the same spot in every cell, top right, so they line up
  *  down each column; it explains the metric - definition, colour guide and
- *  source - on hover, and tapping anywhere on the cell opens it on a phone. */
+ *  source - on hover, and tapping anywhere on the cell opens it on a phone.
+ *  On the city page, a Yes/No or distance figure (row.mapKind) instead
+ *  shows its place on the map when tapped - marked by a small pin. */
 function StatCell({ row }: { row: KpiRow }) {
   const info = useRef<KpiInfoHandle>(null);
+  const showOnMap = useShowOnMap();
+  const mappable = !!(showOnMap && row.mapKind && !row.noData);
   return (
-    <div data-kpi-cell className="min-w-0 flex items-start gap-1.5 cursor-default" onClick={() => info.current?.toggle()}>
+    <div
+      data-kpi-cell
+      className={cn("min-w-0 flex items-start gap-1.5", mappable ? "cursor-pointer group" : "cursor-default")}
+      title={mappable ? "Show on the map" : undefined}
+      onClick={() => (mappable ? showOnMap!(row) : info.current?.toggle())}
+    >
       <div className="min-w-0 flex-1">
         <p className={cn("text-xs font-medium leading-tight break-words", row.colorClass ?? "text-ink-900")}>
           {row.value}
@@ -27,7 +38,10 @@ function StatCell({ row }: { row: KpiRow }) {
             </>
           )}
         </p>
-        <p className="text-[10px] text-ink-500 leading-tight break-words">{row.label}</p>
+        <p className={cn("text-[10px] text-ink-500 leading-tight break-words", mappable && "group-hover:text-piltri-amber-dark")}>
+          {mappable && <PrecisionPinnedIcon className="inline-block w-2.5 h-2.5 mr-0.5 -mt-px text-piltri-amber" />}
+          {row.label}
+        </p>
       </div>
       <KpiInfoButton ref={info} row={row} className="mt-px" />
     </div>

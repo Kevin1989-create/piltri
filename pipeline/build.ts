@@ -2,7 +2,7 @@ import path from "path";
 import KDBush from "kdbush";
 import { around } from "geokdbush";
 import { assembleCityExploreData } from "@/lib/dataset/assemble";
-import type { CityRecord, EncodedBoundary } from "@/lib/dataset/schema";
+import { NEARBY_KINDS, type CityRecord, type EncodedBoundary, type NearbyKind, type NearbyPoint } from "@/lib/dataset/schema";
 import { PM25_SOURCE, samplePm25 } from "./airQuality";
 import { sampleBroadband } from "./broadband";
 import { buildCountries, fetchWhoNationalPm25 } from "./countries";
@@ -11,7 +11,7 @@ import { BOUNDARY_SOURCE, sampleBoundaries } from "./boundaries";
 import { BUILTUP_SOURCE, sampleBuiltUp } from "./builtup";
 import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M, type PointSet } from "./geonames";
 import { loadCoastlinePoints, loadEarthquakes, loadLakeShorePoints } from "./hazards";
-import { countNearCities } from "./nearCities";
+import { countNearCities, nearestNearCities } from "./nearCities";
 import { writeDataset } from "./output";
 import { extractOverturePlaces, extractOvertureRail, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
 import { POPULATION_SOURCE, sampleDensity } from "./population";
@@ -23,13 +23,18 @@ import { sampleClimate } from "./worldclim";
 
 const LOCAL_RADIUS_KM = 5;
 const AIRPORT_RADIUS_KM = 40; // airports sit well outside city centres
+const PORT_RADIUS_KM = 10; // ports and ferry terminals sit on the water's edge
+/** The city map's "nearest X": Overture places are searched this far out
+ *  (they're many), GeoNames' anywhere up to NEARBY_MAX_KM. */
+const NEARBY_OVERTURE_KM = 10;
+const NEARBY_MAX_KM = 500;
 const EARTHQUAKE_RADIUS_KM = 200;
 const LARGE_CITY_POPULATION = 500_000;
 const BEACH_SHORE_KM = 2;
 const SMALL_COUNTRY_KM2 = 10_000;
 const GHOST_MAX_PEOPLE = 1000;
 
-type Points = { lng: ArrayLike<number>; lat: ArrayLike<number> };
+type Points = { lng: ArrayLike<number>; lat: ArrayLike<number>; names?: ArrayLike<string | null> | null };
 type Index = { kd: KDBush; points: Points; size: number };
 
 function buildIndex(points: Points): Index {
@@ -43,13 +48,15 @@ function buildIndex(points: Points): Index {
 function mergePoints(...sets: Points[]): Points {
   const lng: number[] = [];
   const lat: number[] = [];
+  const names: string[] = [];
   for (const s of sets) {
     for (let i = 0; i < s.lng.length; i++) {
       lng.push(s.lng[i]);
       lat.push(s.lat[i]);
+      names.push(s.names?.[i] ?? "");
     }
   }
-  return { lng, lat };
+  return { lng, lat, names };
 }
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -156,7 +163,14 @@ async function main() {
   const counted = [POI.eating, POI.cultural, POI.family, POI.park, POI.school, POI.university, POI.train, POI.bus, POI.nursery, POI.careHome];
   const counts = await countNearCities(`SELECT cat, lat, lng FROM read_parquet('${placesGlob}') WHERE cat IN (${counted.join(",")})`, points, LOCAL_RADIUS_KM);
   const ovCount = (i: number, cat: number) => counts.get(i)?.get(cat) ?? 0;
-  const ovTrain = await loadOvertureCategory(placesGlob, POI.train);
+  const ovTrain = await loadOvertureCategory(placesGlob, POI.train, true);
+  // The nearest named place of the kinds Overture covers best, for the
+  // city map ("nearest nursery: ..." - see nearbyOf below).
+  const ovNearest = await nearestNearCities(
+    `SELECT cat, lat, lng, name FROM read_parquet('${placesGlob}') WHERE cat IN (${[POI.school, POI.university, POI.bus, POI.nursery, POI.careHome].join(",")})`,
+    points,
+    NEARBY_OVERTURE_KM
+  );
   const tramTrack = mergePoints(await loadOvertureCategory(railGlob, "tram"), await loadOvertureCategory(railGlob, "light_rail"));
   const metroTrack = mergePoints(await loadOvertureCategory(railGlob, "subway"), await loadOvertureCategory(railGlob, "monorail"));
   log("build", `rail points: tram/light rail ${tramTrack.lng.length}, metro ${metroTrack.lng.length}`);
@@ -183,6 +197,7 @@ async function main() {
     peak: buildIndex(gn.peak1000),
     forest: buildIndex(gn.forest),
     volcano: buildIndex(gn.volcano),
+    port: buildIndex(gn.port),
     // Natural beach features (GeoNames) + the sea coast. Overture's
     // "beach" category includes beach bars and volleyball courts.
     beach: buildIndex(beaches),
@@ -191,6 +206,17 @@ async function main() {
     large: buildIndex({ lng: large.map((c) => c.lng), lat: large.map((c) => c.lat) }),
   };
   const peakElev = gn.peak1000.elev ?? [];
+
+  // Each city's nearest place of every NEARBY_KINDS kind (pipeline output
+  // nearby/<CC>-<n>.json): what its Yes/No and distance figures show on
+  // the map. GeoNames and Overture both count where both do - the nearer
+  // one wins.
+  const round4 = (v: number) => Math.round(v * 1e4) / 1e4;
+  type Found = { lng: number; lat: number; name: string; km: number } | null;
+  const fromIndex = (index: Index, hit: { id: number; km: number } | null, suffix = ""): Found =>
+    hit ? { lng: index.points.lng[hit.id], lat: index.points.lat[hit.id], name: String(index.points.names?.[hit.id] ?? "") + suffix, km: hit.km } : null;
+  const closer = (a: Found, b: Found): Found => (!a ? b : !b ? a : a.km <= b.km ? a : b);
+  const nearbyById = new Map<string, (NearbyPoint | 0)[]>();
 
   log("build", "computing per-city fields...");
   const allRecords: { cc: string; record: CityRecord }[] = shortlist.map((c, i) => {
@@ -206,6 +232,36 @@ async function main() {
     const nearestLarge = c.population >= LARGE_CITY_POPULATION ? null : nearest(idx.large, lng, lat);
     const capital = countries[c.countryCode]?.capital;
     const capitalKm = capital ? haversineKm(lat, lng, capital.lat, capital.lng) : null;
+    const ov = (cat: number): Found => {
+      const p = ovNearest.get(i)?.get(cat);
+      return p ? { lng: p.lng, lat: p.lat, name: p.name, km: p.km } : null;
+    };
+    const geo = (index: Index) => fromIndex(index, nearest(index, lng, lat));
+    const peakHit = nearest(idx.peak, lng, lat, (id) => peakElev[id] >= minPeak);
+    const largeHit = nearestLarge ? { lng: large[nearestLarge.id].lng, lat: large[nearestLarge.id].lat, name: large[nearestLarge.id].cityName, km: nearestLarge.km } : null;
+    const found: Record<NearbyKind, Found> = {
+      train: geo(idx.train),
+      metro: geo(idx.metro),
+      tram: geo(idx.tram),
+      airport: geo(idx.airport),
+      bus: closer(geo(idx.bus), ov(POI.bus)),
+      port: geo(idx.port),
+      nursery: ov(POI.nursery),
+      school: closer(geo(idx.school), ov(POI.school)),
+      university: closer(geo(idx.university), ov(POI.university)),
+      careHome: ov(POI.careHome),
+      beach: closer(geo(idx.beach), geo(idx.coast)),
+      mountain: fromIndex(idx.peak, peakHit, peakHit ? ` (${Math.round(peakElev[peakHit.id]).toLocaleString("en-GB")} m)` : ""),
+      forest: geo(idx.forest),
+      large: largeHit,
+    };
+    nearbyById.set(
+      c.cityId,
+      NEARBY_KINDS.map((kind) => {
+        const f = found[kind];
+        return f && f.km <= NEARBY_MAX_KM ? [round4(f.lng), round4(f.lat), f.name.slice(0, 80)] : 0;
+      })
+    );
     if (i > 0 && i % 10000 === 0) log("build", `${i}/${shortlist.length}`);
     return {
       cc: c.countryCode,
@@ -250,6 +306,7 @@ async function main() {
         hasUniversity: has(idx.university, POI.university),
         hasNursery: ovCount(i, POI.nursery) > 0,
         hasCareHome: ovCount(i, POI.careHome) > 0,
+        hasPort: anyWithin(idx.port, lng, lat, PORT_RADIUS_KM),
         broadbandDownloadMbps: broadband.fixed.mbps[i],
         broadbandRadiusKm: broadband.fixed.radiusKm[i],
         mobileDownloadMbps: broadband.mobile.mbps[i],
@@ -325,13 +382,14 @@ async function main() {
     const outline = builtUpList[k];
     if (outline) builtUp.set(shortlist[i].cityId, outline);
   });
-  writeDataset(outDir, {
+  await writeDataset(outDir, {
     version,
     generatedAt,
     countries,
     cities: scored,
     bounds,
     builtUp,
+    nearby: nearbyById,
     poi: {
       airport: gn.airport,
       // GeoNames stations only, since pin mode shows the NAME: Overture's
