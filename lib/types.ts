@@ -244,6 +244,9 @@ export interface CityExploreData {
   region: string | null;
   country: string;
   countryCode: string;
+  /** Whose Safety and Economy figures these are, when not the country's
+   *  own (CountryRecord.figuresFrom). */
+  countryFiguresFrom?: string | null;
   lat: number;
   lng: number;
 

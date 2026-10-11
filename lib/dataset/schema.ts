@@ -88,6 +88,9 @@ export interface CountryRecord {
    *  map doesn't cover at all (small island nations), as their cities'
    *  fallback. */
   pm25NationalEstimate: number | null;
+  /** Set when the Safety and Economy figures are another country's (a
+   *  French overseas department uses France's - pipeline/countries.ts). */
+  figuresFrom?: string | null;
 }
 
 /** City-level values, stored as one compact array per city in exactly this

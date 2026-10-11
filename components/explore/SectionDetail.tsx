@@ -6,7 +6,7 @@ import { KpiInfoButton, type KpiInfoHandle } from "@/components/explore/KpiInfo"
 import { useShowOnMap } from "@/components/explore/ShowOnMap";
 import { PrecisionPinnedIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/cn";
-import { buildKpiRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
+import { borrowedFiguresFrom, buildKpiRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { useUnitPreferences } from "@/lib/unitPreferences";
 import type { CityExploreData, SectionKey } from "@/lib/types";
 
@@ -98,7 +98,12 @@ export function SectionDetail({
 
       {hasCountry && (
         <div className={cn(hasCity && "mt-2 pt-1.5 border-t border-piltri-amber/20")}>
-          <p className="font-serif font-semibold text-xs text-black leading-tight mb-1">{data.country}</p>
+          <p className="font-serif font-semibold text-xs text-black leading-tight mb-1">
+            {data.country}
+            {borrowedFiguresFrom(section, data) && (
+              <span className="font-sans font-normal text-[10px] text-ink-500"> · figures for {borrowedFiguresFrom(section, data)}</span>
+            )}
+          </p>
           <StatGrid rows={countryRows} />
         </div>
       )}

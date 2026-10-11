@@ -165,6 +165,7 @@ export function assembleCityExploreData(
     region: city.region,
     country: country.name,
     countryCode,
+    countryFiguresFrom: country.figuresFrom ?? null,
     lat: city.lat,
     lng: city.lng,
     demographics: {

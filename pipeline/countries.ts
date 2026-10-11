@@ -152,7 +152,8 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
     const ruleOfLaw = latest(get("ruleOfLaw"));
 
     // A figure the source doesn't have for this country stays null (shown
-    // as "No data", left out of the scores) - never a stand-in value.
+    // as "No data", left out of the scores) - never a stand-in value, bar
+    // France's overseas departments (PART_OF below).
     countries[cc] = {
       name: info.name,
       demographics: {
@@ -193,6 +194,23 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
       pm25NationalEstimate: null, // filled in by build.ts where needed
     };
   }
+  // France's overseas departments are France - same state, law, courts
+  // and currency - but GeoNames gives each its own country code while the
+  // World Bank counts them in France, so on their own they'd have no
+  // Safety or Economy figures. They use France's (2026-10-11, on request),
+  // and the pages say so (figuresFrom).
+  for (const [cc, parent] of Object.entries(PART_OF)) {
+    const child = countries[cc];
+    const from = countries[parent];
+    if (!child || !from) continue;
+    child.economy = { ...from.economy, currency: child.economy.currency ?? from.economy.currency };
+    child.safetyStability = { ...from.safetyStability };
+    child.gniPerCapitaUsd = from.gniPerCapitaUsd;
+    child.figuresFrom = from.name;
+  }
   log("countries", `${Object.keys(countries).length} countries built`);
   return countries;
 }
+
+/** Réunion, Guadeloupe, Martinique, French Guiana, Mayotte -> France. */
+const PART_OF: Record<string, string> = { RE: "FR", GP: "FR", MQ: "FR", GF: "FR", YT: "FR" };

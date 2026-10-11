@@ -505,6 +505,12 @@ export function noSectionDataNote(section: SectionKey, data: CityExploreData): s
   return `Too few ${SECTION_LABELS[section].toLowerCase()} figures are available for ${where} to score this section (it needs at least half of them). A neutral 50 is used in the overall Piltri score, so it neither helps nor hurts it.`;
 }
 
+/** Whose figures a section's country rows are, when not the country's own
+ *  (Safety and Economy in a French overseas department: France's). */
+export function borrowedFiguresFrom(section: SectionKey, data: CityExploreData): string | null {
+  return section === "economy" || section === "safetyStability" ? data.countryFiguresFrom ?? null : null;
+}
+
 /** Splits rows into the city's own values and its country's. */
 export function splitKpiRowsByTier(rows: KpiRow[]): { countryRows: KpiRow[]; cityRows: KpiRow[] } {
   return {

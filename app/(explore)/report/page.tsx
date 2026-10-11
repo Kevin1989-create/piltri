@@ -8,7 +8,7 @@ import { KpiInfoButton } from "@/components/explore/KpiInfo";
 import { ResourcesDetail } from "@/components/explore/ResourcesDetail";
 import { ReportSectionHeading, ReportSubheading } from "@/components/explore/ReportHeadings";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
-import { buildKpiRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
+import { borrowedFiguresFrom, buildKpiRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { isCustomWeights, useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { getCityExploreData } from "@/lib/dataset/cities";
@@ -200,7 +200,9 @@ function ReportContent() {
                       <ClimateChart monthly={data.climate.monthly} />
                     </div>
                   )}
-                  <ReportGroup title={data.country} rows={countryRows} spacing={cityTierHasContent ? "mt-4" : "mt-3"} />
+                  <ReportGroup
+                    title={borrowedFiguresFrom(section, data) ? `${data.country} · figures for ${borrowedFiguresFrom(section, data)}` : data.country}
+                    rows={countryRows} spacing={cityTierHasContent ? "mt-4" : "mt-3"} />
                 </section>
               );
             })}
