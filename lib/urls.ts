@@ -9,7 +9,8 @@
  *   /city?id=…             a city's score, map and sections
  *   /report?id=…           a city's full data (printable)
  *   /compare?id=…&id=…     places side by side
- *   /search                Advanced search; /search/results?scope=…&filters=…
+ *   /search                Advanced search; its choices ride along, e.g.
+ *                          /search?region=europe&near=beach,train&sort=safety
  *   /country?code=FR       a country's full data (from Advanced search)
  *   /settings              units and language
  *   /score-settings        section weights

@@ -1,268 +1,625 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import type { SVGProps } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { NavBar } from "@/components/ui/NavBar";
-import { Button } from "@/components/ui/Button";
-import { CompassIcon, IconDemographics, PrecisionCityIcon, PrecisionCountryIcon, PrecisionPinnedIcon, SECTION_ICONS } from "@/components/ui/icons";
-import { AdvancedSearchCategoryCard } from "@/components/explore/AdvancedSearchCategoryCard";
-import { isFilterActive, type FilterInputValue } from "@/components/explore/AdvancedSearchCriterionRow";
-import { getScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
-import { cityUrl, HOME_URL, readFrom } from "@/lib/urls";
-import type { AdvancedSearchCriterionFilter, AdvancedSearchScope } from "@/lib/types";
-import { CATEGORY_ORDER, criteriaByCategory, getCriterion, kindForScope, type CategoryKey } from "@/lib/advancedSearch/criteria";
+import { BackLink } from "@/components/ui/BackLink";
+import { Chip } from "@/components/ui/Chip";
+import { ScoreBadge } from "@/components/ui/ScoreBadge";
+import { CloseIcon, FilterIcon, PlusIcon, SECTION_ICONS } from "@/components/ui/icons";
+import type { MapPoint } from "@/components/explore/DiscoverResultsMap";
+import { getPlaceTable, type PlaceTable } from "@/lib/advancedSearch/engine";
+import {
+  activeFilterCount,
+  CLIMATE,
+  columnsFor,
+  EMPTY_STATE,
+  factsFor,
+  GROUP_KM,
+  finderQuery,
+  LANGUAGES,
+  NEARBY,
+  readFinderState,
+  runFinder,
+  SIZE_BANDS,
+  SORTS,
+  STRONG,
+  type FinderResult,
+  type FinderState,
+  type SortKey,
+  type View,
+} from "@/lib/advancedSearch/finder";
+import { normaliseWeights } from "@/lib/aggregation/scoring";
 import { cn } from "@/lib/cn";
-import { countMatches, prefetchAdvancedSearch } from "@/lib/advancedSearch/engine";
+import { getCountries } from "@/lib/dataset/cities";
+import { manifest } from "@/lib/dataset/files";
+import { scoreColor } from "@/lib/design-tokens";
+import { REGION_LABELS, REGION_ORDER } from "@/lib/regions";
+import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
+import { SECTION_LABELS, type CriterionValue, type SectionKey } from "@/lib/types";
+import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
+import { cityUrl, compareUrl, countryUrl, readFrom } from "@/lib/urls";
 
-const CATEGORY_ICONS: Record<CategoryKey, (props: SVGProps<SVGSVGElement>) => JSX.Element> = {
-  overall: CompassIcon,
-  economy: SECTION_ICONS.economy,
-  safetyStability: SECTION_ICONS.safetyStability,
-  climate: SECTION_ICONS.climate,
-  liveability: SECTION_ICONS.liveability,
-  demographics: IconDemographics,
-  nearby: PrecisionPinnedIcon,
-};
+const DiscoverResultsMap = dynamic(() => import("@/components/explore/DiscoverResultsMap").then((m) => m.DiscoverResultsMap), {
+  ssr: false,
+  loading: () => <div className="w-full h-full bg-surface-muted" />,
+});
 
-type FiltersState = Record<string, FilterInputValue>;
+type Column = (i: number) => CriterionValue;
 
-function buildRequestFilters(scope: AdvancedSearchScope, filters: FiltersState): AdvancedSearchCriterionFilter[] {
-  const result: AdvancedSearchCriterionFilter[] = [];
-  for (const [key, v] of Object.entries(filters)) {
-    if (!isFilterActive(v)) continue;
-    const def = getCriterion(key);
-    if (!def) continue;
-    const kind = kindForScope(def, scope);
-    if (kind === "range") {
-      const min = v.min !== undefined && v.min !== "" ? Number(v.min) : undefined;
-      const max = v.max !== undefined && v.max !== "" ? Number(v.max) : undefined;
-      const entry: AdvancedSearchCriterionFilter = { key };
-      if (min !== undefined && !Number.isNaN(min)) entry.min = min;
-      if (max !== undefined && !Number.isNaN(max)) entry.max = max;
-      if (entry.min !== undefined || entry.max !== undefined) result.push(entry);
-    } else if (kind === "boolean") {
-      if (v.bool !== undefined) result.push({ key, bool: v.bool });
-    } else if (v.select) {
-      result.push({ key, select: v.select });
-    }
-  }
-  return result;
+const PAGE = 30;
+const MAP_POINTS = 200;
+const MAX_COMPARE = 10;
+const SECTION_ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveability"];
+const countryName = (cc: string) => manifest.countryNames[cc] ?? cc;
+
+/** 520 (thousands) -> "520k"; 1,234 -> "1.2M". */
+function populationText(k: number | null): string {
+  if (k == null) return "";
+  return k >= 1000 ? `${(k / 1000).toFixed(1).replace(/\.0$/, "")}M people` : `${Math.max(1, Math.round(k))}k people`;
 }
 
-/**
- * Advanced search - every criterion in the app as a filter (see
- * lib/advancedSearch/criteria.ts), over cities or countries. Scope comes
- * first: it changes what a result is. Country results are roll-ups of each
- * country's tracked cities (mean for numbers, "found in at least one" for
- * Yes/No), disclosed on every card via how many cities it tracks.
- */
-function DiscoverContent() {
-  const router = useRouter();
-  const params = useSearchParams();
-  // Opened from a city page (/search?from=<city id>): "Back" returns to
-  // that city instead of the home page - going back to "somewhere that
-  // isn't where you came from" doesn't make sense.
-  const from = readFrom(params);
-  const backHref = from ? cityUrl(from) : HOME_URL;
-  const backLabel = from ? "← Back to results" : "← Back to home";
+const toggle = <T,>(values: T[], value: T) => (values.includes(value) ? values.filter((v) => v !== value) : [...values, value]);
 
-  const [scope, setScope] = useState<AdvancedSearchScope | null>(null);
-  const [filters, setFilters] = useState<FiltersState>({});
-  const [navigating, setNavigating] = useState(false);
-  const [matchCount, setMatchCount] = useState<number | null>(null);
+/* ------------------------------------------------------------------ */
+/* Filters                                                             */
+/* ------------------------------------------------------------------ */
 
-  const categories = criteriaByCategory();
-  // Nearby only makes sense at city scope - "distance from a country's
-  // centre" isn't a meaningful question, so the whole category is left out
-  // of the list entirely at country scope rather than switching each of its
-  // 13 rows to a Yes/No that would just confuse things.
-  const visibleCategoryOrder = scope === "country" ? CATEGORY_ORDER.filter((c) => c !== "nearby") : CATEGORY_ORDER;
-  // Two genuinely independent columns, not a CSS grid's row-major cells -
-  // in a grid, expanding a card in row N pushes every later row down on
-  // *both* sides, since row-mates share the same row track regardless of
-  // which one actually grew (see the "expand Economy, Real Estate/Climate/
-  // Demographics shift down too" report). Splitting into two separate
-  // vertically-stacked flex columns means each column's own height is
-  // entirely its own business - expanding a card only ever moves the cards
-  // below it in that same column, never anything in the other one.
-  const leftCategories = visibleCategoryOrder.filter((_, i) => i % 2 === 0);
-  const rightCategories = visibleCategoryOrder.filter((_, i) => i % 2 === 1);
-  const activeFilterCount = Object.values(filters).filter(isFilterActive).length;
-
-  // Most searches are city searches - start downloading before a scope is
-  // even picked, so the count and results are ready by the time they're asked for.
-  useEffect(() => prefetchAdvancedSearch("city"), []);
-
-  // Live match count: the search runs in the browser, so every filter
-  // change is re-counted over all cities in a few milliseconds (once the
-  // data - prefetched as soon as a scope is picked - has arrived).
-  useEffect(() => {
-    if (!scope) return;
-    prefetchAdvancedSearch(scope);
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      countMatches({ scope, filters: buildRequestFilters(scope, filters), weights: weightPercentagesToScores(getScoreWeights()) })
-        .then((n) => !cancelled && setMatchCount(n))
-        .catch(() => !cancelled && setMatchCount(null));
-    }, 120);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [scope, filters]);
-
-  function handleScopeChange(next: AdvancedSearchScope) {
-    if (next === scope) return;
-    // Nearby criteria mean something different under each scope (a minutes
-    // range vs a Yes/No) — carrying stale filter state across a scope
-    // switch would silently misinterpret it, so this is a clean slate.
-    setScope(next);
-    setFilters({});
-    setMatchCount(null);
-  }
-
-  function updateFilter(key: string, next: FilterInputValue | undefined) {
-    setFilters((prev) => {
-      const copy = { ...prev };
-      if (next && isFilterActive(next)) copy[key] = next;
-      else delete copy[key];
-      return copy;
-    });
-  }
-
-  function resetFilters() {
-    setFilters({});
-  }
-
-  // Results now live on their own page (list/map, sort, pagination — see
-  // search/results/page.tsx) rather than rendered inline here, so this
-  // just hands off scope and filters via the URL and navigates - the
-  // actual search request (with the saved weighting) happens on the
-  // destination page. `from` is carried along so its "Back" link can
-  // return here with the same way back to the city.
-  function goToResults() {
-    if (!scope) return;
-    setNavigating(true);
-    const qs = new URLSearchParams();
-    if (from) qs.set("from", from);
-    qs.set("scope", scope);
-    qs.set("filters", JSON.stringify(buildRequestFilters(scope, filters)));
-    router.push(`/search/results?${qs.toString()}`);
-  }
-
+function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <main className="min-h-dvh flex flex-col">
-      <NavBar logoSide="left" border={false} />
+    <div className="py-4 border-b border-surface-border last:border-b-0">
+      <h3 className="text-[11px] uppercase tracking-wide text-ink-500 mb-2.5">{title}</h3>
+      <div className="flex flex-wrap gap-1.5">{children}</div>
+    </div>
+  );
+}
 
-      <div className="px-6 pt-4 pb-3">
-        <Link href={backHref} className="text-xs text-ink-500 hover:text-ink-900 select-none">
-          {backLabel}
-        </Link>
-        <h1 className="font-serif text-2xl text-ink-900 mt-1 select-none">Advanced search</h1>
-      </div>
+/** Type a country, pick it: narrows the search to it (several allowed). */
+function CountryPicker({ selected, onAdd }: { selected: string[]; onAdd: (cc: string) => void }) {
+  const [text, setText] = useState("");
+  const matches = useMemo(() => {
+    const q = text.trim().toLowerCase();
+    if (!q) return [];
+    return Object.entries(manifest.countryNames)
+      .filter(([cc, name]) => !selected.includes(cc) && name.toLowerCase().includes(q))
+      .sort(([, a], [, b]) => Number(!a.toLowerCase().startsWith(q)) - Number(!b.toLowerCase().startsWith(q)) || a.localeCompare(b))
+      .slice(0, 6);
+  }, [text, selected]);
+  return (
+    <div className="relative w-full">
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && matches[0]) {
+            onAdd(matches[0][0]);
+            setText("");
+          }
+        }}
+        placeholder="Add a country"
+        className="w-full rounded-pill border border-surface-border bg-surface px-3 py-1.5 text-xs text-ink-900 placeholder:text-ink-300 focus:outline-none focus:border-piltri-amber"
+      />
+      {matches.length > 0 && (
+        <ul className="absolute z-20 mt-1 w-full rounded-card border border-surface-border bg-surface shadow-card py-1">
+          {matches.map(([cc, name]) => (
+            <li key={cc}>
+              <button
+                type="button"
+                onClick={() => {
+                  onAdd(cc);
+                  setText("");
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs text-ink-700 hover:bg-surface-muted"
+              >
+                {name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
-      <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
-        {/* Scope + actions rail - narrow, on the left, on request. Criteria
-         *  used to live in this column too; they've moved into the wider
-         *  middle/right area so each card has real room to breathe instead
-         *  of a cramped 400px-wide stack. Below `md` there's no room for a
-         *  side rail next to the criteria columns, so it becomes its own
-         *  full-width block stacked above them instead. */}
-        <div className="w-full md:w-[260px] flex-shrink-0 md:overflow-y-auto px-5 py-6 border-b md:border-b-0 border-surface-border">
-          <h2 className="text-xs uppercase tracking-wide text-ink-500 mb-3">Scope</h2>
-          <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 mb-6">
-            {(["city", "country"] as const).map((s) => {
-              const Icon = s === "city" ? PrecisionCityIcon : PrecisionCountryIcon;
-              const selected = scope === s;
+function Filters({ state, set }: { state: FinderState; set: (patch: Partial<FinderState>) => void }) {
+  const { prefs } = useUnitPreferences();
+  return (
+    <div>
+      <Group title="Where">
+        {REGION_ORDER.map((r) => (
+          <Chip key={r} active={state.regions.includes(r)} onClick={() => set({ regions: toggle(state.regions, r) })}>
+            {REGION_LABELS[r]}
+          </Chip>
+        ))}
+        {state.countries.map((cc) => (
+          <Chip key={cc} active onClick={() => set({ countries: toggle(state.countries, cc) })} icon={<CloseIcon className="w-3 h-3" />}>
+            {countryName(cc)}
+          </Chip>
+        ))}
+        <div className="w-full mt-1">
+          <CountryPicker selected={state.countries} onAdd={(cc) => set({ countries: [...state.countries, cc] })} />
+        </div>
+      </Group>
+
+      <Group title="Size">
+        {SIZE_BANDS.map((b) => (
+          <Chip key={b.key} active={state.sizes.includes(b.key)} onClick={() => set({ sizes: toggle(state.sizes, b.key) })} hint={b.hint}>
+            {b.label}
+          </Chip>
+        ))}
+      </Group>
+
+      <Group title="Climate">
+        {CLIMATE.map((t) => (
+          <Chip key={t.key} active={state.climate.includes(t.key)} onClick={() => set({ climate: toggle(state.climate, t.key) })} hint={t.hint(prefs)}>
+            {t.label}
+          </Chip>
+        ))}
+      </Group>
+
+      <Group title="Within reach">
+        {NEARBY.map((t) => (
+          <Chip key={t.key} active={state.nearby.includes(t.key)} onClick={() => set({ nearby: toggle(state.nearby, t.key) })} hint={t.hint(prefs)}>
+            {t.label}
+          </Chip>
+        ))}
+      </Group>
+
+      <Group title="Strong in (score 70+)">
+        {STRONG.map(({ key, section }) => {
+          const Icon = SECTION_ICONS[section];
+          return (
+            <Chip key={key} active={state.strong.includes(key)} onClick={() => set({ strong: toggle(state.strong, key) })} icon={<Icon className="w-3.5 h-3.5" />}>
+              {SECTION_LABELS[section]}
+            </Chip>
+          );
+        })}
+      </Group>
+
+      <Group title="Official language">
+        {LANGUAGES.map((l) => (
+          <Chip key={l} active={state.languages.includes(l)} onClick={() => set({ languages: toggle(state.languages, l) })}>
+            {l}
+          </Chip>
+        ))}
+      </Group>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Results                                                             */
+/* ------------------------------------------------------------------ */
+
+function ResultRow({
+  table,
+  i,
+  score,
+  population,
+  facts,
+  nearby,
+  radius,
+  picked,
+  onPick,
+}: {
+  table: PlaceTable;
+  i: number;
+  score: number;
+  population: number | null;
+  facts: string[];
+  nearby: number;
+  radius: string;
+  picked: boolean;
+  onPick: () => void;
+}) {
+  const id = table.id(i);
+  const sections = table.sections(i);
+  const where = [table.region[i], countryName(table.cc[i])].filter(Boolean).join(", ");
+  return (
+    <li className="rounded-card border border-surface-border bg-surface flex items-stretch hover:border-piltri-amber-light transition-colors">
+      <Link href={cityUrl(id)} className="flex-1 min-w-0 px-4 py-3 flex gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="font-serif text-lg text-ink-900 leading-tight truncate">{table.name[i]}</p>
+          <p className="text-[11px] text-ink-500 truncate mt-0.5">
+            {where}
+            {population != null && <span className="text-ink-300"> · {populationText(population)}</span>}
+          </p>
+          <div className="mt-2 flex items-center gap-3">
+            {SECTION_ORDER.map((key) => {
+              const Icon = SECTION_ICONS[key];
               return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => handleScopeChange(s)}
-                  className={cn(
-                    "flex-1 rounded-card border-2 px-4 py-3 text-left transition-colors",
-                    selected ? "border-piltri-amber bg-piltri-amber/5" : "border-surface-border hover:border-ink-300"
-                  )}
-                >
-                  <Icon className={cn("w-5 h-5", selected ? "text-piltri-amber" : "text-ink-300")} />
-                  <p className="font-serif text-base text-ink-900 mt-2">{s === "city" ? "Cities" : "Countries"}</p>
-                  <p className="text-xs text-ink-500 mt-0.5">
-                    {s === "city" ? "Search individual cities from our shortlist." : "Search whole countries, rolled up from the cities we track in each."}
-                  </p>
-                </button>
+                <span key={key} className="flex items-center gap-1 text-[11px] tabular-nums" title={SECTION_LABELS[key]} style={{ color: scoreColor(sections[key]) }}>
+                  <Icon className="w-3.5 h-3.5 text-ink-300" />
+                  {Math.round(sections[key])}
+                </span>
               );
             })}
           </div>
-
-          {scope && (
-            <div className="flex flex-col gap-2.5">
-              <Button onClick={goToResults} disabled={navigating} className="w-full">
-                {navigating ? "Opening…" : activeFilterCount > 0 ? `Search (${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"})` : "Search all"}
-              </Button>
-              <p className="text-xs text-ink-500 text-center tabular-nums min-h-[1rem]" aria-live="polite">
-                {matchCount != null && `${matchCount.toLocaleString()} ${scope === "city" ? (matchCount === 1 ? "city" : "cities") : matchCount === 1 ? "country" : "countries"} match`}
-              </p>
-              <Button variant="ghost" size="sm" onClick={resetFilters} disabled={navigating || activeFilterCount === 0} className="w-full">
-                Reset filters
-              </Button>
-            </div>
+          {facts.length > 0 && <p className="mt-1.5 text-[11px] text-piltri-amber-dark truncate">{facts.join(" · ")}</p>}
+          {nearby > 0 && (
+            <p className="mt-1 text-[11px] text-ink-300">
+              + {nearby} more {nearby === 1 ? "match" : "matches"} within {radius}
+            </p>
           )}
         </div>
+        <ScoreBadge score={score} className="self-start" />
+      </Link>
+      <button
+        type="button"
+        onClick={onPick}
+        aria-pressed={picked}
+        title={picked ? "Remove from comparison" : "Add to comparison"}
+        className={cn(
+          "w-11 flex-shrink-0 border-l border-surface-border flex items-center justify-center transition-colors rounded-r-card",
+          picked ? "bg-piltri-amber text-white" : "text-ink-300 hover:text-piltri-amber-dark hover:bg-piltri-amber-tint"
+        )}
+      >
+        <PlusIcon className={cn("w-4 h-4 transition-transform", picked && "rotate-45")} />
+      </button>
+    </li>
+  );
+}
 
-        {/* Criteria (middle/right, wide) - results open on their own page
-         *  (see discover/results/page.tsx) once "Search" is clicked, rather
-         *  than rendering inline here. */}
-        <div className="flex-1 md:overflow-y-auto px-6 py-6">
-          {!scope ? (
-            <p className="text-sm text-ink-500">First choose between Cities or Countries</p>
-          ) : (
-            <>
-              <h2 className="text-xs uppercase tracking-wide text-ink-500 mb-3">Criteria</h2>
-              {/* Two independent columns (see leftCategories/rightCategories
-               *  above), not a shared grid - each stacks its own cards top
-               *  to bottom with zero effect on the other column. */}
-              <div className="flex flex-col lg:flex-row gap-3 mb-8 items-start">
-                <div className="flex-1 w-full flex flex-col gap-3 min-w-0">
-                  {leftCategories.map((category) => (
-                    <AdvancedSearchCategoryCard
-                      key={category}
-                      category={category}
-                      Icon={CATEGORY_ICONS[category]}
-                      criteria={categories[category]}
-                      scope={scope}
-                      filters={filters}
-                      onChange={updateFilter}
-                    />
-                  ))}
-                </div>
-                <div className="flex-1 w-full flex flex-col gap-3 min-w-0">
-                  {rightCategories.map((category) => (
-                    <AdvancedSearchCategoryCard
-                      key={category}
-                      category={category}
-                      Icon={CATEGORY_ICONS[category]}
-                      criteria={categories[category]}
-                      scope={scope}
-                      filters={filters}
-                      onChange={updateFilter}
-                    />
-                  ))}
+function CountriesView({ result, table, onOnly }: { result: FinderResult; table: PlaceTable; onOnly: (cc: string) => void }) {
+  const max = result.byCountry[0]?.count ?? 1;
+  return (
+    <ul className="rounded-card border border-surface-border bg-surface divide-y divide-surface-border">
+      {result.byCountry.slice(0, 100).map(({ cc, count, best }) => (
+        <li key={cc} className="px-4 py-3 flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2">
+              <button type="button" onClick={() => onOnly(cc)} className="font-serif text-base text-ink-900 hover:text-piltri-amber-dark truncate">
+                {countryName(cc)}
+              </button>
+              <span className="text-xs text-ink-500 tabular-nums flex-shrink-0">
+                {count.toLocaleString("en-GB")} {count === 1 ? "place" : "places"}
+              </span>
+            </div>
+            <div className="mt-1.5 h-1 rounded-pill bg-surface-muted overflow-hidden">
+              <div className="h-full bg-piltri-amber-light rounded-pill" style={{ width: `${Math.max(2, (count / max) * 100)}%` }} />
+            </div>
+            <p className="text-[11px] text-ink-500 mt-1 truncate">
+              Top match:{" "}
+              <Link href={cityUrl(table.id(best))} className="text-ink-700 hover:text-piltri-amber-dark">
+                {table.name[best]}
+              </Link>
+            </p>
+          </div>
+          <Link href={countryUrl(cc)} className="text-[11px] text-ink-500 hover:text-piltri-amber-dark whitespace-nowrap flex-shrink-0">
+            Country data →
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Advanced search (/search, redesigned 2026-10-11, on request: the old
+ * page - pick a scope, fill in min/max boxes for 60 criteria, then open a
+ * results page - was too hard to use). Now one page: plain choices as
+ * chips on the left (lib/advancedSearch/finder.ts), matching places on the
+ * right, updated on every tap. Results as a list, a map, or counted by
+ * country (which replaces the old "search countries" scope). Every choice
+ * is kept in the address, so a search can be shared or bookmarked. Tap "+"
+ * on places to compare them side by side.
+ */
+function SearchContent() {
+  const params = useSearchParams();
+  const from = readFrom(params);
+  const [state, setState] = useState<FinderState>(() => readFinderState(params));
+  const set = (patch: Partial<FinderState>) => setState((s) => ({ ...s, ...patch }));
+  const { weights } = useScoreWeights();
+  const { prefs } = useUnitPreferences();
+
+  const [table, setTable] = useState<PlaceTable | null>(null);
+  const [languagesOf, setLanguagesOf] = useState<Record<string, string[]>>({});
+  const [columns, setColumns] = useState<Record<string, Column>>({});
+  const [failed, setFailed] = useState(false);
+  const [shown, setShown] = useState(PAGE);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  // The address follows the choices (replaced, not pushed: Back leaves the
+  // page rather than undoing taps one by one).
+  useEffect(() => {
+    const q = finderQuery(state, from);
+    window.history.replaceState(window.history.state, "", q ? `/search?${q}` : "/search");
+  }, [state, from]);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([getPlaceTable(), getCountries()])
+      .then(([t, countries]) => {
+        if (cancelled) return;
+        setTable(t);
+        setLanguagesOf(Object.fromEntries(Object.entries(countries).map(([cc, c]) => [cc, c.demographics?.countryOfficialLanguages ?? []])));
+      })
+      .catch(() => !cancelled && setFailed(true));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Columns the current choices read, fetched once each.
+  const needed = columnsFor(state);
+  const neededKey = needed.join("|");
+  useEffect(() => {
+    if (!table) return;
+    const missing = needed.filter((key) => !columns[key]);
+    if (!missing.length) return;
+    let cancelled = false;
+    Promise.all(missing.map(async (key) => [key, await table.values(key)] as const))
+      .then((loaded) => !cancelled && setColumns((c) => ({ ...c, ...Object.fromEntries(loaded) })))
+      .catch(() => !cancelled && setFailed(true));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table, neededKey]);
+
+  const normalised = useMemo(() => normaliseWeights(weightPercentagesToScores(weights)), [weights]);
+  const ready = table != null && needed.every((key) => columns[key]);
+  const fresh = useMemo(
+    () => (ready ? runFinder(table, (key) => columns[key] ?? (() => null), languagesOf, normalised, state) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ready, table, columns, languagesOf, normalised, state.regions, state.countries, state.sizes, state.climate, state.nearby, state.strong, state.languages, state.sort]
+  );
+  // While a new column downloads, keep showing the last results.
+  const last = useRef<FinderResult | null>(null);
+  if (fresh) last.current = fresh;
+  const result = fresh ?? last.current;
+
+  useEffect(() => setShown(PAGE), [fresh]);
+
+  const col = (key: string): Column => columns[key] ?? (() => null);
+  const listed = result ? (state.every ? result.indices : result.heads) : [];
+  const population = columns["demographics.population"];
+  const count = result?.indices.length ?? 0;
+  const filterCount = activeFilterCount(state);
+  const countText = `${count.toLocaleString("en-GB")} ${count === 1 ? "place" : "places"}`;
+
+  const mapPoints: MapPoint[] = useMemo(
+    () =>
+      table && result
+        ? listed.slice(0, MAP_POINTS).map((i) => ({
+            key: table.id(i),
+            lat: table.lat[i],
+            lng: table.lng[i],
+            name: table.name[i],
+            piltriScore: table.piltri(i, normalised),
+            detailHref: cityUrl(table.id(i)),
+          }))
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [table, result, normalised, state.every]
+  );
+
+  // Removable chips for what's chosen - shown above the results on phones,
+  // where the filters sit behind a button.
+  const chosen: { label: string; remove: () => void }[] = [
+    ...state.regions.map((r) => ({ label: REGION_LABELS[r], remove: () => set({ regions: toggle(state.regions, r) }) })),
+    ...state.countries.map((cc) => ({ label: countryName(cc), remove: () => set({ countries: toggle(state.countries, cc) }) })),
+    ...SIZE_BANDS.filter((b) => state.sizes.includes(b.key)).map((b) => ({ label: b.label, remove: () => set({ sizes: toggle(state.sizes, b.key) }) })),
+    ...CLIMATE.filter((t) => state.climate.includes(t.key)).map((t) => ({ label: t.label, remove: () => set({ climate: toggle(state.climate, t.key) }) })),
+    ...NEARBY.filter((t) => state.nearby.includes(t.key)).map((t) => ({ label: t.label, remove: () => set({ nearby: toggle(state.nearby, t.key) }) })),
+    ...STRONG.filter((s) => state.strong.includes(s.key)).map((s) => ({ label: `Strong ${SECTION_LABELS[s.section]}`, remove: () => set({ strong: toggle(state.strong, s.key) }) })),
+    ...state.languages.map((l) => ({ label: l, remove: () => set({ languages: toggle(state.languages, l) }) })),
+  ];
+
+  const clearAll = () => setState((s) => ({ ...EMPTY_STATE, sort: s.sort, view: s.view, every: s.every }));
+
+  return (
+    <main className={cn("min-h-dvh flex flex-col bg-surface-muted", picked.length > 0 && "pb-20")}>
+      <NavBar logoSide="left" />
+      <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 pt-5 pb-10">
+        <BackLink />
+        <h1 className="font-serif text-3xl text-ink-900 mt-1">Advanced search</h1>
+
+        <div className="mt-5 md:flex md:gap-6 md:items-start">
+          {/* Filters: a side panel on desktop, a full-screen sheet on phones. */}
+          <aside className="hidden md:block w-[320px] flex-shrink-0 sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto no-scrollbar rounded-card border border-surface-border bg-surface px-4">
+            <div className="flex items-center justify-between pt-4">
+              <h2 className="text-sm font-medium text-ink-900">Filters</h2>
+              {filterCount > 0 && (
+                <button type="button" onClick={clearAll} className="text-xs text-ink-500 hover:text-piltri-amber-dark">
+                  Clear all
+                </button>
+              )}
+            </div>
+            <Filters state={state} set={set} />
+          </aside>
+
+          {sheetOpen && (
+            <div className="md:hidden fixed inset-0 z-50 bg-surface flex flex-col">
+              <div className="flex items-center justify-between px-4 h-14 border-b border-surface-border flex-shrink-0">
+                <h2 className="font-serif text-xl text-ink-900">Filters</h2>
+                <div className="flex items-center gap-4">
+                  {filterCount > 0 && (
+                    <button type="button" onClick={clearAll} className="text-xs text-ink-500">
+                      Clear all
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setSheetOpen(false)} aria-label="Close filters" className="text-ink-500">
+                    <CloseIcon className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
-            </>
+              <div className="flex-1 overflow-y-auto px-4">
+                <Filters state={state} set={set} />
+              </div>
+              <div className="p-4 border-t border-surface-border flex-shrink-0">
+                <button type="button" onClick={() => setSheetOpen(false)} className="w-full rounded-pill bg-piltri-amber text-white py-3 text-sm font-medium">
+                  Show {countText}
+                </button>
+              </div>
+            </div>
           )}
+
+          <section className="flex-1 min-w-0">
+            {/* Count, sort and view */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setSheetOpen(true)}
+                className="md:hidden flex items-center gap-1.5 rounded-pill border border-surface-border bg-surface px-3 py-1.5 text-xs text-ink-900"
+              >
+                <FilterIcon className="w-3.5 h-3.5" />
+                Filters
+                {filterCount > 0 && <span className="rounded-pill bg-piltri-amber text-white px-1.5 text-[10px] tabular-nums">{filterCount}</span>}
+              </button>
+              <p className="text-sm text-ink-900 tabular-nums mr-auto" aria-live="polite">
+                {result ? <span className="font-medium">{countText}</span> : <span className="text-ink-500">Loading places…</span>}
+              </p>
+              <select
+                value={state.sort}
+                onChange={(e) => set({ sort: e.target.value as SortKey })}
+                aria-label="Sort"
+                className="rounded-pill border border-surface-border bg-surface px-3 py-1.5 text-xs text-ink-900 focus:outline-none focus:border-piltri-amber"
+              >
+                {SORTS.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    Sort: {s.label}
+                  </option>
+                ))}
+              </select>
+              <div className="flex items-center rounded-pill border border-surface-border bg-surface overflow-hidden text-xs">
+                {(["list", "map", "countries"] as View[]).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => set({ view: v })}
+                    className={cn("px-3 py-1.5 capitalize transition-colors", state.view === v ? "bg-piltri-amber text-white" : "text-ink-500 hover:bg-surface-muted")}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {result && count > 0 && state.view !== "countries" && (
+              <label className="mt-2.5 w-fit flex items-center gap-2 text-[11px] text-ink-500 cursor-pointer select-none">
+                <input type="checkbox" checked={!state.every} onChange={(e) => set({ every: !e.target.checked })} className="accent-piltri-amber" />
+                One per neighbourhood ({formatDistanceKm(GROUP_KM, prefs)})
+                {!state.every && result.heads.length < count && <span className="text-ink-300">· {result.heads.length.toLocaleString("en-GB")} shown</span>}
+              </label>
+            )}
+
+            {chosen.length > 0 && (
+              <div className="md:hidden mt-3 flex gap-1.5 overflow-x-auto no-scrollbar -mx-4 px-4">
+                {chosen.map((c) => (
+                  <Chip key={c.label} active onClick={c.remove} icon={<CloseIcon className="w-3 h-3" />}>
+                    {c.label}
+                  </Chip>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-4">
+              {failed ? (
+                <p className="text-sm text-score-weak">Couldn&apos;t load the places - please try again.</p>
+              ) : !table || !result ? (
+                <ul className="grid gap-3 lg:grid-cols-2">
+                  {Array.from({ length: 8 }, (_, k) => (
+                    <li key={k} className="h-[104px] rounded-card border border-surface-border bg-surface animate-pulse" />
+                  ))}
+                </ul>
+              ) : count === 0 ? (
+                <div className="rounded-card border border-surface-border bg-surface px-5 py-8 text-center">
+                  <p className="text-sm text-ink-900">No place has all of these.</p>
+                  <p className="text-xs text-ink-500 mt-1">Remove one to widen the search:</p>
+                  <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+                    {chosen.map((c) => (
+                      <Chip key={c.label} active onClick={c.remove} icon={<CloseIcon className="w-3 h-3" />}>
+                        {c.label}
+                      </Chip>
+                    ))}
+                  </div>
+                </div>
+              ) : state.view === "map" ? (
+                <div>
+                  <div className="h-[65dvh] md:h-[calc(100dvh-14rem)] rounded-card overflow-hidden border border-surface-border">
+                    <DiscoverResultsMap points={mapPoints} />
+                  </div>
+                  {listed.length > MAP_POINTS && <p className="mt-2 text-[11px] text-ink-500">Showing the top {MAP_POINTS}.</p>}
+                </div>
+              ) : state.view === "countries" ? (
+                <CountriesView result={result} table={table} onOnly={(cc) => set({ countries: [cc], regions: [], view: "list" })} />
+              ) : (
+                <>
+                  <ul className="grid gap-3 lg:grid-cols-2">
+                    {listed.slice(0, shown).map((i) => {
+                      const id = table.id(i);
+                      return (
+                        <ResultRow
+                          key={id}
+                          table={table}
+                          i={i}
+                          score={table.piltri(i, normalised)}
+                          population={population ? (population(i) as number | null) : null}
+                          facts={factsFor(col, i, state, prefs)}
+                          nearby={state.every ? 0 : (result.nearby.get(i) ?? 0)}
+                          radius={formatDistanceKm(GROUP_KM, prefs)}
+                          picked={picked.includes(id)}
+                          onPick={() => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length < MAX_COMPARE ? [...p, id] : p))}
+                        />
+                      );
+                    })}
+                  </ul>
+                  {listed.length > shown && (
+                    <button
+                      type="button"
+                      onClick={() => setShown((n) => n + PAGE)}
+                      className="mt-4 w-full rounded-pill border border-surface-border bg-surface py-2.5 text-xs text-ink-700 hover:border-piltri-amber-light"
+                    >
+                      Show more ({(listed.length - shown).toLocaleString("en-GB")} left)
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </section>
         </div>
       </div>
+
+      {/* Compare tray: places picked with "+". */}
+      {picked.length > 0 && table && (
+        <div className="fixed bottom-0 inset-x-0 z-40 border-t border-surface-border bg-surface/95 backdrop-blur">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
+            <p className="text-xs text-ink-700 min-w-0 truncate flex-1">
+              <span className="font-medium text-ink-900">{picked.length} picked</span>
+              <span className="hidden sm:inline text-ink-500"> · up to {MAX_COMPARE}</span>
+            </p>
+            <button type="button" onClick={() => setPicked([])} className="text-xs text-ink-500 hover:text-ink-900">
+              Clear
+            </button>
+            <Link
+              href={compareUrl(picked)}
+              className={cn(
+                "rounded-pill px-4 py-2 text-xs font-medium",
+                picked.length > 1 ? "bg-piltri-amber text-white" : "bg-surface-muted text-ink-300 pointer-events-none"
+              )}
+              aria-disabled={picked.length < 2}
+            >
+              Compare {picked.length > 1 ? picked.length : ""} →
+            </Link>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
 
-export default function DiscoverPage() {
+export default function SearchPage() {
   return (
     <Suspense fallback={null}>
-      <DiscoverContent />
+      <SearchContent />
     </Suspense>
   );
 }

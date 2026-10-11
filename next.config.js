@@ -12,7 +12,9 @@ const nextConfig = {
       "/explore/report": "/report",
       "/explore/compare": "/compare",
       "/explore/discover": "/search",
-      "/explore/discover/results": "/search/results",
+      "/explore/discover/results": "/search",
+      // Advanced search is one page since 2026-10-11.
+      "/search/results": "/search",
       "/explore/country-report": "/country",
       "/explore/settings": "/settings",
       "/explore/score-settings": "/score-settings",

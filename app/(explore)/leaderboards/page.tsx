@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode, type SVGProps } from "rea
 import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { BackLink } from "@/components/ui/BackLink";
+import { Chip } from "@/components/ui/Chip";
 import { IconEconomy, IconLiveability, IconSafety, TrophyIcon } from "@/components/ui/icons";
 import { getPlaceTable, type PlaceTable } from "@/lib/advancedSearch/engine";
 import { normaliseWeights } from "@/lib/aggregation/scoring";
@@ -34,23 +35,6 @@ const ICONS: Record<BoardKey, (p: SVGProps<SVGSVGElement>) => ReactNode> = {
   beachLife: (p) => line(p, <><path d="M3 18c2 0 2-1.5 4.5-1.5S9.5 18 12 18s2.5-1.5 4.5-1.5S19 18 21 18" /><path d="M12 15V6M12 6c-2.5 0-4.5 1.5-5 3.5 1.5-1 3.5-1 5-.5M12 6c2.5 0 4.5 1.5 5 3.5-1.5-1-3.5-1-5-.5" /></>),
   familyFriendly: (p) => line(p, <><circle cx="8" cy="6.5" r="2.2" /><circle cx="16.5" cy="9" r="1.8" /><path d="M4.5 20v-4.5A3.5 3.5 0 018 12a3.5 3.5 0 013.5 3.5V20M13.5 20v-3a3 3 0 016 0v3" /></>),
 };
-
-/* ---- Filter chips ---- */
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "flex-shrink-0 rounded-pill border px-3 py-1.5 text-xs transition-colors whitespace-nowrap",
-        active ? "border-piltri-amber bg-piltri-amber text-white" : "border-surface-border bg-surface text-ink-700 hover:border-piltri-amber-light"
-      )}
-    >
-      {children}
-    </button>
-  );
-}
 
 /* ---- One board ---- */
 const PODIUM = [
