@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
-import { DiscoverIcon, TrophyIcon } from "@/components/ui/icons";
 import dynamic from "next/dynamic";
 
 // Loaded separately (client-only), so the score panel renders without
@@ -30,7 +29,7 @@ import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/cn";
 import { getCityBoundary, getCityExploreData, getCityNearby, getCountries, hasNearbyData, type CityOutline } from "@/lib/dataset/cities";
 import { cityIdFor } from "@/lib/dataset/schema";
-import { cityUrl, compareUrl, leaderboardsUrl, readCityRef, reportUrl, scoreSettingsUrl, searchUrl, sourcesUrl } from "@/lib/urls";
+import { cityUrl, compareUrl, readCityRef, reportUrl, scoreSettingsUrl, sourcesUrl } from "@/lib/urls";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
 /** Pin mode (click the map for local details and directions) - switched
@@ -94,9 +93,7 @@ function CityContent() {
   // PDF via the browser's own print dialog rather than a bespoke PDF
   // pipeline in the app itself.
   const reportHref = reportUrl(cityId);
-  // `from` lets Advanced search and Score settings offer a way
-  // back to this city.
-  const searchHref = searchUrl(cityId);
+  // `from` lets Score settings offer a way back to this city.
   const scoreSettingsHref = scoreSettingsUrl(cityId);
 
   const [data, setData] = useState<CityExploreData | null>(null);
@@ -367,9 +364,9 @@ function CityContent() {
           // Truly centred across the whole header now (see NavBar's 3-column
           // grid), at the same vertical level as the logo, rather than
           // right-aligned in the space left over after it. Full-width row of
-          // its own below the logo on mobile (see NavBar) — the search bar
-          // itself shrinks to fill whatever's left after the "Advanced
-          // search" link instead of the desktop's fixed 300px.
+          // its own below the logo on mobile (see NavBar). Advanced search
+          // and Leaderboards are reached from the home page (2026-10-11, on
+          // request), beside Settings.
           <div className="flex items-center gap-2 md:gap-3 w-full max-w-md md:max-w-none md:w-auto">
             <SearchBar
               // Remounted once the city has loaded, to show its name.
@@ -379,27 +376,6 @@ function CityContent() {
               placeholder="Search for a place you will call home"
               className="flex-1 min-w-0 md:w-[300px] md:flex-none"
             />
-            {/* Discover mode's entry point, relocated here from the Explore
-             *  landing page and relabelled — makes more sense reachable
-             *  while you're already looking at a city, if you want to widen
-             *  the search with criteria instead of another single lookup.
-             *  Carries this city along (searchHref) so Advanced search's
-             *  "Back" link can return here instead of the home page. */}
-            <Link
-              href={searchHref}
-              className="flex items-center gap-1.5 text-xs text-ink-500 hover:text-piltri-amber-dark whitespace-nowrap flex-shrink-0"
-            >
-              <DiscoverIcon className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Advanced search</span>
-            </Link>
-            <Link
-              href={leaderboardsUrl(cityId)}
-              title="Leaderboards"
-              className="flex items-center gap-1.5 text-xs text-ink-500 hover:text-piltri-amber-dark whitespace-nowrap flex-shrink-0"
-            >
-              <TrophyIcon className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Leaderboards</span>
-            </Link>
           </div>
         }
         right={

@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
-import { FilterIcon } from "@/components/ui/icons";
-import { SETTINGS_URL, sourcesUrl } from "@/lib/urls";
+import { DiscoverIcon, FilterIcon, TrophyIcon } from "@/components/ui/icons";
+import { leaderboardsUrl, searchUrl, SETTINGS_URL, sourcesUrl } from "@/lib/urls";
+
+/** The bordered amber buttons under the search bar. */
+const BUTTON =
+  "h-7 rounded-lg border-[1.5px] border-piltri-amber text-piltri-amber flex items-center justify-center gap-1.5 text-xs hover:bg-piltri-amber hover:text-white transition-colors";
 
 /** Page 2 — Explore landing. Piltri logo top left (top right on Home only),
  *  centred search, no description line or Home link.
@@ -37,18 +41,22 @@ export default function ExploreLandingPage() {
 
           <SearchBar autoFocus placeholder="Search for a place you will call home" />
 
-          {/* Settings (units and language), back under the search bar, icon
-           *  only, bordered to match it (2026-09-30, on request). The score
-           *  weighting is separate: Score settings, on the results page.
-           *  Like the heading, it hangs outside the flow on phones so the
-           *  search bar stays in the middle. */}
-          <div className="absolute inset-x-0 top-full mt-3 flex justify-center sm:static">
-            <Link
-              href={SETTINGS_URL}
-              aria-label="Settings: units and language"
-              title="Settings"
-              className="w-7 h-7 rounded-lg border-[1.5px] border-piltri-amber text-piltri-amber flex items-center justify-center hover:bg-piltri-amber hover:text-white transition-colors"
-            >
+          {/* Under the search bar: Advanced search and Leaderboards (moved
+           *  here from the city page, 2026-10-11, on request), then Settings
+           *  (units and language), icon only. The score weighting is
+           *  separate: Score settings, on the results page. Like the
+           *  heading, the row hangs outside the flow on phones so the search
+           *  bar stays in the middle. */}
+          <div className="absolute inset-x-0 top-full mt-3 flex justify-center gap-2 sm:static">
+            <Link href={searchUrl()} className={`${BUTTON} px-2.5`}>
+              <DiscoverIcon className="w-3.5 h-3.5" />
+              Advanced search
+            </Link>
+            <Link href={leaderboardsUrl()} className={`${BUTTON} px-2.5`}>
+              <TrophyIcon className="w-3.5 h-3.5" />
+              Leaderboards
+            </Link>
+            <Link href={SETTINGS_URL} aria-label="Settings: units and language" title="Settings" className={`${BUTTON} w-7`}>
               <FilterIcon className="w-3.5 h-3.5" />
             </Link>
           </div>
