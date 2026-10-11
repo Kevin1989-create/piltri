@@ -1,12 +1,30 @@
 import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
-import { DiscoverIcon, FilterIcon, TrophyIcon } from "@/components/ui/icons";
+import type { ComponentType, SVGProps } from "react";
+import { CogIcon, FilterIcon, TrophyIcon } from "@/components/ui/icons";
 import { leaderboardsUrl, searchUrl, SETTINGS_URL, sourcesUrl } from "@/lib/urls";
 
-/** The bordered amber buttons under the search bar. */
-const BUTTON =
-  "h-7 rounded-lg border-[1.5px] border-piltri-amber text-piltri-amber flex items-center justify-center gap-1.5 text-xs hover:bg-piltri-amber hover:text-white transition-colors";
+/** An icon-only bordered amber button under the search bar; hovering (or
+ *  focusing) shows the page's name in a small label beneath it, at once -
+ *  the browser's own tooltip takes a second and looks out of place. */
+function IconLink({ href, label, Icon }: { href: string; label: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }) {
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      className="group relative w-8 h-8 rounded-lg border-[1.5px] border-piltri-amber text-piltri-amber flex items-center justify-center hover:bg-piltri-amber hover:text-white focus-visible:bg-piltri-amber focus-visible:text-white transition-colors outline-none"
+    >
+      <Icon className="w-4 h-4" />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink-900 px-2 py-1 text-[11px] text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+      >
+        {label}
+      </span>
+    </Link>
+  );
+}
 
 /** Page 2 — Explore landing. Piltri logo top left (top right on Home only),
  *  centred search, no description line or Home link.
@@ -41,24 +59,16 @@ export default function ExploreLandingPage() {
 
           <SearchBar autoFocus placeholder="Search for a place you will call home" />
 
-          {/* Under the search bar: Advanced search and Leaderboards (moved
-           *  here from the city page, 2026-10-11, on request), then Settings
-           *  (units and language), icon only. The score weighting is
+          {/* Under the search bar, icons only (2026-10-11, on request):
+           *  Advanced search, Leaderboards (both moved here from the city
+           *  page), Settings (units and language). The score weighting is
            *  separate: Score settings, on the results page. Like the
            *  heading, the row hangs outside the flow on phones so the search
            *  bar stays in the middle. */}
-          <div className="absolute inset-x-0 top-full mt-3 flex justify-center gap-2 sm:static">
-            <Link href={searchUrl()} className={`${BUTTON} px-2.5`}>
-              <DiscoverIcon className="w-3.5 h-3.5" />
-              Advanced search
-            </Link>
-            <Link href={leaderboardsUrl()} className={`${BUTTON} px-2.5`}>
-              <TrophyIcon className="w-3.5 h-3.5" />
-              Leaderboards
-            </Link>
-            <Link href={SETTINGS_URL} aria-label="Settings: units and language" title="Settings" className={`${BUTTON} w-7`}>
-              <FilterIcon className="w-3.5 h-3.5" />
-            </Link>
+          <div className="absolute inset-x-0 top-full mt-3 flex justify-center gap-2.5 sm:static">
+            <IconLink href={searchUrl()} label="Advanced search" Icon={FilterIcon} />
+            <IconLink href={leaderboardsUrl()} label="Leaderboards" Icon={TrophyIcon} />
+            <IconLink href={SETTINGS_URL} label="Settings" Icon={CogIcon} />
           </div>
         </div>
       </div>

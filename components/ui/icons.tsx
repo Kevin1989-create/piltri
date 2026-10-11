@@ -61,8 +61,8 @@ export function TrendIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** Filter/sliders icon — kept for potential reuse, no longer used for the
- *  Discover entry point (see DiscoverIcon below). */
+/** Filter/sliders icon - Advanced search (its home page button and its
+ *  "Filters" button). */
 export function FilterIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} {...props}>
@@ -92,6 +92,18 @@ export function TrophyIcon(props: SVGProps<SVGSVGElement>) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M7 4h10v4a5 5 0 01-10 0V4z" />
       <path d="M7 6H4.5a2.5 2.5 0 002.8 3.3M17 6h2.5a2.5 2.5 0 01-2.8 3.3M12 13v4M8.5 20h7M10 17h4" />
+    </svg>
+  );
+}
+
+/** Cog - Settings (units and language), on the home page. Wide, blunt
+ *  teeth, so it reads as a cog rather than the sun burst an earlier gear
+ *  was taken for. */
+export function CogIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" {...props}>
+      <path d="M10.33 5.3L10.59 3.11L13.41 3.11L13.67 5.3A6.9 6.9 0 0 1 15.55 6.09L17.29 4.72L19.28 6.71L17.91 8.45A6.9 6.9 0 0 1 18.7 10.33L20.89 10.59L20.89 13.41L18.7 13.67A6.9 6.9 0 0 1 17.91 15.55L19.28 17.29L17.29 19.28L15.55 17.91A6.9 6.9 0 0 1 13.67 18.7L13.41 20.89L10.59 20.89L10.33 18.7A6.9 6.9 0 0 1 8.45 17.91L6.71 19.28L4.72 17.29L6.09 15.55A6.9 6.9 0 0 1 5.3 13.67L3.11 13.41L3.11 10.59L5.3 10.33A6.9 6.9 0 0 1 6.09 8.45L4.72 6.71L6.71 4.72L8.45 6.09A6.9 6.9 0 0 1 10.33 5.3Z" />
+      <circle cx="12" cy="12" r="2.9" />
     </svg>
   );
 }
