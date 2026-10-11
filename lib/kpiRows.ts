@@ -496,12 +496,13 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
   }
 }
 
-/** The explanation shown in a section with no figures at all for this
- *  place (null when it has data) - shared by the results page and report. */
+/** The explanation shown in a section without enough figures to score
+ *  (hasEnoughFigures; null when it has them) - shared by the results page
+ *  and report. */
 export function noSectionDataNote(section: SectionKey, data: CityExploreData): string | null {
   if (!data.sectionsWithoutData.includes(section)) return null;
   const where = section === "economy" || section === "safetyStability" ? data.country : data.cityName;
-  return `No ${SECTION_LABELS[section].toLowerCase()} figures are available for ${where}. A neutral 50 is used in the overall Piltri score, so this section neither helps nor hurts it.`;
+  return `Too few ${SECTION_LABELS[section].toLowerCase()} figures are available for ${where} to score this section (it needs at least half of them). A neutral 50 is used in the overall Piltri score, so it neither helps nor hurts it.`;
 }
 
 /** Splits rows into the city's own values and its country's. */

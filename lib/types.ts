@@ -254,8 +254,9 @@ export interface CityExploreData {
   liveability: LiveabilityFields;
 
   sectionScores: SectionScores;
-  /** Sections with no figures at all for this place - shown as "No data";
-   *  their score is a neutral 50 so the overall score isn't skewed. */
+  /** Sections without enough figures to score (under half - see
+   *  hasEnoughFigures) - shown as "No data"; their score is a neutral 50
+   *  so the overall score isn't skewed. */
   sectionsWithoutData: SectionKey[];
   piltriScore: number; // 0-100 weighted average
   lastUpdated: string; // ISO date the dataset was built

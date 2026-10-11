@@ -117,21 +117,31 @@ function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): R
 
 const SECTION_KEYS: SectionKey[] = ["economy", "safetyStability", "climate", "liveability"];
 
+/** A section is scored only from at least half its figures (2026-10-11):
+ *  an average of one or two misleads - North Korea's economy, from its
+ *  unemployment rate alone, scored 86. */
+export function hasEnoughFigures(values: (number | null)[]): boolean {
+  const known = values.filter((v) => v != null && !Number.isNaN(v)).length;
+  return known >= Math.ceil(values.length / 2);
+}
+
 /** Section scores. Missing inputs are left out of a section's average
- *  (averageScores skips nulls) rather than counted as zero. A section with
- *  no inputs at all scores a neutral 50 - so the overall score isn't
- *  skewed - and is listed in `withoutData`, which the pages show as
- *  "No data". */
+ *  (averageScores skips nulls) rather than counted as zero. A section
+ *  without enough figures (hasEnoughFigures) scores a neutral 50 - so the
+ *  overall score isn't skewed - and is listed in `withoutData`, which the
+ *  pages show as "No data". */
 function scoreSections(data: CityExploreData, gniPerCapitaUsd: number | null): { scores: SectionScores; withoutData: SectionKey[] } {
   const inputs = sectionInputs(data, gniPerCapitaUsd);
+  const withoutData = SECTION_KEYS.filter((key) => !hasEnoughFigures(inputs[key]));
+  const score = (key: SectionKey) => (withoutData.includes(key) ? 50 : averageScores(inputs[key]));
   return {
     scores: {
-      economy: averageScores(inputs.economy),
-      safetyStability: averageScores(inputs.safetyStability),
-      climate: averageScores(inputs.climate),
-      liveability: averageScores(inputs.liveability),
+      economy: score("economy"),
+      safetyStability: score("safetyStability"),
+      climate: score("climate"),
+      liveability: score("liveability"),
     },
-    withoutData: SECTION_KEYS.filter((key) => inputs[key].every((v) => v == null)),
+    withoutData,
   };
 }
 

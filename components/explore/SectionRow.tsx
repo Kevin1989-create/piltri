@@ -48,7 +48,7 @@ export function SectionRow({ sectionKey, score, isOpen, compact = false, onToggl
       <span
         title={
           score == null
-            ? "No figures available here - a neutral 50 is used in the overall Piltri score"
+            ? "Too few figures here to score - a neutral 50 is used in the overall Piltri score"
             : rank
               ? `#${rank.position.toLocaleString()} of ${rank.outOf.toLocaleString()} cities for ${SECTION_LABELS[sectionKey]}`
               : undefined

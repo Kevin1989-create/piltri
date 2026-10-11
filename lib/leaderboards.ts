@@ -1,4 +1,5 @@
 import type { PlaceTable } from "@/lib/advancedSearch/engine";
+import { hasEnoughFigures } from "@/lib/dataset/assemble";
 import { manifest } from "@/lib/dataset/files";
 import { regionOf, type RegionKey } from "@/lib/regions";
 import { formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
@@ -61,10 +62,11 @@ export interface BoardDef {
 const num = (v: CriterionValue) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const round = (n: number) => String(Math.round(n));
 
-/** The figures behind the Economy and Safety scores (country-wide). A
- *  section score averages whatever figures a country has, so one built
- *  from a single figure (North Korea's economy: unemployment alone) can
- *  look excellent - those boards need most of them. */
+/** The figures behind the Economy and Safety scores (country-wide). Those
+ *  boards skip places without enough of them (hasEnoughFigures, the rule
+ *  the section scores follow) - so they hold before a dataset built with
+ *  that rule, too: North Korea's economy, from unemployment alone, scored
+ *  86 until then. */
 const ECONOMY_INPUTS = [
   "economy.economicGrowth5yrGdpPct",
   "economy.unemploymentRatePct",
@@ -73,8 +75,7 @@ const ECONOMY_INPUTS = [
   "economy.purchasingPowerIndex",
 ];
 const SAFETY_INPUTS = ["safetyStability.politicalStabilityScore", "safetyStability.ruleOfLawScore", "safetyStability.homicideRatePer100k"];
-const enough = (col: BoardContext["col"], i: number, keys: string[], min: number) =>
-  keys.filter((key) => col(key)(i) != null).length >= min;
+const enough = (col: BoardContext["col"], i: number, keys: string[]) => hasEnoughFigures(keys.map((key) => num(col(key)(i))));
 
 export const BOARDS: BoardDef[] = [
   {
@@ -90,7 +91,7 @@ export const BOARDS: BoardDef[] = [
     title: "Safest",
     blurb: "Safety score: stability, rule of law, crime",
     needs: SAFETY_INPUTS,
-    score: ({ table, col }, i) => (enough(col, i, SAFETY_INPUTS, 2) ? table.sections(i).safetyStability : null),
+    score: ({ table, col }, i) => (enough(col, i, SAFETY_INPUTS) ? table.sections(i).safetyStability : null),
     show: ({ table }, i) => round(table.sections(i).safetyStability),
   },
   {
@@ -106,7 +107,7 @@ export const BOARDS: BoardDef[] = [
     title: "Strongest economy",
     blurb: "Economy score: growth, salaries, jobs, purchasing power",
     needs: ECONOMY_INPUTS,
-    score: ({ table, col }, i) => (enough(col, i, ECONOMY_INPUTS, 4) ? table.sections(i).economy : null),
+    score: ({ table, col }, i) => (enough(col, i, ECONOMY_INPUTS) ? table.sections(i).economy : null),
     show: ({ table }, i) => round(table.sections(i).economy),
   },
   {
