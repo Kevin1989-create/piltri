@@ -193,10 +193,13 @@ function CityContent() {
         detail = `${formatDistanceKm(km, prefs)} from the centre${minutes ? ` · ~${formatDriveTime(minutes)} ${km <= 2 ? "on foot" : "by car"}` : ""}`;
       }
       setMapFocus({
-        title: MAP_TITLES[kind],
+        // A Yes is named as the figure ("Train station"), a distance as what
+        // it measures to ("Nearest train station").
+        title: row.mapStyle === "pin" ? row.label : MAP_TITLES[kind],
         name: point ? point.name || UNNAMED[kind] || "Unnamed" : "None found nearby",
         detail,
         point: point ? { lng: point.lng, lat: point.lat } : null,
+        style: row.mapStyle ?? "journey",
       });
       if (!isDesktop) setMapFullScreen(true);
     },

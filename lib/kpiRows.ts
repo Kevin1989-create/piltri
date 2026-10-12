@@ -20,8 +20,10 @@ export interface KpiInfo {
 
 export type MapKind = NearbyKind | "capital";
 
-/** The row, pointing at what it can show on the map. */
-const onMap = (row: KpiRow | null, mapKind: MapKind): KpiRow | null => (row ? { ...row, mapKind } : null);
+/** The row, pointing at what it can show on the map - with the journey
+ *  to it (a distance), or just where it is (a Yes). */
+const onMap = (row: KpiRow | null, mapKind: MapKind, mapStyle: "journey" | "pin" = "journey"): KpiRow | null =>
+  row ? { ...row, mapKind, mapStyle } : null;
 
 export interface KpiRow {
   label: string;
@@ -37,6 +39,9 @@ export interface KpiRow {
   /** The place it's about can be shown on the city map: the nearest of
    *  this kind (see NEARBY_KINDS), or the country's capital. */
   mapKind?: MapKind;
+  /** "journey": the dashed line from the centre and the distance (a
+   *  distance row); "pin": a small flag where it is (a Yes). */
+  mapStyle?: "journey" | "pin";
   info: KpiInfo;
 }
 
@@ -523,10 +528,11 @@ export function splitKpiRowsByTier(rows: KpiRow[]): { countryRows: KpiRow[]; cit
  *  for airports), from Overture Maps / OpenStreetMap and GeoNames. */
 function presenceRows(data: CityExploreData): KpiRow[] {
   const l = data.liveability;
-  const flag = (label: string, value: boolean | null, what: string, km: number, source: string, mapKind: MapKind): KpiRow | null =>
-    value == null
-      ? null
-      : onMap(categorical(
+  // A Yes shows where it is on the map (a small flag); a No shows nothing
+  // (2026-10-12, on request: no journey to one further away).
+  const flag = (label: string, value: boolean | null, what: string, km: number, source: string, mapKind: MapKind): KpiRow | null => {
+    if (value == null) return null;
+    const row = categorical(
           label,
           value ? "Yes" : "No",
           "pinned",
@@ -536,7 +542,9 @@ function presenceRows(data: CityExploreData): KpiRow[] {
             { tier: "poor", text: `No - none within ${km} km` },
           ],
           { definition: `Whether there is ${what} within ${km} km of the city centre.`, source }
-        ), mapKind);
+        );
+    return value ? onMap(row, mapKind, "pin") : row;
+  };
   const rows: (KpiRow | null)[] = [
     flag("Train station", l.hasTrainStation, "a railway station", 5, "GeoNames and Overture Maps", "train"),
     flag("Metro", l.hasSubway, "a metro or subway line or station", 5, "Overture Maps (OpenStreetMap rail lines) and GeoNames", "metro"),
