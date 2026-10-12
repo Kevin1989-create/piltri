@@ -130,7 +130,7 @@ export default function LeaderboardsPage() {
   const [table, setTable] = useState<PlaceTable | null>(null);
   const [columns, setColumns] = useState<Record<string, (i: number) => CriterionValue> | null>(null);
   const [failed, setFailed] = useState(false);
-  const [filters, setFilters] = useState<Filters>({ region: "world", size: "city", perCountry: 3 });
+  const [filters, setFilters] = useState<Filters>({ region: "world", size: "50k", perCountry: 3 });
 
   useEffect(() => {
     let cancelled = false;

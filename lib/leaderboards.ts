@@ -23,22 +23,24 @@ export type BoardKey =
   | "beachLife"
   | "familyFriendly";
 
-export type SizeKey = "all" | "big" | "city" | "town";
+export type SizeKey = "under10k" | "10k" | "50k" | "500k" | "all";
 
-export const SIZE_ORDER: SizeKey[] = ["city", "big", "town", "all"];
+/** Smallest to biggest, then everyone (2026-10-12, on request). */
+export const SIZE_ORDER: SizeKey[] = ["under10k", "10k", "50k", "500k", "all"];
 
 export const SIZE_LABELS: Record<SizeKey, string> = {
-  city: "Cities 50k+",
-  big: "Big cities 500k+",
-  town: "Towns under 50k",
-  all: "All places",
+  under10k: "Under 10k",
+  "10k": "10k+",
+  "50k": "50k+",
+  "500k": "500k+",
+  all: "All",
 };
 
-/** Who's in each size: cities 50k+ (big ones included), big cities 500k+,
- *  towns under 50k, or everyone. Population is in thousands, as in the
- *  Advanced search column. */
+/** Who's in each size: under 10k people, or at least 10k / 50k / 500k
+ *  (bigger places included), or everyone. Population is in thousands, as
+ *  in the Advanced search column. */
 const inSize = (size: SizeKey, populationK: number) =>
-  size === "all" ? true : size === "big" ? populationK >= 500 : size === "city" ? populationK >= 50 : populationK < 50;
+  size === "under10k" ? populationK < 10 : size === "10k" ? populationK >= 10 : size === "50k" ? populationK >= 50 : size === "500k" ? populationK >= 500 : true;
 
 interface BoardContext {
   table: PlaceTable;
