@@ -128,7 +128,7 @@ async function main() {
   // A town with no border of its own in the map data gets the outline of
   // its built-up area instead (drawn differently on the site).
   const withoutOutline = shortlist.flatMap((c, i) => (outlines[i] ? [] : [i]));
-  const builtUpList = await cached(`builtup-v1-${await resolveOvertureRelease()}-${pointsKey(shortlist)}`, () =>
+  const builtUpList = await cached(`builtup-v2-${await resolveOvertureRelease()}-${pointsKey(shortlist)}`, () =>
     sampleBuiltUp(shortlist.map((c) => ({ lat: c.lat, lng: c.lng, population: c.population })), withoutOutline)
   );
   log("build", `outlines: ${shortlist.length - withoutOutline.length} borders + ${builtUpList.filter(Boolean).length} built-up areas, of ${shortlist.length} cities`);

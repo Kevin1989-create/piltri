@@ -19,6 +19,12 @@ import { log, WORK_DIR } from "./util";
  * mass (a metropolis and its satellites), each cell goes to the town whose
  * pull is strongest - distance divided by the square root of population -
  * so a big city keeps its suburbs and a small town keeps its own centre.
+ *
+ * Solid shapes (2026-10-12, on request - London's was full of bites): only
+ * towns of comparable size compete for cells (RIVAL_SHARE), so the towns
+ * within a city don't carve it up; parks, lakes and reservoirs inside are
+ * part of it (every hole filled); and inlets - a park or reservoir wedge at
+ * the edge - are closed, the wider the bigger the city (solidify).
  */
 export const BUILTUP_SOURCE = "GHS-POP R2023A, 2025, 1 km grid (European Commission JRC, CC BY 4.0) - built-up extent";
 
@@ -35,6 +41,13 @@ const MIN_CENTRE_DENSITY = 150;
 const reachKm = (population: number) => Math.min(40, Math.max(2, 1.5 * Math.sqrt(population / (Math.PI * 1500))));
 /** A town's centre may be up to this far from its first built-up cell. */
 const SEED_KM = 1.5;
+/** Towns with less than this share of a town's population don't take
+ *  cells from it - they're within it (Croydon in London), and get their
+ *  own, smaller outline. */
+const RIVAL_SHARE = 0.1;
+/** Inlets narrower than twice this are closed: 12% of the radius of a disc
+ *  of the town's area, between 1 and 3 km (London: ~2.5 km). */
+const closeKm = (areaKm2: number) => Math.min(3, Math.max(1, 0.12 * Math.sqrt(areaKm2 / Math.PI)));
 
 export type Town = { lat: number; lng: number; population: number };
 
@@ -127,7 +140,7 @@ export async function sampleBuiltUp(towns: Town[], wanted: number[]): Promise<(E
       const threshold = Math.min(MAX_DENSITY, Math.max(Math.min(MIN_DENSITY, centre * 0.5), centre * 0.2));
 
       // Who pulls each cell: smallest distance / sqrt(population).
-      const rivals = townsNear(me.lat, me.lng, reach * 2 + 2).filter((i) => i !== wanted[k]);
+      const rivals = townsNear(me.lat, me.lng, reach * 2 + 2).filter((i) => i !== wanted[k] && towns[i].population >= me.population * RIVAL_SHARE);
       const mine = (r: number, c: number) => {
         const own = km(r, c, me) / Math.sqrt(Math.max(me.population, 1));
         for (const i of rivals) if (km(r, c, towns[i]) / Math.sqrt(Math.max(towns[i].population, 1)) < own) return false;
@@ -168,6 +181,14 @@ export async function sampleBuiltUp(towns: Town[], wanted: number[]): Promise<(E
             if (ok(nr, nc)) stack.push([nr, nc]);
           }
       }
+      // Solid: inlets closed and holes filled - but never over a rival's
+      // own built-up cells (a park between two towns is fair game, the
+      // next town's streets aren't).
+      const inWindow = (r: number, c: number) => r >= gy0 && r < gy1 && c >= gx0 && c < gx1;
+      const close = closeKm(cells.length * cellArea);
+      const filled = solidify(cells, close / CELL_KM, close / (CELL_KM * cosLat), (r, c) => !inWindow(r, c) || density(r, c) < threshold || mine(r, c));
+      cells.push(...filled);
+
       // Rows into runs.
       cells.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
       for (let i = 0; i < cells.length; ) {
@@ -183,8 +204,8 @@ export async function sampleBuiltUp(towns: Town[], wanted: number[]): Promise<(E
 
   // Cells to outlines: union of the row runs, one-cell gaps closed (grown
   // and shrunk by a third of a cell), the 1 km staircase straightened
-  // (simplified to half a cell), then corners rounded (smoothRing) and
-  // small holes dropped - a soft shape rather than a block of squares.
+  // (simplified to half a cell), then corners rounded (smoothRing) - a
+  // soft shape rather than a block of squares, and never a hole in it.
   const instance = await DuckDBInstance.create(":memory:", { memory_limit: "4GB", threads: "4" });
   const con = await instance.connect();
   await con.run("INSTALL spatial; LOAD spatial;");
@@ -208,20 +229,85 @@ export async function sampleBuiltUp(towns: Town[], wanted: number[]): Promise<(E
     if (!json) continue;
     const geom = JSON.parse(String(json)) as { type: string; coordinates: number[][][] | number[][][][] };
     const polygons = geom.type === "Polygon" ? [geom.coordinates as number[][][]] : geom.type === "MultiPolygon" ? (geom.coordinates as number[][][][]) : [];
-    const smooth = polygons.map(([outer, ...holes]) => [smoothRing(outer), ...holes.filter((h) => ringAreaKm2(h) >= MIN_HOLE_KM2).map(smoothRing)]);
+    const smooth = polygons.map(([outer]) => [smoothRing(outer)]);
     out[Number(k)] = encodeGeoJson(JSON.stringify({ type: "MultiPolygon", coordinates: smooth }));
   }
   return out;
 }
 
-/** Holes smaller than this (a park, a lake) are filled. */
-const MIN_HOLE_KM2 = 3;
-
-function ringAreaKm2(ring: number[][]): number {
-  let a = 0;
-  for (let i = 0; i < ring.length - 1; i++) a += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
-  const lat = ring[0]?.[1] ?? 0;
-  return (Math.abs(a) / 2) * 111.32 * 111.32 * Math.cos((lat * Math.PI) / 180);
+/** The cells a town's outline gains when made solid: a morphological
+ *  closing (grown, then shrunk, by an ellipse of radRows x radCols cells -
+ *  ~`closeKm` either way), which fills inlets narrower than the ellipse
+ *  without moving the rest of the edge, then every enclosed gap filled.
+ *  `canAdd` vetoes cells the closing may not take (the holes are filled
+ *  regardless: an outline has none). */
+export function solidify(cells: [number, number][], radRows: number, radCols: number, canAdd: (r: number, c: number) => boolean): [number, number][] {
+  if (!cells.length) return [];
+  const kr = Math.floor(radRows);
+  const kc = Math.floor(radCols);
+  const kernel: [number, number][] = [];
+  for (let a = -kr; a <= kr; a++)
+    for (let b = -kc; b <= kc; b++) if ((a / Math.max(radRows, 1e-9)) ** 2 + (b / Math.max(radCols, 1e-9)) ** 2 <= 1) kernel.push([a, b]);
+  const m = Math.max(kr, kc) + 2;
+  const r0 = Math.min(...cells.map(([r]) => r)) - m;
+  const c0 = Math.min(...cells.map(([, c]) => c)) - m;
+  const H = Math.max(...cells.map(([r]) => r)) - r0 + m + 1;
+  const W = Math.max(...cells.map(([, c]) => c)) - c0 + m + 1;
+  const at = (r: number, c: number) => r * W + c;
+  const own = new Uint8Array(H * W);
+  for (const [r, c] of cells) own[at(r - r0, c - c0)] = 1;
+  // Grow.
+  const grown = new Uint8Array(H * W);
+  for (const [r, c] of cells)
+    for (const [a, b] of kernel) {
+      const rr = r - r0 + a;
+      const cc = c - c0 + b;
+      if (rr >= 0 && rr < H && cc >= 0 && cc < W) grown[at(rr, cc)] = 1;
+    }
+  // Shrink: a cell stays if the whole ellipse around it is grown.
+  const shape = own.slice();
+  for (let r = 0; r < H; r++)
+    for (let c = 0; c < W; c++) {
+      if (!grown[at(r, c)] || own[at(r, c)]) continue;
+      let all = true;
+      for (const [a, b] of kernel) {
+        const rr = r + a;
+        const cc = c + b;
+        if (rr < 0 || rr >= H || cc < 0 || cc >= W || !grown[at(rr, cc)]) {
+          all = false;
+          break;
+        }
+      }
+      if (all && canAdd(r + r0, c + c0)) shape[at(r, c)] = 2;
+    }
+  // Fill holes: whatever outside can't reach (4-connected) is inside.
+  const outside = new Uint8Array(H * W);
+  const stack: number[] = [];
+  for (let r = 0; r < H; r++)
+    for (let c = 0; c < W; c++)
+      if ((r === 0 || c === 0 || r === H - 1 || c === W - 1) && !shape[at(r, c)]) {
+        outside[at(r, c)] = 1;
+        stack.push(at(r, c));
+      }
+  while (stack.length) {
+    const i = stack.pop()!;
+    const r = Math.floor(i / W);
+    const c = i % W;
+    for (const [nr, nc] of [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]) {
+      if (nr < 0 || nr >= H || nc < 0 || nc >= W) continue;
+      const j = at(nr, nc);
+      if (outside[j] || shape[j]) continue;
+      outside[j] = 1;
+      stack.push(j);
+    }
+  }
+  const added: [number, number][] = [];
+  for (let r = 0; r < H; r++)
+    for (let c = 0; c < W; c++) {
+      const i = at(r, c);
+      if (!own[i] && (shape[i] === 2 || !outside[i])) added.push([r + r0, c + c0]);
+    }
+  return added;
 }
 
 /** Chaikin corner cutting on a closed ring - 2 rounds, 3 for small rings

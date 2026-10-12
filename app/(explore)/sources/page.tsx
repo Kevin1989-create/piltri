@@ -160,10 +160,10 @@ export default function SourcesPage() {
                   <p>
                     <span className="font-medium text-ink-900">Dashed line: the built-up area (approximate).</span> Where the
                     open map data has no boundary for the town itself - common in India, China, Vietnam, Pakistan and South
-                    Africa, where only much larger districts are mapped - the outline shows where the town is actually built up:
-                    the continuous area around its centre with at least about 300 people per km² (up to 1,500 in dense
-                    cities), from a population grid of about 1 km squares. An estimate, not a legal border, accurate to about a
-                    kilometre.
+                    Africa, where only much larger districts are mapped, and in a few big cities such as London - the outline
+                    shows where the town is actually built up: the continuous area around its centre with at least about 300
+                    people per km² (up to 1,500 in dense cities), from a population grid of about 1 km squares, with the parks,
+                    lakes and open land it surrounds counted in. An estimate, not a legal border, accurate to about a kilometre.
                   </p>
                 </li>
                 <li className="flex gap-3 px-5 py-3">
