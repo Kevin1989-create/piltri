@@ -120,17 +120,25 @@ function Board({ boardKey, title, blurb, entries }: { boardKey: BoardKey; title:
  * every place - overall, safety, quality of life, economy, and six of a
  * kind (eternal spring, sun, clean air, internet, beach life, family) -
  * worked out in the browser from the same files as Advanced search
- * (lib/leaderboards.ts). Region and size filters; at most 3 per country by
- * default, so a ranking driven by country-level figures (safety, economy)
- * isn't one country's towns all tied at the top.
+ * (lib/leaderboards.ts). Region and size filters, and how many places a
+ * country may have on a board: 1 by default (2026-10-14, on request), so a
+ * ranking driven by country-level figures (safety, economy) isn't one
+ * country's towns all tied at the top - or 3, or any number.
  */
+
+/** How many places one country may have on a board (null: any number). */
+const PER_COUNTRY: { value: number | null; label: string }[] = [
+  { value: 1, label: "1 per country" },
+  { value: 3, label: "3 per country" },
+  { value: null, label: "Any number" },
+];
 export default function LeaderboardsPage() {
   const { weights } = useScoreWeights();
   const { prefs } = useUnitPreferences();
   const [table, setTable] = useState<PlaceTable | null>(null);
   const [columns, setColumns] = useState<Record<string, (i: number) => CriterionValue> | null>(null);
   const [failed, setFailed] = useState(false);
-  const [filters, setFilters] = useState<Filters>({ region: "world", size: "50k", perCountry: 3 });
+  const [filters, setFilters] = useState<Filters>({ region: "world", size: "50k", perCountry: 1 });
 
   useEffect(() => {
     let cancelled = false;
@@ -161,7 +169,7 @@ export default function LeaderboardsPage() {
           <h1 className="font-serif text-3xl sm:text-4xl text-ink-900 mt-2">Leaderboards</h1>
           <p className="text-sm text-ink-500 mt-1">The world&apos;s best places, ten ways.</p>
 
-          {/* Filters: region, size, one per country. */}
+          {/* Filters: region, size, places per country. */}
           <div className="mt-6 space-y-2.5">
             <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
               <Chip active={filters.region === "world"} onClick={() => setFilters((f) => ({ ...f, region: "world" }))}>
@@ -180,18 +188,13 @@ export default function LeaderboardsPage() {
                 </Chip>
               ))}
             </div>
-            <label className="w-fit flex items-center gap-2 text-xs text-ink-700 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={filters.perCountry != null}
-                onChange={(e) => {
-                  const capped = e.target.checked;
-                  setFilters((f) => ({ ...f, perCountry: capped ? 3 : null }));
-                }}
-                className="accent-piltri-amber"
-              />
-              At most 3 per country
-            </label>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
+              {PER_COUNTRY.map(({ value, label }) => (
+                <Chip key={label} active={filters.perCountry === value} onClick={() => setFilters((f) => ({ ...f, perCountry: value }))}>
+                  {label}
+                </Chip>
+              ))}
+            </div>
           </div>
 
           {/* Jump to a board - ten of them make a long page on a phone. */}
@@ -229,7 +232,7 @@ export default function LeaderboardsPage() {
 
           <p className="mt-8 text-xs text-ink-500 leading-relaxed">
             Rankings use Piltri&apos;s open data for {(table?.count ?? 0).toLocaleString("en-GB")} places, one per metro area.
-            Safety and economy are mostly measured country-wide, hence the limit of 3 per country by default, and only
+            Safety and economy are mostly measured country-wide, hence one place per country by default, and only
             countries with most of those figures are ranked. &quot;Best overall&quot; and &quot;Beach life&quot; use your
             score settings.
           </p>
