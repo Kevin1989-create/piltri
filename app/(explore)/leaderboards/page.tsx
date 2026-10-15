@@ -128,9 +128,9 @@ function Board({ boardKey, title, blurb, entries }: { boardKey: BoardKey; title:
 
 /** How many places one country may have on a board (null: any number). */
 const PER_COUNTRY: { value: number | null; label: string }[] = [
-  { value: 1, label: "1 per country" },
-  { value: 3, label: "3 per country" },
-  { value: null, label: "Any number" },
+  { value: 1, label: "At most 1 city per country" },
+  { value: 3, label: "At most 3 cities per country" },
+  { value: null, label: "No limit per country" },
 ];
 export default function LeaderboardsPage() {
   const { weights } = useScoreWeights();
