@@ -6,7 +6,6 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { driveMinutes, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
 import { autoCollapseAttribution } from "@/lib/mapAttribution";
 import { cn } from "@/lib/cn";
-import Link from "next/link";
 import { CloseIcon } from "@/components/ui/icons";
 import type { TravelTimes } from "@/lib/types";
 
@@ -34,10 +33,10 @@ function straightLineKm(a: { lat: number; lng: number }, b: { lat: number; lng: 
 export interface MapFocus {
   title: string;
   name: string;
-  detail: string;
   point: { lng: number; lat: number } | null;
-  /** "journey": a dashed line from the centre and a card with the
-   *  distance; "pin": just a small flag where it is, named. */
+  /** Both: a small flag where it is, named. "journey" adds the dashed line
+   *  from the centre (a distance figure - the figure itself already says
+   *  how far, so there's no card, 2026-10-14, on request). */
   style: "journey" | "pin";
 }
 
@@ -66,11 +65,6 @@ interface MapViewProps {
    *  has none, so the 5 km circle is drawn instead; undefined = still
    *  loading (nothing drawn yet, so the circle never flashes first). */
   outline?: GeoJSON.MultiPolygon | null;
-  /** The outline is the town's built-up area, not a border (towns with no
-   *  border in the map data): drawn dashed, with a note saying so. */
-  outlineIsBuiltUp?: boolean;
-  /** Where the built-up note links to: the explanation of the outlines. */
-  outlineInfoHref?: string;
   /** A click on the map while NOT in pickingDestination mode - drops/moves
    *  the main pin. Like onDestinationPick below, `name` carries a nearby
    *  labelled map feature's name (POI, transit stop, neighbourhood) when
@@ -125,6 +119,16 @@ interface MapViewProps {
 
 const FOCUS_SOURCE_ID = "piltri-focus";
 const AREA_SOURCE_ID = "piltri-research-area";
+/** Everything outside the place, gently veiled so the place stands out. */
+const MASK_SOURCE_ID = "piltri-area-mask";
+
+/** The world with the place cut out of it (each part's outer ring a hole). */
+function outsideOf(area: GeoJSON.Feature): GeoJSON.Feature {
+  const g = area.geometry;
+  const parts = g.type === "MultiPolygon" ? g.coordinates : g.type === "Polygon" ? [g.coordinates] : [];
+  const world = [[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]];
+  return { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [world, ...parts.map((rings) => rings[0])] } };
+}
 const ROUTE_SOURCE_ID = "piltri-route";
 // Fallback area when a city has no outline: the same 5 km radius the
 // dataset counts amenities in (pipeline/build.ts LOCAL_RADIUS_KM).
@@ -255,8 +259,6 @@ export function MapView({
   lng,
   zoom = 10,
   outline,
-  outlineIsBuiltUp = false,
-  outlineInfoHref,
   onMapClick,
   pinnedCoords,
   destinationCoords,
@@ -429,32 +431,42 @@ export function MapView({
       // shape (or, failing that, the circle). Pre-drawing the circle here
       // caused a visible flash of the old small circle before the real
       // boundary (or a correctly-sized fallback) replaced it.
+      // Every outline drawn alike (2026-10-14, on request) - an official
+      // boundary, a built-up area or the 5 km circle: the world outside
+      // gently veiled, a whisper of amber inside, and a crisp amber line on
+      // a soft white casing that reads on any part of the map.
+      map.addSource(MASK_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({
+        id: `${MASK_SOURCE_ID}-fill`,
+        type: "fill",
+        source: MASK_SOURCE_ID,
+        paint: { "fill-color": "#FAF7F2", "fill-opacity": 0.45 },
+      });
       map.addSource(AREA_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({
         id: `${AREA_SOURCE_ID}-fill`,
         type: "fill",
         source: AREA_SOURCE_ID,
-        paint: { "fill-color": "#E3B27A", "fill-opacity": 0.22 },
+        paint: { "fill-color": "#E3B27A", "fill-opacity": 0.1 },
       });
-      // A wider, semi-transparent white line underneath the main border acts
-      // as a halo so the border reads clearly against the Streets style's
-      // busy, colourful basemap (it barely showed up at the old thin/light
-      // settings tuned for the plainer Light style).
       map.addLayer({
         id: `${AREA_SOURCE_ID}-line-halo`,
         type: "line",
         source: AREA_SOURCE_ID,
-        paint: { "line-color": "#FFFFFF", "line-width": 5, "line-opacity": 0.7 },
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#FFFFFF", "line-width": 6, "line-opacity": 0.85, "line-blur": 1 },
       });
       map.addLayer({
         id: `${AREA_SOURCE_ID}-line`,
         type: "line",
         source: AREA_SOURCE_ID,
-        paint: { "line-color": "#96600F", "line-width": 3, "line-opacity": 0.95 },
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#96600F", "line-width": 2.25, "line-opacity": 1 },
       });
 
-      // A figure's place ("nearest beach") and the line to it from the
-      // centre - empty until one is shown (see the focus effect below).
+      // The line from the centre to a distance figure's place ("nearest
+      // beach") - empty until one is shown (see the focus effect below);
+      // the place itself is a flag marker.
       map.addSource(FOCUS_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({
         id: `${FOCUS_SOURCE_ID}-line`,
@@ -463,13 +475,6 @@ export function MapView({
         filter: ["==", ["geometry-type"], "LineString"],
         layout: { "line-cap": "round" },
         paint: { "line-color": "#1E1A16", "line-width": 2.5, "line-opacity": 0.75, "line-dasharray": [1.5, 1.5] },
-      });
-      map.addLayer({
-        id: `${FOCUS_SOURCE_ID}-point`,
-        type: "circle",
-        source: FOCUS_SOURCE_ID,
-        filter: ["==", ["geometry-type"], "Point"],
-        paint: { "circle-radius": 7, "circle-color": "#BA7517", "circle-stroke-color": "#FFFFFF", "circle-stroke-width": 2.5 },
       });
 
       // Directions route line - empty until both a main pin and a
@@ -538,15 +543,17 @@ export function MapView({
     function applyArea() {
       if (!map || cancelled) return;
       const source = map.getSource(AREA_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+      const mask = map.getSource(MASK_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
       if (outline === undefined) {
         source?.setData({ type: "FeatureCollection", features: [] });
+        mask?.setData({ type: "FeatureCollection", features: [] });
         return;
       }
       const area: GeoJSON.Feature = outline
         ? { type: "Feature", geometry: outline, properties: {} }
         : circlePolygon(lat, lng, AREA_RADIUS_KM);
       source?.setData(area as any);
-      map.setPaintProperty(`${AREA_SOURCE_ID}-line`, "line-dasharray", outline && outlineIsBuiltUp ? [2, 1.5] : [1, 0]);
+      mask?.setData(outsideOf(area) as any);
       const bounds = new maplibregl.LngLatBounds();
       const rings = area.geometry.type === "MultiPolygon" ? area.geometry.coordinates.flat() : (area.geometry as GeoJSON.Polygon).coordinates;
       for (const ring of rings) for (const coord of ring) bounds.extend(coord as [number, number]);
@@ -570,7 +577,7 @@ export function MapView({
     return () => {
       cancelled = true;
     };
-  }, [lat, lng, zoom, compact, outline, outlineIsBuiltUp]);
+  }, [lat, lng, zoom, compact, outline]);
 
   // Show/hide the dropped pin marker — persists correctly now that MapView
   // is never remounted when pin mode toggles. Also zooms in on the pinned
@@ -736,8 +743,8 @@ export function MapView({
         map.fitBounds(flagView(areaBoundsRef.current, current), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration });
       } else if (current) {
         const bounds = new maplibregl.LngLatBounds([lng, lat], [lng, lat]).extend([current.lng, current.lat]);
-        // Room for the card above (on phones it spans the top).
-        map.fitBounds(bounds, { padding: framePadding(map, compact ? 90 : 40), maxZoom: 15, duration });
+        // Room for the chip above and the flag's name beside it.
+        map.fitBounds(bounds, { padding: framePadding(map, compact ? 50 : 20, FLAG_LABEL_PX), maxZoom: 15, duration });
       } else if (areaBoundsRef.current) {
         map.fitBounds(areaBoundsRef.current, { padding: framePadding(map), duration });
       }
@@ -748,7 +755,7 @@ export function MapView({
       const point = focus?.point;
       flagRef.current?.remove();
       flagRef.current = null;
-      if (point && focus?.style === "pin") {
+      if (point && focus) {
         // Pole's foot on the place: the element is anchored bottom-left,
         // and the pole stands 2 px in from its left edge.
         flagRef.current = new maplibregl.Marker({ element: createFlagElement(focus.name), anchor: "bottom-left", offset: [-2, 0] })
@@ -757,11 +764,8 @@ export function MapView({
       }
       source.setData({
         type: "FeatureCollection",
-        features: point && focus?.style !== "pin"
-          ? [
-              { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[lng, lat], [point.lng, point.lat]] } },
-              { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [point.lng, point.lat] } },
-            ]
+        features: point && focus?.style === "journey"
+          ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[lng, lat], [point.lng, point.lat]] } }]
           : [],
       } as any);
       frame();
@@ -780,50 +784,17 @@ export function MapView({
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
-      {focus?.style === "pin" && focus.point ? (
-        // Just the flag on the map; this chip says what it is and closes it.
+      {focus && (
+        // What's shown (the flag carries its name) - and the way to close it.
         <div className={cn("absolute z-10 rounded-pill bg-surface shadow-card flex items-center gap-1 pl-3 pr-1 py-1", compact ? "top-3 left-3" : "top-4 right-14")}>
-          <span className="text-xs font-medium text-ink-900">{focus.title}</span>
+          <span className="text-xs font-medium text-ink-900">
+            {focus.title}
+            {!focus.point && <span className="font-normal text-ink-500"> · none found nearby</span>}
+          </span>
           <button type="button" aria-label="Close" onClick={onCloseFocus} className="p-1 rounded-full text-ink-500 hover:text-ink-900">
             <CloseIcon className="w-3.5 h-3.5" />
           </button>
         </div>
-      ) : focus && (
-        <div
-          className={cn(
-            "absolute z-10 rounded-card bg-surface shadow-card px-4 py-3 pr-10",
-            compact ? "top-3 left-3 right-3" : "top-4 right-14 w-72"
-          )}
-        >
-          <p className="text-[10px] font-medium uppercase tracking-wide text-ink-500">{focus.title}</p>
-          <p className="text-sm font-medium text-ink-900 leading-snug mt-0.5">{focus.name}</p>
-          {focus.detail && <p className="text-xs text-ink-700 mt-0.5">{focus.detail}</p>}
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onCloseFocus}
-            className="absolute top-2 right-2 p-1.5 rounded text-ink-500 hover:text-ink-900"
-          >
-            <CloseIcon className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-      {outline && outlineIsBuiltUp && !(compact && focus) && (
-        // At the top on the small phone map, where the attribution line takes
-        // the bottom. Links to what the outlines mean (Data & Sources).
-        <Link
-          href={outlineInfoHref ?? "/sources#map-outlines"}
-          title="What the outlines on the map mean"
-          className={cn(
-            "absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-pill bg-surface/90 shadow-card text-ink-700 text-[11px] px-3 py-1 whitespace-nowrap hover:text-ink-900",
-            compact ? "top-4" : "bottom-4"
-          )}
-        >
-          Dashed outline: built-up area (approximate)
-          <span className="inline-flex items-center justify-center w-3 h-3 rounded-full border border-ink-300 text-ink-500 text-[8px] font-semibold leading-none">
-            i
-          </span>
-        </Link>
       )}
       {pickingDestination && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 rounded-pill bg-ink-900/80 text-white text-xs px-4 py-2">

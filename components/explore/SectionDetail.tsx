@@ -4,7 +4,6 @@ import { useRef } from "react";
 import { ClimateChart } from "@/components/explore/ClimateChart";
 import { KpiInfoButton, type KpiInfoHandle } from "@/components/explore/KpiInfo";
 import { useShowOnMap } from "@/components/explore/ShowOnMap";
-import { PrecisionPinnedIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/cn";
 import { borrowedFiguresFrom, buildKpiRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { useUnitPreferences } from "@/lib/unitPreferences";
@@ -29,7 +28,10 @@ function StatCell({ row }: { row: KpiRow }) {
     >
       <div className="min-w-0 flex-1">
         <p className={cn("text-xs font-medium leading-tight break-words", row.colorClass ?? "text-ink-900")}>
-          {row.value}
+          {/* On the map: the value itself reads as a link - dotted underline,
+           *  solid on hover (2026-10-14, on request: on the result, not the
+           *  title). */}
+          <span className={cn(mappable && "underline decoration-dotted decoration-1 underline-offset-[3px] group-hover:decoration-solid")}>{row.value}</span>
           {/* The space lets a long suffix drop to its own line whole. */}
           {row.valueSuffix && (
             <>
@@ -38,10 +40,7 @@ function StatCell({ row }: { row: KpiRow }) {
             </>
           )}
         </p>
-        <p className={cn("text-[10px] text-ink-500 leading-tight break-words", mappable && "group-hover:text-piltri-amber-dark")}>
-          {mappable && <PrecisionPinnedIcon className="inline-block w-2.5 h-2.5 mr-0.5 -mt-px text-piltri-amber" />}
-          {row.label}
-        </p>
+        <p className="text-[10px] text-ink-500 leading-tight break-words">{row.label}</p>
       </div>
       <KpiInfoButton ref={info} row={row} className="mt-px" />
     </div>

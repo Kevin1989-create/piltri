@@ -17,8 +17,10 @@ const nextConfig = {
       "/search/results": "/search",
       "/explore/country-report": "/country",
       "/explore/settings": "/settings",
-      "/explore/score-settings": "/score-settings",
-      "/explore/weights": "/score-settings",
+      "/explore/score-settings": "/settings",
+      "/explore/weights": "/settings",
+      // Score settings are part of Settings since 2026-10-14.
+      "/score-settings": "/settings",
       "/explore/sources": "/sources",
     };
     return Object.entries(moved).map(([source, destination]) => ({ source, destination, permanent: true }));

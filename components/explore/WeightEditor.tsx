@@ -11,7 +11,7 @@ interface WeightEditorProps {
   onChange: (weights: Record<SectionKey, number>) => void;
 }
 
-/** "% weight per section" control on /score-settings, as rows of a
+/** "% weight per section" control on /settings, as rows of a
  *  SettingsSection (plus a Total row). Values are
  *  whole percentages that can't add up to more than 100.
  *

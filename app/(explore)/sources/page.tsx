@@ -46,24 +46,14 @@ const GROUPS: { title: string; sources: Record<string, string> }[] = [
   },
 ];
 
-/** A short sample of each kind of outline the city map draws, in its
- *  colours: an official boundary (solid), a built-up area (dashed), the
- *  5 km circle. */
-function OutlineSample({ kind }: { kind: "border" | "builtUp" | "circle" }) {
+/** A sample of the city map's outline, in its colours - every outline is
+ *  drawn this way, whatever it comes from. */
+function OutlineSample() {
   return (
     <svg viewBox="0 0 40 24" className="w-10 h-6 flex-shrink-0 mt-0.5" aria-hidden>
-      {kind === "circle" ? (
-        <circle cx="20" cy="12" r="9.5" fill="#E3B27A" fillOpacity="0.22" stroke="#96600F" strokeWidth="2" />
-      ) : (
-        <path
-          d="M4 15 C 8 5, 15 4, 20 7 S 32 3, 36 10 S 30 21, 20 19 S 6 21, 4 15 Z"
-          fill="#E3B27A"
-          fillOpacity="0.22"
-          stroke="#96600F"
-          strokeWidth="2"
-          strokeDasharray={kind === "builtUp" ? "4 3" : undefined}
-        />
-      )}
+      <rect width="40" height="24" rx="4" fill="#EDE7DC" />
+      <path d="M4 15 C 8 5, 15 4, 20 7 S 32 3, 36 10 S 30 21, 20 19 S 6 21, 4 15 Z" fill="#FBF3E8" stroke="#FFFFFF" strokeWidth="4" strokeLinejoin="round" />
+      <path d="M4 15 C 8 5, 15 4, 20 7 S 32 3, 36 10 S 30 21, 20 19 S 6 21, 4 15 Z" fill="none" stroke="#96600F" strokeWidth="1.6" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -143,37 +133,33 @@ export default function SourcesPage() {
               </ul>
             </Section>
 
-            {/* The map's outlines aren't all borders (2026-10-01, on request:
-             *  "make sure there isn't any confusion"); the map's note on a
-             *  built-up area links here. */}
+            {/* Where the map's outline comes from. Every outline looks the same on
+             *  the map (2026-10-14, on request); this says what each one is. */}
             <Section id="map-outlines" title="Outlines on the map">
-              <ul className="divide-y divide-surface-border text-sm text-ink-700 leading-relaxed">
-                <li className="flex gap-3 px-5 py-3">
-                  <OutlineSample kind="border" />
-                  <p>
-                    <span className="font-medium text-ink-900">Solid line: the official boundary.</span> The town&apos;s
-                    administrative boundary, from OpenStreetMap via Overture Maps.
-                  </p>
-                </li>
-                <li className="flex gap-3 px-5 py-3">
-                  <OutlineSample kind="builtUp" />
-                  <p>
-                    <span className="font-medium text-ink-900">Dashed line: the built-up area (approximate).</span> Where the
-                    open map data has no boundary for the town itself - common in India, China, Vietnam, Pakistan and South
-                    Africa, where only much larger districts are mapped, and in a few big cities such as London - the outline
-                    shows where the town is actually built up: the continuous area around its centre with at least about 300
-                    people per km² (up to 1,500 in dense cities), from a population grid of about 1 km squares, with the parks,
-                    lakes and open land it surrounds counted in. An estimate, not a legal border, accurate to about a kilometre.
-                  </p>
-                </li>
-                <li className="flex gap-3 px-5 py-3">
-                  <OutlineSample kind="circle" />
-                  <p>
-                    <span className="font-medium text-ink-900">Circle: 5 km around the centre.</span> For very sparse places,
-                    where neither is available.
-                  </p>
-                </li>
-              </ul>
+              <div className="flex gap-3 px-5 py-4 text-sm text-ink-700 leading-relaxed">
+                <OutlineSample />
+                <div className="space-y-2">
+                  <p>Every place gets one outline, drawn the same way. It comes from, in order:</p>
+                  <ol className="list-decimal pl-4 space-y-1.5">
+                    <li>
+                      <span className="font-medium text-ink-900">The official boundary</span> - the town&apos;s
+                      administrative boundary, from OpenStreetMap via Overture Maps.
+                    </li>
+                    <li>
+                      <span className="font-medium text-ink-900">The built-up area</span>, where the open map data has no
+                      boundary for the town itself - common in India, China, Vietnam, Pakistan and South Africa, where only
+                      much larger districts are mapped, and in a few big cities such as London: the continuous area around its
+                      centre with at least about 300 people per km² (up to 1,500 in dense cities), from a population grid of
+                      about 1 km squares, with the parks, lakes and open land it surrounds counted in. An estimate, accurate
+                      to about a kilometre.
+                    </li>
+                    <li>
+                      <span className="font-medium text-ink-900">5 km around the centre</span>, for very sparse places where
+                      neither is available.
+                    </li>
+                  </ol>
+                </div>
+              </div>
             </Section>
 
             {GROUPS.map((group) => {

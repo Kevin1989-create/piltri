@@ -524,8 +524,9 @@ export function splitKpiRowsByTier(rows: KpiRow[]): { countryRows: KpiRow[]; cit
   };
 }
 
-/** Transport, education and care presence within 5 km of the centre (40 km
- *  for airports), from Overture Maps / OpenStreetMap and GeoNames. */
+/** Transport, education and care presence within 5 km of the centre (10 km
+ *  for ports), from Overture Maps / OpenStreetMap and GeoNames. Airports sit
+ *  outside towns, so they get their distance only (Nearest airport). */
 function presenceRows(data: CityExploreData): KpiRow[] {
   const l = data.liveability;
   // A Yes shows where it is on the map (a small flag); a No shows nothing
@@ -549,7 +550,6 @@ function presenceRows(data: CityExploreData): KpiRow[] {
     flag("Train station", l.hasTrainStation, "a railway station", 5, "GeoNames and Overture Maps", "train"),
     flag("Metro", l.hasSubway, "a metro or subway line or station", 5, "Overture Maps (OpenStreetMap rail lines) and GeoNames", "metro"),
     flag("Tram / light rail", l.hasTramway, "tram or light rail track", 5, "Overture Maps (OpenStreetMap rail lines)", "tram"),
-    flag("Airport", l.hasAirport, "an airport", 40, "GeoNames", "airport"),
     flag("Bus station", l.hasBusStation, "a bus station", 5, "GeoNames and Overture Maps", "bus"),
     flag("Port / ferry", l.hasPort, "a sea or river port, or a ferry terminal,", 10, "GeoNames", "port"),
     flag("Nursery / day care", l.hasNursery, "a nursery, day care or preschool", 5, OVERTURE, "nursery"),

@@ -6,7 +6,7 @@ import { PiltriScoreDisplay } from "@/components/ui/ScoreBadge";
 import { EyeIcon, PlusIcon } from "@/components/ui/icons";
 import { isCustomWeights } from "@/lib/scoreWeights";
 import { formatUtcOffset } from "@/lib/timezone";
-import { scoreSettingsUrl } from "@/lib/urls";
+import { SETTINGS_URL } from "@/lib/urls";
 import { formatAreaKm2Compact, formatDensityPerKm2, useUnitPreferences } from "@/lib/unitPreferences";
 import type { DemographicsFields, SectionKey } from "@/lib/types";
 
@@ -31,14 +31,14 @@ interface CityHeaderProps {
   reportHref?: string;
   /** Current section weights (whole percentages) driving `piltriScore`, used
    *  only to show the "(custom)" label when they differ from default.
-   *  Editing lives solely on /score-settings now — kept out of this page
+   *  Editing lives solely on /settings now — kept out of this page
    *  to avoid the confusion of a per-city-looking control that's actually a
    *  global, shared preference. Optional so CityHeader can still be used
    *  read-only (e.g. inside a Compare column) without this label. */
   weights?: Record<SectionKey, number>;
-  /** Where "manage weights" goes - the results page passes a link that
-   *  carries this city along, so Score settings can offer a way back to it. */
-  scoreSettingsHref?: string;
+  /** Where "manage weights" goes (Settings) - the results page passes a
+   *  link that carries this city along, so Settings can offer a way back. */
+  settingsHref?: string;
   /** World rank at the default weighting (see CityExploreData.ranks) -
    *  hidden when custom weights are active, since the rank was computed
    *  for the default score, not the customised one. */
@@ -101,7 +101,7 @@ export function CityHeader({
   compareHref,
   reportHref,
   weights,
-  scoreSettingsHref = scoreSettingsUrl(),
+  settingsHref = SETTINGS_URL,
   rank,
 }: CityHeaderProps) {
   const isCustomised = weights != null && isCustomWeights(weights);
@@ -300,7 +300,7 @@ export function CityHeader({
       {isCustomised && (
         <p className="mt-1.5 text-[11px] text-ink-500">
           Using a custom weighting —{" "}
-          <Link href={scoreSettingsHref} className="underline underline-offset-2 hover:text-piltri-amber">
+          <Link href={settingsHref} className="underline underline-offset-2 hover:text-piltri-amber">
             manage weights
           </Link>
         </p>

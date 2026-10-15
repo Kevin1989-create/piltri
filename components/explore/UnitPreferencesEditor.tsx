@@ -21,8 +21,8 @@ const TEMPERATURE_OPTIONS: TemperatureUnit[] = ["C", "F"];
 const DISTANCE_OPTIONS: DistanceUnit[] = ["metric", "imperial"];
 
 /** Currency / temperature / distance display-unit picker — saved
- *  automatically, same pattern as the score-weight sliders on
- *  /score-settings; shown on the /settings page, as rows of a
+ *  automatically, same pattern as the score-weight sliders beside it
+ *  on the /settings page, as rows of a
  *  SettingsSection. Only changes how values are *shown*; see
  *  lib/unitPreferences.ts for the disclosed limitation around Advanced
  *  search's filter inputs, which stay in the base units (GBP/°C/km²). */

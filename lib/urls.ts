@@ -12,12 +12,13 @@
  *   /search                Advanced search; its choices ride along, e.g.
  *                          /search?region=europe&near=beach,train&sort=safety
  *   /country?code=FR       a country's full data (from Advanced search)
- *   /settings              units and language
- *   /score-settings        section weights
+ *   /settings              score weighting, units and language (Score
+ *                          settings merged in, 2026-10-14; /score-settings
+ *                          redirects here)
  *   /sources               data sources
  *   /leaderboards          top places, ten ways
  *
- * `from=<city id>` on Advanced search, Leaderboards, Score settings and Sources is only
+ * `from=<city id>` on Advanced search, Leaderboards, Settings and Sources is only
  * there so their Back link can return to that city.
  */
 
@@ -35,7 +36,7 @@ export const cityUrl = (id: string) => withQuery("/city", { id });
 export const reportUrl = (id: string) => withQuery("/report", { id });
 export const countryUrl = (code: string) => withQuery("/country", { code });
 export const searchUrl = (from?: string | null) => withQuery("/search", { from });
-export const scoreSettingsUrl = (from?: string | null) => withQuery("/score-settings", { from });
+export const settingsUrl = (from?: string | null) => withQuery(SETTINGS_URL, { from });
 export const sourcesUrl = (from?: string | null) => withQuery("/sources", { from });
 export const leaderboardsUrl = (from?: string | null) => withQuery("/leaderboards", { from });
 

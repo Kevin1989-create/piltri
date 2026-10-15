@@ -21,15 +21,13 @@ import { PinPanel } from "@/components/explore/PinPanel";
 import { ShowOnMapContext } from "@/components/explore/ShowOnMap";
 import type { MapFocus } from "@/components/explore/MapView";
 import type { KpiRow, MapKind } from "@/lib/kpiRows";
-import { driveMinutes, formatDriveTime } from "@/lib/dataset/assemble";
-import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/cn";
 import { getCityBoundary, getCityExploreData, getCityNearby, getCountries, hasNearbyData, type CityOutline } from "@/lib/dataset/cities";
 import { cityIdFor } from "@/lib/dataset/schema";
-import { cityUrl, compareUrl, readCityRef, reportUrl, scoreSettingsUrl, sourcesUrl } from "@/lib/urls";
+import { cityUrl, compareUrl, readCityRef, reportUrl, settingsUrl } from "@/lib/urls";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
 /** Pin mode (click the map for local details and directions) - switched
@@ -67,12 +65,6 @@ const MAP_TITLES: Record<MapKind, string> = {
 /** For places the data has no name for. */
 const UNNAMED: Partial<Record<MapKind, string>> = { metro: "Metro line", tram: "Tram line", beach: "Sea coast", forest: "Forest" };
 
-function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const rad = Math.PI / 180;
-  const h = Math.sin(((b.lat - a.lat) * rad) / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(((b.lng - a.lng) * rad) / 2) ** 2;
-  return 2 * 6371 * Math.asin(Math.sqrt(h));
-}
-
 function CityContent() {
   const params = useSearchParams();
   const router = useRouter();
@@ -93,8 +85,8 @@ function CityContent() {
   // PDF via the browser's own print dialog rather than a bespoke PDF
   // pipeline in the app itself.
   const reportHref = reportUrl(cityId);
-  // `from` lets Score settings offer a way back to this city.
-  const scoreSettingsHref = scoreSettingsUrl(cityId);
+  // `from` lets Settings offer a way back to this city.
+  const settingsHref = settingsUrl(cityId);
 
   const [data, setData] = useState<CityExploreData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -141,7 +133,7 @@ function CityContent() {
   const [openSectionKey, setOpenSectionKey] = useState<OpenSectionKey | null>(null);
   // Persisted, shared preference (lib/scoreWeights.ts) — same weighting
   // applies here, in Discover mode's ranking, and on every other city you
-  // look at. Read-only here: editing lives on /score-settings only, to
+  // look at. Read-only here: editing lives on /settings only, to
   // keep it clear this is a global setting, not a per-city control.
   const { weights } = useScoreWeights();
   // Below `md`, the floating map-overlay layout (score column pinned over
@@ -162,11 +154,10 @@ function CityContent() {
   // request).
   const sectionView = !isDesktop && openSectionKey !== null;
 
-  // A Yes/No or distance figure's place, shown on the map (2026-10-10, on
-  // request): its point, a dashed line from the centre, a card with its
-  // name and distance. On phones the map opens full screen for it (the
-  // section view hides the map), with the card's cross to close.
-  const { prefs } = useUnitPreferences();
+  // A Yes or distance figure's place, shown on the map (2026-10-10, on
+  // request): a small flag with its name, and for a distance the dashed
+  // line from the centre. On phones the map opens full screen for it (the
+  // section view hides the map), with the chip's cross to close.
   const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
   const [mapFullScreen, setMapFullScreen] = useState(false);
   const closeMapFocus = useCallback(() => {
@@ -185,25 +176,17 @@ function CityContent() {
         const found = (await getCityNearby(data.countryCode, data.cityId).catch(() => null))?.[kind];
         if (found) point = { lng: found[0], lat: found[1], name: found[2] };
       }
-      let detail = "";
-      if (point) {
-        const km = haversineKm(data, point);
-        // Walking for the short ones (5 km/h on roads ~30% longer).
-        const minutes = km <= 2 ? Math.max(1, Math.round(((km * 1.3) / 5) * 60)) : driveMinutes(km);
-        detail = `${formatDistanceKm(km, prefs)} from the centre${minutes ? ` · ~${formatDriveTime(minutes)} ${km <= 2 ? "on foot" : "by car"}` : ""}`;
-      }
       setMapFocus({
         // A Yes is named as the figure ("Train station"), a distance as what
         // it measures to ("Nearest train station").
         title: row.mapStyle === "pin" ? row.label : MAP_TITLES[kind],
         name: point ? point.name || UNNAMED[kind] || "Unnamed" : "None found nearby",
-        detail,
         point: point ? { lng: point.lng, lat: point.lat } : null,
         style: row.mapStyle ?? "journey",
       });
       if (!isDesktop) setMapFullScreen(true);
     },
-    [data, isDesktop, prefs]
+    [data, isDesktop]
   );
   // A new place, or the phone layout changing, clears it.
   useEffect(() => closeMapFocus(), [data?.cityId, isDesktop, closeMapFocus]);
@@ -393,8 +376,8 @@ function CityContent() {
               <span className="text-[11px] text-ink-300 whitespace-nowrap">
                 Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })}
               </span>
-              <Link href={scoreSettingsHref} className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap" title="How much each section counts in the Piltri score">
-                Score settings
+              <Link href={settingsHref} className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap" title="Score weighting, units and language">
+                Settings
               </Link>
             </div>
           )
@@ -432,8 +415,6 @@ function CityContent() {
                 lat={center.lat}
                 lng={center.lng}
                 outline={outline === undefined ? undefined : outline?.geometry ?? null}
-                outlineIsBuiltUp={outline?.builtUp ?? false}
-                outlineInfoHref={`${sourcesUrl(cityId)}#map-outlines`}
                 onMapClick={PIN_MODE ? handleMapClick : undefined}
                 pinnedCoords={pin}
                 destinationCoords={destination}
@@ -487,7 +468,7 @@ function CityContent() {
                   demographics={data.demographics}
                   compareHref={compareHref}
                   reportHref={reportHref}
-                  scoreSettingsHref={scoreSettingsHref}
+                  settingsHref={settingsHref}
                   weights={weights}
                   rank={data.ranks ? { position: data.ranks.piltri, outOf: data.ranks.outOf } : undefined}
                 />
