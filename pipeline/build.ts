@@ -10,16 +10,16 @@ import { LANGUAGES_SOURCE } from "./sources/languages";
 import { BOUNDARY_SOURCE, sampleBoundaries } from "./boundaries";
 import { BUILTUP_SOURCE, sampleBuiltUp } from "./builtup";
 import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M, type PointSet } from "./geonames";
-import { loadCoastlinePoints, loadEarthquakes, loadLakeShorePoints } from "./hazards";
-import { countNearCities, nearestNearCities } from "./nearCities";
+import { loadAllLakeShorePoints, loadCoastlinePoints, loadEarthquakes, loadRiverPoints } from "./hazards";
+import { countNearCities, nearestFewNearCities, nearestNearCities } from "./nearCities";
 import { writeDataset } from "./output";
-import { extractOverturePlaces, extractOvertureRail, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
+import { extractOvertureBeaches, extractOverturePlaces, extractOvertureRail, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
 import { POPULATION_SOURCE, sampleDensity } from "./population";
 import { KOPPEN_SOURCE, sampleKoppen } from "./koppenMap";
 import { loadShortlist } from "./shortlist";
 import { sampleUvIndex } from "./uv";
 import { cached, log, OUT_DIR, pointsKey, round } from "./util";
-import { sampleClimate } from "./worldclim";
+import { openWaterNear, sampleClimate } from "./worldclim";
 
 const LOCAL_RADIUS_KM = 5;
 const AIRPORT_RADIUS_KM = 40; // airports sit well outside city centres
@@ -30,7 +30,19 @@ const NEARBY_OVERTURE_KM = 10;
 const NEARBY_MAX_KM = 500;
 const EARTHQUAKE_RADIUS_KM = 200;
 const LARGE_CITY_POPULATION = 500_000;
-const BEACH_SHORE_KM = 2;
+/** A beach counts as a sea beach within this of the sea coast, a lake beach
+ *  within this of a lake shore - and as neither (a river or estuary bank)
+ *  within RIVER_CLEAR_KM of a major river (2026-10-14, on request: river
+ *  beaches were being shown as "the beach"). */
+const BEACH_SHORE_KM = 1;
+const RIVER_CLEAR_KM = 1;
+/** Lake beaches further than this aren't shown. */
+const LAKE_BEACH_MAX_KM = 100;
+/** A Yes figure's places on the city map: up to this many within its
+ *  radius, nearest first, one per spot (points closer than DUP_KM are the
+ *  same place from two sources). */
+const MAX_FLAGS = 6;
+const DUP_KM = 0.15;
 const SMALL_COUNTRY_KM2 = 10_000;
 const GHOST_MAX_PEOPLE = 1000;
 
@@ -133,7 +145,13 @@ async function main() {
   );
   log("build", `outlines: ${shortlist.length - withoutOutline.length} borders + ${builtUpList.filter(Boolean).length} built-up areas, of ${shortlist.length} cities`);
 
-  const [gn, coast, lakeShores, quakes] = await Promise.all([extractGeoNamesFeatures(), loadCoastlinePoints(), loadLakeShorePoints(), loadEarthquakes()]);
+  const [gn, coast, lakeShores, rivers, quakes] = await Promise.all([
+    extractGeoNamesFeatures(),
+    loadCoastlinePoints(),
+    loadAllLakeShorePoints(),
+    loadRiverPoints(),
+    loadEarthquakes(),
+  ]);
   const climate = await sampleClimate(points);
   const koppen = await sampleKoppen(points);
   const uv = await sampleUvIndex(points);
@@ -164,6 +182,14 @@ async function main() {
   const counts = await countNearCities(`SELECT cat, lat, lng FROM read_parquet('${placesGlob}') WHERE cat IN (${counted.join(",")})`, points, LOCAL_RADIUS_KM);
   const ovCount = (i: number, cat: number) => counts.get(i)?.get(cat) ?? 0;
   const ovTrain = await loadOvertureCategory(placesGlob, POI.train, true);
+  // Up to MAX_FLAGS nearest of the kinds Overture covers best, within 5 km
+  // - where a Yes figure's places are, on the city map.
+  const ovFew = await nearestFewNearCities(
+    `SELECT cat, lat, lng, name FROM read_parquet('${placesGlob}') WHERE cat IN (${[POI.school, POI.university, POI.bus, POI.nursery, POI.careHome].join(",")})`,
+    points,
+    LOCAL_RADIUS_KM,
+    MAX_FLAGS * 2
+  );
   // The nearest named place of the kinds Overture covers best, for the
   // city map ("nearest nursery: ..." - see nearbyOf below).
   const ovNearest = await nearestNearCities(
@@ -178,19 +204,35 @@ async function main() {
   log("build", "indexing...");
   const trainPoints = mergePoints(gn.rail, ovTrain);
   const large = shortlist.filter((c) => c.population >= LARGE_CITY_POPULATION);
-  // GeoNames "beaches" include river bathing spots, reservoirs and even
-  // swimming pools - only those on the sea or a large lake count.
+  // Beaches: GeoNames' and OpenStreetMap's (Overture), sorted by the water
+  // they're on. A sea beach is near the sea coast, a lake beach near a lake
+  // shore - and a "beach" near a major river is a river or estuary bank,
+  // neither (GeoNames' also include bathing spots and pools).
   const coastIdx = buildIndex(coast);
   const lakeIdx = buildIndex(lakeShores);
-  const beaches = filterPoints(gn.beach, (lng, lat) =>
-    (nearest(coastIdx, lng, lat)?.km ?? Infinity) <= BEACH_SHORE_KM || (nearest(lakeIdx, lng, lat)?.km ?? Infinity) <= BEACH_SHORE_KM
+  const riverIdx = buildIndex(rivers);
+  const ovBeaches = await loadOvertureCategory((await extractOvertureBeaches()).glob, "beach", true);
+  const allBeaches = mergePoints(gn.beach, ovBeaches) as PointSet;
+  const onRiver = (lng: number, lat: number) => anyWithin(riverIdx, lng, lat, RIVER_CLEAR_KM);
+  const onCoast = (lng: number, lat: number) => anyWithin(coastIdx, lng, lat, BEACH_SHORE_KM);
+  // A sea beach also needs open water beside it: the coastline follows
+  // estuaries far inland (see openWaterNear).
+  const seaCandidates = filterPoints(allBeaches, (lng, lat) => onCoast(lng, lat) && !onRiver(lng, lat));
+  const open = await openWaterNear(Array.from(seaCandidates.lng, (lng, k) => ({ lng, lat: seaCandidates.lat[k] })));
+  let k = 0;
+  const beaches = filterPoints(seaCandidates, () => open[k++]);
+  const lakeBeaches = filterPoints(
+    allBeaches,
+    (lng, lat) => !onCoast(lng, lat) && anyWithin(lakeIdx, lng, lat, BEACH_SHORE_KM) && !onRiver(lng, lat)
   );
-  log("build", `beaches on the sea or a large lake: ${beaches.lng.length} of ${gn.beach.lng.length}`);
+  log("build", `beaches: ${beaches.lng.length} on the sea, ${lakeBeaches.lng.length} on lakes, of ${allBeaches.lng.length}`);
   const idx = {
     school: buildIndex(gn.school),
     university: buildIndex(gn.university),
     train: buildIndex(trainPoints),
     metro: buildIndex(mergePoints(gn.metro, metroTrack)),
+    // Stations only, for the map's flags (the track is lines).
+    metroStation: buildIndex(gn.metro),
     tram: buildIndex(tramTrack),
     bus: buildIndex(gn.bus),
     airport: buildIndex(gn.airport),
@@ -198,9 +240,11 @@ async function main() {
     forest: buildIndex(gn.forest),
     volcano: buildIndex(gn.volcano),
     port: buildIndex(gn.port),
-    // Natural beach features (GeoNames) + the sea coast. Overture's
-    // "beach" category includes beach bars and volleyball courts.
+    // Mapped beaches (GeoNames, OpenStreetMap natural=beach via Overture's
+    // base theme) - not the Overture places "beach" category, which
+    // includes beach bars and volleyball courts.
     beach: buildIndex(beaches),
+    lakeBeach: buildIndex(lakeBeaches),
     coast: coastIdx,
     quakes: buildIndex(quakes),
     large: buildIndex({ lng: large.map((c) => c.lng), lat: large.map((c) => c.lat) }),
@@ -216,7 +260,23 @@ async function main() {
   const fromIndex = (index: Index, hit: { id: number; km: number } | null, suffix = ""): Found =>
     hit ? { lng: index.points.lng[hit.id], lat: index.points.lat[hit.id], name: String(index.points.names?.[hit.id] ?? "") + suffix, km: hit.km } : null;
   const closer = (a: Found, b: Found): Found => (!a ? b : !b ? a : a.km <= b.km ? a : b);
-  const nearbyById = new Map<string, (NearbyPoint | 0)[]>();
+  /** Several sources' places, nearest first, one per spot (the named one
+   *  where two sources have the same place), at most MAX_FLAGS. */
+  const pick = (...lists: Found[][]): NonNullable<Found>[] => {
+    const all = lists.flat().filter((f): f is NonNullable<Found> => f != null).sort((a, b) => a.km - b.km);
+    const kept: NonNullable<Found>[] = [];
+    for (const f of all) {
+      const same = kept.find((k) => haversineKm(k.lat, k.lng, f.lat, f.lng) < DUP_KM);
+      if (same) {
+        if (!same.name && f.name) same.name = f.name;
+        continue;
+      }
+      kept.push({ ...f });
+      if (kept.length >= MAX_FLAGS) break;
+    }
+    return kept;
+  };
+  const nearbyById = new Map<string, (NearbyPoint | NearbyPoint[] | 0)[]>();
 
   log("build", "computing per-city fields...");
   const allRecords: { cc: string; record: CityRecord }[] = shortlist.map((c, i) => {
@@ -226,7 +286,9 @@ async function main() {
     const has = (index: Index, overtureCat?: number, radius = LOCAL_RADIUS_KM) =>
       (overtureCat != null && ovCount(i, overtureCat) > 0) || anyWithin(index, lng, lat, radius);
     const coastKm = nearest(idx.coast, lng, lat)?.km ?? null;
-    const beachKm = Math.min(coastKm ?? Infinity, nearest(idx.beach, lng, lat)?.km ?? Infinity);
+    const beachKm = nearest(idx.beach, lng, lat)?.km ?? null;
+    const lakeBeachHit = nearest(idx.lakeBeach, lng, lat);
+    const lakeBeachKm = lakeBeachHit && lakeBeachHit.km <= LAKE_BEACH_MAX_KM ? lakeBeachHit.km : null;
     // A mountain is a 1,000 m+ peak that also rises 500 m+ above the city.
     const minPeak = Math.max(MOUNTAIN_MIN_ELEVATION_M, (c.elevationM ?? 0) + MOUNTAIN_MIN_RISE_M);
     const nearestLarge = c.population >= LARGE_CITY_POPULATION ? null : nearest(idx.large, lng, lat);
@@ -237,6 +299,14 @@ async function main() {
       return p ? { lng: p.lng, lat: p.lat, name: p.name, km: p.km } : null;
     };
     const geo = (index: Index) => fromIndex(index, nearest(index, lng, lat));
+    // Up to MAX_FLAGS within `radius`, nearest first (around() sorts).
+    const geoFew = (index: Index, radius = LOCAL_RADIUS_KM): Found[] =>
+      index.size === 0
+        ? []
+        : around(index.kd, lng, lat, MAX_FLAGS * 3, radius, (id: number) => id < index.size).map((id: number) =>
+            fromIndex(index, { id, km: haversineKm(lat, lng, index.points.lat[id], index.points.lng[id]) })
+          );
+    const ovFewOf = (cat: number): Found[] => (ovFew.get(i)?.get(cat) ?? []).map((p) => ({ ...p }));
     const peakHit = nearest(idx.peak, lng, lat, (id) => peakElev[id] >= minPeak);
     const largeHit = nearestLarge ? { lng: large[nearestLarge.id].lng, lat: large[nearestLarge.id].lat, name: large[nearestLarge.id].cityName, km: nearestLarge.km } : null;
     const found: Record<NearbyKind, Found> = {
@@ -250,16 +320,35 @@ async function main() {
       school: closer(geo(idx.school), ov(POI.school)),
       university: closer(geo(idx.university), ov(POI.university)),
       careHome: ov(POI.careHome),
-      beach: closer(geo(idx.beach), geo(idx.coast)),
+      beach: geo(idx.beach),
       mountain: fromIndex(idx.peak, peakHit, peakHit ? ` (${Math.round(peakElev[peakHit.id]).toLocaleString("en-GB")} m)` : ""),
       forest: geo(idx.forest),
       large: largeHit,
+      lakeBeach: lakeBeachKm != null ? geo(idx.lakeBeach) : null,
     };
+    // A Yes figure's places: all of them within its radius (up to
+    // MAX_FLAGS), not just the nearest. Trams stay single - only their
+    // track is mapped.
+    const many: Partial<Record<NearbyKind, NonNullable<Found>[]>> = {
+      train: pick(geoFew(idx.train)),
+      metro: pick(geoFew(idx.metroStation)),
+      bus: pick(geoFew(idx.bus), ovFewOf(POI.bus)),
+      port: pick(geoFew(idx.port, PORT_RADIUS_KM)),
+      nursery: pick(ovFewOf(POI.nursery)),
+      school: pick(geoFew(idx.school), ovFewOf(POI.school)),
+      university: pick(geoFew(idx.university), ovFewOf(POI.university)),
+      careHome: pick(ovFewOf(POI.careHome)),
+    };
+    const encode = (f: NonNullable<Found>): NearbyPoint => [round4(f.lng), round4(f.lat), f.name.slice(0, 60)];
     nearbyById.set(
       c.cityId,
       NEARBY_KINDS.map((kind) => {
+        const list = many[kind];
+        if (list?.length) return list.map(encode);
+        // None within the radius: the nearest further away, for the
+        // distance figure ("Nearest train station").
         const f = found[kind];
-        return f && f.km <= NEARBY_MAX_KM ? [round4(f.lng), round4(f.lat), f.name.slice(0, 80)] : 0;
+        return f && f.km <= NEARBY_MAX_KM ? encode(f) : 0;
       })
     );
     if (i > 0 && i % 10000 === 0) log("build", `${i}/${shortlist.length}`);
@@ -284,7 +373,8 @@ async function main() {
         earthquakeCount50yr: countWithin(idx.quakes, lng, lat, EARTHQUAKE_RADIUS_KM),
         distanceToVolcanoKm: km(nearest(idx.volcano, lng, lat)),
         distanceToCoastKm: round(coastKm, 1),
-        distanceToBeachKm: Number.isFinite(beachKm) ? round(beachKm, 1) : null,
+        distanceToBeachKm: round(beachKm, 1),
+        distanceToLakeBeachKm: round(lakeBeachKm, 1),
         distanceToMountainKm: km(nearest(idx.peak, lng, lat, (id) => peakElev[id] >= minPeak)),
         distanceToForestKm: km(nearest(idx.forest, lng, lat)),
         // Under 1 km is the capital itself (two geocodes of one centre).
@@ -421,7 +511,7 @@ async function main() {
       elevation: "GeoNames SRTM elevation",
       places: `Overture Maps places and transportation ${release} (CDLA-Permissive-2.0 / ODbL) + GeoNames features`,
       mountains: `GeoNames peaks of ${MOUNTAIN_MIN_ELEVATION_M} m+ that rise ${MOUNTAIN_MIN_RISE_M} m+ above the city`,
-      coast: "Natural Earth 1:10m coastline and lakes (public domain); beaches count when on the sea or a large lake",
+      coast: "Natural Earth 1:10m coastline, lakes and rivers (public domain); beaches from GeoNames and OpenStreetMap (Overture Maps base theme, ODbL) - within 1 km of the sea coast a sea beach, of a lake shore a lake beach, and within 1 km of a major river neither",
       earthquakes: "USGS earthquake catalogue, magnitude 5+ since 1970 (public domain)",
       outlines: `${BOUNDARY_SOURCE}, release ${release}`,
       builtUp: BUILTUP_SOURCE,

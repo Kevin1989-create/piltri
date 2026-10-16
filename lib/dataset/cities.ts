@@ -105,7 +105,9 @@ export const hasNearbyData = manifest.nearbyChunks != null;
 /** A city's nearest place of each kind (pipeline nearby files), for the
  *  map behind its Yes/No and distance figures - null when the dataset has
  *  none for it (older datasets). */
-export async function getCityNearby(countryCode: string, cityId: string): Promise<Partial<Record<NearbyKind, NearbyPoint>> | null> {
+/** A city's places for its map figures, nearest first: one per kind, or
+ *  several for a Yes figure's kinds (datasets from 2026-10-14 on). */
+export async function getCityNearby(countryCode: string, cityId: string): Promise<Partial<Record<NearbyKind, NearbyPoint[]>> | null> {
   const cc = countryCode.toUpperCase();
   const count = manifest.chunks[cc];
   if (!count) return null;
@@ -113,9 +115,11 @@ export async function getCityNearby(countryCode: string, cityId: string): Promis
   if (!nearbyChunks.has(key)) return null;
   const row = (await loadFile<NearbyChunkFile>(`nearby/${key}.json`))[cityId];
   if (!row) return null;
-  const out: Partial<Record<NearbyKind, NearbyPoint>> = {};
+  const out: Partial<Record<NearbyKind, NearbyPoint[]>> = {};
   NEARBY_KINDS.forEach((kind, i) => {
-    if (row[i]) out[kind] = row[i] as NearbyPoint;
+    const item = row[i];
+    if (!item) return;
+    out[kind] = Array.isArray(item[0]) ? (item as NearbyPoint[]) : [item as NearbyPoint];
   });
   return out;
 }

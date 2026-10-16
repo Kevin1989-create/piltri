@@ -172,7 +172,11 @@ export interface LiveabilityFields {
   mobileDownloadMbps: number | null;
   mobileRadiusKm: number | null;
   /** Straight-line distances. */
+  /** Nearest sea or ocean beach (river and lake beaches aren't). */
   distanceToBeachKm: number | null;
+  /** Nearest lake (or reservoir) beach, up to 100 km - absent in datasets
+   *  built before 2026-10-14. */
+  distanceToLakeBeachKm?: number | null;
   distanceToMountainKm: number | null;
   distanceToForestKm: number | null;
   distanceToCapitalKm: number | null;

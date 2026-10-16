@@ -529,6 +529,15 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.liveability.distanceToBeachKm,
   },
   {
+    key: "liveability.distanceToLakeBeachKm",
+    category: "liveability",
+    label: "Distance to lake beach",
+    unit: "km",
+    kind: "range",
+    suggestedRange: [0, 100],
+    getCityValue: (d) => d.liveability.distanceToLakeBeachKm ?? null,
+  },
+  {
     key: "liveability.distanceToMountainKm",
     category: "liveability",
     label: "Distance to mountain",

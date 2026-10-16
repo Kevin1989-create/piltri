@@ -61,7 +61,7 @@ export interface DatasetToWrite {
   /** Built-up area outlines (pipeline/builtup.ts) of towns not in `bounds`. */
   builtUp: Map<string, EncodedBoundary>;
   /** Each city's nearest place of each NEARBY_KINDS kind. */
-  nearby: Map<string, (NearbyPoint | 0)[]>;
+  nearby: Map<string, (NearbyPoint | NearbyPoint[] | 0)[]>;
   poi: Parameters<typeof buildPoiTiles>[1];
   sources: Record<string, string>;
 }

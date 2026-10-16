@@ -44,7 +44,7 @@ function placeLabel(data: CityExploreData): string {
   return [data.cityName, namesake ? data.region : null, data.country].filter(Boolean).join(", ");
 }
 
-/** The card title when a figure's place is shown on the map. */
+/** The chip's title when a distance figure's place is shown on the map. */
 const MAP_TITLES: Record<MapKind, string> = {
   train: "Nearest train station",
   metro: "Nearest metro",
@@ -56,14 +56,28 @@ const MAP_TITLES: Record<MapKind, string> = {
   school: "Nearest school",
   university: "Nearest university",
   careHome: "Nearest care home",
-  beach: "Nearest beach or coast",
+  beach: "Nearest beach",
   mountain: "Nearest mountain",
   forest: "Nearest forest",
   large: "Nearest large city",
   capital: "Capital city",
+  lakeBeach: "Nearest lake beach",
 };
 /** For places the data has no name for. */
-const UNNAMED: Partial<Record<MapKind, string>> = { metro: "Metro line", tram: "Tram line", beach: "Sea coast", forest: "Forest" };
+const UNNAMED: Partial<Record<MapKind, string>> = {
+  train: "Station",
+  metro: "Metro",
+  tram: "Tram line",
+  bus: "Bus station",
+  port: "Port",
+  nursery: "Nursery",
+  school: "School",
+  university: "University",
+  careHome: "Care home",
+  beach: "Beach",
+  lakeBeach: "Lake beach",
+  forest: "Forest",
+};
 
 function CityContent() {
   const params = useSearchParams();
@@ -168,21 +182,30 @@ function CityContent() {
     async (row: KpiRow) => {
       if (!data || !row.mapKind) return;
       const kind = row.mapKind;
-      let point: { lng: number; lat: number; name: string } | null = null;
+      const style = row.mapStyle ?? "journey";
+      let points: { lng: number; lat: number; name: string }[] = [];
       if (kind === "capital") {
         const capital = (await getCountries())[data.countryCode]?.capital;
-        if (capital) point = { lng: capital.lng, lat: capital.lat, name: capital.name };
+        if (capital) points = [{ lng: capital.lng, lat: capital.lat, name: capital.name }];
       } else {
-        const found = (await getCityNearby(data.countryCode, data.cityId).catch(() => null))?.[kind];
-        if (found) point = { lng: found[0], lat: found[1], name: found[2] };
+        const found = (await getCityNearby(data.countryCode, data.cityId).catch(() => null))?.[kind] ?? [];
+        points = found.map(([lng, lat, name]) => ({ lng, lat, name: name || UNNAMED[kind] || "Unnamed" }));
       }
+      // A distance is to the nearest one; a Yes shows them all (up to 6,
+      // nearest first - 2026-10-14, on request).
+      if (style === "journey") points = points.slice(0, 1);
       setMapFocus({
-        // A Yes is named as the figure ("Train station"), a distance as what
-        // it measures to ("Nearest train station").
-        title: row.mapStyle === "pin" ? row.label : MAP_TITLES[kind],
-        name: point ? point.name || UNNAMED[kind] || "Unnamed" : "None found nearby",
-        point: point ? { lng: point.lng, lat: point.lat } : null,
-        style: row.mapStyle ?? "journey",
+        // A Yes is named as the figure ("Train station", "School · 6
+        // nearest"), a distance as what it measures to ("Nearest train
+        // station").
+        title:
+          style === "pin"
+            ? points.length > 1
+              ? `${row.label} · ${points.length === 6 ? "6 nearest" : `${points.length} places`}`
+              : row.label
+            : MAP_TITLES[kind],
+        points,
+        style,
       });
       if (!isDesktop) setMapFullScreen(true);
     },

@@ -223,6 +223,7 @@ export function assembleCityExploreData(
       mobileDownloadMbps: city.mobileDownloadMbps,
       mobileRadiusKm: city.mobileRadiusKm,
       distanceToBeachKm: city.distanceToBeachKm,
+      distanceToLakeBeachKm: city.distanceToLakeBeachKm ?? null,
       distanceToMountainKm: city.distanceToMountainKm,
       distanceToForestKm: city.distanceToForestKm,
       distanceToCapitalKm: city.distanceToCapitalKm,

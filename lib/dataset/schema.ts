@@ -156,6 +156,7 @@ export const CITY_FIELDS = [
   // Set only when the id isn't the plain name-country one (cityIdFor).
   "customId",
   "hasPort",
+  "distanceToLakeBeachKm",
 ] as const;
 
 export type CityFieldKey = (typeof CITY_FIELDS)[number];
@@ -218,6 +219,9 @@ export interface CityRecord {
   customId: string | null;
   /** A sea or river port, or a ferry terminal, within 10 km (GeoNames). */
   hasPort: boolean | null;
+  /** The nearest beach on a lake or reservoir, up to 100 km (2026-10-14);
+   *  distanceToBeachKm is sea and ocean beaches only. */
+  distanceToLakeBeachKm: number | null;
   /** Test-weighted average download speed (Ookla) within the stored
    *  radius: 5 km, or 15/30 km where there were too few tests nearer. */
   broadbandDownloadMbps: number | null;
@@ -232,8 +236,8 @@ export interface CityRecord {
   rankLiveability: number | null;
 }
 
-/** What a city page's Yes/No and distance figures can show on its map: the
- *  nearest place of each kind, in this order in a NearbyChunkFile row. */
+/** What a city page's Yes and distance figures can show on its map, in
+ *  this order in a NearbyChunkFile row (new kinds go at the end). */
 export const NEARBY_KINDS = [
   "train",
   "metro",
@@ -249,13 +253,17 @@ export const NEARBY_KINDS = [
   "mountain",
   "forest",
   "large",
+  "lakeBeach",
 ] as const;
 export type NearbyKind = (typeof NEARBY_KINDS)[number];
 /** [lng, lat, name] - the name can be "" (a stretch of coast, a tram line). */
 export type NearbyPoint = [number, number, string];
-/** nearby/<CC>-<n>.json: city id -> one item per NEARBY_KINDS entry, 0
- *  where there's none (within reach). */
-export type NearbyChunkFile = Record<string, (NearbyPoint | 0)[]>;
+/** nearby/<CC>-<n>.json: city id -> one item per NEARBY_KINDS entry: the
+ *  nearest place, or - for a Yes figure's kinds (train station, school...)
+ *  - up to 6 of them within its radius, nearest first (2026-10-14); 0
+ *  where there's none within reach. Rows written before a kind existed are
+ *  shorter. */
+export type NearbyChunkFile = Record<string, (NearbyPoint | NearbyPoint[] | 0)[]>;
 
 export type CityValue = string | number | boolean | number[] | null;
 export type CityRow = CityValue[];

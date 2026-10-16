@@ -238,6 +238,26 @@ export interface OverturePoints {
   names: (string | null)[] | null;
 }
 
+/** Beaches from Overture's base theme - OpenStreetMap natural=beach, far
+ *  more than GeoNames maps (most of the world's sea beaches, and lake
+ *  beaches such as Geneva's). One point per beach, the centre of its box;
+ *  build.ts sorts them into sea, lake and river beaches. Load with
+ *  loadOvertureCategory(glob, "beach", true). */
+export async function extractOvertureBeaches(): Promise<{ glob: string; release: string }> {
+  const release = await resolveOvertureRelease();
+  const glob = await extractParts(release, {
+    name: "beaches",
+    source: "theme=base/type=land",
+    select: `
+      class,
+      round((bbox.xmin + bbox.xmax) / 2, 5) AS lng,
+      round((bbox.ymin + bbox.ymax) / 2, 5) AS lat,
+      names."primary" AS name`,
+    where: `subtype = 'sand' AND class = 'beach'`,
+  });
+  return { glob, release };
+}
+
 /** Loads one category's points from a local extract - a place category
  *  code, or a rail class name ("tram", "subway"...). Names only kept when
  *  asked for (pin-mode categories), since they're most of the size. */
@@ -261,9 +281,9 @@ export async function loadOvertureCategory(file: string, cat: number | string, w
   return { lng, lat, names };
 }
 
-// `tsx pipeline/overture.ts [places|rail]` pre-extracts ahead of a build.
+// `tsx pipeline/overture.ts [places|rail|beaches]` pre-extracts ahead of a build.
 if (process.argv[1]?.endsWith("overture.ts")) {
-  (process.argv[2] === "rail" ? extractOvertureRail() : extractOverturePlaces()).catch((err) => {
+  (process.argv[2] === "rail" ? extractOvertureRail() : process.argv[2] === "beaches" ? extractOvertureBeaches() : extractOverturePlaces()).catch((err) => {
     console.error(err);
     process.exit(1);
   });

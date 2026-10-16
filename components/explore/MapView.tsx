@@ -32,28 +32,27 @@ function straightLineKm(a: { lat: number; lng: number }, b: { lat: number; lng: 
  *  card says so). */
 export interface MapFocus {
   title: string;
-  name: string;
-  point: { lng: number; lat: number } | null;
+  /** Where - one place (a distance), or several (a Yes: every one nearby,
+   *  nearest first); none if none was found. */
+  points: { lng: number; lat: number; name: string }[];
   /** Both: a small flag where it is, named. "journey" adds the dashed line
    *  from the centre (a distance figure - the figure itself already says
    *  how far, so there's no card, 2026-10-14, on request). */
   style: "journey" | "pin";
 }
 
-/** A small amber flag on a pole, the place's name beside it - where a Yes
- *  figure's place is (MapFocus style "pin"). Anchored at the pole's foot. */
+/** A small amber flag on a pole where a figure's place is, anchored at the
+ *  pole's foot. Its name is a map label beside it (FOCUS_LABELS), so close
+ *  places' names don't pile up - the map hides the ones that would overlap,
+ *  nearest first - and shows on hover too. */
 function createFlagElement(name: string): HTMLDivElement {
   const el = document.createElement("div");
-  el.style.cssText = "display:flex;align-items:flex-end;gap:4px;pointer-events:none;";
+  el.title = name;
+  el.style.cssText = "width:18px;height:24px;pointer-events:auto;";
   el.innerHTML =
-    '<svg width="18" height="24" viewBox="0 0 18 24" style="flex-shrink:0;filter:drop-shadow(0 1px 1.5px rgba(30,26,22,.35))">' +
+    '<svg width="18" height="24" viewBox="0 0 18 24" style="display:block;filter:drop-shadow(0 1px 1.5px rgba(30,26,22,.35))">' +
     '<path d="M2 23V2" stroke="#1E1A16" stroke-width="2" stroke-linecap="round"/>' +
     '<path d="M3 2.5h11.5l-2.8 4 2.8 4H3z" fill="#BA7517" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round"/></svg>';
-  const label = document.createElement("span");
-  label.textContent = name;
-  label.style.cssText =
-    "margin-bottom:12px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.95);color:#1E1A16;font:500 11px -apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;white-space:nowrap;box-shadow:0 1px 3px rgba(30,26,22,.25);max-width:220px;overflow:hidden;text-overflow:ellipsis;";
-  el.appendChild(label);
   return el;
 }
 
@@ -118,6 +117,7 @@ interface MapViewProps {
 }
 
 const FOCUS_SOURCE_ID = "piltri-focus";
+const FOCUS_LABELS_ID = "piltri-focus-labels";
 const AREA_SOURCE_ID = "piltri-research-area";
 /** Everything outside the place, gently veiled so the place stands out. */
 const MASK_SOURCE_ID = "piltri-area-mask";
@@ -284,7 +284,7 @@ export function MapView({
   // (focus) is closed.
   const areaBoundsRef = useRef<maplibregl.LngLatBounds | null>(null);
   const focusRef = useRef<MapFocus | null>(focus);
-  const flagRef = useRef<maplibregl.Marker | null>(null);
+  const flagsRef = useRef<maplibregl.Marker[]>([]);
   // Asymmetric padding keeps what's framed clear of the floating left
   // column and the section panel beside it (at their open widths, but never
   // more than the map can spare); compact (mobile) layout has nothing
@@ -295,10 +295,15 @@ export function MapView({
     const left = Math.max(60, Math.min(780, map.getContainer().clientWidth - 420));
     return { top: 60 + extraTop, bottom: 60, left, right: 60 + extraRight };
   };
-  /** The place and a flag (MapFocus style "pin") in one view. */
-  const flagView = (area: maplibregl.LngLatBounds, point: { lng: number; lat: number }) =>
-    new maplibregl.LngLatBounds(area.getSouthWest(), area.getNorthEast()).extend([point.lng, point.lat]);
-  const FLAG_LABEL_PX = 130;
+  /** The place and its flags (MapFocus style "pin") in one view. */
+  const flagView = (area: maplibregl.LngLatBounds, points: { lng: number; lat: number }[]) => {
+    const bounds = new maplibregl.LngLatBounds(area.getSouthWest(), area.getNorthEast());
+    for (const p of points) bounds.extend([p.lng, p.lat]);
+    return bounds;
+  };
+  /** Room on the right for the labels: less on a phone, where the map
+   *  hides those that don't fit. */
+  const FLAG_LABEL_PX = compact ? 40 : 110;
   // Camera position from just before a pin was dropped, so closing the pin
   // can fly back to the same view rather than staying zoomed in on it.
   const preDropCameraRef = useRef<{ center: maplibregl.LngLat; zoom: number } | null>(null);
@@ -476,6 +481,23 @@ export function MapView({
         layout: { "line-cap": "round" },
         paint: { "line-color": "#1E1A16", "line-width": 2.5, "line-opacity": 0.75, "line-dasharray": [1.5, 1.5] },
       });
+      // The flags' names, beside each flag's banner.
+      map.addSource(FOCUS_LABELS_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({
+        id: FOCUS_LABELS_ID,
+        type: "symbol",
+        source: FOCUS_LABELS_ID,
+        layout: {
+          "text-field": ["get", "name"],
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 11.5,
+          "text-anchor": "left",
+          "text-offset": [1.35, -1.55],
+          "text-max-width": 14,
+          "symbol-sort-key": ["get", "rank"],
+        },
+        paint: { "text-color": "#1E1A16", "text-halo-color": "#FFFFFF", "text-halo-width": 1.6, "text-halo-blur": 0.4 },
+      });
 
       // Directions route line - empty until both a main pin and a
       // destination pin exist (see the route effect below).
@@ -561,8 +583,8 @@ export function MapView({
       // A figure's place being shown takes the framing (see below) - a
       // flag's together with the place, now that its outline is here.
       const focused = focusRef.current;
-      if (focused?.point) {
-        if (focused.style === "pin") map.fitBounds(flagView(bounds, focused.point), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration: 800 });
+      if (focused?.points.length) {
+        if (focused.style === "pin") map.fitBounds(flagView(bounds, focused.points), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration: 800 });
         return;
       }
       map.fitBounds(bounds, { padding: framePadding(map), duration: 800 });
@@ -736,11 +758,12 @@ export function MapView({
     // resized (on phones it goes full screen for a figure's place, and a
     // framing done at the small size would be off-centre).
     const frame = (duration = 800) => {
-      const current = focusRef.current?.point;
+      const points = focusRef.current?.points ?? [];
+      const current = points[0];
       if (current && focusRef.current?.style === "pin" && areaBoundsRef.current) {
-        // A flag keeps the whole place in view - widened only if it's
-        // outside (an airport 30 km away).
-        map.fitBounds(flagView(areaBoundsRef.current, current), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration });
+        // Flags keep the whole place in view - widened only for one that's
+        // outside it.
+        map.fitBounds(flagView(areaBoundsRef.current, points), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration });
       } else if (current) {
         const bounds = new maplibregl.LngLatBounds([lng, lat], [lng, lat]).extend([current.lng, current.lat]);
         // Room for the chip above and the flag's name beside it.
@@ -752,16 +775,21 @@ export function MapView({
     const apply = () => {
       const source = map.getSource(FOCUS_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
       if (!source) return;
-      const point = focus?.point;
-      flagRef.current?.remove();
-      flagRef.current = null;
-      if (point && focus) {
-        // Pole's foot on the place: the element is anchored bottom-left,
-        // and the pole stands 2 px in from its left edge.
-        flagRef.current = new maplibregl.Marker({ element: createFlagElement(focus.name), anchor: "bottom-left", offset: [-2, 0] })
-          .setLngLat([point.lng, point.lat])
-          .addTo(map);
-      }
+      const point = focus?.points[0];
+      flagsRef.current.forEach((m) => m.remove());
+      // A flag per place - the pole's foot on it: the element is anchored
+      // bottom-left, and the pole stands 2 px in from its left edge.
+      flagsRef.current = (focus?.points ?? []).map((p) =>
+        new maplibregl.Marker({ element: createFlagElement(p.name), anchor: "bottom-left", offset: [-2, 0] }).setLngLat([p.lng, p.lat]).addTo(map)
+      );
+      (map.getSource(FOCUS_LABELS_ID) as maplibregl.GeoJSONSource | undefined)?.setData({
+        type: "FeatureCollection",
+        features: (focus?.points ?? []).map((p, rank) => ({
+          type: "Feature",
+          properties: { name: p.name, rank },
+          geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+        })),
+      } as any);
       source.setData({
         type: "FeatureCollection",
         features: point && focus?.style === "journey"
@@ -789,7 +817,7 @@ export function MapView({
         <div className={cn("absolute z-10 rounded-pill bg-surface shadow-card flex items-center gap-1 pl-3 pr-1 py-1", compact ? "top-3 left-3" : "top-4 right-14")}>
           <span className="text-xs font-medium text-ink-900">
             {focus.title}
-            {!focus.point && <span className="font-normal text-ink-500"> · none found nearby</span>}
+            {!focus.points.length && <span className="font-normal text-ink-500"> · none found nearby</span>}
           </span>
           <button type="button" aria-label="Close" onClick={onCloseFocus} className="p-1 rounded-full text-ink-500 hover:text-ink-900">
             <CloseIcon className="w-3.5 h-3.5" />

@@ -75,6 +75,36 @@ async function sampleRaster(file: string, points: { lat: number; lng: number }[]
   });
 }
 
+/** Whether there's open water - sea, or a lake or estuary wide enough to
+ *  show at ~4.5 km - next to each point: a no-data cell of the WorldClim
+ *  grid in the 3 x 3 block around it. A river or a narrow estuary is far
+ *  narrower than a cell, so a beach on the Thames at Grays, the Elbe at
+ *  Hamburg or the St Lawrence at Montreal has none; one on the open
+ *  coast does (2026-10-14: telling sea beaches from river banks). */
+export async function openWaterNear(points: { lat: number; lng: number }[]): Promise<boolean[]> {
+  const file = path.join(await variableDir("tavg"), "wc2.1_2.5m_tavg_01.tif");
+  const image = await (await fromFile(file)).getImage();
+  const width = image.getWidth();
+  const height = image.getHeight();
+  const [west, , , north] = image.getBoundingBox();
+  const resX = (image.getBoundingBox()[2] - west) / width;
+  const resY = (north - image.getBoundingBox()[1]) / height;
+  const noData = image.getGDALNoData();
+  const [band] = (await image.readRasters()) as unknown as ArrayLike<number>[];
+  const water = (v: number) => !Number.isFinite(v) || v === noData || v < -1e30 || v === -32768;
+  return points.map(({ lat, lng }) => {
+    const col = Math.floor((lng - west) / resX);
+    const row = Math.floor((north - lat) / resY);
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -1; dx <= 1; dx++) {
+        const r = row + dy;
+        if (r < 0 || r >= height) continue;
+        if (water(band[r * width + ((((col + dx) % width) + width) % width)])) return true;
+      }
+    return false;
+  });
+}
+
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 export const MID_MONTH_DAY = [15, 46, 74, 105, 135, 166, 196, 227, 258, 288, 319, 349];
 

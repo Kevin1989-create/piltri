@@ -52,6 +52,31 @@ export const loadCoastlinePoints = () => loadNaturalEarthLines("coastline");
 export const loadLakeShorePoints = () =>
   loadNaturalEarthLines("lakes", "-major", (p) => (p.scalerank ?? 99) <= 7 && p.featurecla !== "Alkaline Lake");
 
+/** Every lake and reservoir Natural Earth maps at 1:10m - with its more
+ *  detailed European and North American layers (Annecy, Bourget, the
+ *  Italian lakes...) - but not salt lakes: a beach within reach of one is
+ *  a lake beach. */
+export async function loadAllLakeShorePoints(): Promise<PointSet> {
+  const keep = (p: any) => p.featurecla !== "Alkaline Lake";
+  const sets = await Promise.all([
+    loadNaturalEarthLines("lakes", "-all", keep),
+    loadNaturalEarthLines("lakes_europe", "", keep),
+    loadNaturalEarthLines("lakes_north_america", "", keep),
+  ]);
+  return {
+    lng: sets.flatMap((p) => Array.from(p.lng)),
+    lat: sets.flatMap((p) => Array.from(p.lat)),
+    names: sets.flatMap((p) => Array.from(p.names)),
+  };
+}
+
+/** Major rivers (Natural Earth 1:10m centrelines, without the lines it
+ *  draws through lakes): a "beach" near one is a river or estuary bank -
+ *  the sea coastline follows estuaries far inland (the Garonne to
+ *  Bordeaux, the Thames past Gravesend). */
+export const loadRiverPoints = () =>
+  loadNaturalEarthLines("rivers_lake_centerlines", "-rivers", (p) => String(p.featurecla ?? "").startsWith("River"));
+
 /** Every magnitude-5+ earthquake worldwide since 1970 from the USGS
  *  catalogue (public domain) - ~92,000 events, fetched a decade at a time
  *  (the API caps each query at 20,000 rows). */

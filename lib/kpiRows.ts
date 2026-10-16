@@ -477,7 +477,10 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         pisaRow("PISA maths score", l.pisaMathScore, "mathematics"),
         pisaRow("PISA reading score", l.pisaReadingScore, "reading"),
         pisaRow("PISA science score", l.pisaScienceScore, "science"),
-        distanceRow("Distance to beach", l.distanceToBeachKm, "Straight-line distance to the nearest sea coast, or a beach on the sea or a large lake.", "Natural Earth coastline and lakes, GeoNames beaches", "beach"),
+        distanceRow("Distance to beach", l.distanceToBeachKm, "Straight-line distance to the nearest beach on the sea or ocean (not a river or estuary bank).", "GeoNames and OpenStreetMap beaches, Natural Earth coastline and rivers", "beach"),
+        l.distanceToLakeBeachKm != null
+          ? distanceRow("Distance to lake beach", l.distanceToLakeBeachKm, "Straight-line distance to the nearest beach on a lake or reservoir, up to 100 km.", "GeoNames and OpenStreetMap beaches, Natural Earth lakes and rivers", "lakeBeach")
+          : null,
         distanceRow("Distance to mountain", l.distanceToMountainKm, "Straight-line distance to the nearest peak of 1,000 m or more that rises at least 500 m above the city.", "GeoNames", "mountain"),
         distanceRow("Distance to forest", l.distanceToForestKm, "Straight-line distance to the nearest mapped forest or woodland.", "GeoNames", "forest"),
         distanceRow("Nearest airport", l.distanceToAirportKm, "Straight-line distance to the nearest airport.", "GeoNames", "airport"),
