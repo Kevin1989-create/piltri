@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { driveMinutes, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
+import { driveMinutes, formatDriveTime, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
+import { fetchRoute, ROUTE_ATTRIBUTION, WALK_MAX_KM } from "@/lib/routing";
+import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
 import { autoCollapseAttribution } from "@/lib/mapAttribution";
 import { cn } from "@/lib/cn";
 import { CloseIcon } from "@/components/ui/icons";
@@ -118,6 +120,9 @@ interface MapViewProps {
 
 const FOCUS_SOURCE_ID = "piltri-focus";
 const FOCUS_LABELS_ID = "piltri-focus-labels";
+/** A distance figure's journey along the roads (lib/routing.ts), once it
+ *  has come back - the straight line stands in until then. */
+const FOCUS_ROUTE_ID = "piltri-focus-route";
 const AREA_SOURCE_ID = "piltri-research-area";
 /** Everything outside the place, gently veiled so the place stands out. */
 const MASK_SOURCE_ID = "piltri-area-mask";
@@ -285,6 +290,13 @@ export function MapView({
   const areaBoundsRef = useRef<maplibregl.LngLatBounds | null>(null);
   const focusRef = useRef<MapFocus | null>(focus);
   const flagsRef = useRef<maplibregl.Marker[]>([]);
+  // The journey along the roads for a distance figure: its bounds (framed
+  // with the place), the chip's "35 km · 35 min by car", and which focus
+  // it's for (a reply for an earlier tap is dropped).
+  const routeBoundsRef = useRef<maplibregl.LngLatBounds | null>(null);
+  const routeTokenRef = useRef(0);
+  const [routeInfo, setRouteInfo] = useState<string | null>(null);
+  const { prefs } = useUnitPreferences();
   // Asymmetric padding keeps what's framed clear of the floating left
   // column and the section panel beside it (at their open widths, but never
   // more than the map can spare); compact (mobile) layout has nothing
@@ -480,6 +492,22 @@ export function MapView({
         filter: ["==", ["geometry-type"], "LineString"],
         layout: { "line-cap": "round" },
         paint: { "line-color": "#1E1A16", "line-width": 2.5, "line-opacity": 0.75, "line-dasharray": [1.5, 1.5] },
+      });
+      map.addSource(FOCUS_ROUTE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] }, attribution: ROUTE_ATTRIBUTION });
+      map.addLayer({
+        id: `${FOCUS_ROUTE_ID}-casing`,
+        type: "line",
+        source: FOCUS_ROUTE_ID,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": "#FFFFFF", "line-width": 7, "line-opacity": 0.9 },
+      });
+      map.addLayer({
+        id: FOCUS_ROUTE_ID,
+        type: "line",
+        source: FOCUS_ROUTE_ID,
+        layout: { "line-cap": "round", "line-join": "round" },
+        // Blue, so the journey never reads as part of the amber outline.
+        paint: { "line-color": "#3B6E8F", "line-width": 3.5 },
       });
       // The flags' names, beside each flag's banner.
       map.addSource(FOCUS_LABELS_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
@@ -766,6 +794,7 @@ export function MapView({
         map.fitBounds(flagView(areaBoundsRef.current, points), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration });
       } else if (current) {
         const bounds = new maplibregl.LngLatBounds([lng, lat], [lng, lat]).extend([current.lng, current.lat]);
+        if (routeBoundsRef.current) bounds.extend(routeBoundsRef.current);
         // Room for the chip above and the flag's name beside it.
         map.fitBounds(bounds, { padding: framePadding(map, compact ? 50 : 20, FLAG_LABEL_PX), maxZoom: 15, duration });
       } else if (areaBoundsRef.current) {
@@ -796,6 +825,26 @@ export function MapView({
           ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[lng, lat], [point.lng, point.lat]] } }]
           : [],
       } as any);
+      // The road journey replaces the straight line once it's back (on
+      // foot for a short one); if the server can't answer, the line stays.
+      const routeSource = map.getSource(FOCUS_ROUTE_ID) as maplibregl.GeoJSONSource | undefined;
+      const token = ++routeTokenRef.current;
+      routeBoundsRef.current = null;
+      routeSource?.setData({ type: "FeatureCollection", features: [] });
+      setRouteInfo(null);
+      if (point && focus?.style === "journey") {
+        const mode = straightLineKm({ lat, lng }, point) <= WALK_MAX_KM ? "foot" : "car";
+        fetchRoute({ lng, lat }, point, mode).then((route) => {
+          if (!route || token !== routeTokenRef.current) return;
+          source.setData({ type: "FeatureCollection", features: [] });
+          routeSource?.setData({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: route.coordinates } } as any);
+          const bounds = new maplibregl.LngLatBounds();
+          for (const c of route.coordinates) bounds.extend(c);
+          routeBoundsRef.current = bounds;
+          setRouteInfo(`${formatDistanceKm(route.km, prefs)} · ${formatDriveTime(Math.max(1, Math.round(route.minutes)))} ${mode === "foot" ? "on foot" : "by car"}`);
+          frame();
+        });
+      }
       frame();
       // Straight to the new framing once it has (the map has just appeared).
       if (compact) map.once("resize", () => frame(0));
@@ -818,6 +867,7 @@ export function MapView({
           <span className="text-xs font-medium text-ink-900">
             {focus.title}
             {!focus.points.length && <span className="font-normal text-ink-500"> · none found nearby</span>}
+            {routeInfo && <span className="font-normal text-ink-500"> · {routeInfo}</span>}
           </span>
           <button type="button" aria-label="Close" onClick={onCloseFocus} className="p-1 rounded-full text-ink-500 hover:text-ink-900">
             <CloseIcon className="w-3.5 h-3.5" />

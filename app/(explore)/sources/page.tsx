@@ -162,6 +162,19 @@ export default function SourcesPage() {
               </div>
             </Section>
 
+            {/* The one live service: road journeys (2026-10-16, on request). */}
+            <Section title="Journeys on the map">
+              <p className="px-5 py-4 text-sm text-ink-700 leading-relaxed">
+                Tap a distance - to the beach, the airport, a station - and the map draws the journey along the roads, from
+                the{" "}
+                <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-piltri-amber-dark">
+                  OpenStreetMap community&apos;s routing server
+                </a>{" "}
+                (OSRM, run by FOSSGIS), walking for up to 2 km and driving beyond. If it can&apos;t answer, a straight line is
+                drawn instead. The distances in the sections themselves are straight-line, with estimated travel times.
+              </p>
+            </Section>
+
             {GROUPS.map((group) => {
               const rows = Object.entries(group.sources).filter(([key]) => sources[key]);
               const isMaps = group.title === "Maps";
