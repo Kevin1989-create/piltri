@@ -23,24 +23,33 @@ export type BoardKey =
   | "beachLife"
   | "familyFriendly";
 
-export type SizeKey = "under10k" | "10k" | "50k" | "500k" | "all";
+export type SizeKey = "under10k" | "10to50k" | "50to100k" | "100to500k" | "over500k" | "all";
 
-/** Smallest to biggest, then everyone (2026-10-12, on request). */
-export const SIZE_ORDER: SizeKey[] = ["under10k", "10k", "50k", "500k", "all"];
+/** Smallest to biggest, then everyone - ranges that don't overlap
+ *  (2026-10-16, on request: "10k+" wasn't clear). */
+export const SIZE_ORDER: SizeKey[] = ["under10k", "10to50k", "50to100k", "100to500k", "over500k", "all"];
 
 export const SIZE_LABELS: Record<SizeKey, string> = {
-  under10k: "Under 10k",
-  "10k": "10k+",
-  "50k": "50k+",
-  "500k": "500k+",
-  all: "All",
+  under10k: "Population under 10k",
+  "10to50k": "Population 10k to 50k",
+  "50to100k": "Population 50k to 100k",
+  "100to500k": "Population 100k to 500k",
+  over500k: "Population over 500k",
+  all: "All populations",
 };
 
-/** Who's in each size: under 10k people, or at least 10k / 50k / 500k
- *  (bigger places included), or everyone. Population is in thousands, as
- *  in the Advanced search column. */
-const inSize = (size: SizeKey, populationK: number) =>
-  size === "under10k" ? populationK < 10 : size === "10k" ? populationK >= 10 : size === "50k" ? populationK >= 50 : size === "500k" ? populationK >= 500 : true;
+/** Each range's bounds in thousands (population is in thousands, as in the
+ *  Advanced search column): at least the first, under the second. */
+const SIZE_RANGE: Record<SizeKey, [number, number]> = {
+  under10k: [0, 10],
+  "10to50k": [10, 50],
+  "50to100k": [50, 100],
+  "100to500k": [100, 500],
+  over500k: [500, Infinity],
+  all: [0, Infinity],
+};
+
+const inSize = (size: SizeKey, populationK: number) => populationK >= SIZE_RANGE[size][0] && populationK < SIZE_RANGE[size][1];
 
 interface BoardContext {
   table: PlaceTable;
