@@ -13,6 +13,7 @@ import type { MapPoint } from "@/components/explore/DiscoverResultsMap";
 import { getPlaceTable, type PlaceTable } from "@/lib/advancedSearch/engine";
 import {
   activeFilterCount,
+  available,
   CLIMATE,
   columnsFor,
   EMPTY_STATE,
@@ -160,7 +161,7 @@ function Filters({ state, set }: { state: FinderState; set: (patch: Partial<Find
       </Group>
 
       <Group title="Within reach">
-        {NEARBY.map((t) => (
+        {NEARBY.filter(available).map((t) => (
           <Chip key={t.key} active={state.nearby.includes(t.key)} onClick={() => set({ nearby: toggle(state.nearby, t.key) })} hint={t.hint(prefs)}>
             {t.label}
           </Chip>
@@ -196,6 +197,8 @@ function Filters({ state, set }: { state: FinderState; set: (patch: Partial<Find
 function ResultRow({
   table,
   i,
+  position,
+  worldRank,
   score,
   population,
   facts,
@@ -206,6 +209,10 @@ function ResultRow({
 }: {
   table: PlaceTable;
   i: number;
+  /** Its place in this list (1 = first). */
+  position: number;
+  /** Its place among every city, by Piltri score with your score settings. */
+  worldRank: number | null;
   score: number;
   population: number | null;
   facts: string[];
@@ -220,6 +227,7 @@ function ResultRow({
   return (
     <li className="rounded-card border border-surface-border bg-surface flex items-stretch hover:border-piltri-amber-light transition-colors">
       <Link href={cityUrl(id)} className="flex-1 min-w-0 px-4 py-3 flex gap-3">
+        <span className="w-6 flex-shrink-0 pt-1 text-right font-serif text-sm text-ink-300 tabular-nums lining-nums">{position}</span>
         <div className="min-w-0 flex-1">
           <p className="font-serif text-lg text-ink-900 leading-tight truncate">{table.name[i]}</p>
           <p className="text-[11px] text-ink-500 truncate mt-0.5">
@@ -244,7 +252,16 @@ function ResultRow({
             </p>
           )}
         </div>
-        <ScoreBadge score={score} className="self-start" />
+        {/* The score, and where that puts it among every city - #1 here
+         *  can be #77 overall (2026-10-16, on request). */}
+        <div className="self-start flex flex-col items-end gap-1 flex-shrink-0">
+          <ScoreBadge score={score} />
+          {worldRank != null && (
+            <span className="text-[10px] text-ink-500 tabular-nums whitespace-nowrap" title="Its rank among every city, by Piltri score">
+              #{worldRank.toLocaleString("en-GB")} overall
+            </span>
+          )}
+        </div>
       </Link>
       <button
         type="button"
@@ -365,6 +382,16 @@ function SearchContent() {
   }, [table, neededKey]);
 
   const normalised = useMemo(() => normaliseWeights(weightPercentagesToScores(weights)), [weights]);
+  // Every city's rank by Piltri score (your weighting), for "#77 overall".
+  const worldRank = useMemo(() => {
+    if (!table) return null;
+    const score = new Float64Array(table.count);
+    for (let i = 0; i < table.count; i++) score[i] = table.piltri(i, normalised);
+    const order = Array.from({ length: table.count }, (_, i) => i).sort((a, b) => score[b] - score[a]);
+    const rank = new Int32Array(table.count);
+    order.forEach((i, k) => (rank[i] = k + 1));
+    return rank;
+  }, [table, normalised]);
   const ready = table != null && needed.every((key) => columns[key]);
   const fresh = useMemo(
     () => (ready ? runFinder(table, (key) => columns[key] ?? (() => null), languagesOf, normalised, state) : null),
@@ -554,13 +581,15 @@ function SearchContent() {
               ) : (
                 <>
                   <ul className="grid gap-3 lg:grid-cols-2">
-                    {listed.slice(0, shown).map((i) => {
+                    {listed.slice(0, shown).map((i, k) => {
                       const id = table.id(i);
                       return (
                         <ResultRow
                           key={id}
                           table={table}
                           i={i}
+                          position={k + 1}
+                          worldRank={worldRank ? worldRank[i] : null}
                           score={table.piltri(i, normalised)}
                           population={population ? (population(i) as number | null) : null}
                           facts={factsFor(col, i, state, prefs)}

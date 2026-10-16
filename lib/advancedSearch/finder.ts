@@ -1,4 +1,5 @@
 import type { PlaceTable } from "@/lib/advancedSearch/engine";
+import { manifest } from "@/lib/dataset/files";
 import { regionOf, REGION_ORDER, type RegionKey } from "@/lib/regions";
 import { formatDistanceKm, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
 import type { CriterionValue, SectionKey, SectionScores } from "@/lib/types";
@@ -124,6 +125,7 @@ const distanceFact = (key: string, what: string) => (col: Col, i: number, p: Uni
   return km < 0.1 ? `${what} on the doorstep` : `${what} ${formatDistanceKm(km, p)}`;
 };
 const BEACH = "liveability.distanceToBeachKm";
+const LAKE_BEACH = "liveability.distanceToLakeBeachKm";
 const MOUNTAIN = "liveability.distanceToMountainKm";
 const FOREST = "liveability.distanceToForestKm";
 const BROADBAND = "liveability.broadbandDownloadMbps";
@@ -136,6 +138,14 @@ export const NEARBY: Toggle[] = [
     needs: [BEACH],
     test: atMost(BEACH, 10),
     fact: distanceFact(BEACH, "Beach"),
+  },
+  {
+    key: "lakeBeach",
+    label: "Lake beach",
+    hint: (p) => `within ${formatDistanceKm(10, p)}`,
+    needs: [LAKE_BEACH],
+    test: atMost(LAKE_BEACH, 10),
+    fact: distanceFact(LAKE_BEACH, "Lake beach"),
   },
   {
     key: "mountains",
@@ -171,6 +181,10 @@ export const NEARBY: Toggle[] = [
     fact: (col, i) => `${Math.round(num(col(BROADBAND)(i)) ?? 0)} Mbps`,
   },
 ];
+
+/** A choice is offered only when the dataset has its figures (a figure
+ *  added later reaches the site with the next data refresh). */
+export const available = (t: Toggle) => t.needs.every((key) => manifest.advCityColumns.includes(key));
 
 /* ---- Strong in: a section scoring 70+ (green on the city page). ---- */
 export const STRONG_MIN = 70;
