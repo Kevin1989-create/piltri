@@ -6,10 +6,10 @@ import { NavBar } from "@/components/ui/NavBar";
 import { BackLink } from "@/components/ui/BackLink";
 import { Chip } from "@/components/ui/Chip";
 import { IconEconomy, IconLiveability, IconSafety, TrophyIcon } from "@/components/ui/icons";
-import { getPlaceTable, piltriRanks, type PlaceTable } from "@/lib/advancedSearch/engine";
+import { getPlaceTable, type PlaceTable } from "@/lib/advancedSearch/engine";
 import { normaliseWeights } from "@/lib/aggregation/scoring";
 import { cn } from "@/lib/cn";
-import { BOARDS, LEADERBOARD_COLUMNS, rankBoard, SIZE_LABELS, SIZE_ORDER, type BoardKey, type Entry, type Filters } from "@/lib/leaderboards";
+import { boardRanks, BOARDS, LEADERBOARD_COLUMNS, rankBoard, SIZE_LABELS, SIZE_ORDER, type BoardKey, type Entry, type Filters } from "@/lib/leaderboards";
 import { REGION_LABELS, REGION_ORDER } from "@/lib/regions";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { useUnitPreferences } from "@/lib/unitPreferences";
@@ -44,13 +44,13 @@ const PODIUM = [
   { place: 2, block: "h-7 bg-piltri-amber-light/50 text-piltri-amber-dark" },
 ];
 
-/** "#45 overall": a place's rank among every city by Piltri score (your
- *  score settings) - where a board's winner stands overall (2026-10-17,
- *  on request). */
+/** "#45 overall": a place's position on this same board with no filter
+ *  (boardRanks) - where a filtered board's places stand worldwide
+ *  (2026-10-17, on request). */
 function Overall({ rank, className }: { rank: number | null; className?: string }) {
   if (rank == null) return null;
   return (
-    <span className={cn("text-[10px] text-ink-500 tabular-nums whitespace-nowrap", className)} title="Its rank among every city, by Piltri score">
+    <span className={cn("text-[10px] text-ink-500 tabular-nums whitespace-nowrap", className)} title="Its place on this board for the whole world, all populations, any number per country">
       #{rank.toLocaleString("en-GB")} overall
     </span>
   );
@@ -177,7 +177,12 @@ export default function LeaderboardsPage() {
     const ctx = { table, weights: normalised, col: (key: string) => columns[key] ?? (() => null) };
     return BOARDS.map((def) => ({ def, entries: rankBoard(def, ctx, filters, prefs) }));
   }, [table, columns, normalised, filters, prefs]);
-  const ranks = useMemo(() => (table ? piltriRanks(table, normalised) : null), [table, normalised]);
+  // Each board's unfiltered positions - they don't depend on the filters.
+  const ranks = useMemo(() => {
+    if (!table || !columns) return null;
+    const ctx = { table, weights: normalised, col: (key: string) => columns[key] ?? (() => null) };
+    return Object.fromEntries(BOARDS.map((def) => [def.key, boardRanks(def, ctx)])) as Record<BoardKey, Int32Array>;
+  }, [table, columns, normalised]);
 
   return (
     <main className="min-h-dvh flex flex-col bg-surface-muted">
@@ -244,7 +249,7 @@ export default function LeaderboardsPage() {
           ) : (
             <div className="mt-4 grid gap-5 md:grid-cols-2 items-start">
               {boards.map(({ def, entries }) => (
-                <Board key={def.key} boardKey={def.key} title={def.title} blurb={def.blurb} entries={entries} overall={(i) => (ranks ? ranks[i] : null)} />
+                <Board key={def.key} boardKey={def.key} title={def.title} blurb={def.blurb} entries={entries} overall={(i) => (ranks ? ranks[def.key][i] || null : null)} />
               ))}
             </div>
           )}

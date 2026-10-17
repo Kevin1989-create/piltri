@@ -228,6 +228,52 @@ function km(aLat: number, aLng: number, bLat: number, bLng: number): number {
   return Math.sqrt(x * x + y * y) * 6371;
 }
 
+/** Every place's position on a board with no filter - the whole world,
+ *  all populations, any number per country - by the same rule as the
+ *  board itself (one per metro area): "#45 overall" beside a filtered
+ *  board's places (2026-10-17, on request: unfiltered, the board reads 1,
+ *  2, 3...). A place left out as part of a better one's metro area gets
+ *  the position it would take. 0 = not on this board. */
+export function boardRanks(def: BoardDef, ctx: BoardContext): Int32Array {
+  const { table } = ctx;
+  const population = ctx.col("demographics.population");
+  const candidates: { i: number; score: number; pop: number }[] = [];
+  for (let i = 0; i < table.count; i++) {
+    const score = def.score(ctx, i);
+    if (score == null || !Number.isFinite(score)) continue;
+    candidates.push({ i, score, pop: num(population(i)) ?? 0 });
+  }
+  candidates.sort((a, b) => b.score - a.score || b.pop - a.pop);
+  // Listed places by grid cell of ~METRO_KM, so each check looks at the
+  // neighbouring cells only.
+  const cellDeg = METRO_KM / 111;
+  const cells = new Map<string, number[]>();
+  const cellOf = (i: number) => [Math.floor((table.lng[i] * Math.cos((table.lat[i] * Math.PI) / 180)) / cellDeg), Math.floor(table.lat[i] / cellDeg)];
+  const rank = new Int32Array(table.count);
+  let listed = 0;
+  for (const { i } of candidates) {
+    const [cx, cy] = cellOf(i);
+    let near = false;
+    search: for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++)
+        for (const j of cells.get(`${cx + dx},${cy + dy}`) ?? [])
+          if (km(table.lat[i], table.lng[i], table.lat[j], table.lng[j]) < METRO_KM) {
+            near = true;
+            break search;
+          }
+    if (near) {
+      rank[i] = listed + 1;
+      continue;
+    }
+    rank[i] = ++listed;
+    const key = `${cx},${cy}`;
+    const list = cells.get(key);
+    if (list) list.push(i);
+    else cells.set(key, [i]);
+  }
+  return rank;
+}
+
 /** A board's top `limit` places under `filters`: one per metro area, at
  *  most `perCountry` per country. Ties go to the bigger place (more
  *  recognisable). */

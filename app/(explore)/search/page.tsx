@@ -10,7 +10,7 @@ import { Chip } from "@/components/ui/Chip";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
 import { CloseIcon, FilterIcon, PlusIcon, SECTION_ICONS } from "@/components/ui/icons";
 import type { MapPoint } from "@/components/explore/DiscoverResultsMap";
-import { getPlaceTable, piltriRanks, type PlaceTable } from "@/lib/advancedSearch/engine";
+import { getPlaceTable, type PlaceTable } from "@/lib/advancedSearch/engine";
 import {
   activeFilterCount,
   available,
@@ -257,7 +257,7 @@ function ResultRow({
         <div className="self-start flex flex-col items-end gap-1 flex-shrink-0">
           <ScoreBadge score={score} />
           {worldRank != null && (
-            <span className="text-[10px] text-ink-500 tabular-nums whitespace-nowrap" title="Its rank among every city, by Piltri score">
+            <span className="text-[10px] text-ink-500 tabular-nums whitespace-nowrap" title="Its place in this order with no filter: the whole world, every size">
               #{worldRank.toLocaleString("en-GB")} overall
             </span>
           )}
@@ -382,9 +382,28 @@ function SearchContent() {
   }, [table, neededKey]);
 
   const normalised = useMemo(() => normaliseWeights(weightPercentagesToScores(weights)), [weights]);
-  // Every city's rank by Piltri score (your weighting), for "#77 overall".
-  const worldRank = useMemo(() => (table ? piltriRanks(table, normalised) : null), [table, normalised]);
   const ready = table != null && needed.every((key) => columns[key]);
+  // "#77 overall": each place's position with no filter at all - same sort,
+  // same one-per-neighbourhood grouping - so an unfiltered search reads 1,
+  // 2, 3... (2026-10-17, on request). A place folded into a neighbour's
+  // entry gets the position it would take.
+  const population = columns["demographics.population"];
+  const worldRank = useMemo(() => {
+    if (!table || !population) return null;
+    const all = runFinder(table, (key) => columns[key] ?? (() => null), languagesOf, normalised, { ...EMPTY_STATE, sort: state.sort });
+    const listed = state.every ? all.indices : all.heads;
+    const rank = new Int32Array(table.count);
+    listed.forEach((i, k) => (rank[i] = k + 1));
+    const isListed = new Uint8Array(table.count);
+    for (const i of listed) isListed[i] = 1;
+    let seen = 0;
+    for (const i of all.indices) {
+      if (isListed[i]) seen++;
+      else rank[i] = seen + 1;
+    }
+    return rank;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table, population, languagesOf, normalised, state.sort, state.every]);
   const fresh = useMemo(
     () => (ready ? runFinder(table, (key) => columns[key] ?? (() => null), languagesOf, normalised, state) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -399,7 +418,6 @@ function SearchContent() {
 
   const col = (key: string): Column => columns[key] ?? (() => null);
   const listed = result ? (state.every ? result.indices : result.heads) : [];
-  const population = columns["demographics.population"];
   const count = result?.indices.length ?? 0;
   const filterCount = activeFilterCount(state);
   const countText = `${count.toLocaleString("en-GB")} ${count === 1 ? "place" : "places"}`;
