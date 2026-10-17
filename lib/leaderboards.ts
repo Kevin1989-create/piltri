@@ -207,6 +207,8 @@ export interface Filters {
 
 export interface Entry {
   rank: number;
+  /** The place's position in the PlaceTable. */
+  index: number;
   id: string;
   name: string;
   region: string | null;
@@ -229,7 +231,7 @@ function km(aLat: number, aLng: number, bLat: number, bLng: number): number {
 /** A board's top `limit` places under `filters`: one per metro area, at
  *  most `perCountry` per country. Ties go to the bigger place (more
  *  recognisable). */
-export function rankBoard(def: BoardDef, ctx: BoardContext, filters: Filters, prefs: UnitPreferences, limit = 50): Entry[] {
+export function rankBoard(def: BoardDef, ctx: BoardContext, filters: Filters, prefs: UnitPreferences, limit = 10): Entry[] {
   const { table } = ctx;
   const population = ctx.col("demographics.population");
   const candidates: { i: number; score: number; pop: number }[] = [];
@@ -254,6 +256,7 @@ export function rankBoard(def: BoardDef, ctx: BoardContext, filters: Filters, pr
     listed.push(i);
     out.push({
       rank: out.length + 1,
+      index: i,
       id: table.id(i),
       name: table.name[i],
       region: table.region[i],

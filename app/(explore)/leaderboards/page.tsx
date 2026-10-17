@@ -6,7 +6,7 @@ import { NavBar } from "@/components/ui/NavBar";
 import { BackLink } from "@/components/ui/BackLink";
 import { Chip } from "@/components/ui/Chip";
 import { IconEconomy, IconLiveability, IconSafety, TrophyIcon } from "@/components/ui/icons";
-import { getPlaceTable, type PlaceTable } from "@/lib/advancedSearch/engine";
+import { getPlaceTable, piltriRanks, type PlaceTable } from "@/lib/advancedSearch/engine";
 import { normaliseWeights } from "@/lib/aggregation/scoring";
 import { cn } from "@/lib/cn";
 import { BOARDS, LEADERBOARD_COLUMNS, rankBoard, SIZE_LABELS, SIZE_ORDER, type BoardKey, type Entry, type Filters } from "@/lib/leaderboards";
@@ -44,10 +44,34 @@ const PODIUM = [
   { place: 2, block: "h-7 bg-piltri-amber-light/50 text-piltri-amber-dark" },
 ];
 
-function Board({ boardKey, title, blurb, entries }: { boardKey: BoardKey; title: string; blurb: string; entries: Entry[] }) {
-  const [expanded, setExpanded] = useState(false);
+/** "#45 overall": a place's rank among every city by Piltri score (your
+ *  score settings) - where a board's winner stands overall (2026-10-17,
+ *  on request). */
+function Overall({ rank, className }: { rank: number | null; className?: string }) {
+  if (rank == null) return null;
+  return (
+    <span className={cn("text-[10px] text-ink-500 tabular-nums whitespace-nowrap", className)} title="Its rank among every city, by Piltri score">
+      #{rank.toLocaleString("en-GB")} overall
+    </span>
+  );
+}
+
+/** One board: the top 10 (2026-10-17, on request - no "top 50"). */
+function Board({
+  boardKey,
+  title,
+  blurb,
+  entries,
+  overall,
+}: {
+  boardKey: BoardKey;
+  title: string;
+  blurb: string;
+  entries: Entry[];
+  overall: (index: number) => number | null;
+}) {
   const Icon = ICONS[boardKey];
-  const rest = entries.slice(3, expanded ? 50 : 10);
+  const rest = entries.slice(3, 10);
   return (
     <section id={boardKey} className="scroll-mt-4 rounded-card border border-surface-border bg-surface flex flex-col">
       <header className="px-5 pt-5 flex items-start gap-3">
@@ -78,6 +102,7 @@ function Board({ boardKey, title, blurb, entries }: { boardKey: BoardKey; title:
                     <p className="text-[10px] text-ink-500 truncate">{e.country}</p>
                   </Link>
                   <p className="font-serif text-piltri-amber-dark tabular-nums lining-nums text-sm mt-1">{e.shown}</p>
+                  <Overall rank={overall(e.index)} />
                   <div className={cn("mt-1.5 w-full rounded-t-lg flex items-start justify-center pt-1 font-serif font-semibold lining-nums text-sm", block)}>
                     {place + 1}
                   </div>
@@ -94,21 +119,13 @@ function Board({ boardKey, title, blurb, entries }: { boardKey: BoardKey; title:
                   <span className="min-w-0 flex-1">
                     <span className="text-sm text-ink-900">{e.name}</span>
                     <span className="text-[11px] text-ink-500"> · {e.country}</span>
+                    <Overall rank={overall(e.index)} className="block sm:inline sm:ml-1.5" />
                   </span>
                   <span className="text-sm text-ink-700 tabular-nums flex-shrink-0">{e.shown}</span>
                 </Link>
               </li>
             ))}
           </ol>
-          {entries.length > 10 && (
-            <button
-              type="button"
-              onClick={() => setExpanded((x) => !x)}
-              className="mt-auto border-t border-surface-border px-5 py-2.5 text-xs text-ink-500 hover:text-piltri-amber-dark text-left"
-            >
-              {expanded ? "Show the top 10" : `Show the top ${entries.length}`}
-            </button>
-          )}
         </>
       )}
     </section>
@@ -154,11 +171,13 @@ export default function LeaderboardsPage() {
     };
   }, []);
 
+  const normalised = useMemo(() => normaliseWeights(weightPercentagesToScores(weights)), [weights]);
   const boards = useMemo(() => {
     if (!table || !columns) return null;
-    const ctx = { table, weights: normaliseWeights(weightPercentagesToScores(weights)), col: (key: string) => columns[key] ?? (() => null) };
+    const ctx = { table, weights: normalised, col: (key: string) => columns[key] ?? (() => null) };
     return BOARDS.map((def) => ({ def, entries: rankBoard(def, ctx, filters, prefs) }));
-  }, [table, columns, weights, filters, prefs]);
+  }, [table, columns, normalised, filters, prefs]);
+  const ranks = useMemo(() => (table ? piltriRanks(table, normalised) : null), [table, normalised]);
 
   return (
     <main className="min-h-dvh flex flex-col bg-surface-muted">
@@ -225,7 +244,7 @@ export default function LeaderboardsPage() {
           ) : (
             <div className="mt-4 grid gap-5 md:grid-cols-2 items-start">
               {boards.map(({ def, entries }) => (
-                <Board key={def.key} boardKey={def.key} title={def.title} blurb={def.blurb} entries={entries} />
+                <Board key={def.key} boardKey={def.key} title={def.title} blurb={def.blurb} entries={entries} overall={(i) => (ranks ? ranks[i] : null)} />
               ))}
             </div>
           )}

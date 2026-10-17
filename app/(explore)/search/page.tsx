@@ -10,7 +10,7 @@ import { Chip } from "@/components/ui/Chip";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
 import { CloseIcon, FilterIcon, PlusIcon, SECTION_ICONS } from "@/components/ui/icons";
 import type { MapPoint } from "@/components/explore/DiscoverResultsMap";
-import { getPlaceTable, type PlaceTable } from "@/lib/advancedSearch/engine";
+import { getPlaceTable, piltriRanks, type PlaceTable } from "@/lib/advancedSearch/engine";
 import {
   activeFilterCount,
   available,
@@ -383,15 +383,7 @@ function SearchContent() {
 
   const normalised = useMemo(() => normaliseWeights(weightPercentagesToScores(weights)), [weights]);
   // Every city's rank by Piltri score (your weighting), for "#77 overall".
-  const worldRank = useMemo(() => {
-    if (!table) return null;
-    const score = new Float64Array(table.count);
-    for (let i = 0; i < table.count; i++) score[i] = table.piltri(i, normalised);
-    const order = Array.from({ length: table.count }, (_, i) => i).sort((a, b) => score[b] - score[a]);
-    const rank = new Int32Array(table.count);
-    order.forEach((i, k) => (rank[i] = k + 1));
-    return rank;
-  }, [table, normalised]);
+  const worldRank = useMemo(() => (table ? piltriRanks(table, normalised) : null), [table, normalised]);
   const ready = table != null && needed.every((key) => columns[key]);
   const fresh = useMemo(
     () => (ready ? runFinder(table, (key) => columns[key] ?? (() => null), languagesOf, normalised, state) : null),

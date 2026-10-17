@@ -186,6 +186,17 @@ export interface PlaceTable {
   values: (key: string) => Promise<(i: number) => CriterionValue>;
 }
 
+/** Every place's rank (1 = best) by Piltri score at `weights`
+ *  (normalised) - "#77 overall" on Advanced search and Leaderboards. */
+export function piltriRanks(table: PlaceTable, weights: SectionScores): Int32Array {
+  const score = new Float64Array(table.count);
+  for (let i = 0; i < table.count; i++) score[i] = table.piltri(i, weights);
+  const order = Array.from({ length: table.count }, (_, i) => i).sort((a, b) => score[b] - score[a]);
+  const rank = new Int32Array(table.count);
+  order.forEach((i, k) => (rank[i] = k + 1));
+  return rank;
+}
+
 export async function getPlaceTable(): Promise<PlaceTable> {
   const [base, places, countries] = await Promise.all([loadBase(), loadPlaces(), loadCountries()]);
   return {
