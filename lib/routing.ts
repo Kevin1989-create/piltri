@@ -66,3 +66,15 @@ export function fetchRoute(from: Point, to: Point, mode: Route["mode"]): Promise
   request.then((r) => r || cache.delete(key));
   return request;
 }
+
+/** The same journey in Google Maps, for turn-by-turn directions and live
+ *  traffic - an ordinary link opened in a new tab (no API, no key). */
+export function googleMapsDirectionsUrl(from: Point, to: Point, mode: Route["mode"]): string {
+  const qs = new URLSearchParams({
+    api: "1",
+    origin: `${from.lat},${from.lng}`,
+    destination: `${to.lat},${to.lng}`,
+    travelmode: mode === "foot" ? "walking" : "driving",
+  });
+  return `https://www.google.com/maps/dir/?${qs.toString()}`;
+}

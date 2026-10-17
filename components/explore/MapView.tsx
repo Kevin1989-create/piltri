@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { driveMinutes, formatDriveTime, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
-import { fetchRoute, ROUTE_ATTRIBUTION, WALK_MAX_KM } from "@/lib/routing";
+import { fetchRoute, googleMapsDirectionsUrl, ROUTE_ATTRIBUTION, WALK_MAX_KM } from "@/lib/routing";
 import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
 import { autoCollapseAttribution } from "@/lib/mapAttribution";
 import { cn } from "@/lib/cn";
-import { CloseIcon } from "@/components/ui/icons";
+import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
 import type { TravelTimes } from "@/lib/types";
 
 /** OpenFreeMap: free OpenStreetMap vector tiles, no API key, no usage
@@ -862,16 +862,34 @@ export function MapView({
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
       {focus && (
-        // What's shown (the flag carries its name) - and the way to close it.
-        <div className={cn("absolute z-10 rounded-pill bg-surface shadow-card flex items-center gap-1 pl-3 pr-1 py-1", compact ? "top-3 left-3" : "top-4 right-14")}>
-          <span className="text-xs font-medium text-ink-900">
-            {focus.title}
-            {!focus.points.length && <span className="font-normal text-ink-500"> · none found nearby</span>}
-            {routeInfo && <span className="font-normal text-ink-500"> · {routeInfo}</span>}
-          </span>
-          <button type="button" aria-label="Close" onClick={onCloseFocus} className="p-1 rounded-full text-ink-500 hover:text-ink-900">
-            <CloseIcon className="w-3.5 h-3.5" />
-          </button>
+        // What's shown (the flag carries its name), the way to close it -
+        // and for a journey, the same one in Google Maps in a new tab.
+        <div className={cn("absolute z-10 rounded-2xl bg-surface shadow-card pl-3 pr-1 py-1", compact ? "top-3 left-3 max-w-[calc(100%-4.5rem)]" : "top-4 right-14 max-w-sm")}>
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-ink-900">
+              {focus.title}
+              {!focus.points.length && <span className="font-normal text-ink-500"> · none found nearby</span>}
+              {routeInfo && <span className="font-normal text-ink-500"> · {routeInfo}</span>}
+            </span>
+            <button type="button" aria-label="Close" onClick={onCloseFocus} className="ml-auto p-1 rounded-full text-ink-500 hover:text-ink-900 flex-shrink-0">
+              <CloseIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {focus.style === "journey" && focus.points[0] && (
+            <a
+              href={googleMapsDirectionsUrl(
+                { lat, lng },
+                focus.points[0],
+                straightLineKm({ lat, lng }, focus.points[0]) <= WALK_MAX_KM ? "foot" : "car"
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 pb-1 pr-2 text-[11px] font-medium text-piltri-amber-dark hover:underline underline-offset-2"
+            >
+              Open in Google Maps
+              <ExternalLinkIcon className="w-3 h-3" />
+            </a>
+          )}
         </div>
       )}
       {pickingDestination && (
