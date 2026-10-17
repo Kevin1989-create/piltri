@@ -38,6 +38,8 @@ export interface Toggle {
   /** The figure behind it, shown on each result - so you see why it
    *  matched (null: nothing worth showing, e.g. a plain Yes). */
   fact?: (col: Col, i: number, prefs: UnitPreferences) => string | null;
+  /** Hidden when this other choice is available (its better replacement). */
+  replacedBy?: string;
 }
 
 const atLeast = (key: string, min: number) => (col: Col, i: number) => {
@@ -163,7 +165,22 @@ export const NEARBY: Toggle[] = [
     test: atMost(FOREST, 5),
     fact: distanceFact(FOREST, "Forest"),
   },
-  { key: "airport", label: "Airport", hint: (p) => `within ${formatDistanceKm(40, p)}`, needs: ["liveability.hasAirport"], test: yes("liveability.hasAirport") },
+  {
+    key: "intlAirport",
+    label: "International airport",
+    hint: (p) => `within ${formatDistanceKm(60, p)}`,
+    needs: ["liveability.distanceToIntlAirportKm"],
+    test: atMost("liveability.distanceToIntlAirportKm", 60),
+    fact: distanceFact("liveability.distanceToIntlAirportKm", "Airport"),
+  },
+  {
+    key: "airport",
+    label: "Airport",
+    hint: (p) => `within ${formatDistanceKm(40, p)}`,
+    needs: ["liveability.hasAirport"],
+    test: yes("liveability.hasAirport"),
+    replacedBy: "intlAirport",
+  },
   { key: "train", label: "Train station", hint: (p) => `within ${formatDistanceKm(5, p)}`, needs: ["liveability.hasTrainStation"], test: yes("liveability.hasTrainStation") },
   { key: "metro", label: "Metro", hint: (p) => `within ${formatDistanceKm(5, p)}`, needs: ["liveability.hasSubway"], test: yes("liveability.hasSubway") },
   { key: "tram", label: "Tram", hint: (p) => `within ${formatDistanceKm(5, p)}`, needs: ["liveability.hasTramway"], test: yes("liveability.hasTramway") },
@@ -184,7 +201,12 @@ export const NEARBY: Toggle[] = [
 
 /** A choice is offered only when the dataset has its figures (a figure
  *  added later reaches the site with the next data refresh). */
-export const available = (t: Toggle) => t.needs.every((key) => manifest.advCityColumns.includes(key));
+const hasColumns = (t: Toggle) => t.needs.every((key) => manifest.advCityColumns.includes(key));
+export const available = (t: Toggle): boolean => {
+  if (!hasColumns(t)) return false;
+  const better = t.replacedBy ? NEARBY.find((n) => n.key === t.replacedBy) : undefined;
+  return !(better && hasColumns(better));
+};
 
 /* ---- Strong in: a section scoring 70+ (green on the city page). ---- */
 export const STRONG_MIN = 70;

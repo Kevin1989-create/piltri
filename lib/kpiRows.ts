@@ -483,7 +483,12 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           : null,
         distanceRow("Distance to mountain", l.distanceToMountainKm, "Straight-line distance to the nearest peak of 1,000 m or more that rises at least 500 m above the city.", "GeoNames", "mountain"),
         distanceRow("Distance to forest", l.distanceToForestKm, "Straight-line distance to the nearest mapped forest or woodland.", "GeoNames", "forest"),
-        distanceRow("Nearest airport", l.distanceToAirportKm, "Straight-line distance to the nearest airport.", "GeoNames", "airport"),
+        ...(l.distanceToIntlAirportKm != null || l.distanceToLocalAirportKm != null
+          ? [
+              distanceRow("Nearest international airport", l.distanceToIntlAirportKm ?? null, "Straight-line distance to the nearest international airport: a large airport, or one with scheduled flights named International.", "OurAirports", "intlAirport"),
+              distanceRow("Nearest local airport", l.distanceToLocalAirportKm ?? null, "Straight-line distance to the nearest other airport with scheduled passenger flights (airfields without them aren't counted).", "OurAirports", "localAirport"),
+            ]
+          : [distanceRow("Nearest airport", l.distanceToAirportKm, "Straight-line distance to the nearest airport.", "GeoNames", "airport")]),
         distanceRow("Nearest train station", l.distanceToTrainStationKm, "Straight-line distance to the nearest railway station.", "GeoNames and Overture Maps", "train"),
         l.nearestLargeCity
           ? onMap(neutral(

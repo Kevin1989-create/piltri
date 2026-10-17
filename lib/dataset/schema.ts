@@ -157,6 +157,8 @@ export const CITY_FIELDS = [
   "customId",
   "hasPort",
   "distanceToLakeBeachKm",
+  "distanceToIntlAirportKm",
+  "distanceToLocalAirportKm",
 ] as const;
 
 export type CityFieldKey = (typeof CITY_FIELDS)[number];
@@ -222,6 +224,10 @@ export interface CityRecord {
   /** The nearest beach on a lake or reservoir, up to 100 km (2026-10-14);
    *  distanceToBeachKm is sea and ocean beaches only. */
   distanceToLakeBeachKm: number | null;
+  /** Nearest international airport, and nearest other airport with
+   *  scheduled flights (OurAirports - 2026-10-17). */
+  distanceToIntlAirportKm: number | null;
+  distanceToLocalAirportKm: number | null;
   /** Test-weighted average download speed (Ookla) within the stored
    *  radius: 5 km, or 15/30 km where there were too few tests nearer. */
   broadbandDownloadMbps: number | null;
@@ -254,6 +260,8 @@ export const NEARBY_KINDS = [
   "forest",
   "large",
   "lakeBeach",
+  "intlAirport",
+  "localAirport",
 ] as const;
 export type NearbyKind = (typeof NEARBY_KINDS)[number];
 /** [lng, lat, name] - the name can be "" (a stretch of coast, a tram line). */

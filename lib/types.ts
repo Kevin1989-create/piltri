@@ -181,6 +181,10 @@ export interface LiveabilityFields {
   distanceToForestKm: number | null;
   distanceToCapitalKm: number | null;
   distanceToAirportKm: number | null;
+  /** Nearest international airport / other airport with scheduled flights
+   *  (OurAirports) - absent in datasets built before 2026-10-17. */
+  distanceToIntlAirportKm?: number | null;
+  distanceToLocalAirportKm?: number | null;
   distanceToTrainStationKm: number | null;
   /** Nearest other city of 500,000+ people (null for those cities). */
   nearestLargeCity: { name: string; km: number } | null;

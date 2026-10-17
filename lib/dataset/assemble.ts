@@ -228,6 +228,8 @@ export function assembleCityExploreData(
       distanceToForestKm: city.distanceToForestKm,
       distanceToCapitalKm: city.distanceToCapitalKm,
       distanceToAirportKm: city.distanceToAirportKm,
+      distanceToIntlAirportKm: city.distanceToIntlAirportKm ?? null,
+      distanceToLocalAirportKm: city.distanceToLocalAirportKm ?? null,
       distanceToTrainStationKm: city.distanceToTrainStationKm,
       nearestLargeCity:
         city.nearestLargeCityName != null && city.nearestLargeCityKm != null

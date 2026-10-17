@@ -4,6 +4,7 @@ import { around } from "geokdbush";
 import { assembleCityExploreData } from "@/lib/dataset/assemble";
 import { NEARBY_KINDS, type CityRecord, type EncodedBoundary, type NearbyKind, type NearbyPoint } from "@/lib/dataset/schema";
 import { PM25_SOURCE, samplePm25 } from "./airQuality";
+import { AIRPORTS_SOURCE, loadAirports } from "./airports";
 import { sampleBroadband } from "./broadband";
 import { buildCountries, fetchWhoNationalPm25 } from "./countries";
 import { LANGUAGES_SOURCE } from "./sources/languages";
@@ -212,6 +213,7 @@ async function main() {
   const lakeIdx = buildIndex(lakeShores);
   const riverIdx = buildIndex(rivers);
   const ovBeaches = await loadOvertureCategory((await extractOvertureBeaches()).glob, "beach", true);
+  const airports = await loadAirports();
   const allBeaches = mergePoints(gn.beach, ovBeaches) as PointSet;
   const onRiver = (lng: number, lat: number) => anyWithin(riverIdx, lng, lat, RIVER_CLEAR_KM);
   const onCoast = (lng: number, lat: number) => anyWithin(coastIdx, lng, lat, BEACH_SHORE_KM);
@@ -245,6 +247,8 @@ async function main() {
     // includes beach bars and volleyball courts.
     beach: buildIndex(beaches),
     lakeBeach: buildIndex(lakeBeaches),
+    intlAirport: buildIndex(airports.international),
+    localAirport: buildIndex(airports.local),
     coast: coastIdx,
     quakes: buildIndex(quakes),
     large: buildIndex({ lng: large.map((c) => c.lng), lat: large.map((c) => c.lat) }),
@@ -325,6 +329,8 @@ async function main() {
       forest: geo(idx.forest),
       large: largeHit,
       lakeBeach: lakeBeachKm != null ? geo(idx.lakeBeach) : null,
+      intlAirport: geo(idx.intlAirport),
+      localAirport: geo(idx.localAirport),
     };
     // A Yes figure's places: all of them within its radius (up to
     // MAX_FLAGS), not just the nearest. Trams stay single - only their
@@ -380,6 +386,8 @@ async function main() {
         // Under 1 km is the capital itself (two geocodes of one centre).
         distanceToCapitalKm: capitalKm == null ? null : capitalKm < 1 ? 0 : round(capitalKm, 1),
         distanceToAirportKm: km(nearest(idx.airport, lng, lat)),
+        distanceToIntlAirportKm: km(nearest(idx.intlAirport, lng, lat)),
+        distanceToLocalAirportKm: km(nearest(idx.localAirport, lng, lat)),
         distanceToTrainStationKm: km(nearest(idx.train, lng, lat)),
         nearestLargeCityName: nearestLarge ? large[nearestLarge.id].cityName : null,
         nearestLargeCityKm: nearestLarge ? round(nearestLarge.km, 0) : null,
@@ -515,6 +523,7 @@ async function main() {
       earthquakes: "USGS earthquake catalogue, magnitude 5+ since 1970 (public domain)",
       outlines: `${BOUNDARY_SOURCE}, release ${release}`,
       builtUp: BUILTUP_SOURCE,
+      airports: AIRPORTS_SOURCE,
     },
   });
   log("build", `dataset ${version} written to ${outDir} in ${Math.round((Date.now() - startedAt) / 1000)}s`);
