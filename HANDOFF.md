@@ -8,20 +8,23 @@ instructions).
 
 ## What Piltri is
 
-Compare ~140,000 places (every GeoNames place with 1,000+ people) in 245
+Compare ~146,800 places (every GeoNames place with 1,000+ people) in 245
 countries on a weighted **Piltri Score**: Safety 30%, Economy 25%,
-Environment 25%, Quality of Life 20% (users can re-weight on
-`/score-settings`; display units are on `/settings`). Demographics are
-shown but not scored. There is **no
+Environment 25%, Quality of Life 20% (users re-weight on `/settings`, with
+units and language). Demographics are shown but not scored. There is **no
 Real Estate section** - no free, reliable global price source exists.
 
 - **Explore** (`/`): search a city -> `/city?id=lyon-fr`: map, score,
-  section panels, world rank (#X of 66,295), a printable report
-  (`/report?id=`), Compare (`/compare?id=…&id=…`, up to 10 places), and pin mode (drop a pin anywhere for the nearest beach,
-  mountain, train station and airport, with straight-line travel estimates).
-- **Advanced search** (`/search`): filter cities or countries on any
-  criterion with a live match count; results (`/search/results`) as a photo
-  grid or map; a country's figures at `/country?code=FR`.
+  section panels (the city's own figures, then its country's), world rank,
+  a printable report (`/report?id=`), Compare (`/compare?id=…&id=…`, up
+  to 10 places), and pin mode. Tapping a Yes or a distance shows it on the
+  map: flags for a Yes (up to 6), the road journey for a distance, with an
+  "Open in Google Maps" link.
+- **Advanced search** (`/search`): one page of plain choices, live results,
+  each result's list position and "#N overall"; a country's figures at
+  `/country?code=FR`.
+- **Leaderboards** (`/leaderboards`): 10 rankings, top 10, by region,
+  population size and places per country.
 - Every page address is listed in `lib/urls.ts`; the older `/explore/...`
   addresses redirect (next.config.js).
 - **/admin** (password): dataset status and the Resources links editor.
@@ -30,7 +33,17 @@ Real Estate section** - no free, reliable global price source exists.
 
 - **Zero running cost, no live third-party data calls.** New data goes
   through the offline pipeline from free bulk sources; never a runtime API
-  or a paid tier.
+  or a paid tier. One approved exception (2026-10-16): road journeys on the
+  map ask the OpenStreetMap community's routing server (FOSSGIS OSRM,
+  `lib/routing.ts`), falling back to a straight line.
+- **Local figures are never estimated** (2026-10-24): a city version of a
+  country figure only where a source reports or counts it for the place
+  or its region; otherwise "No data" in the city block, the country figure
+  in the country block. The plan, country by country:
+  https://claude.ai/artifact/D3ofpbjU5YYR3b42w7sXbm (phase 1 done; phases
+  2-3: Europe + US, then other data-rich countries).
+- **May earn money one day** (2026-10-24): no non-commercial-only sources,
+  except Ookla's speeds until it actually does.
 - "No loading time": pages read small static files; nothing waits on a
   server function.
 - Only real, sourced data. A field with no value for a place is hidden,
@@ -39,7 +52,7 @@ Real Estate section** - no free, reliable global price source exists.
   block before country block; descriptive facts in grey, good/bad metrics
   coloured green/amber/red; labels truncate to one line with hover text.
 
-## Architecture (2026-09-26)
+## Architecture (2026-10-27)
 
 ```
 pipeline/ (offline, monthly GitHub Action)
@@ -70,15 +83,25 @@ browser
 
 See `pipeline/README.md` for the full table. Highlights and decisions:
 
-- **Amenities** = Overture places within 5 km of the centre, absolute counts,
-  log-scale scored (`COUNT_CAPS`).
+- **Amenities** = Overture places within 5 km of the centre per resident of
+  those 5 km, log-scale scored (`AMENITY_RATIOS`).
 - **Transport**: metro = subway/monorail line or station within 5 km; tram =
   tram/light-rail track within 5 km (Overture transportation = OSM rail);
   train/bus/airport from GeoNames + Overture. Pin-mode station names come
   from GeoNames only (Overture's category includes kiosks).
-- **Beach** = nearest sea coast, or GeoNames beach on the sea or a major
-  lake (Natural Earth); river spots, reservoirs and pools don't count. **Mountain** = 1,000 m+ peak rising 500 m+ above
-  the city.
+- **Beach** = a mapped beach (GeoNames, OpenStreetMap via Overture) within
+  1 km of the sea coast with open water beside it; a **lake beach** is its
+  own figure; river and estuary banks count as neither. **Mountain** =
+  1,000 m+ peak rising 500 m+ above the city.
+- **Airports**: nearest international and nearest local airport with
+  scheduled flights (OurAirports).
+- **Local figures (phase 1, 2026-10-24)**: median age and population growth
+  within 5 km (WorldPop, GHS-POP), nearest hospital (Overture), armed
+  conflict within 50 km (UCDP GED), regional GDP per head as reported
+  (Kummu et al., 2018+). Rows appear only when the dataset's manifest has
+  the source (`hasSource` in `lib/kpiRows.ts`); a failing source is left
+  out of that month's dataset (`optional` in `pipeline/build.ts`). Not
+  scored yet.
 - **Climate**: WorldClim normals incl. monthly highs/lows/rain (climate
   chart), summer high / winter low; climate type from Beck et al.'s
   published Köppen maps (today + projected 2071-2099, SSP2-4.5); sunshine, snowfall and **UV** (NASA
@@ -104,10 +127,10 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
 
 ## Where things live
 
-- **Local folder**: `C:\Users\user\OneDrive\Piltri\piltri` - OneDrive-synced,
-  which has locked files mid-write before (git objects, `.next`). Moving it
-  out of OneDrive is recommended. The pipeline cache is deliberately outside
-  (`~/.piltri-pipeline-cache`, ~10 GB).
+- **Local folder**: `C:\Users\user\dev\piltri` (moved out of OneDrive; the
+  old OneDrive copy is out of date - Claude sessions still open there, for
+  their saved memory). The pipeline cache is deliberately outside
+  (`~/.piltri-pipeline-cache`, ~15 GB with WorldPop's age grids).
 - **GitHub**: `https://github.com/Kevin1989-create/piltri`, branch `main`;
   Vercel deploys every push.
 - **Live**: `https://www.piltri.me` (apex redirects to www; DNS at
@@ -125,6 +148,8 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
 - `npm run dev` (installs the current dataset first), `npm run build`,
   `npm run typecheck`.
 - Test an unpublished dataset: `DATASET_DIR=<pipeline out dir> npm run dev`.
-- Rebuild data: `npm run pipeline` (first run downloads ~10 GB and extracts
-  Overture from S3 - hours; later runs reuse the cache).
+- Rebuild data: `npm run pipeline` (first run downloads ~15 GB and extracts
+  Overture from S3 - hours; later runs reuse the cache). Pin
+  `OVERTURE_RELEASE=<release>` to reuse a local extract instead of
+  re-extracting a newer release.
 - Commits end with `Co-Authored-By: Claude ...`; never force-push.

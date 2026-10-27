@@ -1,13 +1,14 @@
 # Known issues and limitations
 
-Updated 2026-09-26. The data is an offline dataset served as static files
+Updated 2026-10-27. The data is an offline dataset served as static files
 (see HANDOFF.md); the issues of the old live-API design went with it.
 
 ## Data limitations, and how each is handled
 - **Estimates**: sunshine hours, snowfall and UV index are derived from
   climate normals; flood / sea-level exposure are proxies (elevation +
-  distance to the coast); drive times come from the straight-line distance
-  (no route planner - so a trip across water still gets one, up to 500 km).
+  distance to the coast); drive times in the sections come from the straight-line
+  distance (up to 500 km); the map's journeys follow real roads
+  (OpenStreetMap routing).
   All are labelled as such in the row hints and on /sources.
 - **Internet speed** needs 30+ Speedtest results: taken within 5 km, widened
   to 15 or 30 km for small places (the page shows "(15 km)"). About 7,000
@@ -33,11 +34,25 @@ Updated 2026-09-26. The data is an offline dataset served as static files
   places (under 150 people/km² at the centre) still show the 5 km circle
   the local figures are measured in. Local figures (restaurants,
   density...) are always "within 5 km of the centre", whatever the outline.
-- **Beaches**: sea coast, or a mapped beach on the sea or a large lake
-  (Natural Earth's major lakes). River spots, small reservoirs and
-  "beach" pools don't count.
+- **Beaches**: a mapped beach within 1 km of the sea coast with open water
+  beside it; lake beaches are a separate figure. River and estuary banks
+  count as neither.
 - **Country-level fields** (economy, safety, healthcare, PISA...) are the
-  same for every city in a country - there's no free per-city source.
+  same for every city in a country. Local versions are being added where
+  real data exists (the plan: https://claude.ai/artifact/D3ofpbjU5YYR3b42w7sXbm);
+  never estimated, so many places keep only the country figure.
+- **Local figures (phase 1)**:
+  - Regional GDP per head is each country's own latest report (2018-2021),
+    for 70 countries (86% of places); it ages until countries report
+    again. Output is counted where people work, so a central district
+    that draws commuters reads high (Paris: 313% of France's figure).
+  - Average age and growth are "within 5 km" like density; under 1,000
+    people within 5 km they show "No data" (about 1% of places).
+  - Armed conflict counts UCDP's individually sourced deadly events placed
+    to within ~25 km or a district; events known only to a province aren't
+    counted. Organised violence only - ordinary crime isn't.
+  - Nearest hospital depends on how hospitals are tagged in Overture /
+    OpenStreetMap: a private clinic tagged as a hospital counts.
 - **Official languages** are national-level legal status only (regional
   co-official languages such as Catalan or Welsh aren't listed), in
   alphabetical order - politically sensitive, so the rules and each
@@ -60,7 +75,8 @@ Updated 2026-09-26. The data is an offline dataset served as static files
 
 ## Licensing
 All sources are open (see /sources, which carries the required
-attributions). One is non-commercial: Ookla's speed data (CC BY-NC-SA 4.0).
+attributions). One is non-commercial: Ookla's speed data (CC BY-NC-SA 4.0),
+kept until Piltri earns money (decided 2026-10-24).
 A commercial deployment builds the dataset with `PIPELINE_COMMERCIAL=1`,
 which leaves the speed fields out. (WHO's datasets are CC BY 4.0 under the
 terms at data.who.int.)
