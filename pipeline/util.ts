@@ -56,6 +56,7 @@ export async function fetchJson<T = any>(url: string): Promise<T> {
 export async function downloadOnce(url: string, fileName: string): Promise<string> {
   const dest = path.join(RAW_DIR, fileName);
   if (existsSync(dest) && statSync(dest).size > 0) return dest;
+  mkdirSync(path.dirname(dest), { recursive: true });
   log("download", `${fileName} <- ${url}`);
   const res = await fetchWithRetry(url, {}, 5, 60 * 60_000);
   const part = `${dest}.part`;

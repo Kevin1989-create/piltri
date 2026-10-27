@@ -3,11 +3,12 @@ import { legendOf, TIER_CLASS, tierOf, type LegendLine, type NumericScale, type 
 import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
 import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
 import { SECTION_LABELS, type CityExploreData, type SectionKey } from "@/lib/types";
+import { manifest } from "@/lib/dataset/files";
 import type { NearbyKind } from "@/lib/dataset/schema";
 
-/** Which tier a value describes: "country" (national statistics) or
- *  "pinned" (computed from this city's own coordinates). "city" is kept for
- *  a future per-city statistic from a city-level source. */
+/** Which tier a value describes: "country" (national statistics),
+ *  "city" (a statistic for the place or the region it's in - regional
+ *  GDP) or "pinned" (computed from this city's own coordinates). */
 export type PrecisionTier = "country" | "city" | "pinned";
 
 /** What the info popover explains about a row. `legend` is null for plain
@@ -162,6 +163,18 @@ const WB = (code: string) => `World Bank, World Development Indicators (${code})
 const WGI = "World Bank, Worldwide Governance Indicators";
 const WORLDCLIM = "WorldClim 2.1 climate normals, 1970-2000 averages";
 const OVERTURE = "Overture Maps places (OpenStreetMap and other open sources)";
+// The years match pipeline/conflict.ts (GED 26.1: 2021-2025).
+const UCDP = "Uppsala Conflict Data Program, Georeferenced Event Dataset 26.1 (CC BY 4.0)";
+const REGION_GDP_SOURCE = "Kummu et al. (2025), GDP per capita v4 (Zenodo, CC BY 4.0) - regional figures as each country reported them";
+
+/** Whether the dataset being served has a source's figures (a
+ *  manifest.sources key: "regionGdp", "age", "populationGrowth",
+ *  "conflict"). The local figures added on 2026-10-24 - "No data" rows
+ *  included - show only then: an older dataset, or one built in a month
+ *  the source failed, has none of them. */
+export function hasSource(key: string): boolean {
+  return key in manifest.sources;
+}
 
 /** Each section's KPI list - shared by the results page's detail panel,
  *  the Compare page and the printable report, so they never drift apart. */
@@ -176,10 +189,29 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           "How expensive everyday goods and services are, rescaled 0-100 (higher is more expensive). Shown in grey because cheaper isn't simply better: low prices usually come with low incomes - purchasing power shows what money actually buys.",
         source: WB("PA.NUS.PRVT.PLI, price level index"),
       };
+      const regionAbout = {
+        definition:
+          "GDP per head of the region this place is in, as its country reports it - a département in France, a district in Germany, a province in Italy or Spain, an economic area in the US, a province or state in China, India or Brazil." +
+          (e.regionGdpPerHeadPpp != null
+            ? ` In ${e.regionGdpYear}: ${e.regionGdpPerHeadPpp.toLocaleString("en-GB")} international dollars a person at purchasing-power parity${e.regionGdpVsNationalPct != null ? `, ${e.regionGdpVsNationalPct}% of ${data.country}'s figure` : ""}. Output is counted where people work, so a central district that draws commuters from around it reads high.`
+            : ` ${data.country} doesn't publish one recent enough (2018 or later), so none is shown - the country's figures are below.`),
+        source: REGION_GDP_SOURCE,
+      };
       // Two per line on the results page: GDP | rank, growth | tax, salary |
       // unemployment, cost of living | purchasing power, the three GDP
       // sectors, currency.
       const rows: (KpiRow | null)[] = [
+        !hasSource("regionGdp")
+          ? null
+          : e.regionGdpPerHeadPpp == null
+            ? missing("Regional GDP per head", "city", regionAbout)
+            : neutral(
+                "Regional GDP per head",
+                e.regionGdpVsNationalPct != null ? `${e.regionGdpVsNationalPct}% of national` : `$${e.regionGdpPerHeadPpp.toLocaleString("en-GB")} PPP`,
+                "city",
+                regionAbout,
+                `(${e.regionGdpYear})`
+              ),
         e.gdpUsd != null
           ? scored("GDP", e.gdpUsd, formatGdpUsd(e.gdpUsd), "country", SCALES.gdp, formatGdpUsd, {
               definition: "The total value of everything the country produces in a year, in US dollars. Larger economies tend to offer more jobs and services.",
@@ -230,7 +262,29 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
     case "safetyStability": {
       const s = data.safetyStability;
       const trendAbout = { definition: "The direction of the political stability score over roughly the last five years.", source: WGI };
+      const events = s.conflictEvents5yr;
+      const conflictRow =
+        events == null
+          ? null
+          : categorical(
+              "Armed conflict nearby",
+              events === 0 ? "None" : `${events.toLocaleString()} deadly ${events === 1 ? "event" : "events"}`,
+              "pinned",
+              events === 0 ? "good" : events <= 5 ? "moderate" : "poor",
+              [
+                { tier: "good", text: "None within 50 km in 2021-2025" },
+                { tier: "moderate", text: "1 to 5 deadly events" },
+                { tier: "poor", text: "More than 5" },
+              ],
+              {
+                definition:
+                  "Deadly events of organised violence - fighting between states or armed groups, and their attacks on civilians - within 50 km of the centre in 2021-2025. Each event is individually recorded from news and local sources; ordinary crime isn't included." +
+                  (events ? ` Together they killed about ${(s.conflictDeaths5yr ?? 0).toLocaleString()} people.` : ""),
+                source: UCDP,
+              }
+            );
       return [
+        ...(conflictRow ? [conflictRow] : []),
         scoredOrMissing("Political stability score", s.politicalStabilityScore, String, "country", SCALES.score, String, {
           definition: "How unlikely political instability or politically motivated violence is, as a 0-100 rank among countries (higher is more stable).",
           source: WGI,
@@ -477,6 +531,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         pisaRow("PISA maths score", l.pisaMathScore, "mathematics"),
         pisaRow("PISA reading score", l.pisaReadingScore, "reading"),
         pisaRow("PISA science score", l.pisaScienceScore, "science"),
+        distanceRow("Nearest hospital", l.distanceToHospitalKm ?? null, "Straight-line distance to the nearest hospital or emergency department (clinics and surgeries aren't counted).", OVERTURE, "hospital"),
         distanceRow("Distance to beach", l.distanceToBeachKm, "Straight-line distance to the nearest beach on the sea or ocean (not a river or estuary bank).", "GeoNames and OpenStreetMap beaches, Natural Earth coastline and rivers", "beach"),
         l.distanceToLakeBeachKm != null
           ? distanceRow("Distance to lake beach", l.distanceToLakeBeachKm, "Straight-line distance to the nearest beach on a lake or reservoir, up to 100 km.", "GeoNames and OpenStreetMap beaches, Natural Earth lakes and rivers", "lakeBeach")

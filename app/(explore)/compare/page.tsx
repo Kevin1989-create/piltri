@@ -86,9 +86,13 @@ function demographicsRows(places: (CityExploreData | null)[]): Row[] {
     row("Population", (d) => (d.demographics.cityPopulation != null ? d.demographics.cityPopulation.toLocaleString("en-GB") : null)),
     row("Density (within 5 km)", (d) => (d.demographics.cityDensityPerKm2 != null ? `${compact(d.demographics.cityDensityPerKm2)}/km²` : null)),
     row("Time zone", (d) => (d.demographics.timezone ? formatUtcOffset(d.demographics.timezone) : null)),
+    row("Average age (within 5 km)", (d) => (d.demographics.cityMedianAge != null ? String(Math.round(d.demographics.cityMedianAge)) : null)),
+    row("Population growth 2020-25 (5 km)", (d) =>
+      d.demographics.cityPopulationGrowth5yrPct != null ? `${d.demographics.cityPopulationGrowth5yrPct > 0 ? "+" : ""}${d.demographics.cityPopulationGrowth5yrPct}%` : null
+    ),
     row("Country", (d) => d.country),
     row("Country population", (d) => (d.demographics.countryPopulation != null ? compact(d.demographics.countryPopulation) : null)),
-    row("Average age", (d) => (d.demographics.countryAverageAge != null ? String(d.demographics.countryAverageAge) : null)),
+    row("Country average age", (d) => (d.demographics.countryAverageAge != null ? String(d.demographics.countryAverageAge) : null)),
     row("Official language", (d) => (d.demographics.countryOfficialLanguages?.length ? d.demographics.countryOfficialLanguages.join(", ") : null)),
   ];
 }

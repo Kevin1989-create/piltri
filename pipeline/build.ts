@@ -3,9 +3,11 @@ import KDBush from "kdbush";
 import { around } from "geokdbush";
 import { assembleCityExploreData } from "@/lib/dataset/assemble";
 import { NEARBY_KINDS, type CityRecord, type EncodedBoundary, type NearbyKind, type NearbyPoint } from "@/lib/dataset/schema";
+import { AGE_SOURCE, downloadAgeGroups, sampleMedianAge } from "./ageStructure";
 import { PM25_SOURCE, samplePm25 } from "./airQuality";
 import { AIRPORTS_SOURCE, loadAirports } from "./airports";
 import { sampleBroadband } from "./broadband";
+import { CONFLICT_SOURCE, sampleConflict } from "./conflict";
 import { buildCountries, fetchWhoNationalPm25 } from "./countries";
 import { LANGUAGES_SOURCE } from "./sources/languages";
 import { BOUNDARY_SOURCE, sampleBoundaries } from "./boundaries";
@@ -15,7 +17,8 @@ import { loadAllLakeShorePoints, loadCoastlinePoints, loadEarthquakes, loadRiver
 import { countNearCities, nearestFewNearCities, nearestNearCities } from "./nearCities";
 import { writeDataset } from "./output";
 import { extractOvertureBeaches, extractOverturePlaces, extractOvertureRail, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
-import { POPULATION_SOURCE, sampleDensity } from "./population";
+import { POPULATION_GROWTH_SOURCE, POPULATION_SOURCE, sampleDensity, samplePopulationGrowth } from "./population";
+import { REGIONAL_GDP_SOURCE, sampleRegionalGdp } from "./regionalGdp";
 import { KOPPEN_SOURCE, sampleKoppen } from "./koppenMap";
 import { loadShortlist } from "./shortlist";
 import { sampleUvIndex } from "./uv";
@@ -129,8 +132,24 @@ function percentile(values: number[], p: number): number {
   return sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] ?? 0;
 }
 
+/** A local source added in phase 1 (2026-10-24) that fails leaves its
+ *  figures out this month - empty, and missing from the manifest, so the
+ *  site hides them - rather than stopping the whole refresh. */
+async function optional<T>(name: string, run: () => Promise<T>): Promise<T | null> {
+  try {
+    return await run();
+  } catch (err) {
+    log("build", `WARNING: ${name} failed and is left out of this dataset: ${String(err).slice(0, 300)}`);
+    return null;
+  }
+}
+
 async function main() {
   const startedAt = Date.now();
+  // WorldPop's age grids are slow to download: started now, alongside the
+  // outlines, and awaited when the median age is computed.
+  const ageFiles = downloadAgeGroups();
+  ageFiles.catch(() => {}); // reported where it's awaited
   const { cities: shortlist, countries: countryInfo } = await loadShortlist();
   const points = shortlist.map((c) => ({ lat: c.lat, lng: c.lng }));
   const countries = await buildCountries(countryInfo);
@@ -173,6 +192,13 @@ async function main() {
   }
   const density = await sampleDensity(points);
   const broadband = await sampleBroadband(points);
+  // Local versions of country figures (2026-10-24, phase 1): reported or
+  // counted for the place itself, never estimated - null where there is
+  // no such figure.
+  const populationGrowth = await optional("population growth", () => samplePopulationGrowth(points));
+  const medianAge = await optional("median age", async () => sampleMedianAge(points, await ageFiles));
+  const conflict = await optional("armed conflict", () => sampleConflict(points));
+  const regionGdp = await optional("regional GDP", () => sampleRegionalGdp(points, shortlist.map((c) => countryInfo[c.countryCode]?.iso3 ?? null)));
 
   const { glob: placesGlob, release } = await extractOverturePlaces();
   const { glob: railGlob } = await extractOvertureRail();
@@ -214,6 +240,8 @@ async function main() {
   const riverIdx = buildIndex(rivers);
   const ovBeaches = await loadOvertureCategory((await extractOvertureBeaches()).glob, "beach", true);
   const airports = await loadAirports();
+  const hospitals = await loadOvertureCategory(placesGlob, POI.hospital, true);
+  log("build", `hospitals: ${hospitals.lng.length}`);
   const allBeaches = mergePoints(gn.beach, ovBeaches) as PointSet;
   const onRiver = (lng: number, lat: number) => anyWithin(riverIdx, lng, lat, RIVER_CLEAR_KM);
   const onCoast = (lng: number, lat: number) => anyWithin(coastIdx, lng, lat, BEACH_SHORE_KM);
@@ -249,6 +277,7 @@ async function main() {
     lakeBeach: buildIndex(lakeBeaches),
     intlAirport: buildIndex(airports.international),
     localAirport: buildIndex(airports.local),
+    hospital: buildIndex(hospitals),
     coast: coastIdx,
     quakes: buildIndex(quakes),
     large: buildIndex({ lng: large.map((c) => c.lng), lat: large.map((c) => c.lat) }),
@@ -331,6 +360,7 @@ async function main() {
       lakeBeach: lakeBeachKm != null ? geo(idx.lakeBeach) : null,
       intlAirport: geo(idx.intlAirport),
       localAirport: geo(idx.localAirport),
+      hospital: geo(idx.hospital),
     };
     // A Yes figure's places: all of them within its radius (up to
     // MAX_FLAGS), not just the nearest. Trams stay single - only their
@@ -389,6 +419,14 @@ async function main() {
         distanceToIntlAirportKm: km(nearest(idx.intlAirport, lng, lat)),
         distanceToLocalAirportKm: km(nearest(idx.localAirport, lng, lat)),
         distanceToTrainStationKm: km(nearest(idx.train, lng, lat)),
+        distanceToHospitalKm: km(nearest(idx.hospital, lng, lat)),
+        populationGrowth5yrPct: populationGrowth?.[i] ?? null,
+        medianAge: medianAge?.[i] ?? null,
+        conflictEvents5yr: conflict?.events[i] ?? null,
+        conflictDeaths5yr: conflict?.deaths[i] ?? null,
+        regionGdpPerHeadPpp: regionGdp?.[i].perHead ?? null,
+        regionGdpYear: regionGdp?.[i].year ?? null,
+        regionGdpVsNationalPct: regionGdp?.[i].vsNationalPct ?? null,
         nearestLargeCityName: nearestLarge ? large[nearestLarge.id].cityName : null,
         nearestLargeCityKm: nearestLarge ? round(nearestLarge.km, 0) : null,
         restaurantsBarsWithin5km: ovCount(i, POI.eating),
@@ -444,6 +482,11 @@ async function main() {
   report("density /km2", records.map((r) => r.record.densityPerKm2));
   report("broadband Mbps", records.map((r) => r.record.broadbandDownloadMbps));
   report("mobile Mbps", records.map((r) => r.record.mobileDownloadMbps));
+  report("population growth 2020-2025 %", records.map((r) => r.record.populationGrowth5yrPct));
+  report("median age", records.map((r) => r.record.medianAge));
+  report("hospital km", records.map((r) => r.record.distanceToHospitalKm));
+  report("conflict events 50 km", records.map((r) => r.record.conflictEvents5yr));
+  report("regional GDP vs national %", records.map((r) => r.record.regionGdpVsNationalPct));
   log("dist", `tram: ${records.filter((r) => r.record.hasTramway).length} cities, metro: ${records.filter((r) => r.record.hasSubway).length} cities`);
 
   // World ranks: score every city exactly as the site does, then rank.
@@ -524,6 +567,12 @@ async function main() {
       outlines: `${BOUNDARY_SOURCE}, release ${release}`,
       builtUp: BUILTUP_SOURCE,
       airports: AIRPORTS_SOURCE,
+      // The site shows a local figure's rows only when its source is here.
+      ...(populationGrowth ? { populationGrowth: POPULATION_GROWTH_SOURCE } : {}),
+      ...(medianAge ? { age: AGE_SOURCE } : {}),
+      hospitals: `Overture Maps places ${release} - hospitals and emergency departments (CDLA-Permissive-2.0)`,
+      ...(conflict ? { conflict: CONFLICT_SOURCE } : {}),
+      ...(regionGdp ? { regionGdp: REGIONAL_GDP_SOURCE } : {}),
     },
   });
   log("build", `dataset ${version} written to ${outDir} in ${Math.round((Date.now() - startedAt) / 1000)}s`);

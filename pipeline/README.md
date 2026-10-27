@@ -45,6 +45,11 @@ also picks up the latest published dataset.
 | Official languages | Unicode CLDR territory data (+ constitutional corrections in `sources/languages.ts`) | Unicode License |
 | Airports, rail/metro/bus stations, ports & ferry terminals, beaches, 1,000 m+ peaks, forests, volcanoes | GeoNames `allCountries` | CC BY 4.0 |
 | Earthquakes (M5+ since 1970) | USGS catalogue | public domain |
+| Population growth 2020-2025 (5 km) | GHS-POP R2023A, 2020 and 2025 epochs, 1 km (EC JRC) | CC BY 4.0 |
+| Average (median) age (5 km) | WorldPop age structures R2025A, 2025, 1 km, constrained | CC BY 4.0 |
+| Nearest hospital | Overture Maps places (hospital, emergency department) | CDLA-Permissive-2.0 |
+| Armed conflict within 50 km, last 5 years | UCDP Georeferenced Event Dataset 26.1 | CC BY 4.0 |
+| Regional GDP per head | Kummu et al. GDP per capita v4 (Zenodo) - reported regional figures only, 2018+ | CC BY 4.0 |
 
 \* Non-commercial: fine for Piltri today. A commercial deployment builds with
 `PIPELINE_COMMERCIAL=1`, which leaves the speed fields out. Every source is
@@ -70,6 +75,12 @@ credited on the site at /sources (built from the manifest).
   percentile (AMENITY_RATIOS in lib/dataset/assemble.ts).
 
 ### Data-quality rules
+- **Local figures, never estimated** (2026-10-24): a city-level version of a
+  country figure is shown only where a source reports or counts it for the
+  place (or the region it's in). Kummu et al.'s regional GDP is used only
+  for the years and regions countries reported - not its extension to 2024
+  or its modelled districts. Elsewhere the city block says "No data" and
+  the country figure stays in the country block.
 - **No stand-in values**: a figure a source doesn't have for a place is
   stored as null - the site shows "No data" and leaves it out of the
   section score (a section with no data at all scores a neutral 50).

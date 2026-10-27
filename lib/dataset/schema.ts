@@ -159,6 +159,15 @@ export const CITY_FIELDS = [
   "distanceToLakeBeachKm",
   "distanceToIntlAirportKm",
   "distanceToLocalAirportKm",
+  // Local versions of country figures (2026-10-24, phase 1).
+  "populationGrowth5yrPct",
+  "medianAge",
+  "distanceToHospitalKm",
+  "conflictEvents5yr",
+  "conflictDeaths5yr",
+  "regionGdpPerHeadPpp",
+  "regionGdpYear",
+  "regionGdpVsNationalPct",
 ] as const;
 
 export type CityFieldKey = (typeof CITY_FIELDS)[number];
@@ -228,6 +237,22 @@ export interface CityRecord {
    *  scheduled flights (OurAirports - 2026-10-17). */
   distanceToIntlAirportKm: number | null;
   distanceToLocalAirportKm: number | null;
+  /** Local versions of country figures (2026-10-24, phase 1 - see
+   *  pipeline/README.md): population change 2020-2025 and median age within
+   *  5 km of the centre (GHS-POP, WorldPop); the nearest hospital (Overture
+   *  Maps); deadly events of organised violence within 50 km over the last
+   *  5 years, and their deaths (UCDP GED); GDP per head of the region as
+   *  reported (PPP international $), its year and its share of the national
+   *  figure (Kummu et al.). Null where the source has no figure - never an
+   *  estimate. */
+  populationGrowth5yrPct: number | null;
+  medianAge: number | null;
+  distanceToHospitalKm: number | null;
+  conflictEvents5yr: number | null;
+  conflictDeaths5yr: number | null;
+  regionGdpPerHeadPpp: number | null;
+  regionGdpYear: number | null;
+  regionGdpVsNationalPct: number | null;
   /** Test-weighted average download speed (Ookla) within the stored
    *  radius: 5 km, or 15/30 km where there were too few tests nearer. */
   broadbandDownloadMbps: number | null;
@@ -262,6 +287,7 @@ export const NEARBY_KINDS = [
   "lakeBeach",
   "intlAirport",
   "localAirport",
+  "hospital",
 ] as const;
 export type NearbyKind = (typeof NEARBY_KINDS)[number];
 /** [lng, lat, name] - the name can be "" (a stretch of coast, a tram line). */

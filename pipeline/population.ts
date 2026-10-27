@@ -14,11 +14,18 @@ import { cached, downloadOnce, log, pointsKey, unzipOnce, WORK_DIR } from "./uti
  */
 
 const EPOCH = 2025;
-const NAME = `GHS_POP_E${EPOCH}_GLOBE_R2023A_4326_30ss_V1_0`;
-const URL = `https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_POP_GLOBE_R2023A/GHS_POP_E${EPOCH}_GLOBE_R2023A_4326_30ss/V1-0/${NAME}.zip`;
+/** Population growth compares the same 5 km circle with this epoch. */
+const EARLIER_EPOCH = 2020;
 const RADIUS_KM = 5;
+/** Below this many people within 5 km, a growth rate is mostly noise. */
+const GROWTH_MIN_PEOPLE = 1000;
+
+const ghsName = (epoch: number) => `GHS_POP_E${epoch}_GLOBE_R2023A_4326_30ss_V1_0`;
+const ghsUrl = (epoch: number) =>
+  `https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_POP_GLOBE_R2023A/GHS_POP_E${epoch}_GLOBE_R2023A_4326_30ss/V1-0/${ghsName(epoch)}.zip`;
 
 export const POPULATION_SOURCE = `GHS-POP R2023A, ${EPOCH} epoch, 1 km grid (European Commission JRC, CC BY 4.0)`;
+export const POPULATION_GROWTH_SOURCE = `GHS-POP R2023A, ${EARLIER_EPOCH} and ${EPOCH} epochs, 1 km grid (European Commission JRC, CC BY 4.0) - change within ${RADIUS_KM} km of the centre`;
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -27,67 +34,119 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return 2 * 6371 * Math.asin(Math.sqrt(a));
 }
 
-export async function sampleDensity(points: { lat: number; lng: number }[]): Promise<(number | null)[]> {
-  const zip = await downloadOnce(URL, `${NAME}.zip`);
-  const dir = path.join(WORK_DIR, "ghs-pop");
-  unzipOnce(zip, dir, `${NAME}.tif`);
-  return cached(`density-${EPOCH}-${pointsKey(points)}`, async () => {
-    const tifName = readdirSync(dir).find((f) => f.endsWith(".tif"))!;
-    const image = await (await fromFile(path.join(dir, tifName))).getImage();
-    const width = image.getWidth();
-    const height = image.getHeight();
-    const tileW = image.getTileWidth();
-    const tileH = image.getTileHeight();
-    const [west, , east, north] = image.getBoundingBox();
-    const resX = (east - west) / width;
-    const resY = (north - image.getBoundingBox()[1]) / height;
-    const radiusRows = Math.ceil(RADIUS_KM / (111.32 * resY)) + 1;
-    const circleArea = Math.PI * RADIUS_KM * RADIUS_KM;
+/** The sum of a 1 km population grid's cells within `radiusKm` of each
+ *  point (null outside the grid) - GHS-POP here, WorldPop's age groups in
+ *  ageStructure.ts. */
+export async function sumWithinRadius(tifPath: string, points: { lat: number; lng: number }[], radiusKm: number, step: string): Promise<(number | null)[]> {
+  const image = await (await fromFile(tifPath)).getImage();
+  const width = image.getWidth();
+  const height = image.getHeight();
+  const tileW = image.getTileWidth();
+  const tileH = image.getTileHeight();
+  const [west, south, east, north] = image.getBoundingBox();
+  const resX = (east - west) / width;
+  const resY = (north - south) / height;
+  const radiusRows = Math.ceil(radiusKm / (111.32 * resY)) + 1;
 
-    // The raster is tiled (256x256): group cities by the tile their centre
-    // falls in and decode just that tile plus a margin once per group -
-    // most of the planet (ocean, desert, ice) is never read.
-    const groups = new Map<string, number[]>();
-    points.forEach(({ lat, lng }, i) => {
+  // The raster is tiled (256 or 512 cells square): only the tiles around a
+  // city are decoded - most of the planet (ocean, desert, ice) is never
+  // read - and each just once, kept while the cities around it are summed.
+  // A window with a margin decoded each tile up to 9 times, once per
+  // neighbour (2026-10-24: 6 minutes per WorldPop grid).
+  const tilesAcross = Math.ceil(width / tileW);
+  const groups = new Map<number, number[]>();
+  points.forEach(({ lat, lng }, i) => {
+    const row = Math.floor((north - lat) / resY);
+    const col = Math.floor((lng - west) / resX);
+    if (row < 0 || row >= height || col < 0 || col >= width) return;
+    const key = Math.floor(row / tileH) * tilesAcross + Math.floor(col / tileW);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(i);
+  });
+  log(step, `${path.basename(tifPath)}: ${width}x${height} grid, ${groups.size} tiles with cities`);
+
+  // Cities are taken tile row by tile row, so three rows of decoded tiles
+  // cover every neighbour still needed; the oldest go first.
+  const decoded = new Map<number, ArrayLike<number>>();
+  const keep = tilesAcross * 3 + 8;
+  const tileAt = async (tr: number, tc: number): Promise<ArrayLike<number>> => {
+    const key = tr * tilesAcross + tc;
+    const hit = decoded.get(key);
+    if (hit) return hit;
+    const window = [tc * tileW, tr * tileH, Math.min(width, (tc + 1) * tileW), Math.min(height, (tr + 1) * tileH)];
+    const [data] = (await image.readRasters({ window })) as unknown as ArrayLike<number>[];
+    decoded.set(key, data);
+    if (decoded.size > keep) decoded.delete(decoded.keys().next().value!);
+    return data;
+  };
+  // An edge tile can be narrower than the others.
+  const widthOf = (tc: number) => Math.min(tileW, width - tc * tileW);
+
+  const out: (number | null)[] = points.map(() => null);
+  let done = 0;
+  for (const key of [...groups.keys()].sort((a, b) => a - b)) {
+    for (const i of groups.get(key)!) {
+      const { lat, lng } = points[i];
       const row = Math.floor((north - lat) / resY);
       const col = Math.floor((lng - west) / resX);
-      if (row < 0 || row >= height || col < 0 || col >= width) return;
-      const key = `${Math.floor(row / tileH)}|${Math.floor(col / tileW)}`;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(i);
-    });
-    log("density", `${width}x${height} grid, ${groups.size} tiles with cities`);
-
-    const out: (number | null)[] = points.map(() => null);
-    let done = 0;
-    for (const [key, members] of groups) {
-      const [tr, tc] = key.split("|").map(Number);
-      const maxAbsLat = Math.max(...members.map((i) => Math.abs(points[i].lat)));
-      const marginCols = Math.ceil(radiusRows / Math.max(Math.cos((maxAbsLat * Math.PI) / 180), 0.05));
-      const x0 = Math.max(0, tc * tileW - marginCols);
-      const y0 = Math.max(0, tr * tileH - radiusRows);
-      const x1 = Math.min(width, (tc + 1) * tileW + marginCols);
-      const y1 = Math.min(height, (tr + 1) * tileH + radiusRows);
-      const [win] = (await image.readRasters({ window: [x0, y0, x1, y1] })) as unknown as ArrayLike<number>[];
-      const winW = x1 - x0;
-      for (const i of members) {
-        const { lat, lng } = points[i];
-        const row = Math.floor((north - lat) / resY);
-        const col = Math.floor((lng - west) / resX);
-        const radiusCols = Math.ceil(radiusRows / Math.max(Math.cos((lat * Math.PI) / 180), 0.05));
-        let people = 0;
-        for (let r = Math.max(y0, row - radiusRows); r <= Math.min(y1 - 1, row + radiusRows); r++) {
-          const pixelLat = north - (r + 0.5) * resY;
-          for (let c = Math.max(x0, col - radiusCols); c <= Math.min(x1 - 1, col + radiusCols); c++) {
-            const v = win[(r - y0) * winW + (c - x0)];
-            if (!(v > 0)) continue; // no data or nobody
-            if (haversineKm(lat, lng, pixelLat, west + (c + 0.5) * resX) <= RADIUS_KM) people += v;
-          }
-        }
-        out[i] = Math.round(people / circleArea);
+      const radiusCols = Math.ceil(radiusRows / Math.max(Math.cos((lat * Math.PI) / 180), 0.05));
+      const [r0, r1] = [Math.max(0, row - radiusRows), Math.min(height - 1, row + radiusRows)];
+      const [c0, c1] = [Math.max(0, col - radiusCols), Math.min(width - 1, col + radiusCols)];
+      const [tr0, tc0] = [Math.floor(r0 / tileH), Math.floor(c0 / tileW)];
+      const tiles: ArrayLike<number>[][] = [];
+      for (let tr = tr0; tr <= Math.floor(r1 / tileH); tr++) {
+        const rowOfTiles: ArrayLike<number>[] = [];
+        for (let tc = tc0; tc <= Math.floor(c1 / tileW); tc++) rowOfTiles.push(await tileAt(tr, tc));
+        tiles.push(rowOfTiles);
       }
-      if (++done % 200 === 0) log("density", `${done}/${groups.size} tiles`);
+      let people = 0;
+      for (let r = r0; r <= r1; r++) {
+        const pixelLat = north - (r + 0.5) * resY;
+        const tr = Math.floor(r / tileH);
+        const inRow = r - tr * tileH;
+        for (let c = c0; c <= c1; c++) {
+          const tc = Math.floor(c / tileW);
+          const v = tiles[tr - tr0][tc - tc0][inRow * widthOf(tc) + (c - tc * tileW)];
+          if (!(v > 0)) continue; // no data or nobody
+          if (haversineKm(lat, lng, pixelLat, west + (c + 0.5) * resX) <= radiusKm) people += v;
+        }
+      }
+      out[i] = people;
     }
-    return out;
+    if (++done % 500 === 0) log(step, `${done}/${groups.size} tiles`);
+  }
+  return out;
+}
+
+/** GHS-POP's grid for one epoch, downloaded and unzipped once. */
+async function ghsTif(epoch: number): Promise<string> {
+  const zip = await downloadOnce(ghsUrl(epoch), `${ghsName(epoch)}.zip`);
+  // One folder per epoch (2025's predates the others, so keeps its name).
+  const dir = path.join(WORK_DIR, epoch === EPOCH ? "ghs-pop" : `ghs-pop-${epoch}`);
+  unzipOnce(zip, dir, `${ghsName(epoch)}.tif`);
+  return path.join(dir, readdirSync(dir).find((f) => f.endsWith(".tif"))!);
+}
+
+export async function sampleDensity(points: { lat: number; lng: number }[]): Promise<(number | null)[]> {
+  const tif = await ghsTif(EPOCH);
+  return cached(`density-${EPOCH}-${pointsKey(points)}`, async () => {
+    const circleArea = Math.PI * RADIUS_KM * RADIUS_KM;
+    return (await sumWithinRadius(tif, points, RADIUS_KM, "density")).map((people) => (people == null ? null : Math.round(people / circleArea)));
+  });
+}
+
+/** Population growth within 5 km of the centre, EARLIER_EPOCH to EPOCH, in
+ *  % (one decimal) - null where fewer than GROWTH_MIN_PEOPLE lived there. */
+export async function samplePopulationGrowth(points: { lat: number; lng: number }[]): Promise<(number | null)[]> {
+  const [earlierTif, laterTif] = [await ghsTif(EARLIER_EPOCH), await ghsTif(EPOCH)];
+  return cached(`population-growth-${EARLIER_EPOCH}-${EPOCH}-${pointsKey(points)}`, async () => {
+    const before = await sumWithinRadius(earlierTif, points, RADIUS_KM, "growth");
+    const after = await sumWithinRadius(laterTif, points, RADIUS_KM, "growth");
+    return points.map((_, i) => {
+      const a = before[i];
+      const b = after[i];
+      if (a == null || b == null || a < GROWTH_MIN_PEOPLE) return null;
+      return Math.round((b / a - 1) * 1000) / 10;
+    });
   });
 }

@@ -64,6 +64,7 @@ const MAP_TITLES: Record<MapKind, string> = {
   lakeBeach: "Nearest lake beach",
   intlAirport: "Nearest international airport",
   localAirport: "Nearest local airport",
+  hospital: "Nearest hospital",
 };
 /** For places the data has no name for. */
 const UNNAMED: Partial<Record<MapKind, string>> = {
@@ -81,6 +82,7 @@ const UNNAMED: Partial<Record<MapKind, string>> = {
   forest: "Forest",
   intlAirport: "Airport",
   localAirport: "Airport",
+  hospital: "Hospital",
 };
 
 function CityContent() {

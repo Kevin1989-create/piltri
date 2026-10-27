@@ -18,6 +18,17 @@ const GROUPS: { title: string; sources: Record<string, string> }[] = [
     },
   },
   {
+    // Local versions of country figures (2026-10-24, phase 1).
+    title: "Local figures",
+    sources: {
+      regionGdp: "Regional GDP per head",
+      populationGrowth: "Population growth",
+      age: "Average age",
+      conflict: "Armed conflict nearby",
+      hospitals: "Nearest hospital",
+    },
+  },
+  {
     title: "Climate & environment",
     sources: {
       climate: "Climate",
@@ -128,6 +139,12 @@ export default function SourcesPage() {
                   where it comes from.
                 </li>
                 <li>
+                  <span className="font-medium text-ink-900">Local figures, or none.</span> Where a place has its own
+                  figure - its region&apos;s GDP, its average age, armed conflict nearby - it&apos;s shown under the place&apos;s
+                  name. Where it hasn&apos;t, it says &quot;No data&quot; and the country&apos;s figure is shown below it: a
+                  country figure is never passed off as a local one, and missing figures aren&apos;t estimated.
+                </li>
+                <li>
                   <span className="font-medium text-ink-900">Local means within 5 km.</span> Restaurants, parks, density,
                   schools and the other local figures cover 5 km around the town centre.
                 </li>
@@ -220,7 +237,10 @@ export default function SourcesPage() {
             <p>
               Health data: World Health Organization, data.who.int, UHC service coverage index. Köppen-Geiger maps: Beck, H. E.
               et al., Scientific Data 10, 724 (2023). Air quality: Atmospheric Composition Analysis Group, Washington University
-              in St. Louis. Population: European Commission, Joint Research Centre, GHSL.
+              in St. Louis. Population: European Commission, Joint Research Centre, GHSL. Age structures: WorldPop
+              (www.worldpop.org), University of Southampton. Regional GDP: Kummu, M. et al., Scientific Data (2025). Armed
+              conflict: Uppsala Conflict Data Program, Georeferenced Event Dataset (Sundberg &amp; Melander, Journal of Peace
+              Research, 2013).
             </p>
           </div>
         </div>

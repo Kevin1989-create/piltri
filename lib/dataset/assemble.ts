@@ -173,9 +173,20 @@ export function assembleCityExploreData(
       cityPopulation: city.population,
       cityDensityPerKm2: city.densityPerKm2,
       timezone: city.timezone,
+      cityMedianAge: city.medianAge ?? null,
+      cityPopulationGrowth5yrPct: city.populationGrowth5yrPct ?? null,
     },
-    economy: country.economy,
-    safetyStability: country.safetyStability,
+    economy: {
+      ...country.economy,
+      regionGdpPerHeadPpp: city.regionGdpPerHeadPpp ?? null,
+      regionGdpYear: city.regionGdpYear ?? null,
+      regionGdpVsNationalPct: city.regionGdpVsNationalPct ?? null,
+    },
+    safetyStability: {
+      ...country.safetyStability,
+      conflictEvents5yr: city.conflictEvents5yr ?? null,
+      conflictDeaths5yr: city.conflictDeaths5yr ?? null,
+    },
     climate: {
       avgAnnualTemperatureC: city.avgAnnualTemperatureC,
       avgAnnualRainfallMm: city.avgAnnualRainfallMm,
@@ -231,6 +242,7 @@ export function assembleCityExploreData(
       distanceToIntlAirportKm: city.distanceToIntlAirportKm ?? null,
       distanceToLocalAirportKm: city.distanceToLocalAirportKm ?? null,
       distanceToTrainStationKm: city.distanceToTrainStationKm,
+      distanceToHospitalKm: city.distanceToHospitalKm ?? null,
       nearestLargeCity:
         city.nearestLargeCityName != null && city.nearestLargeCityKm != null
           ? { name: city.nearestLargeCityName, km: city.nearestLargeCityKm }

@@ -9,7 +9,7 @@ import { KpiInfoButton } from "@/components/explore/KpiInfo";
 import { ResourcesDetail } from "@/components/explore/ResourcesDetail";
 import { ReportSectionHeading, ReportSubheading } from "@/components/explore/ReportHeadings";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
-import { borrowedFiguresFrom, buildKpiRows, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
+import { borrowedFiguresFrom, buildKpiRows, hasSource, noSectionDataNote, splitKpiRowsByTier, type KpiRow } from "@/lib/kpiRows";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { isCustomWeights, useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { getCityExploreData } from "@/lib/dataset/cities";
@@ -142,6 +142,24 @@ function ReportContent() {
                 )}
                 {data.demographics.timezone && formatUtcOffset(data.demographics.timezone) && (
                   <DemographicStat label="Time zone" value={`${formatUtcOffset(data.demographics.timezone)} (${data.demographics.timezone})`} />
+                )}
+                {hasSource("age") && (
+                  <DemographicStat
+                    label="Average age (within 5 km)"
+                    value={data.demographics.cityMedianAge != null ? String(Math.round(data.demographics.cityMedianAge)) : "Not available"}
+                  />
+                )}
+                {hasSource("populationGrowth") && (
+                  <>
+                    <DemographicStat
+                      label="Population growth 2020-25 (5 km)"
+                      value={
+                        data.demographics.cityPopulationGrowth5yrPct != null
+                          ? `${data.demographics.cityPopulationGrowth5yrPct > 0 ? "+" : ""}${data.demographics.cityPopulationGrowth5yrPct}%`
+                          : "Not available"
+                      }
+                    />
+                  </>
                 )}
               </div>
 

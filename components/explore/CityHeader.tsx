@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { PiltriScoreDisplay } from "@/components/ui/ScoreBadge";
 import { EyeIcon, PlusIcon } from "@/components/ui/icons";
+import { hasSource } from "@/lib/kpiRows";
 import { isCustomWeights } from "@/lib/scoreWeights";
 import { formatUtcOffset } from "@/lib/timezone";
 import { SETTINGS_URL } from "@/lib/urls";
@@ -201,6 +202,32 @@ export function CityHeader({
           : []),
         ...(utcOffset
           ? [{ label: "Time Zone", value: utcOffset, colorClass: "text-ink-900", title: `${demographics.timezone} (${utcOffset} today)` }]
+          : []),
+        // Shown when the dataset has them (hasSource), "No data" where
+        // fewer than 1,000 people live within the 5 km.
+        ...(hasSource("age")
+          ? [
+              {
+                label: "Average Age",
+                value: demographics.cityMedianAge != null ? `${Math.round(demographics.cityMedianAge)}` : NOT_AVAILABLE,
+                colorClass: demographics.cityMedianAge != null ? "text-ink-900" : "text-ink-500",
+                title: "Median age of the people living within 5 km of the centre (WorldPop, 2025)",
+              },
+            ]
+          : []),
+        ...(hasSource("populationGrowth")
+          ? [
+              {
+                label: TREND_LABEL,
+                value:
+                  demographics.cityPopulationGrowth5yrPct != null
+                    ? `${demographics.cityPopulationGrowth5yrPct > 0 ? "+" : ""}${demographics.cityPopulationGrowth5yrPct}%`
+                    : NOT_AVAILABLE,
+                colorClass: demographics.cityPopulationGrowth5yrPct != null ? "text-ink-900" : "text-ink-500",
+                title: "Change in the number of people living within 5 km of the centre, 2020 to 2025 (GHS-POP)",
+                span: 2 as const,
+              },
+            ]
           : []),
       ]
     : null;

@@ -42,6 +42,11 @@ export interface DemographicsFields {
   cityDensityPerKm2: number | null;
   /** IANA time zone, e.g. "Europe/Lisbon" (GeoNames). */
   timezone: string | null;
+  /** Within 5 km of the centre: median age (WorldPop 2025) and population
+   *  change 2020-2025, % (GHS-POP) - absent in datasets built before
+   *  2026-10-24. */
+  cityMedianAge?: number | null;
+  cityPopulationGrowth5yrPct?: number | null;
 }
 
 export type GdpSector = "Agriculture" | "Industry" | "Services";
@@ -51,7 +56,7 @@ export interface GdpSectorShare {
   sharePct: number; // 0-100, % of GDP
 }
 
-/** All country-level (World Bank unless noted). */
+/** Country-level (World Bank unless noted), except the region* figures. */
 export interface EconomyFields {
   /** Real GDP change over ~5 years (constant 2015 US$). */
   economicGrowth5yrGdpPct: number | null;
@@ -72,6 +77,12 @@ export interface EconomyFields {
   taxRevenuePctGdp: number | null;
   /** Local currency (GeoNames countryInfo.txt). */
   currency: { code: string; name: string } | null;
+  /** GDP per head of the city's region as the country reports it (PPP
+   *  international $), the year, and its share of the national figure -
+   *  absent before 2026-10-24, null where no regional figure is reported. */
+  regionGdpPerHeadPpp?: number | null;
+  regionGdpYear?: number | null;
+  regionGdpVsNationalPct?: number | null;
 }
 
 /** World Bank Worldwide Governance Indicators (0-100) and UNODC homicide
@@ -81,6 +92,10 @@ export interface SafetyStabilityFields {
   ruleOfLawScore: number | null;
   safetyTrend: TrendDirection | null;
   homicideRatePer100k: number | null;
+  /** Per city: deadly events of organised violence within 50 km over the
+   *  last 5 years, and their deaths (UCDP GED) - absent before 2026-10-24. */
+  conflictEvents5yr?: number | null;
+  conflictDeaths5yr?: number | null;
 }
 
 /** Climate normals are WorldClim 2.1 (1970-2000) at the city's coordinates
@@ -186,6 +201,9 @@ export interface LiveabilityFields {
   distanceToIntlAirportKm?: number | null;
   distanceToLocalAirportKm?: number | null;
   distanceToTrainStationKm: number | null;
+  /** Nearest hospital or emergency department (Overture Maps) - absent
+   *  before 2026-10-24. */
+  distanceToHospitalKm?: number | null;
   /** Nearest other city of 500,000+ people (null for those cities). */
   nearestLargeCity: { name: string; km: number } | null;
   lifeExpectancyYears: number | null;

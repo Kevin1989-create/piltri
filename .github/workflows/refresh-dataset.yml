@@ -40,7 +40,8 @@ jobs:
           cache: npm
       - run: npm ci
       # Inputs that never change between runs (WorldClim climate normals,
-      # NASA POWER UV climatology) are cached instead of re-downloaded.
+      # NASA POWER UV climatology, WorldPop and GHS-POP 2020 grids) are
+      # cached instead of re-downloaded.
       # Everything else (World Bank, WHO, GeoNames, USGS, Overture, Ookla,
       # air quality, population) is fetched fresh.
       - uses: actions/cache@v4
@@ -49,6 +50,15 @@ jobs:
             ${{ github.workspace }}/.pipeline-cache/raw/wc2.1_*
             ${{ github.workspace }}/.pipeline-cache/raw/power-uv
           key: static-inputs-v2
+      # Fixed releases too, downloaded once (2026-10-24): WorldPop's 2025 age
+      # groups (~5.4 GB) and GHS-POP's 2020 epoch, for the local median age
+      # and population growth. A new release gets a new file name.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.pipeline-cache/raw/worldpop-2025
+            ${{ github.workspace }}/.pipeline-cache/raw/GHS_POP_E2020_*
+          key: static-inputs-population-v1
       - run: npm run pipeline
       - name: Deploy the site with the new dataset
         if: ${{ env.VERCEL_DEPLOY_HOOK_URL != '' }}
