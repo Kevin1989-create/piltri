@@ -23,19 +23,30 @@ export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Says who's asking - some servers turn away requests that don't. */
+const USER_AGENT = "Piltri data pipeline (+https://www.piltri.me)";
+
 /** fetch with retries + backoff - bulk sources (World Bank especially)
- *  occasionally drop a request; a batch job can afford to just try again. */
+ *  occasionally drop a request; a batch job can afford to just try again.
+ *  A server that says it's busy or asked too often (429/503) is given the
+ *  wait it asks for, up to 2 minutes - Zenodo asks for 60 s, and only
+ *  failed on GitHub's machines (2026-10-28). */
 export async function fetchWithRetry(url: string, init: RequestInit = {}, attempts = 5, timeoutMs = 180_000): Promise<Response> {
   let lastError: unknown;
   for (let i = 0; i < attempts; i++) {
+    let waitMs = 2000 * (i + 1);
     try {
-      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+      const headers = new Headers(init.headers);
+      if (!headers.has("user-agent")) headers.set("user-agent", USER_AGENT);
+      const res = await fetch(url, { ...init, headers, signal: AbortSignal.timeout(timeoutMs) });
       if (res.ok) return res;
       lastError = new Error(`${res.status} ${res.statusText} for ${url}`);
+      const retryAfter = Number(res.headers.get("retry-after"));
+      if ((res.status === 429 || res.status === 503) && retryAfter > 0) waitMs = Math.min(retryAfter, 120) * 1000;
     } catch (err) {
       lastError = err;
     }
-    await sleep(2000 * (i + 1));
+    if (i < attempts - 1) await sleep(waitMs);
   }
   throw lastError;
 }
