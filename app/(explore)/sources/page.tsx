@@ -235,7 +235,7 @@ export default function SourcesPage() {
               </p>
             )}
             <p>
-              Health data: World Health Organization, data.who.int, UHC service coverage index. Köppen-Geiger maps: Beck, H. E.
+              Health data: World Health Organization, UHC service coverage index (via the World Bank). Köppen-Geiger maps: Beck, H. E.
               et al., Scientific Data 10, 724 (2023). Air quality: Atmospheric Composition Analysis Group, Washington University
               in St. Louis. Population: European Commission, Joint Research Centre, GHSL. Age structures: WorldPop
               (www.worldpop.org), University of Southampton. Regional GDP: Kummu, M. et al., Scientific Data (2025). Armed

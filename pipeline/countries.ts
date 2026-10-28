@@ -85,19 +85,14 @@ function rankGdpSectors(agriculture: number | null, industry: number | null, ser
     .sort((a, b) => b.sharePct - a.sharePct);
 }
 
-/** WHO UHC service coverage index (data.who.int, CC BY 4.0 - attribution:
- *  "World Health Organization, data.who.int, UHC service coverage index"). */
-async function fetchWhoUhc(): Promise<Record<string, number>> {
-  const json = await fetchJson<{ value: { SpatialDim: string; TimeDim: number; NumericValue: number | null }[] }>(
-    "https://ghoapi.azureedge.net/api/UHC_INDEX_REPORTED"
-  );
-  const best: Record<string, { year: number; value: number }> = {};
-  for (const r of json.value ?? []) {
-    if (r.NumericValue == null) continue;
-    const prev = best[r.SpatialDim];
-    if (!prev || r.TimeDim > prev.year) best[r.SpatialDim] = { year: r.TimeDim, value: r.NumericValue };
-  }
-  return Object.fromEntries(Object.entries(best).map(([iso3, v]) => [iso3, Math.round(v.value)]));
+/** WHO UHC service coverage index, latest year per country, from the
+ *  World Bank's copy (WDI SH_UHC_SCI, CC BY 4.0 - attribution: "World
+ *  Health Organization, UHC service coverage index"). WHO's own API
+ *  (ghoapi.azureedge.net) answered every request with a 500 on 2026-10-28
+ *  and failed that month's refresh; the World Bank's figures are the same. */
+async function fetchUhc(): Promise<Record<string, number>> {
+  const series = await fetchIndicatorAllCountries("SH_UHC_SCI");
+  return Object.fromEntries(Object.entries(series).map(([iso3, s]) => [iso3, Math.round(latest(s)!)]));
 }
 
 /** WHO's modelled national PM2.5 (2023, total population; data.who.int,
@@ -128,7 +123,7 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
     }
     return out as Record<IndicatorKey, Record<string, Series>>;
   });
-  const who = await cached("who-uhc", fetchWhoUhc);
+  const uhc = await cached("uhc-index", fetchUhc);
   const officialLanguages = await loadOfficialLanguages();
 
   // GDP world rank among real economies only (the bulk endpoint also
@@ -183,7 +178,7 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
         homicideRatePer100k: latest(get("homicideRate")),
       },
       climateReadinessScore: getClimateReadiness(cc)?.gainScore ?? null,
-      healthcareQualityScore: iso3 ? who[iso3] ?? null : null,
+      healthcareQualityScore: iso3 ? uhc[iso3] ?? null : null,
       lifeExpectancyYears: round(latest(get("lifeExpectancy")), 1),
       internetUsersPct: round(latest(get("internetUsers")), 1),
       pisaMathScore: round(latest(get("pisaMath")), 0),

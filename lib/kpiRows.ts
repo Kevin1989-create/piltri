@@ -514,7 +514,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         ...presenceRows(data),
         scoredOrMissing("Healthcare quality score", l.healthcareQualityScore, String, "country", SCALES.score, String, {
           definition: "How well essential health services reach the population - mother and child care, infectious and chronic diseases, access - on a 0-100 index.",
-          source: "World Health Organization, data.who.int (UHC service coverage index)",
+          source: "World Health Organization (UHC service coverage index), via the World Bank",
         }),
         l.lifeExpectancyYears != null
           ? scored("Life expectancy", l.lifeExpectancyYears, `${l.lifeExpectancyYears.toFixed(1)} yrs`, "country", SCALES.lifeExpectancy, withUnit(" yrs", 1), {

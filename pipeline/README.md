@@ -29,7 +29,8 @@ also picks up the latest published dataset.
 |---|---|---|
 | City shortlist, population, elevation, time zone, capitals, currencies | GeoNames `cities1000` + `countryInfo` | CC BY 4.0 |
 | Country economy, safety, demographics, life expectancy, internet, PISA | World Bank Open Data (bulk, all countries) | CC BY 4.0 |
-| Healthcare quality; PM2.5 fallback for small island nations | WHO (data.who.int: UHC service coverage index, SDG 11.6.2 PM2.5) | CC BY 4.0 |
+| Healthcare quality | WHO UHC service coverage index, via World Bank WDI (`SH_UHC_SCI`; WHO's own API failed the 2026-10-28 refresh) | CC BY 4.0 |
+| PM2.5 fallback for small island nations | WHO (data.who.int, SDG 11.6.2 PM2.5); left out for the month when WHO's API is down | CC BY 4.0 |
 | Climate readiness | ND-GAIN (`generateClimateReadiness.mjs`) | free |
 | Temperature (mean, monthly highs/lows), rainfall, humidity, sunshine, snow | WorldClim 2.1 normals (1970-2000), 2.5′ grid | CC BY 4.0 |
 | Climate type today (1991-2020) and by 2085 (SSP2-4.5) | Beck et al. (2023) 1 km Köppen-Geiger maps | CC BY 4.0 |
