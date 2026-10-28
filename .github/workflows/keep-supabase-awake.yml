@@ -1,0 +1,27 @@
+name: Keep Supabase awake
+
+# Supabase pauses a free project after a week without enough database
+# activity (Storage downloads don't count). The site only reads the
+# database when someone opens a place's Resources, so a quiet week pauses
+# it - and a paused project fails every site build (scripts/sync-dataset.mjs
+# fetches the dataset from Supabase) and the monthly refresh. Supabase asks
+# for a few reads a day: one row read twice a day is enough.
+on:
+  schedule:
+    - cron: "17 5,17 * * *"
+  workflow_dispatch:
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Read one Resources row
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        # The same headers supabase-js sends (lib/supabase/server.ts).
+        run: |
+          curl --fail --silent --show-error --output /dev/null \
+            -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY" \
+            "$SUPABASE_URL/rest/v1/country_resource_links?select=id&limit=1"

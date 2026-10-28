@@ -31,6 +31,10 @@ one dataset has been published.
 4. Settings -> Git -> Deploy Hooks: create one for branch `main`; store its
    URL as the GitHub secret `VERCEL_DEPLOY_HOOK_URL` so the monthly data
    refresh redeploys the site.
+5. Every deployment keeps its own copy of the dataset (~350 MB), and the
+   Hobby plan has 10 GB of deployment storage: push in batches, not commit
+   by commit. Over the limit Vercel can block new deployments until old
+   ones are deleted (it deletes them itself, keeping the latest few).
 
 ## GitHub Actions secrets
 
@@ -38,6 +42,9 @@ one dataset has been published.
 `VERCEL_DEPLOY_HOOK_URL` (Settings -> Secrets and variables -> Actions).
 The workflow `.github/workflows/refresh-dataset.yml` runs monthly and can be
 started by hand from the Actions tab.
+`.github/workflows/keep-supabase-awake.yml` reads one database row twice a
+day: Supabase pauses a free project after a week without database reads,
+and a paused project fails every site build.
 
 ## Domain
 
