@@ -1,11 +1,14 @@
 # Comparisons, printable reports and settings are other views of the place
 # pages - kept out of search results. The dataset (/data/) stays open: the
 # place pages need it to render.
+#
+# Until the site is ready for search engines (December, owner 2026-10-28),
+# every page also says noindex (next.config.js SEARCH_ENGINES_WELCOME) and
+# the sitemap isn't announced. When it is, add back:
+#   Sitemap: https://www.piltri.me/sitemap.xml
 User-agent: *
 Disallow: /compare
 Disallow: /report
 Disallow: /settings
 Disallow: /admin
 Disallow: /api/
-
-Sitemap: https://www.piltri.me/sitemap.xml

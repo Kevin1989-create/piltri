@@ -6,11 +6,18 @@ The owner's requests and planned work, roughly in order. Updated
 
 ## Now
 
-- **Data refresh with phase 1** (local figures): re-run on 2026-10-28
-  after WHO's API outage failed the first attempt; check Lyon, Kharkiv,
-  Lagos and a village on the live site afterwards.
-- **Findable on Google** (done 2026-10-28): the owner adds the site to
-  Google Search Console and submits `https://www.piltri.me/sitemap.xml`.
+- **Phase 1, two sources left out**: the 2026-10-28 refresh published
+  population growth, nearest hospital and armed conflict, but left out
+  average age (WorldPop) and regional GDP (Kummu, Zenodo) - both worked
+  locally, so most likely their downloads failed on GitHub's runner. The
+  reason is in the run's log (sign-in needed); from the next run it's
+  also an annotation on the run's page.
+- **Search engines: kept out until December** (owner, 2026-10-28: "not
+  until it's clean"). Ready and waiting: page titles and descriptions,
+  the sitemap of every place, robots.txt. Every page says noindex for now.
+  To open up: `SEARCH_ENGINES_WELCOME = true` in `next.config.js`, the
+  Sitemap line back in `public/robots.txt`, then the owner adds the site
+  to Google Search Console and submits `https://www.piltri.me/sitemap.xml`.
 
 ## Map (owner, 2026-10-28)
 

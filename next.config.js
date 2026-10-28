@@ -1,3 +1,9 @@
+/** Search engines stay out until the owner says the site is ready
+ *  (2026-10-28: "not until it's clean" - December): every response says
+ *  noindex. Set to true to let them in, put the Sitemap line back in
+ *  public/robots.txt, and submit /sitemap.xml in Google Search Console. */
+const SEARCH_ENGINES_WELCOME = false;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -33,6 +39,7 @@ const nextConfig = {
         source: "/data/:path*",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
+      ...(SEARCH_ENGINES_WELCOME ? [] : [{ source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] }]),
     ];
   },
 };
