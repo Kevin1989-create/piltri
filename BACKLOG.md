@@ -6,12 +6,12 @@ The owner's requests and planned work, roughly in order. Updated
 
 ## Now
 
-- **Phase 1, two sources left out**: the 2026-10-28 refresh published
-  population growth, nearest hospital and armed conflict, but left out
-  average age (WorldPop) and regional GDP (Kummu, Zenodo) - both worked
-  locally, so most likely their downloads failed on GitHub's runner. The
-  reason is in the run's log (sign-in needed); from the next run it's
-  also an annotation on the run's page.
+- **Phase 1, regional GDP left out**: refreshes #14 and #15 (2026-10-28)
+  left out regional GDP (Kummu, Zenodo), which works locally - most likely
+  Zenodo's download from GitHub's machines. Since `ab679fa` downloads wait
+  as long as a busy server asks and GitHub keeps the files; run #16 and
+  check the run page's annotations if it's still missing. (Average age
+  failed in #14 only and is live since #15.)
 - **Search engines: kept out until December** (owner, 2026-10-28: "not
   until it's clean"). Ready and waiting: page titles and descriptions,
   the sitemap of every place, robots.txt. Every page says noindex for now.
