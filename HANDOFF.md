@@ -127,6 +127,12 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
 
 ## Where things live
 
+- **To-do list**: `BACKLOG.md` - the owner's requests and planned work, in
+  order (map fixes, accounts, data phases, the move to Cloudflare).
+- **Search engines**: `public/robots.txt`; the sitemap (`/sitemap.xml` +
+  `/sitemaps/*.xml`, every place and country) is written from the dataset
+  by `scripts/sync-dataset.mjs` at each build; city and country pages set
+  their own title, description and canonical address (`lib/pageMeta.ts`).
 - **Local folder**: `C:\Users\user\dev\piltri` (moved out of OneDrive; the
   old OneDrive copy is out of date - Claude sessions still open there, for
   their saved memory). The pipeline cache is deliberately outside

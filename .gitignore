@@ -18,3 +18,7 @@ lib/dataset/meta.generated.json
 # Offline data pipeline cache (downloads + intermediate files, ~2 GB) - normally
 # lives outside the repo (~/.piltri-pipeline-cache); this covers CI runs.
 .pipeline-cache/
+
+# Sitemaps - written from the dataset by scripts/sync-dataset.mjs.
+public/sitemap.xml
+public/sitemaps/

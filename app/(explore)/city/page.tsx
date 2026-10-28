@@ -28,6 +28,8 @@ import { cn } from "@/lib/cn";
 import { getCityBoundary, getCityExploreData, getCityNearby, getCountries, hasNearbyData, type CityOutline } from "@/lib/dataset/cities";
 import { cityIdFor } from "@/lib/dataset/schema";
 import { cityUrl, compareUrl, readCityRef, reportUrl, settingsUrl } from "@/lib/urls";
+import { manifest } from "@/lib/dataset/files";
+import { usePageMeta } from "@/lib/pageMeta";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
 /** Pin mode (click the map for local details and directions) - switched
@@ -111,6 +113,13 @@ function CityContent() {
   const [data, setData] = useState<CityExploreData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  usePageMeta(
+    data && {
+      title: `${placeLabel(data)}: safety, cost of living, quality of life · Piltri`,
+      description: `${placeLabel(data)}: safety, cost of living, climate, schools, transport and its Piltri score, compared with ${manifest.cityCount.toLocaleString("en-US")} places worldwide.`,
+      path: cityUrl(data.cityId),
+    }
+  );
   // `label`, if present, is a labelled map feature's name (POI, transit
   // stop, neighbourhood) the click snapped to - see handleMapClick below.
   const [pin, setPin] = useState<{ lat: number; lng: number; label?: string } | null>(null);

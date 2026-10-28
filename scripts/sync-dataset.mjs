@@ -52,7 +52,51 @@ function finish(manifest) {
     if (name !== manifest.version) rmSync(path.join(publicData, name), { recursive: true, force: true });
   }
   writeFileSync(metaFile, JSON.stringify(manifest, null, 1) + "\n");
+  writeSitemaps(manifest);
   console.log(`[dataset] ${manifest.version} (${manifest.cityCount} cities) ready in public/data`);
+}
+
+const SITE_URL = "https://www.piltri.me";
+/** Google takes up to 50,000 addresses per sitemap file. */
+const SITEMAP_SIZE = 45000;
+
+/** Same as cityIdFor in lib/dataset/schema.ts. */
+const cityIdFor = (name, countryCode) => `${name}-${countryCode}`.toLowerCase().replace(/\s+/g, "-");
+
+/** public/sitemap.xml (an index) and public/sitemaps/*.xml: the main pages,
+ *  every country and every place, from the dataset just installed - one
+ *  static page serves them all (/city?id=...), so search engines learn the
+ *  addresses only from here (2026-10-28). robots.txt points to the index. */
+function writeSitemaps(manifest) {
+  const dir = path.join(publicData, manifest.version, "adv");
+  const scores = JSON.parse(readFileSync(path.join(dir, "scores.json"), "utf8"));
+  const places = JSON.parse(readFileSync(path.join(dir, "places.json"), "utf8"));
+  const codes = scores.countryCodes.flatMap((code, i) => Array(scores.countryCounts[i]).fill(code));
+  const cityUrls = places.name.map((name, i) => `/city?${new URLSearchParams({ id: places.customIds?.[i] ?? cityIdFor(name, codes[i]) })}`);
+  const pageUrls = ["/", "/search", "/leaderboards", "/sources", ...Object.keys(manifest.countryNames).sort().map((code) => `/country?code=${code}`)];
+
+  const lastmod = manifest.generatedAt.slice(0, 10);
+  const urlset = (urls) =>
+    '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    urls.map((u) => `<url><loc>${SITE_URL}${u}</loc><lastmod>${lastmod}</lastmod></url>`).join("\n") +
+    "\n</urlset>\n";
+
+  const out = path.join(root, "public", "sitemaps");
+  rmSync(out, { recursive: true, force: true });
+  mkdirSync(out, { recursive: true });
+  const names = ["pages.xml"];
+  writeFileSync(path.join(out, "pages.xml"), urlset(pageUrls));
+  for (let i = 0; i * SITEMAP_SIZE < cityUrls.length; i++) {
+    names.push(`places-${i + 1}.xml`);
+    writeFileSync(path.join(out, names[names.length - 1]), urlset(cityUrls.slice(i * SITEMAP_SIZE, (i + 1) * SITEMAP_SIZE)));
+  }
+  writeFileSync(
+    path.join(root, "public", "sitemap.xml"),
+    '<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+      names.map((n) => `<sitemap><loc>${SITE_URL}/sitemaps/${n}</loc><lastmod>${lastmod}</lastmod></sitemap>`).join("\n") +
+      "\n</sitemapindex>\n"
+  );
+  console.log(`[dataset] sitemap: ${pageUrls.length} pages and ${cityUrls.length} places in ${names.length} files`);
 }
 
 async function main() {

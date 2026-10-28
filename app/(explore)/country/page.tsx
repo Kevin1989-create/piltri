@@ -14,6 +14,7 @@ import {
 import { getCountryResult } from "@/lib/advancedSearch/engine";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { countryUrl, HOME_URL } from "@/lib/urls";
+import { usePageMeta } from "@/lib/pageMeta";
 import { ReportSectionHeading } from "@/components/explore/ReportHeadings";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
 import { SECTION_LABELS, type AdvancedSearchCountryResult, type SectionKey } from "@/lib/types";
@@ -42,6 +43,13 @@ function CountryReportContent() {
   const [result, setResult] = useState<AdvancedSearchCountryResult | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "missing">("loading");
   const categories = criteriaByCategory();
+  usePageMeta(
+    result && {
+      title: `${result.country}: places to live, safety, economy · Piltri`,
+      description: `${result.country}: safety, economy, environment and quality of life, and how its ${result.citiesTracked.toLocaleString("en-US")} places compare, on Piltri.`,
+      path: countryUrl(result.countryCode),
+    }
+  );
 
   useEffect(() => {
     if (!code) {

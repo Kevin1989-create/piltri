@@ -1,0 +1,11 @@
+# Comparisons, printable reports and settings are other views of the place
+# pages - kept out of search results. The dataset (/data/) stays open: the
+# place pages need it to render.
+User-agent: *
+Disallow: /compare
+Disallow: /report
+Disallow: /settings
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://www.piltri.me/sitemap.xml

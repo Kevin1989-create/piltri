@@ -3,7 +3,10 @@ import { BackLink } from "@/components/ui/BackLink";
 import { NavBar } from "@/components/ui/NavBar";
 import { manifest } from "@/lib/dataset/files";
 
-export const metadata = { title: "Data & Sources — Piltri" };
+export const metadata = {
+  title: "Data & Sources",
+  description: "Where every Piltri figure comes from: open data from the World Bank, WHO, GeoNames, OpenStreetMap, the European Commission and more, with licences.",
+};
 
 /** The dataset's sources (manifest.sources), by topic, with the name each
  *  is shown under. A source the list doesn't know yet goes under "Other". */
