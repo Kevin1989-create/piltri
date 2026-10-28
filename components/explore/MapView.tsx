@@ -6,9 +6,12 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { driveMinutes, formatDriveTime, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
 import { fetchRoute, googleMapsDirectionsUrl, ROUTE_ATTRIBUTION, WALK_MAX_KM } from "@/lib/routing";
 import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
-import { autoCollapseAttribution } from "@/lib/mapAttribution";
+import { hasMapPlaces, loadMapPlaces, yesRadiusKm, type MapPlace } from "@/lib/mapPlaces";
 import { cn } from "@/lib/cn";
 import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
+import { addMapIcons, mapIconColor, mapIconId } from "@/components/explore/mapIcons";
+import { MapCredit } from "@/components/explore/MapCredit";
+import type { MapKind } from "@/lib/kpiRows";
 import type { TravelTimes } from "@/lib/types";
 
 /** OpenFreeMap: free OpenStreetMap vector tiles, no API key, no usage
@@ -34,28 +37,55 @@ function straightLineKm(a: { lat: number; lng: number }, b: { lat: number; lng: 
  *  card says so). */
 export interface MapFocus {
   title: string;
-  /** Where - one place (a distance), or several (a Yes: every one nearby,
-   *  nearest first); none if none was found. */
+  /** What kind of place - its icon, and for a Yes, which places to find. */
+  kind: MapKind;
+  /** Where - one place (a distance), or several (a Yes: the dataset's
+   *  nearest 6, nearest first - the map adds every other one it knows,
+   *  lib/mapPlaces.ts); none if none was found. */
   points: { lng: number; lat: number; name: string }[];
-  /** Both: a small flag where it is, named. "journey" adds the dashed line
-   *  from the centre (a distance figure - the figure itself already says
-   *  how far, so there's no card, 2026-10-14, on request). */
+  /** Both: the kind's icon where it is, named. "journey" adds the dashed
+   *  line from the centre (a distance figure - the figure itself already
+   *  says how far, so there's no card, 2026-10-14, on request). */
   style: "journey" | "pin";
 }
 
-/** A small amber flag on a pole where a figure's place is, anchored at the
- *  pole's foot. Its name is a map label beside it (FOCUS_LABELS), so close
- *  places' names don't pile up - the map hides the ones that would overlap,
- *  nearest first - and shows on hover too. */
-function createFlagElement(name: string): HTMLDivElement {
-  const el = document.createElement("div");
-  el.title = name;
-  el.style.cssText = "width:18px;height:24px;pointer-events:auto;";
-  el.innerHTML =
-    '<svg width="18" height="24" viewBox="0 0 18 24" style="display:block;filter:drop-shadow(0 1px 1.5px rgba(30,26,22,.35))">' +
-    '<path d="M2 23V2" stroke="#1E1A16" stroke-width="2" stroke-linecap="round"/>' +
-    '<path d="M3 2.5h11.5l-2.8 4 2.8 4H3z" fill="#BA7517" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round"/></svg>';
-  return el;
+type FocusPoint = { lng: number; lat: number; name: string };
+
+/** A Yes's places: every one the map's tiles hold, plus the dataset's own
+ *  (Overture / GeoNames) where the tiles have nothing within 150 m - so the
+ *  places behind the figure always show - nearest first. */
+function mergePlaces(center: { lat: number; lng: number }, dataset: FocusPoint[], tiles: MapPlace[]): FocusPoint[] {
+  const extra = dataset
+    .filter((p) => !tiles.some((t) => straightLineKm(t, p) < 0.15))
+    .map((p) => ({ ...p, km: straightLineKm(center, p) }));
+  return [...tiles, ...extra].sort((a, b) => a.km - b.km);
+}
+
+/** A figure's places on the map, in its kind's icon and colour, ranked
+ *  nearest first (which icons win where they'd overlap). */
+function drawFocusPoints(map: maplibregl.Map, focus: MapFocus | null, points: FocusPoint[]): void {
+  (map.getSource(FOCUS_POINTS_ID) as maplibregl.GeoJSONSource | undefined)?.setData({
+    type: "FeatureCollection",
+    features: focus
+      ? points.map((p, rank) => ({
+          type: "Feature",
+          properties: { name: p.name, rank, icon: mapIconId(focus.kind), color: mapIconColor(focus.kind) },
+          geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+        }))
+      : [],
+  } as any);
+}
+
+/** The chip's count for a Yes: every place within its radius once the
+ *  map's tiles have been read, or the dataset's own nearest few. */
+function yesCount(focus: MapFocus, tilePlaces: { places: MapPlace[]; done: boolean } | null, center: { lat: number; lng: number }): string {
+  if (tilePlaces && !tilePlaces.done) return "finding them all…";
+  if (tilePlaces?.places.length) {
+    const n = mergePlaces(center, focus.points, tilePlaces.places).length;
+    return `${n.toLocaleString("en-US")} within ${yesRadiusKm(focus.kind as Exclude<MapKind, "capital">)} km`;
+  }
+  const n = focus.points.length;
+  return n === 6 ? "6 nearest" : n > 1 ? `${n} places` : "";
 }
 
 interface MapViewProps {
@@ -116,10 +146,17 @@ interface MapViewProps {
   compact?: boolean;
   focus?: MapFocus | null;
   onCloseFocus?: () => void;
+  /** Whether the map fills the screen (the expand button's state), and the
+   *  button's action; no button without it. */
+  expanded?: boolean;
+  onToggleExpanded?: () => void;
 }
 
 const FOCUS_SOURCE_ID = "piltri-focus";
-const FOCUS_LABELS_ID = "piltri-focus-labels";
+/** A figure's places: a small dot for every one, and the kind's icon with
+ *  its name where there's room - the map hides icons that would overlap,
+ *  nearest first, and shows more as you zoom in. */
+const FOCUS_POINTS_ID = "piltri-focus-points";
 /** A distance figure's journey along the roads (lib/routing.ts), once it
  *  has come back - the straight line stands in until then. */
 const FOCUS_ROUTE_ID = "piltri-focus-route";
@@ -274,6 +311,8 @@ export function MapView({
   compact = false,
   focus = null,
   onCloseFocus,
+  expanded = false,
+  onToggleExpanded,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -289,7 +328,12 @@ export function MapView({
   // (focus) is closed.
   const areaBoundsRef = useRef<maplibregl.LngLatBounds | null>(null);
   const focusRef = useRef<MapFocus | null>(focus);
-  const flagsRef = useRef<maplibregl.Marker[]>([]);
+  // A Yes's places from the map's tiles, as they arrive (null: none being
+  // looked for - a distance, or a kind the tiles don't hold).
+  const [tilePlaces, setTilePlaces] = useState<{ places: MapPlace[]; done: boolean } | null>(null);
+  // The same, with the focus they're for - read by the focus effect, which
+  // redraws when the map changes size.
+  const tilePlacesRef = useRef<{ focus: MapFocus; places: MapPlace[] } | null>(null);
   // The journey along the roads for a distance figure: its bounds (framed
   // with the place), the chip's "35 km · 35 min by car", and which focus
   // it's for (a reply for an earlier tap is dropped).
@@ -307,10 +351,15 @@ export function MapView({
     const left = Math.max(60, Math.min(780, map.getContainer().clientWidth - 420));
     return { top: 60 + extraTop, bottom: 60, left, right: 60 + extraRight };
   };
-  /** The place and its flags (MapFocus style "pin") in one view. */
-  const flagView = (area: maplibregl.LngLatBounds, points: { lng: number; lat: number }[]) => {
-    const bounds = new maplibregl.LngLatBounds(area.getSouthWest(), area.getNorthEast());
-    for (const p of points) bounds.extend([p.lng, p.lat]);
+  /** A Yes (MapFocus style "pin") in one view: the circle its places are
+   *  counted in, where the map shows them all - not the whole outline,
+   *  which for London is 40 km across (2026-10-28) - widened for any of
+   *  the dataset's places outside it. */
+  const yesView = (focused: MapFocus) => {
+    const circle = (circlePolygon(lat, lng, focused.kind === "capital" ? AREA_RADIUS_KM : yesRadiusKm(focused.kind)).geometry as GeoJSON.Polygon).coordinates[0];
+    const bounds = new maplibregl.LngLatBounds();
+    for (const c of circle) bounds.extend(c as [number, number]);
+    for (const p of focused.points) bounds.extend([p.lng, p.lat]);
     return bounds;
   };
   /** Room on the right for the labels: less on a phone, where the map
@@ -348,10 +397,8 @@ export function MapView({
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-    // OpenStreetMap's licence requires visible attribution - compact (an
-    // "i" button) keeps it out of the way.
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
-    autoCollapseAttribution(map);
+    // The credit OpenStreetMap's licence asks for is a line in the corner
+    // (MapCredit, below) rather than MapLibre's control.
 
     // Shared by both click branches below (main pin and destination pin) -
     // resolves whatever labelled map feature (if any) sits at/near a click,
@@ -509,19 +556,35 @@ export function MapView({
         // Blue, so the journey never reads as part of the amber outline.
         paint: { "line-color": "#3B6E8F", "line-width": 3.5 },
       });
-      // The flags' names, beside each flag's banner.
-      map.addSource(FOCUS_LABELS_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      // A figure's places: a dot for every one, and its icon and name
+      // where they fit (nearest first).
+      addMapIcons(map);
+      map.addSource(FOCUS_POINTS_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({
-        id: FOCUS_LABELS_ID,
+        id: `${FOCUS_POINTS_ID}-dots`,
+        type: "circle",
+        source: FOCUS_POINTS_ID,
+        paint: {
+          "circle-radius": 4,
+          "circle-color": ["get", "color"],
+          "circle-stroke-color": "#FFFFFF",
+          "circle-stroke-width": 1.5,
+        },
+      });
+      map.addLayer({
+        id: `${FOCUS_POINTS_ID}-icons`,
         type: "symbol",
-        source: FOCUS_LABELS_ID,
+        source: FOCUS_POINTS_ID,
         layout: {
+          "icon-image": ["get", "icon"],
+          "icon-padding": 1,
           "text-field": ["get", "name"],
           "text-font": ["Noto Sans Regular"],
           "text-size": 11.5,
           "text-anchor": "left",
-          "text-offset": [1.35, -1.55],
-          "text-max-width": 14,
+          "text-offset": [1.45, 0],
+          "text-max-width": 12,
+          "text-optional": true,
           "symbol-sort-key": ["get", "rank"],
         },
         paint: { "text-color": "#1E1A16", "text-halo-color": "#FFFFFF", "text-halo-width": 1.6, "text-halo-blur": 0.4 },
@@ -612,7 +675,7 @@ export function MapView({
       // flag's together with the place, now that its outline is here.
       const focused = focusRef.current;
       if (focused?.points.length) {
-        if (focused.style === "pin") map.fitBounds(flagView(bounds, focused.points), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration: 800 });
+        if (focused.style === "pin") map.fitBounds(yesView(focused), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration: 800 });
         return;
       }
       map.fitBounds(bounds, { padding: framePadding(map), duration: 800 });
@@ -776,6 +839,27 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pinnedCoords, destinationCoords, reservedBottomPx, compact]);
 
+  // A Yes: look for every place of its kind in the map's tiles (lib/
+  // mapPlaces.ts) - the dataset's own nearest 6 show meanwhile, and stay
+  // where the tiles have nothing near them.
+  useEffect(() => {
+    setTilePlaces(null);
+    if (!focus || focus.style !== "pin" || focus.kind === "capital" || !hasMapPlaces(focus.kind)) return;
+    const controller = new AbortController();
+    loadMapPlaces(focus.kind, { lat, lng }, controller.signal, (places, done) => {
+      tilePlacesRef.current = { focus, places };
+      setTilePlaces({ places, done });
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [focus, lat, lng]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current || !focus || !tilePlaces) return;
+    drawFocusPoints(map, focus, mergePlaces({ lat, lng }, focus.points, tilePlaces.places));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tilePlaces]);
+
   // Show (or clear) a figure's place: the point, a dashed line from the
   // centre, framed together - back to the place's own framing when closed.
   useEffect(() => {
@@ -788,10 +872,8 @@ export function MapView({
     const frame = (duration = 800) => {
       const points = focusRef.current?.points ?? [];
       const current = points[0];
-      if (current && focusRef.current?.style === "pin" && areaBoundsRef.current) {
-        // Flags keep the whole place in view - widened only for one that's
-        // outside it.
-        map.fitBounds(flagView(areaBoundsRef.current, points), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration });
+      if (current && focusRef.current?.style === "pin") {
+        map.fitBounds(yesView(focusRef.current), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration });
       } else if (current) {
         const bounds = new maplibregl.LngLatBounds([lng, lat], [lng, lat]).extend([current.lng, current.lat]);
         if (routeBoundsRef.current) bounds.extend(routeBoundsRef.current);
@@ -805,20 +887,10 @@ export function MapView({
       const source = map.getSource(FOCUS_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
       if (!source) return;
       const point = focus?.points[0];
-      flagsRef.current.forEach((m) => m.remove());
-      // A flag per place - the pole's foot on it: the element is anchored
-      // bottom-left, and the pole stands 2 px in from its left edge.
-      flagsRef.current = (focus?.points ?? []).map((p) =>
-        new maplibregl.Marker({ element: createFlagElement(p.name), anchor: "bottom-left", offset: [-2, 0] }).setLngLat([p.lng, p.lat]).addTo(map)
-      );
-      (map.getSource(FOCUS_LABELS_ID) as maplibregl.GeoJSONSource | undefined)?.setData({
-        type: "FeatureCollection",
-        features: (focus?.points ?? []).map((p, rank) => ({
-          type: "Feature",
-          properties: { name: p.name, rank },
-          geometry: { type: "Point", coordinates: [p.lng, p.lat] },
-        })),
-      } as any);
+      // Redrawn when the map changes size too: with every place the tiles
+      // gave, once they're in.
+      const tiles = tilePlacesRef.current?.focus === focus ? tilePlacesRef.current.places : null;
+      drawFocusPoints(map, focus, focus && tiles ? mergePlaces({ lat, lng }, focus.points, tiles) : focus?.points ?? []);
       source.setData({
         type: "FeatureCollection",
         features: point && focus?.style === "journey"
@@ -868,7 +940,12 @@ export function MapView({
           <div className="flex items-center gap-1">
             <span className="text-xs font-medium text-ink-900">
               {focus.title}
-              {!focus.points.length && <span className="font-normal text-ink-500"> · none found nearby</span>}
+              {focus.style === "pin" && yesCount(focus, tilePlaces, { lat, lng }) && (
+                <span className="font-normal text-ink-500"> · {yesCount(focus, tilePlaces, { lat, lng })}</span>
+              )}
+              {!focus.points.length && !tilePlaces?.places.length && (
+                <span className="font-normal text-ink-500"> · none found nearby</span>
+              )}
               {routeInfo && <span className="font-normal text-ink-500"> · {routeInfo}</span>}
             </span>
             <button type="button" aria-label="Close" onClick={onCloseFocus} className="ml-auto p-1 rounded-full text-ink-500 hover:text-ink-900 flex-shrink-0">
@@ -898,10 +975,29 @@ export function MapView({
         </div>
       )}
       {onMapClick && !pinnedCoords && !pickingDestination && (
-        <div className="absolute bottom-4 right-4 rounded-pill bg-ink-900/80 text-white text-xs px-4 py-2">
+        <div className="absolute bottom-6 right-4 rounded-pill bg-ink-900/80 text-white text-xs px-4 py-2">
           Drop a pin for local details
         </div>
       )}
+      {onToggleExpanded && (
+        // Under the zoom buttons, in their style.
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          aria-label={expanded ? "Make the map smaller" : "Expand the map"}
+          title={expanded ? "Make the map smaller" : "Expand the map"}
+          className="absolute right-[10px] top-[76px] z-10 flex h-[29px] w-[29px] items-center justify-center rounded bg-white text-ink-900 shadow-[0_0_0_2px_rgba(0,0,0,0.1)] hover:bg-surface-muted"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            {expanded ? (
+              <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+            ) : (
+              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            )}
+          </svg>
+        </button>
+      )}
+      <MapCredit routes={!!routeInfo} />
     </div>
   );
 }

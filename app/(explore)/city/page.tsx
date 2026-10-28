@@ -193,6 +193,26 @@ function CityContent() {
     setMapFocus(null);
     setMapFullScreen(false);
   }, []);
+  // The map's expand button (2026-10-28, on request): the map fills the
+  // screen - on a desktop the panels floating over it step aside. On a
+  // phone, the full-screen map a figure opens is "expanded" too, and
+  // making it smaller closes the figure as well.
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const mapFills = mapExpanded || mapFullScreen;
+  const toggleMapExpanded = useCallback(() => {
+    if (mapExpanded || mapFullScreen) {
+      setMapExpanded(false);
+      if (mapFullScreen) closeMapFocus();
+    } else {
+      setMapExpanded(true);
+    }
+  }, [mapExpanded, mapFullScreen, closeMapFocus]);
+  useEffect(() => {
+    if (!mapFills) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && toggleMapExpanded();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mapFills, toggleMapExpanded]);
   const showOnMap = useCallback(
     async (row: KpiRow) => {
       if (!data || !row.mapKind) return;
@@ -206,19 +226,14 @@ function CityContent() {
         const found = (await getCityNearby(data.countryCode, data.cityId).catch(() => null))?.[kind] ?? [];
         points = found.map(([lng, lat, name]) => ({ lng, lat, name: name || UNNAMED[kind] || "Unnamed" }));
       }
-      // A distance is to the nearest one; a Yes shows them all (up to 6,
-      // nearest first - 2026-10-14, on request).
+      // A distance is to the nearest one; a Yes shows them all - the map
+      // adds every one its tiles hold to the dataset's nearest 6.
       if (style === "journey") points = points.slice(0, 1);
       setMapFocus({
-        // A Yes is named as the figure ("Train station", "School · 6
-        // nearest"), a distance as what it measures to ("Nearest train
-        // station").
-        title:
-          style === "pin"
-            ? points.length > 1
-              ? `${row.label} · ${points.length === 6 ? "6 nearest" : `${points.length} places`}`
-              : row.label
-            : MAP_TITLES[kind],
+        // A Yes is named as the figure ("Train station" - the map adds how
+        // many), a distance as what it measures to ("Nearest train station").
+        title: style === "pin" ? row.label : MAP_TITLES[kind],
+        kind,
         points,
         style,
       });
@@ -439,15 +454,16 @@ function CityContent() {
          *  live WebGL map resizing on every frame read as janky. It stays
          *  mounted, so it comes back as it was. */}
         <div
-          aria-hidden={(sectionView && !mapFullScreen) || undefined}
+          aria-hidden={(sectionView && !mapFills) || undefined}
           className={cn(
             "relative overflow-hidden md:h-full md:flex-1 transition-[height,opacity] duration-300 ease-out motion-reduce:transition-none md:transition-none",
             sectionView ? "h-0 opacity-0" : "h-[23dvh]",
-            // A figure's place, on a phone: the map takes the whole screen.
-            mapFullScreen && "!fixed !inset-0 !z-50 !h-auto !opacity-100"
+            // Expanded, or a figure's place on a phone: the map takes the
+            // whole screen.
+            mapFills && "!fixed !inset-0 !z-50 !h-auto !opacity-100"
           )}
         >
-          <div className={cn("h-[23dvh] md:h-full relative", mapFullScreen && "!h-full")}>
+          <div className={cn("h-[23dvh] md:h-full relative", mapFills && "!h-full")}>
             {center ? (
               <MapView
                 lat={center.lat}
@@ -460,9 +476,11 @@ function CityContent() {
                 onDestinationPick={handleDestinationPick}
                 onRouteInfo={setRouteInfo}
                 reservedBottomPx={isDesktop && pin ? pinPanelHeight : 0}
-                compact={!isDesktop}
+                compact={!isDesktop || mapExpanded}
                 focus={mapFocus}
                 onCloseFocus={closeMapFocus}
+                expanded={mapFills}
+                onToggleExpanded={toggleMapExpanded}
               />
             ) : (
               <div className="w-full h-full bg-surface-muted" />

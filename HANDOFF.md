@@ -95,6 +95,13 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
   1,000 m+ peak rising 500 m+ above the city.
 - **Airports**: nearest international and nearest local airport with
   scheduled flights (OurAirports).
+- **On the map** (2026-10-28): tapping a Yes shows every place of its kind
+  within its radius, read in the browser from OpenFreeMap's zoom-14 tiles
+  (`lib/mapPlaces.ts` - the dataset keeps only the nearest 6, still shown
+  where the tiles have nothing near them; care homes aren't in the tiles).
+  The Yes itself still comes from the dataset, so the map can count a few
+  more or fewer. Icons per kind: `components/explore/mapIcons.ts` (colours
+  brightened to survive the map canvas's desaturation filter).
 - **Local figures (phase 1, 2026-10-24)**: median age and population growth
   within 5 km (WorldPop, GHS-POP), nearest hospital (Overture), armed
   conflict within 50 km (UCDP GED), regional GDP per head as reported

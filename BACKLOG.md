@@ -9,37 +9,22 @@ The owner's requests and planned work, roughly in order. Updated
 - **Data refresh with phase 1** (local figures): re-run on 2026-10-28
   after WHO's API outage failed the first attempt; check Lyon, Kharkiv,
   Lagos and a village on the live site afterwards.
-- **Findable on Google**: a title and description for each place and
-  country page, a sitemap of every place, robots.txt (2026-10-28).
+- **Findable on Google** (done 2026-10-28): the owner adds the site to
+  Google Search Console and submits `https://www.piltri.me/sitemap.xml`.
 
 ## Map (owner, 2026-10-28)
 
-1. **A Yes shows only a few places (defect).** In London, "Train
-   station: Yes" or "School: Yes" flags a handful of places where there
-   are hundreds. Cause: since 2026-10-14 the dataset keeps the 6 nearest
-   of each kind per place (`nearby/`) and the map flags only those. Fix:
-   draw every one from the map's own OpenStreetMap layer (the OpenFreeMap
-   tiles already carry schools, stations, hospitals...) filtered to the
-   figure's kind, so all of them show, without growing the dataset. The
-   Yes and the counts stay as computed (Overture); check that the two
-   agree on London, Lyon and a village.
-2. **An icon per kind instead of the amber flag**: a school for schools, a
-   child for nurseries, a train for stations, a cross for hospitals, a
-   tree for parks... It has to look good: one consistent set (Maki, CC0 -
-   the set the map's own style uses - or drawn to match), in Piltri's
-   colours, readable at small sizes.
-3. **No message at the bottom of the map on load.** It's OpenStreetMap's
-   credit, opened for 4 seconds on purpose (`lib/mapAttribution.ts`). OSM's
-   licence needs a visible credit, but a small permanent "© OpenStreetMap"
-   line in a corner meets it without the pop-up.
-4. **A button to expand the map** (desktop and phone), with a close button.
-   Phones already open the map full screen for a figure (`mapFullScreen`
-   on the city page); this extends it.
+Done 2026-10-28: a Yes shows every place of its kind within its radius
+(from the map's own tiles - `lib/mapPlaces.ts`; care homes aren't in them
+and keep the dataset's nearest 6), an icon per kind
+(`components/explore/mapIcons.ts`), a small permanent credit line instead
+of the pop-up (`MapCredit`), and an expand button.
+
 5. **More detail on the map**: names of key streets, buildings, stations.
    The style (OpenFreeMap "liberty") has them, but at the default zoom
    (the whole 5 km area) most labels are hidden. Options: show the key
-   labels from a lower zoom, start a little closer, and the expanded map
-   (4) for exploring.
+   labels from a lower zoom, start a little closer; the expanded map
+   helps for exploring.
 6. **Search an address inside a city** (owner's question; recommended).
    - Free and offline: search the street and place names in the map tiles
      already loaded for the city - streets, stations, shops, but no house

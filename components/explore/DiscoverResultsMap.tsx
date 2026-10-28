@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { scoreColor } from "@/lib/design-tokens";
-import { autoCollapseAttribution } from "@/lib/mapAttribution";
+import { MapCredit } from "@/components/explore/MapCredit";
 
 /** OpenFreeMap's minimal "positron" style (free, keyless) - plain enough
  *  for an overview of up to 50 markers. */
@@ -66,10 +66,10 @@ export function DiscoverResultsMap({ points }: DiscoverResultsMapProps) {
       style: OVERVIEW_STYLE_URL,
       center: [0, 20],
       zoom: 1.5,
-      attributionControl: { compact: true },
+      // The credit is a line in the corner (MapCredit), not a pop-up.
+      attributionControl: false,
     });
     map.addControl(new maplibregl.NavigationControl(), "top-right");
-    autoCollapseAttribution(map);
     mapRef.current = map;
 
     // Positron is near-monochrome - recolour water to a soft blue (the
@@ -140,7 +140,12 @@ export function DiscoverResultsMap({ points }: DiscoverResultsMapProps) {
     else map.once("load", render);
   }, [points]);
 
-  return <div ref={containerRef} className="w-full h-full rounded-card overflow-hidden" />;
+  return (
+    <div className="relative w-full h-full rounded-card overflow-hidden">
+      <div ref={containerRef} className="w-full h-full" />
+      <MapCredit />
+    </div>
+  );
 }
 
 function escapeHtml(s: string): string {
