@@ -140,6 +140,10 @@ async function optional<T>(name: string, run: () => Promise<T>): Promise<T | nul
     return await run();
   } catch (err) {
     log("build", `WARNING: ${name} failed and is left out of this dataset: ${String(err).slice(0, 300)}`);
+    // On GitHub, an annotation too: it shows on the run's page, which -
+    // unlike the log - needs no sign-in (2026-10-28: two sources were left
+    // out and the reason was only in the log).
+    if (process.env.GITHUB_ACTIONS) console.log(`::warning title=${name} left out::${String(err).slice(0, 300).replace(/\r?\n/g, " ")}`);
     return null;
   }
 }
