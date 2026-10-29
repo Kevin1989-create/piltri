@@ -31,17 +31,21 @@ in, every one in view anywhere in the city, not only the 5 km around the
 centre (owner: London's Yes stopped at "zone 1"); a Yes draws its 5 km
 circle.
 
-4. **Yes / No for every kind, and the distance only when it's No**
-   (owner, 2026-10-29: "more fields/data if more no"). One row per kind -
-   train station, metro, tram, bus station, port, nursery, school,
-   university, care home, hospital: "Yes" (within 5 km of the centre) or
-   "No · nearest 12 km", the No showing the journey on the map. Merges
-   today's pairs ("Train station: Yes" + "Nearest train station: 0 km").
-   Needs the pipeline to keep the nearest one beyond the radius for these
-   kinds (today it stores none when there's none within 5 km): live after
-   the next refresh. Owner to confirm: hospital follows the same rule
-   (today "Nearest hospital: 0.4 km" even when near); beach, mountain,
-   forest, airports and the capital stay distances (rarely within 5 km).
+4. **Yes / No within the city's border + 1 km, the distance only when
+   it's No** (owner, 2026-10-29: "we should see all schools... within the
+   border of the city", "1 km as the basis", "more fields/data if more
+   no"). A Yes = inside the city's outline or within 1 km of it (the 5 km
+   circle only for the 3% with no outline; 1 km absorbs the built-up
+   outlines' ~1 km roughness and things just across the line); it shows
+   how many ("Yes · 2,431"). A No shows "nearest 12 km" from the centre,
+   with the journey on the map. One row per kind - merges today's pairs
+   ("Train station: Yes" + "Nearest train station: 0 km"). The dataset
+   stores every place inside each border + 1 km, so the map shows them
+   all at once (no circle, no tile downloads) and agrees with the count;
+   measure the extra size first (too big for Vercel's 10 GB -> after the
+   Cloudflare move). The per-resident figures stay on the 5 km circle
+   (fair comparison). Live after the next refresh. Owner to confirm:
+   every kind (airports, hospital, beach, mountain, forest too).
 
 5. **More detail on the map**: names of key streets, buildings, stations.
    The style (OpenFreeMap "liberty") has them, but at the default zoom
