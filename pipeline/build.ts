@@ -2,7 +2,7 @@ import path from "path";
 import KDBush from "kdbush";
 import { around } from "geokdbush";
 import { assembleCityExploreData } from "@/lib/dataset/assemble";
-import { NEARBY_KINDS, type CityRecord, type EncodedBoundary, type NearbyKind, type NearbyPoint } from "@/lib/dataset/schema";
+import { INSIDE_KINDS, INSIDE_TRACK_ONLY, NEARBY_KINDS, type CityRecord, type EncodedBoundary, type InsideKind, type NearbyKind, type NearbyPoint } from "@/lib/dataset/schema";
 import { AGE_SOURCE, downloadAgeGroups, sampleMedianAge } from "./ageStructure";
 import { PM25_SOURCE, samplePm25 } from "./airQuality";
 import { AIRPORTS_SOURCE, loadAirports } from "./airports";
@@ -14,11 +14,12 @@ import { BOUNDARY_SOURCE, sampleBoundaries } from "./boundaries";
 import { BUILTUP_SOURCE, sampleBuiltUp } from "./builtup";
 import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M, type PointSet } from "./geonames";
 import { loadAllLakeShorePoints, loadCoastlinePoints, loadEarthquakes, loadRiverPoints } from "./hazards";
-import { countNearCities, nearestFewNearCities, nearestNearCities } from "./nearCities";
+import { countNearCities } from "./nearCities";
 import { writeDataset } from "./output";
 import { extractOvertureBeaches, extractOverturePlaces, extractOvertureRail, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
 import { POPULATION_GROWTH_SOURCE, POPULATION_SOURCE, sampleDensity, samplePopulationGrowth } from "./population";
 import { REGIONAL_GDP_SOURCE, sampleRegionalGdp } from "./regionalGdp";
+import { anyInside, cityArea, placesInside, type PlaceIndex } from "./insidePlaces";
 import { KOPPEN_SOURCE, sampleKoppen } from "./koppenMap";
 import { loadShortlist } from "./shortlist";
 import { sampleUvIndex } from "./uv";
@@ -28,9 +29,7 @@ import { openWaterNear, sampleClimate } from "./worldclim";
 const LOCAL_RADIUS_KM = 5;
 const AIRPORT_RADIUS_KM = 40; // airports sit well outside city centres
 const PORT_RADIUS_KM = 10; // ports and ferry terminals sit on the water's edge
-/** The city map's "nearest X": Overture places are searched this far out
- *  (they're many), GeoNames' anywhere up to NEARBY_MAX_KM. */
-const NEARBY_OVERTURE_KM = 10;
+/** The city map's "nearest X", and a No's distance: anywhere up to this. */
 const NEARBY_MAX_KM = 500;
 const EARTHQUAKE_RADIUS_KM = 200;
 const LARGE_CITY_POPULATION = 500_000;
@@ -42,12 +41,16 @@ const BEACH_SHORE_KM = 1;
 const RIVER_CLEAR_KM = 1;
 /** Lake beaches further than this aren't shown. */
 const LAKE_BEACH_MAX_KM = 100;
-/** A Yes figure's places on the city map: up to this many within its
- *  radius, nearest first, one per spot (points closer than DUP_KM are the
- *  same place from two sources). */
-const MAX_FLAGS = 6;
-const DUP_KM = 0.15;
 const SMALL_COUNTRY_KM2 = 10_000;
+/** Overture's categories are broad: its train stations include bus stops
+ *  and training academies, its universities language schools and gyms,
+ *  its hospitals clinics and practices (2026-10-29: "929 universities" in
+ *  London). The places a city page lists "in the city" keep the ones
+ *  whose name says what they are. */
+const STATION_NAME = /station|railway|rail|bahnhof|gare|estaci[oó]n|stazione|esta[çc][aã]o|halte?|dworzec|n[aá]dra[žz]|вокзал|станция|stanica|駅|站/i;
+const NOT_STATION_NAME = /bus stop|bus station|coach station|police station|fire station|petrol|gas station|charging/i;
+const UNIVERSITY_NAME = /univers|hochschule|polytechn|大学|大學|университет|الجامعة/i;
+const NOT_HOSPITAL_NAME = /(clinic|practice|surgery|dental|dentist|pharmacy|medical cent(?:er|re)|health cent(?:er|re)|laborator|physio|optic|veterinar|GP)/i;
 const GHOST_MAX_PEOPLE = 1000;
 
 type Points = { lng: ArrayLike<number>; lat: ArrayLike<number>; names?: ArrayLike<string | null> | null };
@@ -94,6 +97,19 @@ const anyWithin = (index: Index, lng: number, lat: number, km: number) =>
 
 const countWithin = (index: Index, lng: number, lat: number, km: number) =>
   index.size === 0 ? 0 : around(index.kd, lng, lat, Infinity, km, (i: number) => i < index.size).length;
+
+/** The points whose name passes `keep` (unnamed ones only with `unnamed`). */
+function keepNamed(points: Points, keep: (name: string) => boolean, unnamed = false): Points {
+  const out = { lng: [] as number[], lat: [] as number[], names: [] as string[] };
+  for (let i = 0; i < points.lng.length; i++) {
+    const name = points.names?.[i] ?? "";
+    if (name ? !keep(name) : !unnamed) continue;
+    out.lng.push(points.lng[i]);
+    out.lat.push(points.lat[i]);
+    out.names.push(name);
+  }
+  return out;
+}
 
 function filterPoints(points: PointSet, keep: (lng: number, lat: number) => boolean): PointSet {
   const out: PointSet = { lng: [], lat: [], names: [] };
@@ -215,21 +231,6 @@ async function main() {
   const counts = await countNearCities(`SELECT cat, lat, lng FROM read_parquet('${placesGlob}') WHERE cat IN (${counted.join(",")})`, points, LOCAL_RADIUS_KM);
   const ovCount = (i: number, cat: number) => counts.get(i)?.get(cat) ?? 0;
   const ovTrain = await loadOvertureCategory(placesGlob, POI.train, true);
-  // Up to MAX_FLAGS nearest of the kinds Overture covers best, within 5 km
-  // - where a Yes figure's places are, on the city map.
-  const ovFew = await nearestFewNearCities(
-    `SELECT cat, lat, lng, name FROM read_parquet('${placesGlob}') WHERE cat IN (${[POI.school, POI.university, POI.bus, POI.nursery, POI.careHome].join(",")})`,
-    points,
-    LOCAL_RADIUS_KM,
-    MAX_FLAGS * 2
-  );
-  // The nearest named place of the kinds Overture covers best, for the
-  // city map ("nearest nursery: ..." - see nearbyOf below).
-  const ovNearest = await nearestNearCities(
-    `SELECT cat, lat, lng, name FROM read_parquet('${placesGlob}') WHERE cat IN (${[POI.school, POI.university, POI.bus, POI.nursery, POI.careHome].join(",")})`,
-    points,
-    NEARBY_OVERTURE_KM
-  );
   const tramTrack = mergePoints(await loadOvertureCategory(railGlob, "tram"), await loadOvertureCategory(railGlob, "light_rail"));
   const metroTrack = mergePoints(await loadOvertureCategory(railGlob, "subway"), await loadOvertureCategory(railGlob, "monorail"));
   log("build", `rail points: tram/light rail ${tramTrack.lng.length}, metro ${metroTrack.lng.length}`);
@@ -248,6 +249,17 @@ async function main() {
   const airports = await loadAirports();
   const hospitals = await loadOvertureCategory(placesGlob, POI.hospital, true);
   log("build", `hospitals: ${hospitals.lng.length}`);
+  // Every Overture place of the kinds a city page counts "in the city"
+  // (2026-10-29) - their places in each city, and the nearest anywhere.
+  const ovAll = {
+    school: buildIndex(await loadOvertureCategory(placesGlob, POI.school, true)),
+    university: buildIndex(keepNamed(await loadOvertureCategory(placesGlob, POI.university, true), (n) => UNIVERSITY_NAME.test(n))),
+    bus: buildIndex(await loadOvertureCategory(placesGlob, POI.bus, true)),
+    nursery: buildIndex(await loadOvertureCategory(placesGlob, POI.nursery, true)),
+    careHome: buildIndex(await loadOvertureCategory(placesGlob, POI.careHome, true)),
+    metro: buildIndex(await loadOvertureCategory(placesGlob, POI.metro, true)),
+  };
+  log("build", `in-the-city sources: ${Object.entries(ovAll).map(([k, v]) => `${k} ${v.size}`).join(", ")}`);
   const allBeaches = mergePoints(gn.beach, ovBeaches) as PointSet;
   const onRiver = (lng: number, lat: number) => anyWithin(riverIdx, lng, lat, RIVER_CLEAR_KM);
   const onCoast = (lng: number, lat: number) => anyWithin(coastIdx, lng, lat, BEACH_SHORE_KM);
@@ -289,6 +301,34 @@ async function main() {
     large: buildIndex({ lng: large.map((c) => c.lng), lat: large.map((c) => c.lat) }),
   };
   const peakElev = gn.peak1000.elev ?? [];
+  const metroTrackIdx = buildIndex(metroTrack);
+  // The listed stations and hospitals: by name (see STATION_NAME).
+  const trainListed = buildIndex(mergePoints(gn.rail, keepNamed(ovTrain, (n) => STATION_NAME.test(n) && !NOT_STATION_NAME.test(n))));
+  const hospitalListed = buildIndex(keepNamed(hospitals, (n) => !NOT_HOSPITAL_NAME.test(n), true));
+  /** Where each kind's places in a city come from (the same sources as its
+   *  figures), and a line that alone makes it a Yes (tram and metro track). */
+  const INSIDE_SOURCES: Record<InsideKind, { sources: PlaceIndex[]; track?: PlaceIndex }> = {
+    train: { sources: [trainListed] },
+    metro: { sources: [idx.metroStation, ovAll.metro], track: metroTrackIdx },
+    tram: { sources: [], track: idx.tram },
+    bus: { sources: [idx.bus, ovAll.bus] },
+    port: { sources: [idx.port] },
+    nursery: { sources: [ovAll.nursery] },
+    school: { sources: [idx.school, ovAll.school] },
+    university: { sources: [idx.university, ovAll.university] },
+    careHome: { sources: [ovAll.careHome] },
+    hospital: { sources: [hospitalListed] },
+    intlAirport: { sources: [idx.intlAirport] },
+    localAirport: { sources: [idx.localAirport] },
+    beach: { sources: [idx.beach] },
+    lakeBeach: { sources: [idx.lakeBeach] },
+    mountain: { sources: [idx.peak] },
+    forest: { sources: [idx.forest] },
+  };
+  // A town with no border of its own uses its built-up area.
+  const builtUpOf = new Map(withoutOutline.map((i, k) => [i, builtUpList[k]]));
+  const insideById = new Map<string, (NearbyPoint[] | 0)[]>();
+  let insidePlacesTotal = 0;
 
   // Each city's nearest place of every NEARBY_KINDS kind (pipeline output
   // nearby/<CC>-<n>.json): what its Yes/No and distance figures show on
@@ -299,22 +339,6 @@ async function main() {
   const fromIndex = (index: Index, hit: { id: number; km: number } | null, suffix = ""): Found =>
     hit ? { lng: index.points.lng[hit.id], lat: index.points.lat[hit.id], name: String(index.points.names?.[hit.id] ?? "") + suffix, km: hit.km } : null;
   const closer = (a: Found, b: Found): Found => (!a ? b : !b ? a : a.km <= b.km ? a : b);
-  /** Several sources' places, nearest first, one per spot (the named one
-   *  where two sources have the same place), at most MAX_FLAGS. */
-  const pick = (...lists: Found[][]): NonNullable<Found>[] => {
-    const all = lists.flat().filter((f): f is NonNullable<Found> => f != null).sort((a, b) => a.km - b.km);
-    const kept: NonNullable<Found>[] = [];
-    for (const f of all) {
-      const same = kept.find((k) => haversineKm(k.lat, k.lng, f.lat, f.lng) < DUP_KM);
-      if (same) {
-        if (!same.name && f.name) same.name = f.name;
-        continue;
-      }
-      kept.push({ ...f });
-      if (kept.length >= MAX_FLAGS) break;
-    }
-    return kept;
-  };
   const nearbyById = new Map<string, (NearbyPoint | NearbyPoint[] | 0)[]>();
 
   log("build", "computing per-city fields...");
@@ -333,32 +357,21 @@ async function main() {
     const nearestLarge = c.population >= LARGE_CITY_POPULATION ? null : nearest(idx.large, lng, lat);
     const capital = countries[c.countryCode]?.capital;
     const capitalKm = capital ? haversineKm(lat, lng, capital.lat, capital.lng) : null;
-    const ov = (cat: number): Found => {
-      const p = ovNearest.get(i)?.get(cat);
-      return p ? { lng: p.lng, lat: p.lat, name: p.name, km: p.km } : null;
-    };
     const geo = (index: Index) => fromIndex(index, nearest(index, lng, lat));
-    // Up to MAX_FLAGS within `radius`, nearest first (around() sorts).
-    const geoFew = (index: Index, radius = LOCAL_RADIUS_KM): Found[] =>
-      index.size === 0
-        ? []
-        : around(index.kd, lng, lat, MAX_FLAGS * 3, radius, (id: number) => id < index.size).map((id: number) =>
-            fromIndex(index, { id, km: haversineKm(lat, lng, index.points.lat[id], index.points.lng[id]) })
-          );
-    const ovFewOf = (cat: number): Found[] => (ovFew.get(i)?.get(cat) ?? []).map((p) => ({ ...p }));
     const peakHit = nearest(idx.peak, lng, lat, (id) => peakElev[id] >= minPeak);
     const largeHit = nearestLarge ? { lng: large[nearestLarge.id].lng, lat: large[nearestLarge.id].lat, name: large[nearestLarge.id].cityName, km: nearestLarge.km } : null;
+    // The same places as the "in the city" lists (INSIDE_SOURCES).
     const found: Record<NearbyKind, Found> = {
-      train: geo(idx.train),
+      train: geo(trainListed),
       metro: geo(idx.metro),
       tram: geo(idx.tram),
       airport: geo(idx.airport),
-      bus: closer(geo(idx.bus), ov(POI.bus)),
+      bus: closer(geo(idx.bus), geo(ovAll.bus)),
       port: geo(idx.port),
-      nursery: ov(POI.nursery),
-      school: closer(geo(idx.school), ov(POI.school)),
-      university: closer(geo(idx.university), ov(POI.university)),
-      careHome: ov(POI.careHome),
+      nursery: geo(ovAll.nursery),
+      school: closer(geo(idx.school), geo(ovAll.school)),
+      university: closer(geo(idx.university), geo(ovAll.university)),
+      careHome: geo(ovAll.careHome),
       beach: geo(idx.beach),
       mountain: fromIndex(idx.peak, peakHit, peakHit ? ` (${Math.round(peakElev[peakHit.id]).toLocaleString("en-GB")} m)` : ""),
       forest: geo(idx.forest),
@@ -366,29 +379,33 @@ async function main() {
       lakeBeach: lakeBeachKm != null ? geo(idx.lakeBeach) : null,
       intlAirport: geo(idx.intlAirport),
       localAirport: geo(idx.localAirport),
-      hospital: geo(idx.hospital),
-    };
-    // A Yes figure's places: all of them within its radius (up to
-    // MAX_FLAGS), not just the nearest. Trams stay single - only their
-    // track is mapped.
-    const many: Partial<Record<NearbyKind, NonNullable<Found>[]>> = {
-      train: pick(geoFew(idx.train)),
-      metro: pick(geoFew(idx.metroStation)),
-      bus: pick(geoFew(idx.bus), ovFewOf(POI.bus)),
-      port: pick(geoFew(idx.port, PORT_RADIUS_KM)),
-      nursery: pick(ovFewOf(POI.nursery)),
-      school: pick(geoFew(idx.school), ovFewOf(POI.school)),
-      university: pick(geoFew(idx.university), ovFewOf(POI.university)),
-      careHome: pick(ovFewOf(POI.careHome)),
+      hospital: geo(hospitalListed),
     };
     const encode = (f: NonNullable<Found>): NearbyPoint => [round4(f.lng), round4(f.lat), f.name.slice(0, 60)];
+    // In the city or within 1 km of it: every place of each kind, how
+    // many, and the nearest anywhere (for a No).
+    const area = cityArea(lat, lng, outlines[i] ?? builtUpOf.get(i) ?? null);
+    const insideLists = INSIDE_KINDS.map((kind) => {
+      const { sources } = INSIDE_SOURCES[kind];
+      return kind === "mountain"
+        ? placesInside(area, sources, (_, id) => peakElev[id] >= minPeak, (_, id) => ` (${Math.round(peakElev[id]).toLocaleString("en-GB")} m)`)
+        : placesInside(area, sources);
+    });
+    const insideCounts = INSIDE_KINDS.map((kind, k) => {
+      const { track } = INSIDE_SOURCES[kind];
+      return insideLists[k].length || (track && anyInside(area, track) ? INSIDE_TRACK_ONLY : 0);
+    });
+    const insideNearestKm = INSIDE_KINDS.map((kind) => {
+      const f = found[kind];
+      return f && f.km <= NEARBY_MAX_KM ? round(f.km, 1) : null;
+    });
+    insideById.set(c.cityId, insideLists.map((list) => (list.length ? list : 0)));
+    insidePlacesTotal += insideLists.reduce((sum, list) => sum + list.length, 0);
     nearbyById.set(
       c.cityId,
+      // The nearest of each kind - a No's journey on the map (a Yes shows
+      // its whole list, inside/).
       NEARBY_KINDS.map((kind) => {
-        const list = many[kind];
-        if (list?.length) return list.map(encode);
-        // None within the radius: the nearest further away, for the
-        // distance figure ("Nearest train station").
         const f = found[kind];
         return f && f.km <= NEARBY_MAX_KM ? encode(f) : 0;
       })
@@ -433,6 +450,8 @@ async function main() {
         regionGdpPerHeadPpp: regionGdp?.[i].perHead ?? null,
         regionGdpYear: regionGdp?.[i].year ?? null,
         regionGdpVsNationalPct: regionGdp?.[i].vsNationalPct ?? null,
+        insideCounts,
+        insideNearestKm,
         nearestLargeCityName: nearestLarge ? large[nearestLarge.id].cityName : null,
         nearestLargeCityKm: nearestLarge ? round(nearestLarge.km, 0) : null,
         restaurantsBarsWithin5km: ovCount(i, POI.eating),
@@ -474,6 +493,7 @@ async function main() {
     !r.restaurantsBarsWithin5km &&
     !r.hasSchool &&
     (r.distanceToCoastKm ?? Infinity) > 5;
+  log("build", `in the city: ${insidePlacesTotal.toLocaleString("en-GB")} places listed; ${INSIDE_KINDS.map((kind, k) => `${kind} yes ${allRecords.filter((r) => (r.record.insideCounts?.[k] ?? 0) !== 0).length}`).join(", ")}`);
   const ghosts = allRecords.filter(isGhost);
   const records = allRecords.filter((r) => !isGhost(r));
   log("build", `left out ${ghosts.length} places with no town at the listed point, e.g. ${ghosts.slice(0, 5).map((g) => `${g.record.name} (${g.cc})`).join(", ")}`);
@@ -537,6 +557,7 @@ async function main() {
     bounds,
     builtUp,
     nearby: nearbyById,
+    inside: insideById,
     poi: {
       airport: gn.airport,
       // GeoNames stations only, since pin mode shows the NAME: Overture's
@@ -577,6 +598,7 @@ async function main() {
       ...(populationGrowth ? { populationGrowth: POPULATION_GROWTH_SOURCE } : {}),
       ...(medianAge ? { age: AGE_SOURCE } : {}),
       hospitals: `Overture Maps places ${release} - hospitals and emergency departments (CDLA-Permissive-2.0)`,
+      inside: `In the city or within 1 km of its outline (5 km of the centre without one): GeoNames, Overture Maps places ${release}, OurAirports, mapped beaches and peaks`,
       ...(conflict ? { conflict: CONFLICT_SOURCE } : {}),
       ...(regionGdp ? { regionGdp: REGIONAL_GDP_SOURCE } : {}),
     },

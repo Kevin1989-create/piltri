@@ -25,8 +25,8 @@ import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/cn";
-import { getCityBoundary, getCityExploreData, getCityNearby, getCountries, hasNearbyData, type CityOutline } from "@/lib/dataset/cities";
-import { cityIdFor } from "@/lib/dataset/schema";
+import { getCityBoundary, getCityExploreData, getCityInside, getCityNearby, getCountries, hasNearbyData, type CityOutline } from "@/lib/dataset/cities";
+import { cityIdFor, type InsideKind } from "@/lib/dataset/schema";
 import { cityUrl, compareUrl, readCityRef, reportUrl, settingsUrl } from "@/lib/urls";
 import { manifest } from "@/lib/dataset/files";
 import { usePageMeta } from "@/lib/pageMeta";
@@ -219,11 +219,18 @@ function CityContent() {
       const kind = row.mapKind;
       const style = row.mapStyle ?? "journey";
       let points: { lng: number; lat: number; name: string }[] = [];
+      let complete = false;
       if (kind === "capital") {
         const capital = (await getCountries())[data.countryCode]?.capital;
         if (capital) points = [{ lng: capital.lng, lat: capital.lat, name: capital.name }];
       } else {
-        const found = (await getCityNearby(data.countryCode, data.cityId).catch(() => null))?.[kind] ?? [];
+        // A Yes "in the city" (2026-10-29): every one counted.
+        const inside =
+          style === "pin" && data.liveability.inside?.[kind as InsideKind]
+            ? await getCityInside(data.countryCode, data.cityId, kind as InsideKind).catch(() => null)
+            : null;
+        complete = !!inside;
+        const found = inside ?? (await getCityNearby(data.countryCode, data.cityId).catch(() => null))?.[kind] ?? [];
         points = found.map(([lng, lat, name]) => ({ lng, lat, name: name || UNNAMED[kind] || "Unnamed" }));
       }
       // A distance is to the nearest one; a Yes shows them all - the map
@@ -236,6 +243,7 @@ function CityContent() {
         kind,
         points,
         style,
+        complete,
       });
       if (!isDesktop) setMapFullScreen(true);
     },

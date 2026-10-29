@@ -48,62 +48,6 @@ const WITHIN = (radiusKm: number) => `
     cos(radians(c.lat)) * cos(radians(p.lat)) * pow(sin(radians(p.lng - c.lng) / 2), 2)
   )) <= ${radiusKm}`;
 
-/** Per city, the nearest point of each category within `radiusKm`, with
- *  its name. `pointsSql` must yield columns cat, lat, lng, name. */
-export async function nearestNearCities(
-  pointsSql: string,
-  cities: { lat: number; lng: number }[],
-  radiusKm: number
-): Promise<Map<number, Map<number, { lat: number; lng: number; name: string; km: number }>>> {
-  const con = await prepare(cities, radiusKm, pointsSql);
-  const reader = await con.runAndReadAll(`
-    SELECT i, cat, arg_min(plat, d), arg_min(plng, d), arg_min(name, d), min(d) FROM (
-      SELECT c.i, p.cat, p.lat AS plat, p.lng AS plng, coalesce(p.name, '') AS name, ${DISTANCE} AS d
-      FROM city_cells c JOIN pts p ON p.cy = c.cy AND p.cx = c.cx
-    ) WHERE d <= ${radiusKm}
-    GROUP BY i, cat`);
-  const out = new Map<number, Map<number, { lat: number; lng: number; name: string; km: number }>>();
-  for (const [i, cat, lat, lng, name, km] of reader.getRows()) {
-    const idx = Number(i);
-    if (!out.has(idx)) out.set(idx, new Map());
-    out.get(idx)!.set(Number(cat), { lat: Number(lat), lng: Number(lng), name: String(name ?? ""), km: Number(km) });
-  }
-  return out;
-}
-
-/** Per city, up to `n` nearest points of each category within `radiusKm`,
- *  nearest first, with names - a Yes figure's places on the city map.
- *  min_by(..., n) keeps a small top-n per city and category as it goes,
- *  rather than sorting every pair (memory-lean on the GitHub runner).
- *  `pointsSql` must yield columns cat, lat, lng, name. */
-export async function nearestFewNearCities(
-  pointsSql: string,
-  cities: { lat: number; lng: number }[],
-  radiusKm: number,
-  n: number
-): Promise<Map<number, Map<number, { lat: number; lng: number; name: string; km: number }[]>>> {
-  const con = await prepare(cities, radiusKm, pointsSql);
-  const reader = await con.runAndReadAll(`
-    SELECT i, cat, min_by({'lat': plat, 'lng': plng, 'name': name, 'km': d}, d, ${n}) AS few FROM (
-      SELECT c.i, p.cat, p.lat AS plat, p.lng AS plng, coalesce(p.name, '') AS name, ${DISTANCE} AS d
-      FROM city_cells c JOIN pts p ON p.cy = c.cy AND p.cx = c.cx
-    ) WHERE d <= ${radiusKm}
-    GROUP BY i, cat`);
-  const out = new Map<number, Map<number, { lat: number; lng: number; name: string; km: number }[]>>();
-  for (const [i, cat, few] of reader.getRowsJS()) {
-    const idx = Number(i);
-    if (!out.has(idx)) out.set(idx, new Map());
-    const list = (few as { lat: number; lng: number; name: string; km: number }[]).map((p) => ({
-      lat: Number(p.lat),
-      lng: Number(p.lng),
-      name: String(p.name ?? ""),
-      km: Number(p.km),
-    }));
-    out.get(idx)!.set(Number(cat), list.sort((a, b) => a.km - b.km));
-  }
-  return out;
-}
-
 /** Per-city counts of each category within `radiusKm`. `pointsSql` must
  *  yield columns cat, lat, lng. */
 export async function countNearCities(

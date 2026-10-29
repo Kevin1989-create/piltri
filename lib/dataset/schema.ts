@@ -168,6 +168,10 @@ export const CITY_FIELDS = [
   "regionGdpPerHeadPpp",
   "regionGdpYear",
   "regionGdpVsNationalPct",
+  // In the city or within 1 km of it (2026-10-29), one entry per
+  // INSIDE_KINDS kind.
+  "insideCounts",
+  "insideNearestKm",
 ] as const;
 
 export type CityFieldKey = (typeof CITY_FIELDS)[number];
@@ -253,6 +257,14 @@ export interface CityRecord {
   regionGdpPerHeadPpp: number | null;
   regionGdpYear: number | null;
   regionGdpVsNationalPct: number | null;
+  /** Per INSIDE_KINDS kind: how many are in the city or within
+   *  INSIDE_MARGIN_KM of its outline (5 km of the centre for a place with
+   *  no outline) - INSIDE_TRACK_ONLY where only a line runs through it (a
+   *  tram, with no stop mapped). Absent before 2026-10-29. */
+  insideCounts?: number[] | null;
+  /** Per INSIDE_KINDS kind: km from the centre to the nearest one, null
+   *  when there's none within NEARBY_MAX_KM. */
+  insideNearestKm?: (number | null)[] | null;
   /** Test-weighted average download speed (Ookla) within the stored
    *  radius: 5 km, or 15/30 km where there were too few tests nearer. */
   broadbandDownloadMbps: number | null;
@@ -299,7 +311,44 @@ export type NearbyPoint = [number, number, string];
  *  shorter. */
 export type NearbyChunkFile = Record<string, (NearbyPoint | NearbyPoint[] | 0)[]>;
 
-export type CityValue = string | number | boolean | number[] | null;
+/** The kinds a city page answers "is there one in the city?" for - Yes
+ *  with how many, or No with the distance to the nearest (2026-10-29, on
+ *  request: in the city's border + 1 km, not within 5 km of the centre).
+ *  The order of CityRecord.insideCounts / insideNearestKm and of an
+ *  InsideChunkFile row (new kinds go at the end). */
+export const INSIDE_KINDS = [
+  "train",
+  "metro",
+  "tram",
+  "bus",
+  "port",
+  "nursery",
+  "school",
+  "university",
+  "careHome",
+  "hospital",
+  "intlAirport",
+  "localAirport",
+  "beach",
+  "lakeBeach",
+  "mountain",
+  "forest",
+] as const satisfies readonly NearbyKind[];
+export type InsideKind = (typeof INSIDE_KINDS)[number];
+/** "In the city" reaches this far past its outline: things just across
+ *  the line, and the ~1 km roughness of built-up outlines (owner,
+ *  2026-10-29). */
+export const INSIDE_MARGIN_KM = 1;
+/** A place with no outline: within this of its centre. */
+export const INSIDE_NO_OUTLINE_KM = 5;
+/** insideCounts value for "yes, a line runs through it, but no stop is
+ *  mapped" (trams: Overture has the tracks, not the stops). */
+export const INSIDE_TRACK_ONLY = -1;
+/** inside/<CC>-<n>.json: city id -> one item per INSIDE_KINDS kind: every
+ *  one in the city (nearest the centre first), or 0. */
+export type InsideChunkFile = Record<string, (NearbyPoint[] | 0)[]>;
+
+export type CityValue = string | number | boolean | (number | null)[] | null;
 export type CityRow = CityValue[];
 
 export function encodeCity(record: CityRecord): CityRow {
@@ -353,6 +402,8 @@ export interface DatasetManifest {
   builtUpChunks?: string[];
   /** Chunks with a nearby/<CC>-<n>.json file (NearbyChunkFile). */
   nearbyChunks?: string[];
+  /** Chunks with an inside/<CC>-<n>.json file (InsideChunkFile). */
+  insideChunks?: string[];
   /** Human-readable source + vintage notes, shown on /admin. */
   sources: Record<string, string>;
 }

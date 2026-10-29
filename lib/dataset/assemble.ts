@@ -1,7 +1,7 @@
 import { getDaylightRange } from "@/lib/data-sources/daylight";
 import { averageScores, computePiltriScore, normalise } from "@/lib/aggregation/scoring";
 import type { CityExploreData, SectionKey, SectionScores } from "@/lib/types";
-import type { CityRecord, CountryRecord } from "./schema";
+import { INSIDE_KINDS, type CityRecord, type CountryRecord } from "./schema";
 
 /** Reference ranges that normalise raw metrics onto 0-100 for the section
  *  scores. kpiRows.ts colours rows against the same ranges. */
@@ -243,6 +243,9 @@ export function assembleCityExploreData(
       distanceToLocalAirportKm: city.distanceToLocalAirportKm ?? null,
       distanceToTrainStationKm: city.distanceToTrainStationKm,
       distanceToHospitalKm: city.distanceToHospitalKm ?? null,
+      inside: city.insideCounts
+        ? Object.fromEntries(INSIDE_KINDS.map((kind, k) => [kind, { count: city.insideCounts![k] ?? 0, nearestKm: city.insideNearestKm?.[k] ?? null }]))
+        : undefined,
       nearestLargeCity:
         city.nearestLargeCityName != null && city.nearestLargeCityKm != null
           ? { name: city.nearestLargeCityName, km: city.nearestLargeCityKm }

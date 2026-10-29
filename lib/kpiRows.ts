@@ -4,7 +4,7 @@ import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferenc
 import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
 import { SECTION_LABELS, type CityExploreData, type SectionKey } from "@/lib/types";
 import { manifest } from "@/lib/dataset/files";
-import type { NearbyKind } from "@/lib/dataset/schema";
+import type { InsideKind, NearbyKind } from "@/lib/dataset/schema";
 
 /** Which tier a value describes: "country" (national statistics),
  *  "city" (a statistic for the place or the region it's in - regional
@@ -504,6 +504,50 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               { definition: `${definition}${byCar(km) ? driveNote : ""} Whether closer is better depends on you, so it's shown in grey.`, source },
               byCar(km)
             ), mapKind);
+      /** "Is there one in the city?" (2026-10-29, on request): Yes - in the
+       *  city or within 1 km of its edge, or within 5 km of the centre where
+       *  it has no mapped edge - its places all on the map; or No with the
+       *  distance to the nearest, its journey on the map. No count: the
+       *  open data lists a university's departments and the odd language
+       *  school as universities, so "929 universities" in London would
+       *  mislead. Facilities are coloured; airports and nature stay grey
+       *  (whether closer is better depends on you). */
+      const insideRows = (inside: NonNullable<typeof l.inside>): KpiRow[] =>
+        INSIDE_ROWS.flatMap(({ kind, label, what, source, grey }) => {
+          const figure = inside[kind];
+          if (!figure) return [];
+          const { count, nearestKm } = figure;
+          // A lake beach only shows where there's one within reach.
+          if (kind === "lakeBeach" && count === 0 && nearestKm == null) return [];
+          const yes = count !== 0;
+          const definition =
+            `Whether there is ${what} in the city or within 1 km of its edge (within 5 km of the centre for a place without a mapped edge).` +
+            ` If not, the straight-line distance from the centre to the nearest one${!yes && nearestKm != null && byCar(nearestKm) ? `.${driveNote}` : "."}`;
+          const suffix = yes
+            ? undefined
+            : nearestKm != null
+              ? `· nearest ${distance(nearestKm)} ${byCar(nearestKm) ?? ""}`.trim()
+              : `· none within ${distance(500)}`;
+          const row: KpiRow = grey
+            ? neutral(label, yes ? "Yes" : "No", "pinned", { definition, source }, suffix)
+            : {
+                ...categorical(
+                  label,
+                  yes ? "Yes" : "No",
+                  "pinned",
+                  yes ? "good" : "poor",
+                  [
+                    { tier: "good", text: "Yes - in the city or within 1 km of it" },
+                    { tier: "poor", text: "No - the nearest one is further" },
+                  ],
+                  { definition, source }
+                ),
+                valueSuffix: suffix,
+              };
+          // A Yes shows every one on the map; a No, the journey to the
+          // nearest (none to show when there's none within reach).
+          return [yes ? onMap(row, kind, "pin")! : nearestKm != null ? onMap(row, kind, "journey")! : row];
+        });
       const rows: (KpiRow | null)[] = [
         ratioRow("Restaurants, bars & cafés", l.restaurantsBarsPer1k, l.restaurantsBarsWithin5km, "restaurantsBars", "Places to eat and drink"),
         ratioRow("Parks", l.parksPer10k, l.parksWithin5km, "parks", "Parks and public gardens"),
@@ -511,7 +555,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         ratioRow("Family activities", l.familyActivitiesPer10k, l.familyActivitiesWithin5km, "family", "Playgrounds, zoos, aquariums and amusement or water parks"),
         speedRow("Broadband speed", l.broadbandDownloadMbps, l.broadbandRadiusKm, SCALES.broadband, "home broadband"),
         speedRow("Mobile speed", l.mobileDownloadMbps, l.mobileRadiusKm, SCALES.mobile, "mobile"),
-        ...presenceRows(data),
+        ...(l.inside ? insideRows(l.inside) : presenceRows(data)),
         scoredOrMissing("Healthcare quality score", l.healthcareQualityScore, String, "country", SCALES.score, String, {
           definition: "How well essential health services reach the population - mother and child care, infectious and chronic diseases, access - on a 0-100 index.",
           source: "World Health Organization (UHC service coverage index), via the World Bank",
@@ -531,6 +575,9 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
         pisaRow("PISA maths score", l.pisaMathScore, "mathematics"),
         pisaRow("PISA reading score", l.pisaReadingScore, "reading"),
         pisaRow("PISA science score", l.pisaScienceScore, "science"),
+        // With "is there one in the city?" (above), these distances are its
+        // No's (2026-10-29).
+        ...(l.inside ? [] : [
         distanceRow("Nearest hospital", l.distanceToHospitalKm ?? null, "Straight-line distance to the nearest hospital or emergency department (clinics and surgeries aren't counted).", OVERTURE, "hospital"),
         distanceRow("Distance to beach", l.distanceToBeachKm, "Straight-line distance to the nearest beach on the sea or ocean (not a river or estuary bank).", "GeoNames and OpenStreetMap beaches, Natural Earth coastline and rivers", "beach"),
         l.distanceToLakeBeachKm != null
@@ -545,6 +592,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
             ]
           : [distanceRow("Nearest airport", l.distanceToAirportKm, "Straight-line distance to the nearest airport.", "GeoNames", "airport")]),
         distanceRow("Nearest train station", l.distanceToTrainStationKm, "Straight-line distance to the nearest railway station.", "GeoNames and Overture Maps", "train"),
+        ]),
         l.nearestLargeCity
           ? onMap(neutral(
               "Nearest large city",
@@ -586,6 +634,26 @@ export function splitKpiRowsByTier(rows: KpiRow[]): { countryRows: KpiRow[]; cit
     cityRows: rows.filter((r) => r.precision !== "country"),
   };
 }
+
+/** The "is there one in the city?" rows, in order (insideRows). */
+const INSIDE_ROWS: { kind: InsideKind; label: string; what: string; source: string; grey?: boolean }[] = [
+  { kind: "train", label: "Train station", what: "a railway station", source: "GeoNames and Overture Maps" },
+  { kind: "metro", label: "Metro", what: "a metro or subway station or line", source: "GeoNames and Overture Maps (stations; OpenStreetMap rail lines)" },
+  { kind: "tram", label: "Tram / light rail", what: "tram or light rail track", source: "Overture Maps (OpenStreetMap rail lines)" },
+  { kind: "bus", label: "Bus station", what: "a bus station", source: "GeoNames and Overture Maps" },
+  { kind: "port", label: "Port / ferry", what: "a sea or river port, or a ferry terminal,", source: "GeoNames" },
+  { kind: "nursery", label: "Nursery / day care", what: "a nursery, day care or preschool", source: OVERTURE },
+  { kind: "school", label: "School", what: "a school", source: "GeoNames and Overture Maps" },
+  { kind: "university", label: "University", what: "a university", source: "GeoNames and Overture Maps" },
+  { kind: "careHome", label: "Care home (elderly)", what: "a care home for older people (nursing, retirement or assisted living)", source: OVERTURE },
+  { kind: "hospital", label: "Hospital", what: "a hospital or emergency department (clinics and surgeries aren't counted)", source: OVERTURE },
+  { kind: "intlAirport", label: "International airport", what: "an international airport (a large one, or one with scheduled flights named International)", source: "OurAirports", grey: true },
+  { kind: "localAirport", label: "Local airport", what: "another airport with scheduled passenger flights", source: "OurAirports", grey: true },
+  { kind: "beach", label: "Beach", what: "a beach on the sea or ocean (not a river or estuary bank)", source: "GeoNames and OpenStreetMap beaches, Natural Earth coastline and rivers", grey: true },
+  { kind: "lakeBeach", label: "Lake beach", what: "a beach on a lake or reservoir", source: "GeoNames and OpenStreetMap beaches, Natural Earth lakes and rivers", grey: true },
+  { kind: "mountain", label: "Mountain", what: "a peak of 1,000 m or more that rises at least 500 m above the city", source: "GeoNames", grey: true },
+  { kind: "forest", label: "Forest", what: "a mapped forest or woodland", source: "GeoNames", grey: true },
+];
 
 /** Transport, education and care presence within 5 km of the centre (10 km
  *  for ports), from Overture Maps / OpenStreetMap and GeoNames. Airports sit

@@ -122,10 +122,19 @@ credited on the site at /sources (built from the manifest).
   train station, metro, tram, airport, bus station, port, nursery, school,
   university, care home, beach or coast, mountain, forest and large city -
   [lng, lat, name] - what its Yes/No and distance figures show on the map
-  when tapped. GeoNames points anywhere up to 500 km; Overture places
-  (nurseries, care homes, and schools, universities and bus stations
-  alongside GeoNames') within 10 km. Port / ferry: a GeoNames port (sea or
-  river) or ferry terminal within 10 km.
+  when tapped (a No's journey). Anywhere up to 500 km.
+- **In the city** (inside/<CC>-<n>.json, CityRecord.insideCounts /
+  insideNearestKm, 2026-10-29): for each kind in INSIDE_KINDS (stations,
+  bus, port, nursery, school, university, care home, hospital, airports,
+  beaches, mountain, forest), every one in the city's outline or within
+  1 km of it - its built-up area for a town with no border, 5 km of the
+  centre with neither (pipeline/insidePlaces.ts) - and the distance to the
+  nearest anywhere. A city page says Yes and shows them all on its map, or
+  No with the distance. Overture's broad categories are kept by name for
+  train stations and universities, and hospitals lose clinics and
+  practices (STATION_NAME etc. in build.ts). Trams: Overture has the track,
+  not the stops - a Yes from track alone (INSIDE_TRACK_ONLY). The older
+  hasX fields (within 5 km) stay for Advanced search and the ghost check.
 - **Built-up areas** (builtup/<CC>-<n>.json), for towns with no boundary of
   their own - most of India, China, Vietnam, Pakistan, South Africa, where
   OpenStreetMap maps districts, wards or metropolitan municipalities, not

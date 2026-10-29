@@ -21,6 +21,7 @@ import {
   type CountryRecord,
   type DatasetManifest,
   type EncodedBoundary,
+  type InsideChunkFile,
   type NearbyChunkFile,
   type NearbyPoint,
   type SearchEntry,
@@ -38,6 +39,7 @@ import { log } from "./util";
  *   bounds/<CC>-<n>.json     the same chunk's city outlines, for the map
  *   builtup/<CC>-<n>.json    built-up area outlines of its towns with none
  *   nearby/<CC>-<n>.json     its cities' nearest place of each kind, for the map
+ *   inside/<CC>-<n>.json     its cities' places of each kind in the city (a Yes's map)
  *   search/<xx>.json         search-as-you-type index by a word's first 2 characters
  *   search/<x>.json          the 300 largest places per first letter (first keystroke)
  *   adv/scores.json          Advanced Search: every city's section scores
@@ -62,6 +64,9 @@ export interface DatasetToWrite {
   builtUp: Map<string, EncodedBoundary>;
   /** Each city's nearest place of each NEARBY_KINDS kind. */
   nearby: Map<string, (NearbyPoint | NearbyPoint[] | 0)[]>;
+  /** Each city's places of each INSIDE_KINDS kind in the city (none when
+   *  absent: a dataset without them). */
+  inside?: Map<string, (NearbyPoint[] | 0)[]>;
   poi: Parameters<typeof buildPoiTiles>[1];
   sources: Record<string, string>;
 }
@@ -91,6 +96,7 @@ export async function writeDataset(outDir: string, ds: DatasetToWrite): Promise<
   const boundaryChunks: string[] = [];
   const builtUpChunks: string[] = [];
   const nearbyChunks: string[] = [];
+  const insideChunks: string[] = [];
   for (const cc of countryCodes) {
     const group = byCountry.get(cc)!;
     const count = Math.max(1, Math.ceil(group.length / CITY_CHUNK_SIZE));
@@ -127,6 +133,16 @@ export async function writeDataset(outDir: string, ds: DatasetToWrite): Promise<
       if (Object.keys(nearby).length) {
         writeJson(outDir, `nearby/${cc}-${n}.json`, nearby);
         nearbyChunks.push(`${cc}-${n}`);
+      }
+      // Loaded only when a city page shows one of these on its map.
+      const inside: InsideChunkFile = {};
+      for (const { id } of records) {
+        const row = ds.inside?.get(id);
+        if (row?.some(Boolean)) inside[id] = row;
+      }
+      if (Object.keys(inside).length) {
+        writeJson(outDir, `inside/${cc}-${n}.json`, inside);
+        insideChunks.push(`${cc}-${n}`);
       }
     });
   }
@@ -245,6 +261,7 @@ export async function writeDataset(outDir: string, ds: DatasetToWrite): Promise<
     boundaryChunks,
     builtUpChunks,
     nearbyChunks,
+    ...(ds.inside ? { insideChunks } : {}),
     sources: ds.sources,
   };
   writeJson(outDir, "manifest.json", manifest);

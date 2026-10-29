@@ -14,6 +14,8 @@
  * left out of the UI and the scores, never shown as a made-up default.
  */
 
+import type { InsideKind } from "@/lib/dataset/schema";
+
 /** Direction of a metric's recent trend (Safety's political stability). */
 export type TrendDirection = "Improving" | "Stable" | "Worsening";
 
@@ -204,6 +206,10 @@ export interface LiveabilityFields {
   /** Nearest hospital or emergency department (Overture Maps) - absent
    *  before 2026-10-24. */
   distanceToHospitalKm?: number | null;
+  /** Is there one in the city (or within 1 km of it)? Per kind: how many
+   *  (-1: only a line runs through it - tram track), and km from the
+   *  centre to the nearest one anywhere. Absent before 2026-10-29. */
+  inside?: Partial<Record<InsideKind, { count: number; nearestKm: number | null }>>;
   /** Nearest other city of 500,000+ people (null for those cities). */
   nearestLargeCity: { name: string; km: number } | null;
   lifeExpectancyYears: number | null;

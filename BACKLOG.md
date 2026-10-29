@@ -31,21 +31,18 @@ in, every one in view anywhere in the city, not only the 5 km around the
 centre (owner: London's Yes stopped at "zone 1"); a Yes draws its 5 km
 circle.
 
-4. **Yes / No within the city's border + 1 km, the distance only when
-   it's No** (owner, 2026-10-29: "we should see all schools... within the
-   border of the city", "1 km as the basis", "more fields/data if more
-   no"). A Yes = inside the city's outline or within 1 km of it (the 5 km
-   circle only for the 3% with no outline; 1 km absorbs the built-up
-   outlines' ~1 km roughness and things just across the line); it shows
-   how many ("Yes · 2,431"). A No shows "nearest 12 km" from the centre,
-   with the journey on the map. One row per kind - merges today's pairs
-   ("Train station: Yes" + "Nearest train station: 0 km"). The dataset
-   stores every place inside each border + 1 km, so the map shows them
-   all at once (no circle, no tile downloads) and agrees with the count;
-   measure the extra size first (too big for Vercel's 10 GB -> after the
-   Cloudflare move). The per-resident figures stay on the 5 km circle
-   (fair comparison). Live after the next refresh. Owner to confirm:
-   every kind (airports, hospital, beach, mountain, forest too).
+Built 2026-10-29, live after the next refresh: "Yes / No in the city"
+(owner: "within the border of the city", "1 km as the basis", every kind).
+A Yes = in the city's outline or within 1 km of it (5 km of the centre
+with no outline), its places all on the map; a No = "nearest 12 km", its
+journey on the map. One row per kind (16, airports and nature included),
+replacing the old Yes/No and distance pairs. No count shown: Overture
+lists university departments and clinics, so numbers would mislead.
+Size: +42 MB compressed (151 MB), ~530 MB per Vercel deployment.
+
+4. **Advanced search and leaderboards still use "within 5 km"** for
+   stations, schools... - align them with "in the city" (needs search
+   columns from insideCounts).
 
 5. **More detail on the map**: names of key streets, buildings, stations.
    The style (OpenFreeMap "liberty") has them, but at the default zoom

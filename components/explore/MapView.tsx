@@ -48,6 +48,10 @@ export interface MapFocus {
    *  line from the centre (a distance figure - the figure itself already
    *  says how far, so there's no card, 2026-10-14, on request). */
   style: "journey" | "pin";
+  /** A Yes's points are every place it counts (in the city or within 1 km
+   *  of it, 2026-10-29): the map shows those, framed with the city, and
+   *  reads nothing from its tiles. */
+  complete?: boolean;
 }
 
 type FocusPoint = { lng: number; lat: number; name: string };
@@ -80,6 +84,7 @@ function drawFocusPoints(map: maplibregl.Map, focus: MapFocus | null, points: Fo
 /** The chip's count for a Yes: every place within its radius once the
  *  map's tiles have been read, or the dataset's own nearest few. */
 function yesCount(focus: MapFocus, tilePlaces: { places: MapPlace[]; done: boolean } | null, center: { lat: number; lng: number }): string {
+  if (focus.complete) return `${focus.points.length.toLocaleString("en-US")} in the city`;
   if (tilePlaces && !tilePlaces.done) return "finding them all…";
   if (tilePlaces?.places.length) {
     const n = mergePlaces(center, focus.points, tilePlaces.places).length;
@@ -406,6 +411,11 @@ export function MapView({
    *  which for London is 40 km across (2026-10-28) - widened for any of
    *  the dataset's places outside it. */
   const yesView = (focused: MapFocus) => {
+    if (focused.complete && areaBoundsRef.current) {
+      const bounds = new maplibregl.LngLatBounds(areaBoundsRef.current.getSouthWest(), areaBoundsRef.current.getNorthEast());
+      for (const p of focused.points) bounds.extend([p.lng, p.lat]);
+      return bounds;
+    }
     const circle = (circlePolygon(lat, lng, focused.kind === "capital" ? AREA_RADIUS_KM : yesRadiusKm(focused.kind)).geometry as GeoJSON.Polygon).coordinates[0];
     const bounds = new maplibregl.LngLatBounds();
     for (const c of circle) bounds.extend(c as [number, number]);
@@ -962,7 +972,7 @@ export function MapView({
   // where the tiles have nothing near them.
   useEffect(() => {
     setTilePlaces(null);
-    if (!focus || focus.style !== "pin" || focus.kind === "capital" || !hasMapPlaces(focus.kind)) return;
+    if (!focus || focus.style !== "pin" || focus.complete || focus.kind === "capital" || !hasMapPlaces(focus.kind)) return;
     const controller = new AbortController();
     loadMapPlaces(focus.kind, { lat, lng }, controller.signal, (places, done) => {
       tilePlacesRef.current = { focus, places };
@@ -1010,7 +1020,7 @@ export function MapView({
       const tiles = tilePlacesRef.current?.focus === focus ? tilePlacesRef.current.places : null;
       drawFocusPoints(map, focus, focus && tiles ? mergePlaces({ lat, lng }, focus.points, tiles) : focus?.points ?? []);
       (map.getSource(FOCUS_CIRCLE_ID) as maplibregl.GeoJSONSource | undefined)?.setData(
-        focus?.style === "pin" && focus.kind !== "capital"
+        focus?.style === "pin" && !focus.complete && focus.kind !== "capital"
           ? (circlePolygon(lat, lng, yesRadiusKm(focus.kind)) as any)
           : { type: "FeatureCollection", features: [] }
       );

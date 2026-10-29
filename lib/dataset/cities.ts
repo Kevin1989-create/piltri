@@ -5,11 +5,14 @@ import {
   cityChunk,
   decodeBoundary,
   decodeCity,
+  INSIDE_KINDS,
   NEARBY_KINDS,
   type BoundaryChunkFile,
   type CityChunkFile,
   type CityRecord,
   type CountryRecord,
+  type InsideChunkFile,
+  type InsideKind,
   type NearbyChunkFile,
   type NearbyKind,
   type NearbyPoint,
@@ -122,4 +125,19 @@ export async function getCityNearby(countryCode: string, cityId: string): Promis
     out[kind] = Array.isArray(item[0]) ? (item as NearbyPoint[]) : [item as NearbyPoint];
   });
   return out;
+}
+
+const insideChunks = new Set(manifest.insideChunks ?? []);
+
+/** Every place of a kind in a city (or within 1 km of it), nearest the
+ *  centre first - what its "School: Yes · 2,431" shows on the map (datasets
+ *  from 2026-10-29 on; null before, or when it has none). */
+export async function getCityInside(countryCode: string, cityId: string, kind: InsideKind): Promise<NearbyPoint[] | null> {
+  const cc = countryCode.toUpperCase();
+  const count = manifest.chunks[cc];
+  if (!count) return null;
+  const key = `${cc}-${cityChunk(cityId, count)}`;
+  if (!insideChunks.has(key)) return null;
+  const item = (await loadFile<InsideChunkFile>(`inside/${key}.json`))[cityId]?.[INSIDE_KINDS.indexOf(kind)];
+  return item || null;
 }
