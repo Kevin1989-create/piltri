@@ -10,10 +10,15 @@ The owner's requests and planned work, roughly in order. Updated
   estimate for small island countries outside the satellite map is left
   out (their towns show "No data" for air quality). The World Bank's copy
   is IHME's (non-commercial), so it waits for WHO or another source.
-- **Real towns dropped as "no town here"**: the ghost check (under 1,000
-  people within 5 km, no restaurant, no school, inland) dropped Marāgheh,
-  Iran (~175,000 people) in a local build - check its GeoNames point and
-  the population grid there, and the other 1,300 dropped.
+- **Real towns dropped as "no town here"** (checked 2026-10-29): of the
+  ~1,300 places the ghost check drops, 28 claim 50,000+ people - most are
+  duplicate GeoNames entries whose real town is kept (Marāgheh's copy in
+  Khorasan, Kanpur, Shreveport...), but ~8 look real and are lost: Timika
+  (ID), Bailundo (AO), Laojunmiao (CN), Krasnaya Glinka (RU), Akçapınar
+  (TR), Sayyān (YE), Tshilenge (CD), Ārabī (ET). GeoNames puts their point
+  in empty land (Timika's ~25 km from the town). Fix idea: for a "ghost"
+  of 20,000+ people, move its point to the nearest built-up cluster of a
+  matching size within ~25 km, or take Wikidata's coordinates.
 - **Search engines: kept out until December** (owner, 2026-10-28: "not
   until it's clean"). Ready and waiting: page titles and descriptions,
   the sitemap of every place, robots.txt. Every page says noindex for now.
@@ -42,9 +47,13 @@ replacing the old Yes/No and distance pairs. No count shown: Overture
 lists university departments and clinics, so numbers would mislead.
 Size: +42 MB compressed (151 MB), ~530 MB per Vercel deployment.
 
-4. **Advanced search and leaderboards still use "within 5 km"** for
-   stations, schools... - align them with "in the city" (needs search
-   columns from insideCounts).
+Done 2026-10-29 (live after the next refresh): Advanced search's
+stations, schools... filters count "in the city" like the city pages
+(assemble.ts inCity), with a hospital filter and filters for average age,
+growth, armed conflict and regional GDP. On the map: tapping an icon opens
+its card (name, kind, distance, Google Maps); ticking a kind the city has
+none of shows the nearest, with "nearest 25 km" in the list - the map
+doesn't move.
 
 5. **More detail on the map**: names of key streets, buildings, stations.
    The style (OpenFreeMap "liberty") has them, but at the default zoom
@@ -100,9 +109,9 @@ Size: +42 MB compressed (151 MB), ~530 MB per Vercel deployment.
    ~6,100), Philippines (official borders on HDX, ~3,100) - licences to
    check. India and China mostly stay estimated: their town borders
    aren't openly published.
-11. **Advanced search filters** for the phase 1 local figures (age,
-    growth, hospital, armed conflict, regional GDP).
-12. **Owner to decide: local figures in the scores.** Suggested: armed
+12. **Local figures in the scores** - owner, 2026-10-29: "the Piltri score
+    should be as local as possible". Proposal sent, awaiting approval.
+    Earlier suggestion: Suggested: armed
     conflict nearby in Safety, nearest hospital in Quality of Life; not
     regional GDP (86% coverage, high in commuter centres).
 
