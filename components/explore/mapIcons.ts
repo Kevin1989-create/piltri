@@ -5,22 +5,13 @@ import type { MapKind } from "@/lib/kpiRows";
  * The map's icon for each kind of place a figure points at - a school for
  * schools, a child for nurseries, a train for stations... (2026-10-28, on
  * request: one amber flag for everything was hard to read). A white
- * pictogram on a round badge, coloured by family: transport blue, education
- * amber, care red, nature green, towns ink.
- *
- * The badge colours are brighter than Piltri's palette on purpose: the map
- * canvas is desaturated as a whole (MapView: saturate(0.45) brightness(1.08)
- * contrast(0.95)), so these come out as #3B6E8F, #BA7517, #B4472F, #3F8557
- * and #3D362E - the palette - once drawn.
+ * pictogram on a round badge in the kind's own colour (2026-10-29, on
+ * request: "play a bit more with the colours" - one colour per family left
+ * London all orange with schools and nurseries ticked). Families keep
+ * related hues: transport blues and violet, learning warm, care rose and
+ * red, nature sand, sky, stone and green. Drawn as they are: the map's
+ * muted look no longer dulls them (lib/mapColors.ts).
  */
-
-const FAMILY = {
-  transport: "#016FB7",
-  education: "#F86200",
-  care: "#FF2500",
-  nature: "#00912D",
-  town: "#3C2D1C",
-} as const;
 
 /** Pictograms on a 24 px grid: white lines (2 px, rounded) unless filled. */
 const GLYPHS: Record<string, string> = {
@@ -60,44 +51,44 @@ const GLYPHS: Record<string, string> = {
     '<path d="M12 2.8l2.7 5.6 6.1.8-4.5 4.2 1.2 6.1L12 16.6l-5.5 2.9 1.2-6.1-4.5-4.2 6.1-.8z" fill="#fff" stroke="none"/>',
 };
 
-/** Each kind's family and pictogram. */
-const KIND_ICON: Record<MapKind, { family: keyof typeof FAMILY; glyph: string }> = {
-  train: { family: "transport", glyph: "train" },
-  metro: { family: "transport", glyph: "metro" },
-  tram: { family: "transport", glyph: "tram" },
-  bus: { family: "transport", glyph: "bus" },
-  port: { family: "transport", glyph: "ferry" },
-  airport: { family: "transport", glyph: "plane" },
-  intlAirport: { family: "transport", glyph: "plane" },
-  localAirport: { family: "transport", glyph: "plane" },
-  nursery: { family: "education", glyph: "child" },
-  school: { family: "education", glyph: "school" },
-  university: { family: "education", glyph: "university" },
-  careHome: { family: "care", glyph: "careHome" },
-  hospital: { family: "care", glyph: "hospital" },
-  beach: { family: "nature", glyph: "beach" },
-  lakeBeach: { family: "nature", glyph: "beach" },
-  mountain: { family: "nature", glyph: "mountain" },
-  forest: { family: "nature", glyph: "forest" },
-  large: { family: "town", glyph: "town" },
-  capital: { family: "town", glyph: "capital" },
+/** Each kind's colour and pictogram. */
+const KIND_ICON: Record<MapKind, { color: string; glyph: string }> = {
+  train: { color: "#2E6DA4", glyph: "train" }, // cobalt
+  metro: { color: "#1F3B7A", glyph: "metro" }, // navy
+  tram: { color: "#159A8F", glyph: "tram" }, // teal
+  bus: { color: "#6A4C9C", glyph: "bus" }, // violet
+  port: { color: "#0B7FB0", glyph: "ferry" }, // ocean
+  airport: { color: "#44546E", glyph: "plane" }, // slate
+  intlAirport: { color: "#44546E", glyph: "plane" },
+  localAirport: { color: "#7D8BA6", glyph: "plane" }, // light slate
+  nursery: { color: "#EE7F5E", glyph: "child" }, // coral
+  school: { color: "#D98A06", glyph: "school" }, // amber
+  university: { color: "#8C2D5A", glyph: "university" }, // plum
+  careHome: { color: "#CC5F9C", glyph: "careHome" }, // rose
+  hospital: { color: "#D22B3C", glyph: "hospital" }, // red
+  beach: { color: "#E3AE3C", glyph: "beach" }, // sand
+  lakeBeach: { color: "#45ADD8", glyph: "beach" }, // sky
+  mountain: { color: "#7B5E44", glyph: "mountain" }, // stone
+  forest: { color: "#2E8540", glyph: "forest" }, // green
+  large: { color: "#3D362E", glyph: "town" }, // ink
+  capital: { color: "#B08910", glyph: "capital" }, // gold
 };
 
 /** The map image id for a kind's icon. */
 export const mapIconId = (kind: MapKind) => `piltri-${kind}`;
-/** The kind's badge colour (as drawn - see the note above). */
-export const mapIconColor = (kind: MapKind) => FAMILY[KIND_ICON[kind].family];
+/** The kind's badge colour. */
+export const mapIconColor = (kind: MapKind) => KIND_ICON[kind].color;
 
 /** Badge: 30 px across (drawn at twice that for sharp screens), a white rim
  *  and a soft shadow so it stands off any part of the map. */
 const BADGE_PX = 30;
 
 function badgeSvg(kind: MapKind): string {
-  const { family, glyph } = KIND_ICON[kind];
+  const { color, glyph } = KIND_ICON[kind];
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${BADGE_PX * 2}" height="${BADGE_PX * 2}" viewBox="0 0 30 30">` +
     '<circle cx="15" cy="15.6" r="13.2" fill="#1E1A16" opacity="0.22"/>' +
-    `<circle cx="15" cy="15" r="13" fill="${FAMILY[family]}" stroke="#FFFFFF" stroke-width="2"/>` +
+    `<circle cx="15" cy="15" r="13" fill="${color}" stroke="#FFFFFF" stroke-width="2"/>` +
     '<g transform="translate(6.6 6.6) scale(0.7)" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
     GLYPHS[glyph] +
     "</g></svg>"
@@ -105,12 +96,8 @@ function badgeSvg(kind: MapKind): string {
 }
 
 /** A kind's icon as an image address, for the page itself (the map's layer
- *  list) - shown through the same filter as the map (MAP_CANVAS_FILTER) so
- *  it matches. */
+ *  list). */
 export const mapIconUrl = (kind: MapKind) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(badgeSvg(kind))}`;
-
-/** The look of the map canvas (MapView): the "liberty" style toned down. */
-export const MAP_CANVAS_FILTER = "saturate(0.45) brightness(1.08) contrast(0.95)";
 
 /** Adds every kind's icon to the map (once its style has loaded). */
 export function addMapIcons(map: MaplibreMap): void {

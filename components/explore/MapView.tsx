@@ -9,7 +9,8 @@ import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
 import { hasMapPlaces, loadMapPlaces, MAP_LAYER_KINDS, osmPoiFilter, yesRadiusKm, type MapPlace } from "@/lib/mapPlaces";
 import { cn } from "@/lib/cn";
 import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
-import { addMapIcons, MAP_CANVAS_FILTER, mapIconColor, mapIconId, mapIconUrl } from "@/components/explore/mapIcons";
+import { addMapIcons, mapIconColor, mapIconId, mapIconUrl } from "@/components/explore/mapIcons";
+import { muteBasemap, muteColor } from "@/lib/mapColors";
 import { INSIDE_KINDS, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
 import { MapCredit } from "@/components/explore/MapCredit";
 import type { MapKind } from "@/lib/kpiRows";
@@ -214,7 +215,7 @@ const PLACE_ICON_LAYOUT = {
   "text-max-width": 12,
   "text-optional": true,
 } as const;
-const PLACE_ICON_PAINT = { "text-color": "#1E1A16", "text-halo-color": "#FFFFFF", "text-halo-width": 1.6, "text-halo-blur": 0.4 };
+const PLACE_ICON_PAINT = { "text-color": muteColor("#1E1A16"), "text-halo-color": muteColor("#FFFFFF"), "text-halo-width": 1.6, "text-halo-blur": 0.4 };
 /** A distance figure's journey along the roads (lib/routing.ts), once it
  *  has come back - the straight line stands in until then. */
 const FOCUS_ROUTE_ID = "piltri-focus-route";
@@ -555,13 +556,6 @@ export function MapView({
       }
     });
 
-    // The "liberty" style's colours are more saturated than fits the
-    // "elegant, book cover" tone. Rather than hand-recolouring every layer,
-    // desaturating the rendered canvas itself gets a pastel
-    // look while keeping all the same detail. Applied to the canvas
-    // specifically (not the container) so the zoom control buttons aren't
-    // affected.
-    map.getCanvas().style.filter = MAP_CANVAS_FILTER;
     // Pointer (hand) cursor everywhere on the map, not the map's default
     // grab/drag cursor - clicking the map is always a meaningful action
     // here (drop a pin, or pick a directions target), so it should read as
@@ -576,6 +570,12 @@ export function MapView({
 
     map.on("load", () => {
       mapLoadedRef.current = true;
+      // The "liberty" style's colours are more saturated than fits the
+      // "elegant, book cover" tone: toned down colour by colour, so what
+      // we draw on top - the place icons - keeps its own (lib/mapColors.ts;
+      // a filter on the whole canvas until 2026-10-29). The lines and
+      // fills below keep that muted look through muteColor.
+      muteBasemap(map);
       // Start with an empty source rather than the fallback circle — the
       // boundary effect below fills it in as soon as it knows the real
       // shape (or, failing that, the circle). Pre-drawing the circle here
@@ -590,28 +590,28 @@ export function MapView({
         id: `${MASK_SOURCE_ID}-fill`,
         type: "fill",
         source: MASK_SOURCE_ID,
-        paint: { "fill-color": "#FAF7F2", "fill-opacity": 0.45 },
+        paint: { "fill-color": muteColor("#FAF7F2"), "fill-opacity": 0.45 },
       });
       map.addSource(AREA_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({
         id: `${AREA_SOURCE_ID}-fill`,
         type: "fill",
         source: AREA_SOURCE_ID,
-        paint: { "fill-color": "#E3B27A", "fill-opacity": 0.1 },
+        paint: { "fill-color": muteColor("#E3B27A"), "fill-opacity": 0.1 },
       });
       map.addLayer({
         id: `${AREA_SOURCE_ID}-line-halo`,
         type: "line",
         source: AREA_SOURCE_ID,
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#FFFFFF", "line-width": 6, "line-opacity": 0.85, "line-blur": 1 },
+        paint: { "line-color": muteColor("#FFFFFF"), "line-width": 6, "line-opacity": 0.85, "line-blur": 1 },
       });
       map.addLayer({
         id: `${AREA_SOURCE_ID}-line`,
         type: "line",
         source: AREA_SOURCE_ID,
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#96600F", "line-width": 2.25, "line-opacity": 1 },
+        paint: { "line-color": muteColor("#96600F"), "line-width": 2.25, "line-opacity": 1 },
       });
 
       // The line from the centre to a distance figure's place ("nearest
@@ -624,7 +624,7 @@ export function MapView({
         source: FOCUS_SOURCE_ID,
         filter: ["==", ["geometry-type"], "LineString"],
         layout: { "line-cap": "round" },
-        paint: { "line-color": "#1E1A16", "line-width": 2.5, "line-opacity": 0.75, "line-dasharray": [1.5, 1.5] },
+        paint: { "line-color": muteColor("#1E1A16"), "line-width": 2.5, "line-opacity": 0.75, "line-dasharray": [1.5, 1.5] },
       });
       map.addSource(FOCUS_ROUTE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] }, attribution: ROUTE_ATTRIBUTION });
       map.addLayer({
@@ -632,7 +632,7 @@ export function MapView({
         type: "line",
         source: FOCUS_ROUTE_ID,
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#FFFFFF", "line-width": 7, "line-opacity": 0.9 },
+        paint: { "line-color": muteColor("#FFFFFF"), "line-width": 7, "line-opacity": 0.9 },
       });
       map.addLayer({
         id: FOCUS_ROUTE_ID,
@@ -640,7 +640,7 @@ export function MapView({
         source: FOCUS_ROUTE_ID,
         layout: { "line-cap": "round", "line-join": "round" },
         // Blue, so the journey never reads as part of the amber outline.
-        paint: { "line-color": "#3B6E8F", "line-width": 3.5 },
+        paint: { "line-color": muteColor("#3B6E8F"), "line-width": 3.5 },
       });
       // A figure's places: a dot for every one, and its icon and name
       // where they fit (nearest first).
@@ -650,7 +650,7 @@ export function MapView({
         id: FOCUS_CIRCLE_ID,
         type: "line",
         source: FOCUS_CIRCLE_ID,
-        paint: { "line-color": "#1E1A16", "line-width": 1.5, "line-opacity": 0.55, "line-dasharray": [3, 2] },
+        paint: { "line-color": muteColor("#1E1A16"), "line-width": 1.5, "line-opacity": 0.55, "line-dasharray": [3, 2] },
       });
       // The layer list's places: zoomed out, those read for the 5 km
       // around the centre; from DETAIL_ZOOM, the tiles' own, anywhere.
@@ -694,7 +694,7 @@ export function MapView({
         type: "line",
         source: ROUTE_SOURCE_ID,
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#BA7517", "line-width": 3, "line-opacity": 0.85, "line-dasharray": [2, 1.5] },
+        paint: { "line-color": muteColor("#BA7517"), "line-width": 3, "line-opacity": 0.85, "line-dasharray": [2, 1.5] },
       });
     });
 
@@ -1203,7 +1203,7 @@ export function MapView({
                     className={cn("flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-xs text-ink-900 hover:bg-surface-muted", on && "font-medium")}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={mapIconUrl(kind)} alt="" width={18} height={18} style={{ filter: MAP_CANVAS_FILTER }} />
+                    <img src={mapIconUrl(kind)} alt="" width={18} height={18} />
                     <span className="flex-1">{LAYER_LABELS[kind as InsideKind]}</span>
                     <span className={cn("flex h-4 w-4 items-center justify-center rounded border text-[10px]", on ? "border-piltri-amber bg-piltri-amber text-white" : "border-ink-300")}>
                       {on && "✓"}
