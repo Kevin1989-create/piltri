@@ -249,6 +249,16 @@ function CityContent() {
     },
     [data, isDesktop]
   );
+  // The map's layer list: every one of a kind in the city (datasets from
+  // 2026-10-29).
+  const loadInside = useCallback(
+    async (kind: InsideKind) => {
+      if (!data) return null;
+      const list = await getCityInside(data.countryCode, data.cityId, kind);
+      return list?.map(([lng, lat, name]) => ({ lng, lat, name })) ?? null;
+    },
+    [data]
+  );
   // A new place, or the phone layout changing, clears it.
   useEffect(() => closeMapFocus(), [data?.cityId, isDesktop, closeMapFocus]);
 
@@ -489,6 +499,7 @@ function CityContent() {
                 onCloseFocus={closeMapFocus}
                 expanded={mapFills}
                 onToggleExpanded={toggleMapExpanded}
+                loadInside={data?.liveability.inside ? loadInside : undefined}
               />
             ) : (
               <div className="w-full h-full bg-surface-muted" />
