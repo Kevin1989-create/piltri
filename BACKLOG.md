@@ -26,6 +26,16 @@ The owner's requests and planned work, roughly in order. Updated
   Sitemap line back in `public/robots.txt`, then the owner adds the site
   to Google Search Console and submits `https://www.piltri.me/sitemap.xml`.
 
+## City page
+
+- **Resources needs a scroll on a phone** (owner, 2026-10-29: "I don't
+  want that"). Since phase 1 the city header has an extra line in each
+  block (average age, growth), and on a 375x812 phone the Resources row
+  ends 3 px from the bottom - below it on a real phone, whose browser bars
+  take ~100-150 px. The page was zero-scroll by design (2026-09-23). Fix:
+  let the map take whatever height is left (with a minimum), and tighten
+  the header blocks on phones.
+
 ## Map (owner, 2026-10-28)
 
 Done 2026-10-28: a Yes shows every place of its kind within its radius
@@ -55,11 +65,9 @@ its card (name, kind, distance, Google Maps); ticking a kind the city has
 none of shows the nearest, with "nearest 25 km" in the list - the map
 doesn't move.
 
-5. **More detail on the map**: names of key streets, buildings, stations.
-   The style (OpenFreeMap "liberty") has them, but at the default zoom
-   (the whole 5 km area) most labels are hidden. Options: show the key
-   labels from a lower zoom, start a little closer; the expanded map
-   helps for exploring.
+Done 2026-10-29: more names at a city's own zoom - main roads from zoom
+11 (was 12.2), streets and notable places from 13.5 (was 15)
+(EARLIER_LABELS in MapView).
 6. **Search an address inside a city** (owner's question; recommended).
    - Free and offline: search the street and place names in the map tiles
      already loaded for the city - streets, stations, shops, but no house

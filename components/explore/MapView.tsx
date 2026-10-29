@@ -183,6 +183,17 @@ const FOCUS_CIRCLE_ID = "piltri-focus-circle";
  *  tiles (lib/mapPlaces.ts). From zoom 14, where the map shows the detailed
  *  tiles itself, every one in view too - anywhere. */
 const LAYERS_SOURCE_ID = "piltri-layers";
+/** The basemap's label layers ("liberty" style) shown from a lower zoom
+ *  than the style's own: main roads (12.2), streets (15), paths (15.5),
+ *  the most notable places of interest (15) and the others (16, 17). */
+const EARLIER_LABELS: [string, number][] = [
+  ["highway-name-major", 11],
+  ["highway-name-minor", 13.5],
+  ["highway-name-path", 15],
+  ["poi_r1", 13.5],
+  ["poi_r7", 15],
+  ["poi_r20", 16],
+];
 /** The tiles' own detail starts here. */
 const DETAIL_ZOOM = 14;
 const osmLayerId = (kind: NearbyKind) => `piltri-osm-${kind}`;
@@ -626,6 +637,11 @@ export function MapView({
       // a filter on the whole canvas until 2026-10-29). The lines and
       // fills below keep that muted look through muteColor.
       muteBasemap(map);
+      // More names at a city's own zoom (2026-10-29, on request: "names of
+      // key streets, buildings, stations"): the style shows main roads'
+      // from 12.2, streets' and places' of interest from 15 - a city page
+      // opens around 12-13. Labels that don't fit are still left out.
+      for (const [id, minzoom] of EARLIER_LABELS) if (map.getLayer(id)) map.setLayerZoomRange(id, minzoom, 24);
       // Start with an empty source rather than the fallback circle — the
       // boundary effect below fills it in as soon as it knows the real
       // shape (or, failing that, the circle). Pre-drawing the circle here
