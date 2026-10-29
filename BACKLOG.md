@@ -6,12 +6,14 @@ The owner's requests and planned work, roughly in order. Updated
 
 ## Now
 
-- **Phase 1, regional GDP left out**: refreshes #14 and #15 (2026-10-28)
-  left out regional GDP (Kummu, Zenodo), which works locally - most likely
-  Zenodo's download from GitHub's machines. Since `ab679fa` downloads wait
-  as long as a busy server asks and GitHub keeps the files; run #16 and
-  check the run page's annotations if it's still missing. (Average age
-  failed in #14 only and is live since #15.)
+- **WHO's data service is down** (since 2026-10-28): the national PM2.5
+  estimate for small island countries outside the satellite map is left
+  out (their towns show "No data" for air quality). The World Bank's copy
+  is IHME's (non-commercial), so it waits for WHO or another source.
+- **Real towns dropped as "no town here"**: the ghost check (under 1,000
+  people within 5 km, no restaurant, no school, inland) dropped Marāgheh,
+  Iran (~175,000 people) in a local build - check its GeoNames point and
+  the population grid there, and the other 1,300 dropped.
 - **Search engines: kept out until December** (owner, 2026-10-28: "not
   until it's clean"). Ready and waiting: page titles and descriptions,
   the sitemap of every place, robots.txt. Every page says noindex for now.
