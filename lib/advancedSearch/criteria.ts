@@ -133,6 +133,15 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.economy.purchasingPowerIndex,
   },
   {
+    key: "economy.regionGdpVsNationalPct",
+    category: "economy",
+    label: "Regional GDP per head (% of national)",
+    unit: "%",
+    kind: "range",
+    suggestedRange: [50, 200],
+    getCityValue: (d) => d.economy.regionGdpVsNationalPct ?? null,
+  },
+  {
     key: "economy.gdpUsd",
     category: "economy",
     label: "GDP (billions)",
@@ -184,6 +193,14 @@ export const CRITERIA: CriterionDef[] = [
     kind: "range",
     suggestedRange: [0, 30],
     getCityValue: (d) => d.safetyStability.homicideRatePer100k,
+  },
+  {
+    key: "safetyStability.conflictEvents5yr",
+    category: "safetyStability",
+    label: "Armed conflict events nearby (50 km, 5 yrs)",
+    kind: "range",
+    suggestedRange: [0, 50],
+    getCityValue: (d) => d.safetyStability.conflictEvents5yr ?? null,
   },
   {
     key: "safetyStability.safetyTrend",
@@ -520,6 +537,15 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.liveability.hasUniversity,
   },
   {
+    // Only in datasets from 2026-10-29, which count the others "in the
+    // city" too - see finder.ts inCity().
+    key: "liveability.hasHospital",
+    category: "liveability",
+    label: "Has hospital",
+    kind: "boolean",
+    getCityValue: (d) => d.liveability.hasHospital ?? null,
+  },
+  {
     key: "liveability.distanceToBeachKm",
     category: "liveability",
     label: "Distance to beach",
@@ -622,6 +648,24 @@ export const CRITERIA: CriterionDef[] = [
     kind: "range",
     suggestedRange: [20, 60],
     getCityValue: (d) => d.demographics.countryAverageAge,
+  },
+  {
+    key: "demographics.cityMedianAge",
+    category: "demographics",
+    label: "Average age (within 5 km)",
+    unit: "yrs",
+    kind: "range",
+    suggestedRange: [20, 55],
+    getCityValue: (d) => d.demographics.cityMedianAge ?? null,
+  },
+  {
+    key: "demographics.cityPopulationGrowth5yrPct",
+    category: "demographics",
+    label: "Population growth 2020-25 (within 5 km)",
+    unit: "%",
+    kind: "range",
+    suggestedRange: [-10, 20],
+    getCityValue: (d) => d.demographics.cityPopulationGrowth5yrPct ?? null,
   },
 
   // ---- Distance from city centre (the same estimate as pin mode) ----------

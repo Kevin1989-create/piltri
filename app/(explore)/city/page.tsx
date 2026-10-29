@@ -254,6 +254,11 @@ function CityContent() {
   const loadInside = useCallback(
     async (kind: InsideKind) => {
       if (!data) return null;
+      // None in the city: the nearest one (2026-10-29, on request).
+      if (data.liveability.inside?.[kind]?.count === 0) {
+        const nearest = (await getCityNearby(data.countryCode, data.cityId).catch(() => null))?.[kind]?.[0];
+        return nearest ? [{ lng: nearest[0], lat: nearest[1], name: nearest[2] }] : null;
+      }
       const list = await getCityInside(data.countryCode, data.cityId, kind);
       return list?.map(([lng, lat, name]) => ({ lng, lat, name })) ?? null;
     },
@@ -500,6 +505,8 @@ function CityContent() {
                 expanded={mapFills}
                 onToggleExpanded={toggleMapExpanded}
                 loadInside={data?.liveability.inside ? loadInside : undefined}
+                areaName={data ? placeLabel(data) : undefined}
+                insideFigures={data?.liveability.inside}
               />
             ) : (
               <div className="w-full h-full bg-surface-muted" />

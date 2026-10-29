@@ -9,7 +9,7 @@ import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
 import { hasMapPlaces, loadMapPlaces, MAP_LAYER_KINDS, osmPoiFilter, yesRadiusKm, type MapPlace } from "@/lib/mapPlaces";
 import { cn } from "@/lib/cn";
 import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
-import { addMapIcons, mapIconColor, mapIconId, mapIconUrl } from "@/components/explore/mapIcons";
+import { addMapIcons, mapIconId, mapIconUrl } from "@/components/explore/mapIcons";
 import { muteBasemap, muteColor } from "@/lib/mapColors";
 import { INSIDE_KINDS, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
 import { MapCredit } from "@/components/explore/MapCredit";
@@ -75,7 +75,7 @@ function drawFocusPoints(map: maplibregl.Map, focus: MapFocus | null, points: Fo
     features: focus
       ? points.map((p, rank) => ({
           type: "Feature",
-          properties: { name: p.name, rank, icon: mapIconId(focus.kind), color: mapIconColor(focus.kind) },
+          properties: { name: p.name, rank, kind: focus.kind, icon: mapIconId(focus.kind) },
           geometry: { type: "Point", coordinates: [p.lng, p.lat] },
         }))
       : [],
@@ -161,6 +161,12 @@ interface MapViewProps {
    *  layer list then offers every INSIDE_KINDS kind and shows them all;
    *  without it, the kinds the map's tiles hold, within 5 km. */
   loadInside?: (kind: InsideKind) => Promise<{ lng: number; lat: number; name: string }[] | null>;
+  /** "Lyon, France" - a tapped icon's Google Maps search adds it to the
+   *  place's name. */
+  areaName?: string;
+  /** Per kind, how many are in the city and the nearest one's distance -
+   *  the layer list says "nearest 25 km" for a kind the city has none of. */
+  insideFigures?: Partial<Record<InsideKind, { count: number; nearestKm: number | null }>>;
 }
 
 const FOCUS_SOURCE_ID = "piltri-focus";
@@ -302,6 +308,45 @@ const OPEN_IN_NEW_SVG =
 // so the popup reads as part of the app, not a browser-default fallback.
 const POPUP_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif";
 
+/** A place's kind in a few words, for its card. */
+const KIND_NAMES: Record<MapKind, string> = {
+  train: "Train station",
+  metro: "Metro station",
+  tram: "Tram stop",
+  bus: "Bus station",
+  port: "Port or ferry",
+  airport: "Airport",
+  intlAirport: "International airport",
+  localAirport: "Local airport",
+  nursery: "Nursery or day care",
+  school: "School",
+  university: "University",
+  careHome: "Care home",
+  hospital: "Hospital",
+  beach: "Beach",
+  lakeBeach: "Lake beach",
+  mountain: "Mountain",
+  forest: "Forest",
+  large: "City",
+  capital: "Capital",
+};
+
+/** The card that opens on a tapped icon (2026-10-29, on request): its name,
+ *  what it is and how far from the centre, and a link to Google Maps (by
+ *  name - its listing, reviews and hours - or by its point when unnamed). */
+function placeCardHtml(name: string, kind: MapKind, distance: string, lat: number, lng: number, areaName?: string): string {
+  const title = escapeHtml(name || KIND_NAMES[kind]);
+  const line = escapeHtml(`${name ? `${KIND_NAMES[kind]} · ` : ""}${distance} from the centre`);
+  return (
+    `<div style="font:12px ${POPUP_FONT}; max-width:200px;">` +
+    `<div style="font-weight:600; margin-bottom:2px;">${title}</div>` +
+    `<div style="color:#6B6155; margin-bottom:4px;">${line}</div>` +
+    `<a href="${googleMapsSearchUrl(name ? [name, areaName].filter(Boolean).join(", ") : `${lat.toFixed(5)},${lng.toFixed(5)}`)}" target="_blank" rel="noopener noreferrer" class="piltri-popup-link" ` +
+    `style="display:inline-flex; align-items:center; gap:4px;">Google Maps${OPEN_IN_NEW_SVG}</a>` +
+    `</div>`
+  );
+}
+
 function popupHtml(label: string | undefined, fallbackText: string): string {
   const text = escapeHtml(label ?? fallbackText);
   if (!label) return `<div style="font:12px ${POPUP_FONT};">${text}</div>`;
@@ -373,6 +418,8 @@ export function MapView({
   expanded = false,
   onToggleExpanded,
   loadInside,
+  areaName,
+  insideFigures,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -419,6 +466,9 @@ export function MapView({
   const routeTokenRef = useRef(0);
   const [routeInfo, setRouteInfo] = useState<string | null>(null);
   const { prefs } = useUnitPreferences();
+  // What a tapped icon's card reads (its listener is set up once).
+  const cardContextRef = useRef({ lat, lng, prefs, areaName });
+  cardContextRef.current = { lat, lng, prefs, areaName };
   // Asymmetric padding keeps what's framed clear of the floating left
   // column and the section panel beside it (at their open widths, but never
   // more than the map can spare); compact (mobile) layout has nothing
@@ -684,6 +734,21 @@ export function MapView({
         layout: { ...PLACE_ICON_LAYOUT, "icon-image": ["get", "icon"], "symbol-sort-key": ["get", "rank"] } as any,
         paint: PLACE_ICON_PAINT,
       });
+      // Tapping an icon opens its card.
+      const card = new maplibregl.Popup({ offset: 12, closeButton: true, maxWidth: "240px" });
+      for (const id of [`${FOCUS_POINTS_ID}-icons`, `${LAYERS_SOURCE_ID}-icons`, ...MAP_LAYER_KINDS.map(osmLayerId)]) {
+        map.on("click", id, (e) => {
+          const feature = e.features?.[0];
+          if (!feature || feature.geometry.type !== "Point") return;
+          const [plng, plat] = feature.geometry.coordinates as [number, number];
+          const kind = (feature.properties?.kind ?? id.replace("piltri-osm-", "")) as MapKind;
+          const { lat: clat, lng: clng, prefs: units, areaName: area } = cardContextRef.current;
+          const distance = formatDistanceKm(straightLineKm({ lat: clat, lng: clng }, { lat: plat, lng: plng }), units);
+          card.setLngLat([plng, plat]).setHTML(placeCardHtml(String(feature.properties?.name ?? ""), kind, distance, plat, plng, area)).addTo(map);
+        });
+        map.on("mouseenter", id, () => (map.getCanvas().style.cursor = "pointer"));
+        map.on("mouseleave", id, () => (map.getCanvas().style.cursor = onMapClick ? "pointer" : ""));
+      }
       setMapReady(true);
 
       // Directions route line - empty until both a main pin and a
@@ -964,7 +1029,7 @@ export function MapView({
         features: [...byKind].flatMap(([kind, places]) =>
           places.map((p) => ({
             type: "Feature",
-            properties: { name: p.name, icon: mapIconId(kind) },
+            properties: { name: p.name, kind, icon: mapIconId(kind) },
             geometry: { type: "Point", coordinates: [p.lng, p.lat] },
           }))
         ),
@@ -981,9 +1046,18 @@ export function MapView({
       if (loadInside) {
         loadInside(kind as InsideKind)
           .then((places) => {
-            if (controller.signal.aborted || !places) return;
-            byKind.set(kind, places);
-            drawSoon();
+            if (controller.signal.aborted) return;
+            if (places) {
+              byKind.set(kind, places);
+              drawSoon();
+            } else if (hasMapPlaces(kind)) {
+              // No list of its own (a tram line has no stops in the data):
+              // the tiles' within 5 km.
+              loadMapPlaces(kind, { lat, lng }, controller.signal, (tilePlaces) => {
+                byKind.set(kind, tilePlaces);
+                drawSoon();
+              }).catch(() => {});
+            }
           })
           .catch(() => {});
       } else if (hasMapPlaces(kind)) {
@@ -1204,7 +1278,17 @@ export function MapView({
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={mapIconUrl(kind)} alt="" width={18} height={18} />
-                    <span className="flex-1">{LAYER_LABELS[kind as InsideKind]}</span>
+                    <span className="flex-1">
+                      {LAYER_LABELS[kind as InsideKind]}
+                      {/* None in the city: ticking shows the nearest, where it
+                       *  is - the map doesn't move to it (2026-10-29). */}
+                      {insideFigures?.[kind as InsideKind]?.count === 0 && (
+                        <span className="font-normal text-ink-500">
+                          {" "}
+                          · {insideFigures[kind as InsideKind]!.nearestKm != null ? `nearest ${formatDistanceKm(insideFigures[kind as InsideKind]!.nearestKm!, prefs)}` : "none near"}
+                        </span>
+                      )}
+                    </span>
                     <span className={cn("flex h-4 w-4 items-center justify-center rounded border text-[10px]", on ? "border-piltri-amber bg-piltri-amber text-white" : "border-ink-300")}>
                       {on && "✓"}
                     </span>

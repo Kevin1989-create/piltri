@@ -132,6 +132,12 @@ const MOUNTAIN = "liveability.distanceToMountainKm";
 const FOREST = "liveability.distanceToForestKm";
 const BROADBAND = "liveability.broadbandDownloadMbps";
 
+/** Datasets from 2026-10-29 count a station, school... "in the city or
+ *  within 1 km of it" (lib/dataset/assemble.ts) - the only ones with a
+ *  hospital column; before, within `km` of the centre. */
+const inCity = () => manifest.advCityColumns.includes("liveability.hasHospital");
+const inCityOr = (km: number) => (p: UnitPreferences) => (inCity() ? "in the city" : `within ${formatDistanceKm(km, p)}`);
+
 export const NEARBY: Toggle[] = [
   {
     key: "beach",
@@ -181,14 +187,15 @@ export const NEARBY: Toggle[] = [
     test: yes("liveability.hasAirport"),
     replacedBy: "intlAirport",
   },
-  { key: "train", label: "Train station", hint: (p) => `within ${formatDistanceKm(5, p)}`, needs: ["liveability.hasTrainStation"], test: yes("liveability.hasTrainStation") },
-  { key: "metro", label: "Metro", hint: (p) => `within ${formatDistanceKm(5, p)}`, needs: ["liveability.hasSubway"], test: yes("liveability.hasSubway") },
-  { key: "tram", label: "Tram", hint: (p) => `within ${formatDistanceKm(5, p)}`, needs: ["liveability.hasTramway"], test: yes("liveability.hasTramway") },
-  { key: "port", label: "Port / ferry", hint: (p) => `within ${formatDistanceKm(10, p)}`, needs: ["liveability.hasPort"], test: yes("liveability.hasPort") },
-  { key: "university", label: "University", hint: (p) => `within ${formatDistanceKm(5, p)}`, needs: ["liveability.hasUniversity"], test: yes("liveability.hasUniversity") },
-  { key: "school", label: "School", hint: (p) => `within ${formatDistanceKm(5, p)}`, needs: ["liveability.hasSchool"], test: yes("liveability.hasSchool") },
-  { key: "nursery", label: "Nursery", hint: (p) => `within ${formatDistanceKm(5, p)}`, needs: ["liveability.hasNursery"], test: yes("liveability.hasNursery") },
-  { key: "careHome", label: "Care home", hint: (p) => `within ${formatDistanceKm(5, p)}`, needs: ["liveability.hasCareHome"], test: yes("liveability.hasCareHome") },
+  { key: "train", label: "Train station", hint: inCityOr(5), needs: ["liveability.hasTrainStation"], test: yes("liveability.hasTrainStation") },
+  { key: "metro", label: "Metro", hint: inCityOr(5), needs: ["liveability.hasSubway"], test: yes("liveability.hasSubway") },
+  { key: "tram", label: "Tram", hint: inCityOr(5), needs: ["liveability.hasTramway"], test: yes("liveability.hasTramway") },
+  { key: "port", label: "Port / ferry", hint: inCityOr(10), needs: ["liveability.hasPort"], test: yes("liveability.hasPort") },
+  { key: "university", label: "University", hint: inCityOr(5), needs: ["liveability.hasUniversity"], test: yes("liveability.hasUniversity") },
+  { key: "school", label: "School", hint: inCityOr(5), needs: ["liveability.hasSchool"], test: yes("liveability.hasSchool") },
+  { key: "nursery", label: "Nursery", hint: inCityOr(5), needs: ["liveability.hasNursery"], test: yes("liveability.hasNursery") },
+  { key: "careHome", label: "Care home", hint: inCityOr(5), needs: ["liveability.hasCareHome"], test: yes("liveability.hasCareHome") },
+  { key: "hospital", label: "Hospital", hint: inCityOr(5), needs: ["liveability.hasHospital"], test: yes("liveability.hasHospital") },
   {
     key: "fastInternet",
     label: "Fast internet",

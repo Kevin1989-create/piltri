@@ -1,7 +1,12 @@
 import { getDaylightRange } from "@/lib/data-sources/daylight";
 import { averageScores, computePiltriScore, normalise } from "@/lib/aggregation/scoring";
 import type { CityExploreData, SectionKey, SectionScores } from "@/lib/types";
-import { INSIDE_KINDS, type CityRecord, type CountryRecord } from "./schema";
+import { INSIDE_KINDS, type CityRecord, type CountryRecord, type InsideKind } from "./schema";
+
+/** Whether there's one in the city (or within 1 km of it) - null for a
+ *  dataset from before 2026-10-29. */
+const inCity = (city: CityRecord, kind: InsideKind): boolean | null =>
+  city.insideCounts ? (city.insideCounts[INSIDE_KINDS.indexOf(kind)] ?? 0) !== 0 : null;
 
 /** Reference ranges that normalise raw metrics onto 0-100 for the section
  *  scores. kpiRows.ts colours rows against the same ranges. */
@@ -219,16 +224,20 @@ export function assembleCityExploreData(
       culturalVenuesPer10k: perResidents(city.culturalVenuesWithin5km, city.densityPerKm2, AMENITY_RATIOS.cultural.per),
       familyActivitiesPer10k: perResidents(city.familyActivitiesWithin5km, city.densityPerKm2, AMENITY_RATIOS.family.per),
       healthcareQualityScore: country.healthcareQualityScore,
-      hasTrainStation: city.hasTrainStation,
-      hasSubway: city.hasSubway,
-      hasTramway: city.hasTramway,
+      // In the city (or within 1 km of it) where the dataset says so
+      // (2026-10-29), as the city page does - Advanced search filters on
+      // these; within 5 km of the centre before.
+      hasTrainStation: inCity(city, "train") ?? city.hasTrainStation,
+      hasSubway: inCity(city, "metro") ?? city.hasSubway,
+      hasTramway: inCity(city, "tram") ?? city.hasTramway,
       hasAirport: city.hasAirport,
-      hasBusStation: city.hasBusStation,
-      hasSchool: city.hasSchool,
-      hasUniversity: city.hasUniversity,
-      hasNursery: city.hasNursery,
-      hasCareHome: city.hasCareHome,
-      hasPort: city.hasPort,
+      hasBusStation: inCity(city, "bus") ?? city.hasBusStation,
+      hasSchool: inCity(city, "school") ?? city.hasSchool,
+      hasUniversity: inCity(city, "university") ?? city.hasUniversity,
+      hasNursery: inCity(city, "nursery") ?? city.hasNursery,
+      hasCareHome: inCity(city, "careHome") ?? city.hasCareHome,
+      hasPort: inCity(city, "port") ?? city.hasPort,
+      hasHospital: inCity(city, "hospital"),
       broadbandDownloadMbps: city.broadbandDownloadMbps,
       broadbandRadiusKm: city.broadbandRadiusKm,
       mobileDownloadMbps: city.mobileDownloadMbps,
