@@ -104,6 +104,14 @@ function badgeSvg(kind: MapKind): string {
   );
 }
 
+/** A kind's icon as an image address, for the page itself (the map's layer
+ *  list) - shown through the same filter as the map (MAP_CANVAS_FILTER) so
+ *  it matches. */
+export const mapIconUrl = (kind: MapKind) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(badgeSvg(kind))}`;
+
+/** The look of the map canvas (MapView): the "liberty" style toned down. */
+export const MAP_CANVAS_FILTER = "saturate(0.45) brightness(1.08) contrast(0.95)";
+
 /** Adds every kind's icon to the map (once its style has loaded). */
 export function addMapIcons(map: MaplibreMap): void {
   for (const kind of Object.keys(KIND_ICON) as MapKind[]) {
@@ -113,6 +121,6 @@ export function addMapIcons(map: MaplibreMap): void {
     image.onload = () => {
       if (!map.hasImage(id)) map.addImage(id, image, { pixelRatio: 2 });
     };
-    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(badgeSvg(kind))}`;
+    image.src = mapIconUrl(kind);
   }
 }

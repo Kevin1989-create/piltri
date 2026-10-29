@@ -26,6 +26,22 @@ Done 2026-10-28: a Yes shows every place of its kind within its radius
 and keep the dataset's nearest 6), an icon per kind
 (`components/explore/mapIcons.ts`), a small permanent credit line instead
 of the pop-up (`MapCredit`), and an expand button.
+Done 2026-10-29: a layer list on the map (several kinds at once); zoomed
+in, every one in view anywhere in the city, not only the 5 km around the
+centre (owner: London's Yes stopped at "zone 1"); a Yes draws its 5 km
+circle.
+
+4. **Yes / No for every kind, and the distance only when it's No**
+   (owner, 2026-10-29: "more fields/data if more no"). One row per kind -
+   train station, metro, tram, bus station, port, nursery, school,
+   university, care home, hospital: "Yes" (within 5 km of the centre) or
+   "No · nearest 12 km", the No showing the journey on the map. Merges
+   today's pairs ("Train station: Yes" + "Nearest train station: 0 km").
+   Needs the pipeline to keep the nearest one beyond the radius for these
+   kinds (today it stores none when there's none within 5 km): live after
+   the next refresh. Owner to confirm: hospital follows the same rule
+   (today "Nearest hospital: 0.4 km" even when near); beach, mountain,
+   forest, airports and the capital stay distances (rarely within 5 km).
 
 5. **More detail on the map**: names of key streets, buildings, stations.
    The style (OpenFreeMap "liberty") has them, but at the default zoom

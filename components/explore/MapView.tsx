@@ -6,10 +6,11 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { driveMinutes, formatDriveTime, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
 import { fetchRoute, googleMapsDirectionsUrl, ROUTE_ATTRIBUTION, WALK_MAX_KM } from "@/lib/routing";
 import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
-import { hasMapPlaces, loadMapPlaces, yesRadiusKm, type MapPlace } from "@/lib/mapPlaces";
+import { hasMapPlaces, loadMapPlaces, MAP_LAYER_KINDS, osmPoiFilter, yesRadiusKm, type MapPlace } from "@/lib/mapPlaces";
 import { cn } from "@/lib/cn";
 import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
-import { addMapIcons, mapIconColor, mapIconId } from "@/components/explore/mapIcons";
+import { addMapIcons, MAP_CANVAS_FILTER, mapIconColor, mapIconId, mapIconUrl } from "@/components/explore/mapIcons";
+import type { NearbyKind } from "@/lib/dataset/schema";
 import { MapCredit } from "@/components/explore/MapCredit";
 import type { MapKind } from "@/lib/kpiRows";
 import type { TravelTimes } from "@/lib/types";
@@ -157,6 +158,49 @@ const FOCUS_SOURCE_ID = "piltri-focus";
  *  its name where there's room - the map hides icons that would overlap,
  *  nearest first, and shows more as you zoom in. */
 const FOCUS_POINTS_ID = "piltri-focus-points";
+/** A Yes's circle (5 km from the centre, 10 for a port): where its places
+ *  are counted - drawn so it's clear why they stop there (2026-10-28: in
+ *  London, an outline 40 km across). */
+const FOCUS_CIRCLE_ID = "piltri-focus-circle";
+/** The map's layer list (2026-10-28, on request): any kinds of place at
+ *  once. Zoomed out, those within 5 km of the centre (read from the
+ *  detailed tiles, lib/mapPlaces.ts); from zoom 14, where the map shows the
+ *  detailed tiles itself, every one in view - anywhere. */
+const LAYERS_SOURCE_ID = "piltri-layers";
+/** The tiles' own detail starts here. */
+const DETAIL_ZOOM = 14;
+const osmLayerId = (kind: NearbyKind, part: "dots" | "icons") => `piltri-osm-${kind}-${part}`;
+/** The layer list, in its order. */
+const LAYER_LABELS: Partial<Record<NearbyKind, string>> = {
+  train: "Train stations",
+  metro: "Metro stations",
+  tram: "Tram stops",
+  bus: "Bus stations",
+  port: "Ferry terminals",
+  nursery: "Nurseries",
+  school: "Schools",
+  university: "Universities",
+  hospital: "Hospitals",
+};
+
+/** The icons-and-names look shared by every layer of places. */
+const PLACE_ICON_LAYOUT = {
+  "icon-padding": 1,
+  "text-field": ["get", "name"],
+  "text-font": ["Noto Sans Regular"],
+  "text-size": 11.5,
+  "text-anchor": "left",
+  "text-offset": [1.45, 0],
+  "text-max-width": 12,
+  "text-optional": true,
+} as const;
+const PLACE_ICON_PAINT = { "text-color": "#1E1A16", "text-halo-color": "#FFFFFF", "text-halo-width": 1.6, "text-halo-blur": 0.4 };
+const placeDotPaint = (color: unknown) => ({
+  "circle-radius": 4,
+  "circle-color": color,
+  "circle-stroke-color": "#FFFFFF",
+  "circle-stroke-width": 1.5,
+});
 /** A distance figure's journey along the roads (lib/routing.ts), once it
  *  has come back - the straight line stands in until then. */
 const FOCUS_ROUTE_ID = "piltri-focus-route";
@@ -334,6 +378,12 @@ export function MapView({
   // The same, with the focus they're for - read by the focus effect, which
   // redraws when the map changes size.
   const tilePlacesRef = useRef<{ focus: MapFocus; places: MapPlace[] } | null>(null);
+  // The layer list: the kinds ticked, whether it's open, and whether the
+  // map is close enough to show every place in view (DETAIL_ZOOM).
+  const [layerKinds, setLayerKinds] = useState<NearbyKind[]>([]);
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [detailed, setDetailed] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
   // The journey along the roads for a distance figure: its bounds (framed
   // with the place), the chip's "35 km · 35 min by car", and which focus
   // it's for (a reply for an earlier tap is dropped).
@@ -479,7 +529,7 @@ export function MapView({
     // look while keeping all the same detail. Applied to the canvas
     // specifically (not the container) so the zoom control buttons aren't
     // affected.
-    map.getCanvas().style.filter = "saturate(0.45) brightness(1.08) contrast(0.95)";
+    map.getCanvas().style.filter = MAP_CANVAS_FILTER;
     // Pointer (hand) cursor everywhere on the map, not the map's default
     // grab/drag cursor - clicking the map is always a meaningful action
     // here (drop a pin, or pick a directions target), so it should read as
@@ -487,6 +537,10 @@ export function MapView({
     // than implying it's just a pannable surface. (A view-only map keeps
     // the default drag cursor.)
     if (onMapClick) map.getCanvas().style.cursor = "pointer";
+    map.on("zoomend", () => setDetailed(map.getZoom() >= DETAIL_ZOOM));
+    // Touching the map closes the layer list.
+    map.on("mousedown", () => setLayersOpen(false));
+    map.on("touchstart", () => setLayersOpen(false));
 
     map.on("load", () => {
       mapLoadedRef.current = true;
@@ -559,36 +613,58 @@ export function MapView({
       // A figure's places: a dot for every one, and its icon and name
       // where they fit (nearest first).
       addMapIcons(map);
-      map.addSource(FOCUS_POINTS_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addSource(FOCUS_CIRCLE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({
-        id: `${FOCUS_POINTS_ID}-dots`,
-        type: "circle",
-        source: FOCUS_POINTS_ID,
-        paint: {
-          "circle-radius": 4,
-          "circle-color": ["get", "color"],
-          "circle-stroke-color": "#FFFFFF",
-          "circle-stroke-width": 1.5,
-        },
+        id: FOCUS_CIRCLE_ID,
+        type: "line",
+        source: FOCUS_CIRCLE_ID,
+        paint: { "line-color": "#1E1A16", "line-width": 1.5, "line-opacity": 0.55, "line-dasharray": [3, 2] },
       });
+      // The layer list's places: zoomed out, those read for the 5 km
+      // around the centre; from DETAIL_ZOOM, the tiles' own, anywhere.
+      map.addSource(LAYERS_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({ id: `${LAYERS_SOURCE_ID}-dots`, type: "circle", source: LAYERS_SOURCE_ID, maxzoom: DETAIL_ZOOM, paint: placeDotPaint(["get", "color"]) as any });
+      map.addLayer({
+        id: `${LAYERS_SOURCE_ID}-icons`,
+        type: "symbol",
+        source: LAYERS_SOURCE_ID,
+        maxzoom: DETAIL_ZOOM,
+        layout: { ...PLACE_ICON_LAYOUT, "icon-image": ["get", "icon"], "symbol-sort-key": ["get", "rank"] } as any,
+        paint: PLACE_ICON_PAINT,
+      });
+      for (const kind of MAP_LAYER_KINDS) {
+        const filter = osmPoiFilter(kind) as any;
+        map.addLayer({
+          id: osmLayerId(kind, "dots"),
+          type: "circle",
+          source: "openmaptiles",
+          "source-layer": "poi",
+          minzoom: DETAIL_ZOOM,
+          filter,
+          layout: { visibility: "none" },
+          paint: placeDotPaint(mapIconColor(kind)) as any,
+        });
+        map.addLayer({
+          id: osmLayerId(kind, "icons"),
+          type: "symbol",
+          source: "openmaptiles",
+          "source-layer": "poi",
+          minzoom: DETAIL_ZOOM,
+          filter,
+          layout: { ...PLACE_ICON_LAYOUT, visibility: "none", "icon-image": mapIconId(kind) } as any,
+          paint: PLACE_ICON_PAINT,
+        });
+      }
+      map.addSource(FOCUS_POINTS_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({ id: `${FOCUS_POINTS_ID}-dots`, type: "circle", source: FOCUS_POINTS_ID, paint: placeDotPaint(["get", "color"]) as any });
       map.addLayer({
         id: `${FOCUS_POINTS_ID}-icons`,
         type: "symbol",
         source: FOCUS_POINTS_ID,
-        layout: {
-          "icon-image": ["get", "icon"],
-          "icon-padding": 1,
-          "text-field": ["get", "name"],
-          "text-font": ["Noto Sans Regular"],
-          "text-size": 11.5,
-          "text-anchor": "left",
-          "text-offset": [1.45, 0],
-          "text-max-width": 12,
-          "text-optional": true,
-          "symbol-sort-key": ["get", "rank"],
-        },
-        paint: { "text-color": "#1E1A16", "text-halo-color": "#FFFFFF", "text-halo-width": 1.6, "text-halo-blur": 0.4 },
+        layout: { ...PLACE_ICON_LAYOUT, "icon-image": ["get", "icon"], "symbol-sort-key": ["get", "rank"] } as any,
+        paint: PLACE_ICON_PAINT,
       });
+      setMapReady(true);
 
       // Directions route line - empty until both a main pin and a
       // destination pin exist (see the route effect below).
@@ -839,6 +915,48 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pinnedCoords, destinationCoords, reservedBottomPx, compact]);
 
+  // The tiles' own places, anywhere in view from DETAIL_ZOOM: for each kind
+  // ticked in the layer list, and a Yes's kind.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const shown = new Set(layerKinds);
+    if (focus?.style === "pin" && focus.kind !== "capital") shown.add(focus.kind);
+    for (const kind of MAP_LAYER_KINDS) {
+      for (const part of ["dots", "icons"] as const) map.setLayoutProperty(osmLayerId(kind, part), "visibility", shown.has(kind) ? "visible" : "none");
+    }
+  }, [mapReady, layerKinds, focus]);
+
+  // Zoomed out, the ticked kinds' places within 5 km of the centre, read
+  // from the detailed tiles - the nearest of each kind first where they'd
+  // overlap.
+  useEffect(() => {
+    const map = mapRef.current;
+    const source = map?.getSource(LAYERS_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+    if (!map || !mapReady || !source) return;
+    const controller = new AbortController();
+    const byKind = new Map<NearbyKind, MapPlace[]>();
+    const draw = () =>
+      source.setData({
+        type: "FeatureCollection",
+        features: [...byKind].flatMap(([kind, places]) =>
+          places.map((p) => ({
+            type: "Feature",
+            properties: { name: p.name, rank: p.km, icon: mapIconId(kind), color: mapIconColor(kind) },
+            geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+          }))
+        ),
+      } as any);
+    draw();
+    for (const kind of layerKinds) {
+      loadMapPlaces(kind, { lat, lng }, controller.signal, (places) => {
+        byKind.set(kind, places);
+        draw();
+      }).catch(() => {});
+    }
+    return () => controller.abort();
+  }, [mapReady, layerKinds, lat, lng]);
+
   // A Yes: look for every place of its kind in the map's tiles (lib/
   // mapPlaces.ts) - the dataset's own nearest 6 show meanwhile, and stay
   // where the tiles have nothing near them.
@@ -891,6 +1009,11 @@ export function MapView({
       // gave, once they're in.
       const tiles = tilePlacesRef.current?.focus === focus ? tilePlacesRef.current.places : null;
       drawFocusPoints(map, focus, focus && tiles ? mergePlaces({ lat, lng }, focus.points, tiles) : focus?.points ?? []);
+      (map.getSource(FOCUS_CIRCLE_ID) as maplibregl.GeoJSONSource | undefined)?.setData(
+        focus?.style === "pin" && focus.kind !== "capital"
+          ? (circlePolygon(lat, lng, yesRadiusKm(focus.kind)) as any)
+          : { type: "FeatureCollection", features: [] }
+      );
       source.setData({
         type: "FeatureCollection",
         features: point && focus?.style === "journey"
@@ -996,6 +1119,64 @@ export function MapView({
             )}
           </svg>
         </button>
+      )}
+      {(expanded || !compact) && (
+        // The layer list: under the zoom and expand buttons, in their style.
+        <>
+          <button
+            type="button"
+            onClick={() => setLayersOpen((open) => !open)}
+            aria-label="Places to show on the map"
+            aria-expanded={layersOpen}
+            title="Places to show on the map"
+            className={cn(
+              "absolute right-[10px] z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
+              onToggleExpanded ? "top-[113px]" : "top-[76px]",
+              layerKinds.length ? "bg-piltri-amber text-white" : "bg-white text-ink-900 hover:bg-surface-muted"
+            )}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M12 3l9 5-9 5-9-5z" />
+              <path d="M3 13l9 5 9-5" />
+            </svg>
+          </button>
+          {layersOpen && (
+            <div className="absolute right-[46px] top-[76px] z-20 w-56 rounded-xl bg-surface p-1.5 shadow-card">
+              <p className="px-2 pb-1 pt-0.5 text-[11px] font-medium uppercase tracking-wide text-ink-500">Show on the map</p>
+              {MAP_LAYER_KINDS.map((kind) => {
+                const on = layerKinds.includes(kind);
+                return (
+                  <button
+                    key={kind}
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={on}
+                    onClick={() => setLayerKinds((kinds) => (on ? kinds.filter((k) => k !== kind) : [...kinds, kind]))}
+                    className={cn("flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-xs text-ink-900 hover:bg-surface-muted", on && "font-medium")}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={mapIconUrl(kind)} alt="" width={18} height={18} style={{ filter: MAP_CANVAS_FILTER }} />
+                    <span className="flex-1">{LAYER_LABELS[kind]}</span>
+                    <span className={cn("flex h-4 w-4 items-center justify-center rounded border text-[10px]", on ? "border-piltri-amber bg-piltri-amber text-white" : "border-ink-300")}>
+                      {on && "✓"}
+                    </span>
+                  </button>
+                );
+              })}
+              <p className="px-2 pb-1 pt-1.5 text-[11px] leading-snug text-ink-500">
+                {detailed ? "Every one in view." : "Within 5 km of the centre - zoom in to see them anywhere."}
+                {layerKinds.length > 0 && (
+                  <>
+                    {" "}
+                    <button type="button" onClick={() => setLayerKinds([])} className="font-medium text-piltri-amber-dark hover:underline underline-offset-2">
+                      Clear
+                    </button>
+                  </>
+                )}
+              </p>
+            </div>
+          )}
+        </>
       )}
       <MapCredit routes={!!routeInfo} />
     </div>

@@ -29,8 +29,24 @@ const OSM_POI: Partial<Record<NearbyKind, { cls: string; subclasses?: string[] }
   nursery: { cls: "school", subclasses: ["kindergarten"] },
   school: { cls: "school", subclasses: ["school"] },
   university: { cls: "college", subclasses: ["university"] },
+  hospital: { cls: "hospital", subclasses: ["hospital"] },
 };
 const CLASSES = new Set(Object.values(OSM_POI).map((p) => p!.cls));
+
+/** The kinds the map can show from its own tiles: a Yes's, or any of them
+ *  ticked in the map's layer list (2026-10-28, on request). */
+export const MAP_LAYER_KINDS = Object.keys(OSM_POI) as NearbyKind[];
+
+/** A kind's places on the tiles' poi layer, as a map style filter - the
+ *  map draws them itself once it shows the detailed tiles (zoom 14+). */
+export function osmPoiFilter(kind: NearbyKind): unknown[] {
+  const want = OSM_POI[kind]!;
+  return [
+    "all",
+    ["==", ["get", "class"], want.cls],
+    ...(want.subclasses ? [["in", ["get", "subclass"], ["literal", want.subclasses]]] : []),
+  ];
+}
 
 /** A Yes is "within 5 km of the centre" (10 km for a port) - the same
  *  radii as the figures themselves (lib/kpiRows.ts presenceRows). */
