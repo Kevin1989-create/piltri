@@ -95,6 +95,24 @@ function yesCount(focus: MapFocus, tilePlaces: { places: MapPlace[]; done: boole
   return n === 6 ? "6 nearest" : n > 1 ? `${n} places` : "";
 }
 
+/** A line of the box saying what's on the map: the kind's icon, its name,
+ *  how many (or how far), and its own close. */
+function ShownLine({ kind, label, detail, onClose }: { kind: MapKind; label: string; detail: string; onClose: () => void }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={mapIconUrl(kind)} alt="" width={14} height={14} className="shrink-0" />
+      <span className="text-xs font-medium text-ink-900">
+        {label}
+        {detail && <span className="font-normal text-ink-500"> · {detail}</span>}
+      </span>
+      <button type="button" aria-label={`Hide ${label}`} onClick={onClose} className="ml-auto flex-shrink-0 rounded-full p-1 text-ink-500 hover:text-ink-900">
+        <CloseIcon className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
 interface MapViewProps {
   lat: number;
   lng: number;
@@ -458,6 +476,9 @@ export function MapView({
   // The layer list: the kinds ticked, whether it's open, and whether the
   // map is close enough to show every place in view (DETAIL_ZOOM).
   const [layerKinds, setLayerKinds] = useState<NearbyKind[]>([]);
+  // How many of each ticked kind are drawn, and from where: the city's list
+  // (dataset) or the tiles within 5 km - for its line in the shown box.
+  const [layerCounts, setLayerCounts] = useState<Partial<Record<NearbyKind, { n: number; from: "list" | "tiles" }>>>({});
   const [layersOpen, setLayersOpen] = useState(false);
   const [detailed, setDetailed] = useState(false);
   const [mapReady, setMapReady] = useState(false);
@@ -480,6 +501,18 @@ export function MapView({
   const routeTokenRef = useRef(0);
   const [routeInfo, setRouteInfo] = useState<string | null>(null);
   const { prefs } = useUnitPreferences();
+  // The ticked kinds, a line each in the shown box (a Yes's kind is on the
+  // Yes's line), and what that line says: how many are drawn, or for a kind
+  // the city has none of, how far the nearest is.
+  const shownLayers = layerKinds.filter((kind) => kind !== focusKind);
+  const layerCountText = (kind: NearbyKind): string => {
+    const drawn = layerCounts[kind];
+    if (!drawn) return "finding them…";
+    const figure = insideFigures?.[kind as InsideKind];
+    if (drawn.from === "tiles") return `${drawn.n.toLocaleString("en-US")} within ${yesRadiusKm(kind)} km`;
+    if (figure?.count === 0) return figure.nearestKm != null ? `nearest ${formatDistanceKm(figure.nearestKm, prefs)}` : "none near";
+    return `${drawn.n.toLocaleString("en-US")} ${airportsByReach(kind) ? `within ${AIRPORT_REACH_KM} km` : "in the city"}`;
+  };
   // What a tapped icon's card reads (its listener is set up once).
   const cardContextRef = useRef({ lat, lng, prefs, areaName });
   cardContextRef.current = { lat, lng, prefs, areaName };
@@ -1040,9 +1073,16 @@ export function MapView({
     if (!map || !mapReady || !source) return;
     const controller = new AbortController();
     const byKind = new Map<NearbyKind, { lng: number; lat: number; name: string }[]>();
+    const counts = new Map<NearbyKind, { n: number; from: "list" | "tiles" }>();
+    const found = (kind: NearbyKind, places: { lng: number; lat: number; name: string }[], from: "list" | "tiles") => {
+      byKind.set(kind, places);
+      counts.set(kind, { n: places.length, from });
+      drawSoon();
+    };
     let timer: ReturnType<typeof setTimeout> | null = null;
     const draw = () => {
       timer = null;
+      setLayerCounts(Object.fromEntries(counts));
       source.setData({
         type: "FeatureCollection",
         features: [...byKind].flatMap(([kind, places]) =>
@@ -1067,23 +1107,18 @@ export function MapView({
           .then((places) => {
             if (controller.signal.aborted) return;
             if (places) {
-              byKind.set(kind, places);
-              drawSoon();
+              found(kind, places, "list");
             } else if (hasMapPlaces(kind)) {
               // No list of its own (a tram line has no stops in the data):
               // the tiles' within 5 km.
-              loadMapPlaces(kind, { lat, lng }, controller.signal, (tilePlaces) => {
-                byKind.set(kind, tilePlaces);
-                drawSoon();
-              }).catch(() => {});
+              loadMapPlaces(kind, { lat, lng }, controller.signal, (tilePlaces) => found(kind, tilePlaces, "tiles")).catch(() => {});
+            } else {
+              found(kind, [], "tiles");
             }
           })
           .catch(() => {});
       } else if (hasMapPlaces(kind)) {
-        loadMapPlaces(kind, { lat, lng }, controller.signal, (places) => {
-          byKind.set(kind, places);
-          drawSoon();
-        }).catch(() => {});
+        loadMapPlaces(kind, { lat, lng }, controller.signal, (places) => found(kind, places, "tiles")).catch(() => {});
       }
     }
     return () => {
@@ -1197,40 +1232,44 @@ export function MapView({
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
-      {focus && (
-        // What's shown (the flag carries its name), the way to close it -
-        // and for a journey, the same one in Google Maps in a new tab.
-        <div className={cn("absolute z-10 rounded-2xl bg-surface shadow-card pl-3 pr-1 py-1", compact ? "top-3 left-3 max-w-[calc(100%-4.5rem)]" : "top-4 right-14 max-w-sm")}>
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-ink-900">
-              {focus.title}
-              {focus.style === "pin" && yesCount(focus, tilePlaces, { lat, lng }) && (
-                <span className="font-normal text-ink-500"> · {yesCount(focus, tilePlaces, { lat, lng })}</span>
+      {(focus || shownLayers.length > 0) && (
+        // What's on the map, a line per kind with its count and its close -
+        // the same for a tapped figure and a kind ticked in the layer list,
+        // always beside the buttons (2026-10-30, owner: "more consistent").
+        // A journey adds the same one in Google Maps in a new tab.
+        <div className="absolute right-[46px] top-[10px] z-10 max-w-[min(20rem,calc(100%-56px))] rounded-2xl bg-surface py-0.5 pl-2.5 pr-0.5 shadow-card">
+          {focus && (
+            <>
+              <ShownLine
+                kind={focus.kind}
+                label={focus.style === "pin" ? LAYER_LABELS[focus.kind as InsideKind] ?? focus.title : focus.title}
+                detail={[
+                  focus.style === "pin" ? yesCount(focus, tilePlaces, { lat, lng }) : "",
+                  !focus.points.length && !tilePlaces?.places.length ? "none found nearby" : "",
+                  routeInfo ?? "",
+                ].filter(Boolean).join(" · ")}
+                onClose={() => onCloseFocus?.()}
+              />
+              {focus.style === "journey" && focus.points[0] && (
+                <a
+                  href={googleMapsDirectionsUrl(
+                    { lat, lng },
+                    focus.points[0],
+                    straightLineKm({ lat, lng }, focus.points[0]) <= WALK_MAX_KM ? "foot" : "car"
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-5 inline-flex items-center gap-1 pb-1 pr-2 text-[11px] font-medium text-piltri-amber-dark hover:underline underline-offset-2"
+                >
+                  Open in Google Maps
+                  <ExternalLinkIcon className="w-3 h-3" />
+                </a>
               )}
-              {!focus.points.length && !tilePlaces?.places.length && (
-                <span className="font-normal text-ink-500"> · none found nearby</span>
-              )}
-              {routeInfo && <span className="font-normal text-ink-500"> · {routeInfo}</span>}
-            </span>
-            <button type="button" aria-label="Close" onClick={onCloseFocus} className="ml-auto p-1 rounded-full text-ink-500 hover:text-ink-900 flex-shrink-0">
-              <CloseIcon className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          {focus.style === "journey" && focus.points[0] && (
-            <a
-              href={googleMapsDirectionsUrl(
-                { lat, lng },
-                focus.points[0],
-                straightLineKm({ lat, lng }, focus.points[0]) <= WALK_MAX_KM ? "foot" : "car"
-              )}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 pb-1 pr-2 text-[11px] font-medium text-piltri-amber-dark hover:underline underline-offset-2"
-            >
-              Open in Google Maps
-              <ExternalLinkIcon className="w-3 h-3" />
-            </a>
+            </>
           )}
+          {shownLayers.map((kind) => (
+            <ShownLine key={kind} kind={kind} label={LAYER_LABELS[kind as InsideKind] ?? kind} detail={layerCountText(kind)} onClose={() => toggleLayer(kind)} />
+          ))}
         </div>
       )}
       {pickingDestination && (
