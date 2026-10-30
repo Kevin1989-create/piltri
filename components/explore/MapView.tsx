@@ -522,6 +522,10 @@ export function MapView({
   // page's map expands it with the list open.
   const listHere = expanded || !onToggleExpanded;
   const listShown = layersOpen && listHere;
+  // Whether the list's button expanded the map (2026-10-30, owner): then
+  // closing the list with it goes back into the page. Expanded first, or
+  // the map touched since: it stays expanded.
+  const expandedForListRef = useRef(false);
   const [detailed, setDetailed] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   // A Yes being shown counts as ticked in the layer list (2026-10-29, on
@@ -706,9 +710,14 @@ export function MapView({
     // the default drag cursor.)
     if (onMapClick) map.getCanvas().style.cursor = "pointer";
     map.on("zoomend", () => setDetailed(map.getZoom() >= DETAIL_ZOOM));
-    // Touching the map closes the layer list.
-    map.on("mousedown", () => setLayersOpen(false));
-    map.on("touchstart", () => setLayersOpen(false));
+    // Touching the map closes the layer list - and means the expanded map is
+    // being used, so it stays expanded (expandedForListRef).
+    const closeList = () => {
+      setLayersOpen(false);
+      expandedForListRef.current = false;
+    };
+    map.on("mousedown", closeList);
+    map.on("touchstart", closeList);
 
     map.on("load", () => {
       mapLoadedRef.current = true;
@@ -1174,7 +1183,10 @@ export function MapView({
 
   // The list closes with the expanded map.
   useEffect(() => {
-    if (!listHere) setLayersOpen(false);
+    if (!listHere) {
+      setLayersOpen(false);
+      expandedForListRef.current = false;
+    }
   }, [listHere]);
 
   // Expanding or shrinking (the page animates it): resized and drawn at
@@ -1366,11 +1378,16 @@ export function MapView({
           <button
             type="button"
             onClick={() => {
-              if (listHere) {
-                setLayersOpen((open) => !open);
-              } else {
+              if (!listHere) {
+                expandedForListRef.current = true;
                 onToggleExpanded?.();
                 setLayersOpen(true);
+              } else if (listShown && expandedForListRef.current) {
+                // It expanded the map for the list: back into the page.
+                // What's ticked stays shown there.
+                onToggleExpanded?.();
+              } else {
+                setLayersOpen((open) => !open);
               }
             }}
             aria-label="Places to show on the map"
