@@ -41,6 +41,7 @@ function StatCell({ row }: { row: KpiRow }) {
           )}
         </p>
         <p className="text-[10px] text-ink-500 leading-tight break-words">{row.label}</p>
+        {row.note && <p className="text-[10px] text-ink-300 leading-tight break-words">{row.note}</p>}
       </div>
       <KpiInfoButton ref={info} row={row} className="mt-px" />
     </div>

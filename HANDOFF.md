@@ -94,7 +94,11 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
   own figure; river and estuary banks count as neither. **Mountain** =
   1,000 m+ peak rising 500 m+ above the city.
 - **Airports**: nearest international and nearest local airport with
-  scheduled flights (OurAirports).
+  scheduled flights (OurAirports); "in the city" for airports means within
+  80 km of the centre (2026-10-30, owner: London's Gatwick, Luton...).
+- **Nearness tiers** (2026-10-30, owner): beaches, mountains, forests and
+  airports are green/amber/red by distance (`NEARNESS` in
+  `lib/dataset/assemble.ts`) and count in the score.
 - **Is there one in the city?** (2026-10-29): stations, schools, hospitals,
   airports, beaches... - Yes if one is in the city's outline or within
   1 km of it (5 km of the centre without an outline), and tapping it shows
@@ -116,10 +120,12 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
   off on 2026-10-30 (owner): 2018-2021 figures for whole regions, counted
   where people work - local household income comes in phase 2.
 - **Score, as local as the data allows** (2026-10-30, owner): Environment
-  is all local; Safety adds armed conflict nearby to the country's three
+  is all local, with nature nearby (beach, mountain, forest) since
+  2026-10-30; Safety adds armed conflict nearby to the country's three
   figures; Quality of Life adds healthcare access (a hospital in the city,
-  else by distance) and everyday services (train station, bus station,
-  school, nursery in the city) to its four local and two country figures.
+  else by distance), everyday services (train station, bus station,
+  school, nursery in the city) and an international airport within reach
+  to its four local and two country figures.
   Economy stays national until phase 2 (`sectionInputs` in
   `lib/dataset/assemble.ts`). World ranks are computed by the refresh.
 - **Climate**: WorldClim normals incl. monthly highs/lows/rain (climate

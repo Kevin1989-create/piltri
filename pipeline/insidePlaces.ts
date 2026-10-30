@@ -32,6 +32,8 @@ export interface CityArea {
   lng: number;
   kx: number;
   rings: Float64Array[] | null;
+  /** With no rings: the circle's radius (km). */
+  radiusKm: number;
   minX: number;
   maxX: number;
   minY: number;
@@ -40,12 +42,17 @@ export interface CityArea {
   reachKm: number;
 }
 
+/** A circle of `radiusKm` around a point - a place with no outline, or
+ *  airports' reach (they sit outside towns). */
+export function circleArea(lat: number, lng: number, radiusKm: number): CityArea {
+  const kx = KM_PER_DEG * Math.cos((lat * Math.PI) / 180);
+  const r = radiusKm;
+  return { lat, lng, kx, rings: null, radiusKm: r, minX: -r, maxX: r, minY: -r, maxY: r, reachKm: r };
+}
+
 export function cityArea(lat: number, lng: number, outline: EncodedBoundary | null): CityArea {
   const kx = KM_PER_DEG * Math.cos((lat * Math.PI) / 180);
-  if (!outline) {
-    const r = INSIDE_NO_OUTLINE_KM;
-    return { lat, lng, kx, rings: null, minX: -r, maxX: r, minY: -r, maxY: r, reachKm: r };
-  }
+  if (!outline) return circleArea(lat, lng, INSIDE_NO_OUTLINE_KM);
   const rings: Float64Array[] = [];
   let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
   for (const polygon of decodeBoundary(outline)) {
@@ -64,7 +71,7 @@ export function cityArea(lat: number, lng: number, outline: EncodedBoundary | nu
   }
   const m = INSIDE_MARGIN_KM;
   const reachKm = Math.hypot(Math.max(-minX, maxX) + m, Math.max(-minY, maxY) + m);
-  return { lat, lng, kx, rings, minX: minX - m, maxX: maxX + m, minY: minY - m, maxY: maxY + m, reachKm };
+  return { lat, lng, kx, rings, radiusKm: 0, minX: minX - m, maxX: maxX + m, minY: minY - m, maxY: maxY + m, reachKm };
 }
 
 /** Inside the outline (even-odd over every ring, so holes count as
@@ -72,7 +79,7 @@ export function cityArea(lat: number, lng: number, outline: EncodedBoundary | nu
  *  there's no outline. */
 function isInside(area: CityArea, x: number, y: number): boolean {
   if (x < area.minX || x > area.maxX || y < area.minY || y > area.maxY) return false;
-  if (!area.rings) return x * x + y * y <= INSIDE_NO_OUTLINE_KM ** 2;
+  if (!area.rings) return x * x + y * y <= area.radiusKm ** 2;
   let crossings = 0;
   let nearestSq = Infinity;
   const marginSq = INSIDE_MARGIN_KM ** 2;

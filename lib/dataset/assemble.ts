@@ -92,6 +92,46 @@ function healthcareAccess(hospital: { count: number; nearestKm: number | null } 
   return hospital.nearestKm == null ? 0 : 100 * Math.max(0, 1 - hospital.nearestKm / HOSPITAL_FAR_KM);
 }
 
+/** How near is near for places people travel to - a beach, mountains, a
+ *  forest, an airport (2026-10-30, owner: "should be a positive in the
+ *  score"): green (and full marks) in the city or within goodKm, amber
+ *  to okKm, red beyond. Airports are within reach rather than in the city
+ *  (AIRPORT_REACH_KM), so they're judged by the nearest one's distance. */
+export const NEARNESS: Partial<Record<InsideKind, { goodKm: number; okKm: number }>> = {
+  beach: { goodKm: 15, okKm: 50 },
+  lakeBeach: { goodKm: 10, okKm: 30 },
+  mountain: { goodKm: 30, okKm: 80 },
+  forest: { goodKm: 10, okKm: 30 },
+  intlAirport: { goodKm: 50, okKm: 120 },
+  localAirport: { goodKm: 40, okKm: 100 },
+};
+/** Airports count within this of the centre, not in the city: they sit
+ *  outside towns (2026-10-30, owner: London's Gatwick, Luton...). */
+export const AIRPORT_REACH_KM = 80;
+
+/** 0-100 for how near the nearest one is (NEARNESS): 100 in the city or
+ *  within goodKm, 50 at okKm, 0 at twice okKm. */
+export function nearnessScore(kind: InsideKind, figure: { count: number; nearestKm: number | null } | undefined): number | null {
+  const near = NEARNESS[kind];
+  if (!near || !figure) return null;
+  const inCityCounts = kind !== "intlAirport" && kind !== "localAirport";
+  if (inCityCounts && figure.count !== 0) return 100;
+  const km = figure.nearestKm;
+  if (km == null) return 0;
+  if (km <= near.goodKm) return 100;
+  if (km <= near.okKm) return 100 - (50 * (km - near.goodKm)) / (near.okKm - near.goodKm);
+  return Math.max(0, 50 - (50 * (km - near.okKm)) / near.okKm);
+}
+
+/** Nature within reach: water (sea or lake beach, the nearer), mountains
+ *  and a forest, averaged. */
+function natureNearby(inside: CityExploreData["liveability"]["inside"]): number | null {
+  if (!inside) return null;
+  const water = Math.max(nearnessScore("beach", inside.beach) ?? 0, nearnessScore("lakeBeach", inside.lakeBeach) ?? 0);
+  const parts = [water, nearnessScore("mountain", inside.mountain), nearnessScore("forest", inside.forest)].filter((v): v is number => v != null);
+  return parts.length ? parts.reduce((a, b) => a + b, 0) / parts.length : null;
+}
+
 /** Everyday services in the city: the share of these it has. */
 const EVERYDAY: InsideKind[] = ["train", "bus", "school", "nursery"];
 function everydayServices(inside: CityExploreData["liveability"]["inside"]): number | null {
@@ -103,8 +143,9 @@ function everydayServices(inside: CityExploreData["liveability"]["inside"]): num
  *  As local as the data allows (2026-10-30, owner: "the Piltri score should
  *  be as local as possible"): Environment is all the place's own; Safety
  *  adds armed conflict nearby to the country's figures, Quality of Life
- *  healthcare access and everyday services. Economy stays national until
- *  phase 2's local household income. */
+ *  healthcare access, everyday services and an airport within reach;
+ *  Environment nature within reach. Economy stays national until phase
+ *  2's local household income. */
 function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): Record<SectionKey, (number | null)[]> {
   const e = data.economy;
   const s = data.safetyStability;
@@ -134,6 +175,7 @@ function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): R
       orNull(c.avgAnnualSunshineHrs, (v) => normalise(v, RANGES.sunshineHrs.min, RANGES.sunshineHrs.max)),
       orNull(c.avgAnnualSnowfallCm, (v) => normalise(v, RANGES.snowfallCm.min, RANGES.snowfallCm.max, true)),
       orNull(c.avgAnnualPm25, (v) => normalise(v, RANGES.pm25.min, RANGES.pm25.max, true)),
+      natureNearby(l.inside),
     ],
     liveability: [
       orNull(l.restaurantsBarsPer1k, (v) => logScore(v, AMENITY_RATIOS.restaurantsBars.cap)),
@@ -146,6 +188,7 @@ function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): R
       normalise(pisaAverage ?? 470, RANGES.pisaScore.min, RANGES.pisaScore.max),
       healthcareAccess(l.inside?.hospital),
       everydayServices(l.inside),
+      nearnessScore("intlAirport", l.inside?.intlAirport),
     ],
   };
 }

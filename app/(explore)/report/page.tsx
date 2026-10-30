@@ -264,7 +264,7 @@ function ReportGroup({ title, rows, spacing = "mt-4" }: { title: string; rows: K
       <ReportSubheading>{title}</ReportSubheading>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
         {rows.map((row) => (
-          <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix} colorClass={row.colorClass} row={row} />
+          <ReportStat key={row.label} label={row.label} value={row.value} valueSuffix={row.valueSuffix ?? (row.note ? `· ${row.note}` : undefined)} colorClass={row.colorClass} row={row} />
         ))}
       </div>
     </div>

@@ -77,6 +77,9 @@ const KIND_ICON: Record<MapKind, { color: string; glyph: string }> = {
 /** The map image id for a kind's icon. */
 export const mapIconId = (kind: MapKind) => `piltri-${kind}`;
 
+/** The kind's badge colour (the place card writes its kind in it). */
+export const mapIconColor = (kind: MapKind) => KIND_ICON[kind].color;
+
 /** Badge: 30 px across (drawn at twice that for sharp screens), a white rim
  *  and a soft shadow so it stands off any part of the map. */
 const BADGE_PX = 30;

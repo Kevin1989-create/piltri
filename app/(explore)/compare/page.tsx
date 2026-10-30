@@ -107,7 +107,7 @@ function sectionRows(section: SectionKey, places: (CityExploreData | null)[], pr
     return {
       label,
       info: found.find((r) => r != null) ?? undefined,
-      cells: found.map((r) => (r ? { value: r.value, suffix: r.valueSuffix, colorClass: r.colorClass } : null)),
+      cells: found.map((r) => (r ? { value: r.value, suffix: r.valueSuffix ?? (r.note ? `· ${r.note}` : undefined), colorClass: r.colorClass } : null)),
     };
   });
 }

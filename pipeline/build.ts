@@ -1,7 +1,7 @@
 import path from "path";
 import KDBush from "kdbush";
 import { around } from "geokdbush";
-import { assembleCityExploreData } from "@/lib/dataset/assemble";
+import { AIRPORT_REACH_KM, assembleCityExploreData } from "@/lib/dataset/assemble";
 import { INSIDE_KINDS, INSIDE_TRACK_ONLY, NEARBY_KINDS, type CityRecord, type EncodedBoundary, type InsideKind, type NearbyKind, type NearbyPoint } from "@/lib/dataset/schema";
 import { AGE_SOURCE, downloadAgeGroups, sampleMedianAge } from "./ageStructure";
 import { PM25_SOURCE, samplePm25 } from "./airQuality";
@@ -19,7 +19,7 @@ import { writeDataset } from "./output";
 import { extractOvertureBeaches, extractOverturePlaces, extractOvertureRail, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
 import { POPULATION_GROWTH_SOURCE, POPULATION_SOURCE, sampleDensity, samplePopulationGrowth } from "./population";
 import { REGIONAL_GDP_SOURCE, sampleRegionalGdp } from "./regionalGdp";
-import { anyInside, cityArea, placesInside, type PlaceIndex } from "./insidePlaces";
+import { anyInside, circleArea, cityArea, placesInside, type PlaceIndex } from "./insidePlaces";
 import { KOPPEN_SOURCE, sampleKoppen } from "./koppenMap";
 import { loadShortlist } from "./shortlist";
 import { sampleUvIndex } from "./uv";
@@ -330,6 +330,7 @@ async function main() {
   };
   // A town with no border of its own uses its built-up area.
   const builtUpOf = new Map(withoutOutline.map((i, k) => [i, builtUpList[k]]));
+  const outline = (i: number) => outlines[i] ?? builtUpOf.get(i) ?? null;
   const insideById = new Map<string, (NearbyPoint[] | 0)[]>();
   let insidePlacesTotal = 0;
 
@@ -387,9 +388,13 @@ async function main() {
     const encode = (f: NonNullable<Found>): NearbyPoint => [round4(f.lng), round4(f.lat), f.name.slice(0, 60)];
     // In the city or within 1 km of it: every place of each kind, how
     // many, and the nearest anywhere (for a No).
-    const area = cityArea(lat, lng, outlines[i] ?? builtUpOf.get(i) ?? null);
+    const area = cityArea(lat, lng, outline(i));
+    // Airports: within reach of the centre (owner, 2026-10-30: London's
+    // Gatwick, Luton, Stansted...), not in the city.
+    const airportArea = circleArea(lat, lng, AIRPORT_REACH_KM);
     const insideLists = INSIDE_KINDS.map((kind) => {
       const { sources } = INSIDE_SOURCES[kind];
+      if (kind === "intlAirport" || kind === "localAirport") return placesInside(airportArea, sources);
       return kind === "mountain"
         ? placesInside(area, sources, (_, id) => peakElev[id] >= minPeak, (_, id) => ` (${Math.round(peakElev[id]).toLocaleString("en-GB")} m)`)
         : placesInside(area, sources);
@@ -601,7 +606,7 @@ async function main() {
       ...(populationGrowth ? { populationGrowth: POPULATION_GROWTH_SOURCE } : {}),
       ...(medianAge ? { age: AGE_SOURCE } : {}),
       hospitals: `Overture Maps places ${release} - hospitals and emergency departments (CDLA-Permissive-2.0)`,
-      inside: `In the city or within 1 km of its outline (5 km of the centre without one): GeoNames, Overture Maps places ${release}, OurAirports, mapped beaches and peaks`,
+      inside: `In the city or within 1 km of its outline (5 km of the centre without one), airports within ${AIRPORT_REACH_KM} km: GeoNames, Overture Maps places ${release}, OurAirports, mapped beaches and peaks`,
       ...(conflict ? { conflict: CONFLICT_SOURCE } : {}),
       ...(regionGdp ? { regionGdp: REGIONAL_GDP_SOURCE } : {}),
     },

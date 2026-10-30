@@ -3,17 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { driveMinutes, formatDriveTime, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
+import { AIRPORT_REACH_KM, driveMinutes, formatDriveTime, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
 import { fetchRoute, googleMapsDirectionsUrl, ROUTE_ATTRIBUTION, WALK_MAX_KM } from "@/lib/routing";
 import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
 import { hasMapPlaces, loadMapPlaces, MAP_LAYER_KINDS, osmPoiFilter, yesRadiusKm, type MapPlace } from "@/lib/mapPlaces";
 import { cn } from "@/lib/cn";
 import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
-import { addMapIcons, mapIconId, mapIconUrl } from "@/components/explore/mapIcons";
+import { addMapIcons, mapIconColor, mapIconId, mapIconUrl } from "@/components/explore/mapIcons";
 import { muteBasemap, muteColor } from "@/lib/mapColors";
 import { INSIDE_KINDS, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
 import { MapCredit } from "@/components/explore/MapCredit";
-import type { MapKind } from "@/lib/kpiRows";
+import { airportsByReach, type MapKind } from "@/lib/kpiRows";
 import type { TravelTimes } from "@/lib/types";
 
 /** OpenFreeMap: free OpenStreetMap vector tiles, no API key, no usage
@@ -85,7 +85,7 @@ function drawFocusPoints(map: maplibregl.Map, focus: MapFocus | null, points: Fo
 /** The chip's count for a Yes: every place within its radius once the
  *  map's tiles have been read, or the dataset's own nearest few. */
 function yesCount(focus: MapFocus, tilePlaces: { places: MapPlace[]; done: boolean } | null, center: { lat: number; lng: number }): string {
-  if (focus.complete) return `${focus.points.length.toLocaleString("en-US")} in the city`;
+  if (focus.complete) return `${focus.points.length.toLocaleString("en-US")} ${airportsByReach(focus.kind) ? `within ${AIRPORT_REACH_KM} km` : "in the city"}`;
   if (tilePlaces && !tilePlaces.done) return "finding them all…";
   if (tilePlaces?.places.length) {
     const n = mergePlaces(center, focus.points, tilePlaces.places).length;
@@ -346,14 +346,17 @@ const KIND_NAMES: Record<MapKind, string> = {
  *  what it is and how far from the centre, and a link to Google Maps (by
  *  name - its listing, reviews and hours - or by its point when unnamed). */
 function placeCardHtml(name: string, kind: MapKind, distance: string, lat: number, lng: number, areaName?: string): string {
-  const title = escapeHtml(name || KIND_NAMES[kind]);
-  const line = escapeHtml(`${name ? `${KIND_NAMES[kind]} · ` : ""}${distance} from the centre`);
+  // Laid out by .piltri-place-card (globals.css): the kind's icon, the
+  // name, the kind in its colour, the distance, the link (2026-10-30, on
+  // request: clearer, aligned, a clean close button).
   return (
-    `<div style="font:12px ${POPUP_FONT}; max-width:200px;">` +
-    `<div style="font-weight:600; margin-bottom:2px;">${title}</div>` +
-    `<div style="color:#6B6155; margin-bottom:4px;">${line}</div>` +
+    `<div class="piltri-place-card">` +
+    `<div class="piltri-place-card-head"><img src="${mapIconUrl(kind)}" width="28" height="28" alt="">` +
+    `<div><div class="piltri-place-card-name">${escapeHtml(name || KIND_NAMES[kind])}</div>` +
+    `<div class="piltri-place-card-kind" style="color:${mapIconColor(kind)}">${escapeHtml(KIND_NAMES[kind])}</div></div></div>` +
+    `<div class="piltri-place-card-meta">${escapeHtml(distance)} from the centre</div>` +
     `<a href="${googleMapsSearchUrl(name ? [name, areaName].filter(Boolean).join(", ") : `${lat.toFixed(5)},${lng.toFixed(5)}`)}" target="_blank" rel="noopener noreferrer" class="piltri-popup-link" ` +
-    `style="display:inline-flex; align-items:center; gap:4px;">Google Maps${OPEN_IN_NEW_SVG}</a>` +
+    `style="display:inline-flex; align-items:center; gap:4px;">Open in Google Maps${OPEN_IN_NEW_SVG}</a>` +
     `</div>`
   );
 }
@@ -751,7 +754,7 @@ export function MapView({
         paint: PLACE_ICON_PAINT,
       });
       // Tapping an icon opens its card.
-      const card = new maplibregl.Popup({ offset: 12, closeButton: true, maxWidth: "240px" });
+      const card = new maplibregl.Popup({ offset: 14, closeButton: true, maxWidth: "260px", className: "piltri-place-popup" });
       for (const id of [`${FOCUS_POINTS_ID}-icons`, `${LAYERS_SOURCE_ID}-icons`, ...MAP_LAYER_KINDS.map(osmLayerId)]) {
         map.on("click", id, (e) => {
           const feature = e.features?.[0];
@@ -1279,7 +1282,9 @@ export function MapView({
             </svg>
           </button>
           {layersOpen && (
-            <div className="absolute right-[46px] top-[76px] z-20 w-56 rounded-xl bg-surface p-1.5 shadow-card">
+            // Never taller than the map (2026-10-30: cut off on a laptop
+            // screen when the map isn't expanded) - it scrolls inside.
+            <div className="absolute right-[46px] top-[76px] z-20 w-56 max-h-[calc(100%-88px)] overflow-y-auto rounded-xl bg-surface p-1.5 shadow-card">
               <p className="px-2 pb-1 pt-0.5 text-[11px] font-medium uppercase tracking-wide text-ink-500">Show on the map</p>
               {listKinds.map((kind) => {
                 const on = layerKinds.includes(kind) || kind === focusKind;
@@ -1313,7 +1318,7 @@ export function MapView({
               })}
               <p className="px-2 pb-1 pt-1.5 text-[11px] leading-snug text-ink-500">
                 {loadInside
-                  ? "Every one in the city, or within 1 km of it."
+                  ? `Every one in the city, or within 1 km of it${airportsByReach("intlAirport") ? `; airports within ${AIRPORT_REACH_KM} km` : ""}.`
                   : detailed
                     ? "Every one in view."
                     : "Within 5 km of the centre - zoom in to see them anywhere."}

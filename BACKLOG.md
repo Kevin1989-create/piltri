@@ -1,14 +1,15 @@
 # Piltri - backlog
 
 The owner's requests and planned work, roughly in order. Updated
-2026-10-28. When an item is done it leaves this list (the details live in
+2026-10-30. When an item is done it leaves this list (the details live in
 `HANDOFF.md` and the git history).
 
 ## Now
 
 - **Next refresh** (owner to run): brings Advanced search's "in the city"
   filters and the local score into the world ranks, leaderboards and
-  search results (the city pages already show the new scores).
+  search results (the city pages already show the new scores), and every
+  airport within 80 km (London: Heathrow, Gatwick, Stansted, Luton...).
 - **WHO's data service is down** (since 2026-10-28): the national PM2.5
   estimate for small island countries outside the satellite map is left
   out (their towns show "No data" for air quality). The World Bank's copy
@@ -69,6 +70,24 @@ doesn't move.
 Done 2026-10-29: more names at a city's own zoom - main roads from zoom
 11 (was 12.2), streets and notable places from 13.5 (was 15)
 (EARLIER_LABELS in MapView).
+
+Done 2026-10-30 (owner's review of London): the layer list scrolls inside
+the map when it's not expanded; a No reads "No" with "nearest 58 km ·
+~1 h by car" under it, not a distance in the Yes column; beaches,
+mountains, forests and airports are coloured by how near they are and
+count in the score (Environment: nature nearby; Quality of Life: an
+international airport within reach); airports count every one within
+80 km of the centre (they sit outside towns), "6 within 80 km · nearest
+Heathrow" (live after the next refresh); a cleaner icon card (the kind in
+its icon's colour, a drawn close cross).
+
+5. **Tram and metro lines on the map** (owner, 2026-10-30: London's Tram
+   shows one stop). Overture has tram track but not its stops, and
+   OpenFreeMap's tiles carry rail lines only from zoom 14, so London's
+   Tramlink (Croydon) appears as a single tile stop. Fix: store the tram
+   and metro lines in the city's data (simplified, from Overture rail)
+   and draw them when the kind is ticked. ~1 session; adds to the dataset
+   size.
 6. **Search an address inside a city** (owner's question; recommended).
    - Free and offline: search the street and place names in the map tiles
      already loaded for the city - streets, stations, shops, but no house

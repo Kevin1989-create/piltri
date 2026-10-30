@@ -131,7 +131,11 @@ credited on the site at /sources (built from the manifest).
   No with the distance. Overture's broad categories are kept by name for
   train stations and universities, and hospitals lose clinics and
   practices (STATION_NAME etc. in build.ts). Trams: Overture has the track,
-  not the stops - a Yes from track alone (INSIDE_TRACK_ONLY). The older
+  not the stops - a Yes from track alone (INSIDE_TRACK_ONLY). Airports
+  (2026-10-30): every one within AIRPORT_REACH_KM (80 km) of the centre,
+  not the outline - they sit outside towns (London: Heathrow, Gatwick,
+  Stansted, Luton, City, Southend); the site shows the count only when
+  the manifest's `inside` source says "airports within". The older
   hasX fields (within 5 km) stay for Advanced search and the ghost check.
 - **Built-up areas** (builtup/<CC>-<n>.json), for towns with no boundary of
   their own - most of India, China, Vietnam, Pakistan, South Africa, where

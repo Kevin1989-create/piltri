@@ -1,4 +1,4 @@
-import { AMENITY_RATIOS, driveMinutes, formatDriveTime, RANGES, residentsWithin5km } from "@/lib/dataset/assemble";
+import { AIRPORT_REACH_KM, AMENITY_RATIOS, driveMinutes, formatDriveTime, NEARNESS, RANGES, residentsWithin5km } from "@/lib/dataset/assemble";
 import { legendOf, TIER_CLASS, tierOf, type LegendLine, type NumericScale, type Tier } from "@/lib/colorScales";
 import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
 import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
@@ -35,6 +35,10 @@ export interface KpiRow {
   colorClass?: string;
   /** Smaller secondary text after the value, e.g. "(73.1%)". */
   valueSuffix?: string;
+  /** A line under the label: a No's nearest one, an airport's count -
+   *  so the figure's name comes before the distance (2026-10-30, on
+   *  request: "Beach" read after "No · nearest 58 km · ~1 h 15 min"). */
+  note?: string;
   /** The source has no figure for this place: shown as "No data". */
   noData?: boolean;
   /** The place it's about can be shown on the city map: the nearest of
@@ -173,6 +177,13 @@ const UCDP = "Uppsala Conflict Data Program, Georeferenced Event Dataset 26.1 (C
  *  the source failed, has none of them. */
 export function hasSource(key: string): boolean {
   return key in manifest.sources;
+}
+
+/** Whether a kind's Yes counts airports within AIRPORT_REACH_KM of the
+ *  centre rather than in the city: datasets from 2026-10-30 (their source
+ *  says so); before, airports were counted in the city like the rest. */
+export function airportsByReach(kind: string): boolean {
+  return (kind === "intlAirport" || kind === "localAirport") && /airports within/.test(manifest.sources.inside ?? "");
 }
 
 /** Each section's KPI list - shared by the results page's detail panel,
@@ -487,43 +498,49 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
       /** "Is there one in the city?" (2026-10-29, on request): Yes - in the
        *  city or within 1 km of its edge, or within 5 km of the centre where
        *  it has no mapped edge - its places all on the map; or No with the
-       *  distance to the nearest, its journey on the map. No count: the
-       *  open data lists a university's departments and the odd language
-       *  school as universities, so "929 universities" in London would
-       *  mislead. Facilities are coloured; airports and nature stay grey
-       *  (whether closer is better depends on you). */
+       *  distance to the nearest (on a line under the name), its journey on
+       *  the map. No count: the open data lists a university's departments
+       *  and the odd language school as universities. Airports are "within
+       *  80 km" - they sit outside towns - with how many and the nearest.
+       *  Nature and airports are coloured by how near (NEARNESS; owner,
+       *  2026-10-30: "should be a positive"), the rest Yes green, No red. */
       const insideRows = (inside: NonNullable<typeof l.inside>): KpiRow[] =>
-        INSIDE_ROWS.flatMap(({ kind, label, what, source, grey }) => {
+        INSIDE_ROWS.flatMap(({ kind, label, what, source }) => {
           const figure = inside[kind];
           if (!figure) return [];
           const { count, nearestKm } = figure;
           // A lake beach only shows where there's one within reach.
           if (kind === "lakeBeach" && count === 0 && nearestKm == null) return [];
+          const airport = airportsByReach(kind);
           const yes = count !== 0;
+          const where = airport
+            ? `within ${distance(AIRPORT_REACH_KM)} of the centre (about an hour by car)`
+            : "in the city or within 1 km of its edge (within 5 km of the centre for a place without a mapped edge)";
           const definition =
-            `Whether there is ${what} in the city or within 1 km of its edge (within 5 km of the centre for a place without a mapped edge).` +
+            `Whether there is ${what} ${where}.` +
             ` If not, the straight-line distance from the centre to the nearest one${!yes && nearestKm != null && byCar(nearestKm) ? `.${driveNote}` : "."}`;
-          const suffix = yes
-            ? undefined
-            : nearestKm != null
-              ? `· nearest ${distance(nearestKm)} ${byCar(nearestKm) ?? ""}`.trim()
-              : `· none within ${distance(500)}`;
-          const row: KpiRow = grey
-            ? neutral(label, yes ? "Yes" : "No", "pinned", { definition, source }, suffix)
-            : {
-                ...categorical(
-                  label,
-                  yes ? "Yes" : "No",
-                  "pinned",
-                  yes ? "good" : "poor",
-                  [
-                    { tier: "good", text: "Yes - in the city or within 1 km of it" },
-                    { tier: "poor", text: "No - the nearest one is further" },
-                  ],
-                  { definition, source }
-                ),
-                valueSuffix: suffix,
-              };
+          const nearest = nearestKm != null ? `nearest ${distance(nearestKm)} ${byCar(nearestKm) ?? ""}`.trim() : `none within ${distance(500)}`;
+          const note = airport && yes ? `${count} within ${distance(AIRPORT_REACH_KM)} · nearest ${distance(nearestKm ?? 0)}` : yes ? undefined : nearest;
+          const near = NEARNESS[kind];
+          const tier: Tier = near
+            ? (() => {
+                const km = !airport && yes ? 0 : (nearestKm ?? Infinity);
+                return km <= near.goodKm ? "good" : km <= near.okKm ? "moderate" : "poor";
+              })()
+            : yes
+              ? "good"
+              : "poor";
+          const legend: LegendLine[] = near
+            ? [
+                { tier: "good", text: `${airport ? "" : "In the city or "}within ${distance(near.goodKm)}` },
+                { tier: "moderate", text: `Within ${distance(near.okKm)}` },
+                { tier: "poor", text: `Further than ${distance(near.okKm)}` },
+              ]
+            : [
+                { tier: "good", text: "Yes - in the city or within 1 km of it" },
+                { tier: "poor", text: "No - the nearest one is further" },
+              ];
+          const row: KpiRow = { ...categorical(label, yes ? "Yes" : "No", "pinned", tier, legend, { definition, source }), note };
           // A Yes shows every one on the map; a No, the journey to the
           // nearest (none to show when there's none within reach).
           return [yes ? onMap(row, kind, "pin")! : nearestKm != null ? onMap(row, kind, "journey")! : row];
@@ -616,7 +633,7 @@ export function splitKpiRowsByTier(rows: KpiRow[]): { countryRows: KpiRow[]; cit
 }
 
 /** The "is there one in the city?" rows, in order (insideRows). */
-const INSIDE_ROWS: { kind: InsideKind; label: string; what: string; source: string; grey?: boolean }[] = [
+const INSIDE_ROWS: { kind: InsideKind; label: string; what: string; source: string }[] = [
   { kind: "train", label: "Train station", what: "a railway station", source: "GeoNames and Overture Maps" },
   { kind: "metro", label: "Metro", what: "a metro or subway station or line", source: "GeoNames and Overture Maps (stations; OpenStreetMap rail lines)" },
   { kind: "tram", label: "Tram / light rail", what: "tram or light rail track", source: "Overture Maps (OpenStreetMap rail lines)" },
@@ -627,12 +644,12 @@ const INSIDE_ROWS: { kind: InsideKind; label: string; what: string; source: stri
   { kind: "university", label: "University", what: "a university", source: "GeoNames and Overture Maps" },
   { kind: "careHome", label: "Care home (elderly)", what: "a care home for older people (nursing, retirement or assisted living)", source: OVERTURE },
   { kind: "hospital", label: "Hospital", what: "a hospital or emergency department (clinics and surgeries aren't counted)", source: OVERTURE },
-  { kind: "intlAirport", label: "International airport", what: "an international airport (a large one, or one with scheduled flights named International)", source: "OurAirports", grey: true },
-  { kind: "localAirport", label: "Local airport", what: "another airport with scheduled passenger flights", source: "OurAirports", grey: true },
-  { kind: "beach", label: "Beach", what: "a beach on the sea or ocean (not a river or estuary bank)", source: "GeoNames and OpenStreetMap beaches, Natural Earth coastline and rivers", grey: true },
-  { kind: "lakeBeach", label: "Lake beach", what: "a beach on a lake or reservoir", source: "GeoNames and OpenStreetMap beaches, Natural Earth lakes and rivers", grey: true },
-  { kind: "mountain", label: "Mountain", what: "a peak of 1,000 m or more that rises at least 500 m above the city", source: "GeoNames", grey: true },
-  { kind: "forest", label: "Forest", what: "a mapped forest or woodland", source: "GeoNames", grey: true },
+  { kind: "intlAirport", label: "International airport", what: "an international airport (a large one, or one with scheduled flights named International)", source: "OurAirports" },
+  { kind: "localAirport", label: "Local airport", what: "another airport with scheduled passenger flights", source: "OurAirports" },
+  { kind: "beach", label: "Beach", what: "a beach on the sea or ocean (not a river or estuary bank)", source: "GeoNames and OpenStreetMap beaches, Natural Earth coastline and rivers" },
+  { kind: "lakeBeach", label: "Lake beach", what: "a beach on a lake or reservoir", source: "GeoNames and OpenStreetMap beaches, Natural Earth lakes and rivers" },
+  { kind: "mountain", label: "Mountain", what: "a peak of 1,000 m or more that rises at least 500 m above the city", source: "GeoNames" },
+  { kind: "forest", label: "Forest", what: "a mapped forest or woodland", source: "GeoNames" },
 ];
 
 /** Transport, education and care presence within 5 km of the centre (10 km

@@ -141,6 +141,7 @@ export const KpiInfoButton = forwardRef<KpiInfoHandle, { row: KpiRow; className?
             <p className={cn("mt-0.5 text-sm font-semibold", row.colorClass ?? "text-ink-900")}>
               {row.value}
               {row.valueSuffix && <span className="ml-1 text-[11px] font-normal">{row.valueSuffix}</span>}
+              {row.note && <span className="ml-1 text-[11px] font-normal">· {row.note}</span>}
             </p>
             <p className="mt-2">{info.definition}</p>
             {row.noData ? (

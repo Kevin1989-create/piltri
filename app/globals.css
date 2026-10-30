@@ -43,6 +43,56 @@
     text-decoration: underline;
   }
 
+  /* A tapped icon's card on the map (MapView placeCardHtml). */
+  .piltri-place-popup .maplibregl-popup-content {
+    padding: 10px 12px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(30, 26, 22, 0.16);
+  }
+  .piltri-place-popup .maplibregl-popup-close-button {
+    top: 6px;
+    right: 6px;
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    /* A drawn cross instead of the "×" character, which sits off-centre in
+     *  most fonts. */
+    font-size: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 2l6 6M8 2l-6 6' stroke='%236b6155' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") center / 10px no-repeat;
+  }
+  .piltri-place-popup .maplibregl-popup-close-button:hover {
+    background-color: #f1ece4;
+  }
+  .piltri-place-card {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+    min-width: 170px;
+  }
+  .piltri-place-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-right: 20px;
+  }
+  .piltri-place-card-head img {
+    flex-shrink: 0;
+  }
+  .piltri-place-card-name {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.25;
+    color: #1e1a16;
+  }
+  .piltri-place-card-kind {
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.3;
+  }
+  .piltri-place-card-meta {
+    margin: 6px 0 4px;
+    font-size: 11px;
+    color: #6b6155;
+  }
+
   /* Hides the browser's own scroll bar, for boxes that draw their own
    *  (see components/ui/ScrollArea.tsx). */
   .no-scrollbar {
