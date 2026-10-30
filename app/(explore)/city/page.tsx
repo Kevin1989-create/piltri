@@ -40,8 +40,13 @@ const PIN_MODE = false;
 
 /** The smallest the map gets on a phone, to leave the score card room. */
 const PHONE_MAP_MIN_PX = 110;
-/** How long the map takes to fill the screen, or go back into the page. */
+/** How long the map takes to fill the screen, or go back into the page
+ *  (phones). */
 const MAP_GROW_MS = 320;
+/** The panels over the map on a computer slide away to the left for the
+ *  expanded map, and back. */
+const PANEL_SLIDE = "md:transition-[transform,opacity] md:duration-300 md:ease-out motion-reduce:transition-none";
+const PANEL_AWAY = "pointer-events-none -translate-x-[calc(100%+360px)] opacity-0";
 
 /** "Lyon, France" - with the region too for a town sharing its name with
  *  a bigger one in the same country ("Springfield, Illinois, United
@@ -231,10 +236,13 @@ function CityContent() {
   // making it smaller closes the figure as well.
   const [mapExpanded, setMapExpanded] = useState(false);
   const mapFills = mapExpanded || mapFullScreen;
-  // Growing to fill the screen and back, smoothly (2026-10-30, owner): the
-  // full-screen map is clipped to where the page's map was and opens out,
-  // its picture held in place meanwhile - no WebGL resizing on every
-  // frame. mapSlotRef: where the page's map sits in mapArea (kept while
+  // Expanding smoothly (2026-10-30, owner: "way too brutal"; keep the top
+  // bar). On a computer the map already fills the width under the top bar:
+  // it stays put, the panels slide away and the map glides to centre the
+  // place (compact framing). On a phone the map strip becomes the whole
+  // screen: the full-screen map is clipped to where the strip was and
+  // opens out, its picture held in place meanwhile - no WebGL resizing on
+  // every frame. mapSlotRef: where the strip sits in mapArea (kept while
   // it's in the page; the same however the page is scrolled).
   const mapBoxRef = useRef<HTMLDivElement | null>(null);
   const mapPictureRef = useRef<HTMLDivElement | null>(null);
@@ -242,12 +250,15 @@ function CityContent() {
   const mapAnimatingRef = useRef(false);
   const mapFilledRef = useRef(mapFills);
   /** The clip and the shift that make the full-screen map look like the
-   *  page's map: only its slot shown, its centre at the slot's centre. */
+   *  page's map: only its slot shown, its centre at the slot's centre.
+   *  None on a computer, where the map doesn't change size. */
   const mapSlotFrames = () => {
-    const box = mapBoxRef.current?.getBoundingClientRect();
+    const el = mapBoxRef.current;
+    if (!el || getComputedStyle(el).position !== "fixed") return null;
+    const box = el.getBoundingClientRect();
     const area = mapAreaRef.current?.getBoundingClientRect();
     const slot = mapSlotRef.current;
-    if (!box || !area || !slot || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
+    if (!area || !slot || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
     const left = area.left + slot.dx;
     const top = area.top + slot.dy;
     const inset = [top - box.top, box.right - left - slot.width, box.bottom - top - slot.height, left - box.left].map((v) => `${Math.max(0, v)}px`);
@@ -589,9 +600,10 @@ function CityContent() {
             "relative overflow-hidden md:h-full md:flex-1 transition-[height,opacity] duration-300 ease-out motion-reduce:transition-none md:transition-none",
             // Until measured (phoneMapStyle): 23% of the screen.
             sectionView ? "h-0 opacity-0" : "h-[23dvh]",
-            // Expanded, or a figure's place on a phone: the map takes the
-            // whole screen.
-            mapFills && "!fixed !inset-0 !z-50 !h-auto !opacity-100"
+            // On a phone, expanded or a figure's place: the map takes the
+            // whole screen. (On a computer it already fills the width under
+            // the top bar - the panels slide away instead.)
+            mapFills && "max-md:!fixed max-md:!inset-0 max-md:!z-50 max-md:!h-auto max-md:!opacity-100"
           )}
           style={sectionView ? undefined : phoneMapStyle}
         >
@@ -633,8 +645,11 @@ function CityContent() {
             side panel. */}
         <div
           ref={scoreColumnRef}
+          aria-hidden={(isDesktop && mapFills) || undefined}
           className={cn(
             "static md:absolute md:top-4 md:left-4 md:bottom-4 flex flex-col w-full md:w-[320px] px-4 md:px-0 mt-3 md:mt-0 pb-3 md:pb-0",
+            PANEL_SLIDE,
+            mapFills && "md:pointer-events-none md:-translate-x-[calc(100%+2rem)] md:opacity-0",
             sectionView && "flex-1"
           )}
         >
@@ -671,9 +686,11 @@ function CityContent() {
         </div>
 
         {data && openSectionKey && openSectionKey !== "resources" && isDesktop && (
-          <SectionDetailPanel section={openSectionKey} data={data} />
+          <SectionDetailPanel section={openSectionKey} data={data} className={cn(PANEL_SLIDE, mapFills && PANEL_AWAY)} />
         )}
-        {data && openSectionKey === "resources" && isDesktop && <ResourcesDetailPanel countryCode={data.countryCode} />}
+        {data && openSectionKey === "resources" && isDesktop && (
+          <ResourcesDetailPanel countryCode={data.countryCode} className={cn(PANEL_SLIDE, mapFills && PANEL_AWAY)} />
+        )}
 
         {/* Pin marker itself stays on the map (MapView); its details show
             as a horizontal bar. On desktop that bar floats at the bottom,

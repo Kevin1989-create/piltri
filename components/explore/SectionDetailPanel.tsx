@@ -2,10 +2,13 @@ import { SECTION_ICONS } from "@/components/ui/icons";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
 import { SectionDetail } from "./SectionDetail";
 import { SECTION_LABELS, type CityExploreData, type SectionKey } from "@/lib/types";
+import { cn } from "@/lib/cn";
 
 interface SectionDetailPanelProps {
   section: SectionKey;
   data: CityExploreData;
+  /** Added to the panel (the city page slides it away for the expanded map). */
+  className?: string;
 }
 
 /** Separate floating card that appears to the right of the main results
@@ -20,10 +23,10 @@ interface SectionDetailPanelProps {
  *  with flex-shrink) so it only takes up as much height as its own content
  *  needs — matching the main column's height instead of stretching to fill
  *  the full available height, which read as noticeably taller/bigger. */
-export function SectionDetailPanel({ section, data }: SectionDetailPanelProps) {
+export function SectionDetailPanel({ section, data, className }: SectionDetailPanelProps) {
   const Icon = SECTION_ICONS[section];
   return (
-    <div className="absolute top-4 left-[344px] bottom-4 flex flex-col w-[400px]">
+    <div className={cn("absolute top-4 left-[344px] bottom-4 flex flex-col w-[400px]", className)}>
       <div className="bg-surface/95 backdrop-blur rounded-card shadow-card overflow-y-auto flex-shrink">
         <div className="px-4 py-3 flex items-center gap-2.5 border-b border-surface-border sticky top-0 bg-surface/95 backdrop-blur">
           <Icon className="w-4 h-4 text-ink-700 flex-shrink-0" />

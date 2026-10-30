@@ -1,8 +1,11 @@
 import { IconResources } from "@/components/ui/icons";
 import { ResourcesDetail } from "./ResourcesDetail";
+import { cn } from "@/lib/cn";
 
 interface ResourcesDetailPanelProps {
   countryCode: string;
+  /** Added to the panel (the city page slides it away for the expanded map). */
+  className?: string;
 }
 
 /** Same floating side panel as SectionDetailPanel (identical positioning/
@@ -11,9 +14,9 @@ interface ResourcesDetailPanelProps {
  *  component is built entirely around SectionKey (score badge, KPI rows)
  *  and Resources has neither. No score badge in the header here - see
  *  ResourcesRow's doc comment for why that matters. */
-export function ResourcesDetailPanel({ countryCode }: ResourcesDetailPanelProps) {
+export function ResourcesDetailPanel({ countryCode, className }: ResourcesDetailPanelProps) {
   return (
-    <div className="absolute top-4 left-[344px] bottom-4 flex flex-col w-[400px]">
+    <div className={cn("absolute top-4 left-[344px] bottom-4 flex flex-col w-[400px]", className)}>
       <div className="bg-surface/95 backdrop-blur rounded-card shadow-card overflow-y-auto flex-shrink">
         <div className="px-4 py-3 flex items-center gap-2.5 border-b border-surface-border sticky top-0 bg-surface/95 backdrop-blur">
           <IconResources className="w-4 h-4 text-ink-700 flex-shrink-0" />

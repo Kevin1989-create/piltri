@@ -579,7 +579,9 @@ export function MapView({
   // it (2026-10-30, owner: the list hid the city).
   const framePadding = (map: maplibregl.Map, extraTop = 0, extraRight = 0): maplibregl.PaddingOptions => {
     const list = layersOpenRef.current && map.getContainer().clientWidth >= LIST_ROOM_MIN_WIDTH ? LAYER_LIST_PX : 0;
-    if (compact) return { top: 40 + extraTop, bottom: 40, left: 40, right: 40 + Math.max(extraRight, list) };
+    // Even on every side, so the place is in the very middle (2026-10-30,
+    // owner) - of the room left beside the list while it's open.
+    if (compact) return { top: 40 + extraTop, bottom: 40 + extraTop, left: 40 + extraRight, right: 40 + Math.max(extraRight, list) };
     const left = Math.max(60, Math.min(780, map.getContainer().clientWidth - 420));
     return { top: 60 + extraTop, bottom: 60, left, right: 60 + extraRight };
   };
