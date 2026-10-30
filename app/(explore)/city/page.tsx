@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
@@ -40,6 +40,8 @@ const PIN_MODE = false;
 
 /** The smallest the map gets on a phone, to leave the score card room. */
 const PHONE_MAP_MIN_PX = 110;
+/** How long the map takes to fill the screen, or go back into the page. */
+const MAP_GROW_MS = 320;
 
 /** "Lyon, France" - with the region too for a town sharing its name with
  *  a bigger one in the same country ("Springfield, Illinois, United
@@ -229,14 +231,88 @@ function CityContent() {
   // making it smaller closes the figure as well.
   const [mapExpanded, setMapExpanded] = useState(false);
   const mapFills = mapExpanded || mapFullScreen;
+  // Growing to fill the screen and back, smoothly (2026-10-30, owner): the
+  // full-screen map is clipped to where the page's map was and opens out,
+  // its picture held in place meanwhile - no WebGL resizing on every
+  // frame. mapSlotRef: where the page's map sits in mapArea (kept while
+  // it's in the page; the same however the page is scrolled).
+  const mapBoxRef = useRef<HTMLDivElement | null>(null);
+  const mapPictureRef = useRef<HTMLDivElement | null>(null);
+  const mapSlotRef = useRef<{ dx: number; dy: number; width: number; height: number } | null>(null);
+  const mapAnimatingRef = useRef(false);
+  const mapFilledRef = useRef(mapFills);
+  /** The clip and the shift that make the full-screen map look like the
+   *  page's map: only its slot shown, its centre at the slot's centre. */
+  const mapSlotFrames = () => {
+    const box = mapBoxRef.current?.getBoundingClientRect();
+    const area = mapAreaRef.current?.getBoundingClientRect();
+    const slot = mapSlotRef.current;
+    if (!box || !area || !slot || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
+    const left = area.left + slot.dx;
+    const top = area.top + slot.dy;
+    const inset = [top - box.top, box.right - left - slot.width, box.bottom - top - slot.height, left - box.left].map((v) => `${Math.max(0, v)}px`);
+    return {
+      clip: `inset(${inset.join(" ")})`,
+      shift: `translate(${left + slot.width / 2 - (box.left + box.width / 2)}px, ${top + slot.height / 2 - (box.top + box.height / 2)}px)`,
+    };
+  };
+  /** Back into the page: shrinks to the slot, then `done` puts it there. */
+  const shrinkMap = useCallback((done: () => void) => {
+    if (mapAnimatingRef.current) return;
+    const frames = mapSlotFrames();
+    if (!frames || !mapBoxRef.current || !mapPictureRef.current) return done();
+    mapAnimatingRef.current = true;
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      mapAnimatingRef.current = false;
+      done();
+    };
+    const timing = { duration: MAP_GROW_MS, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" as const };
+    mapPictureRef.current.animate([{ transform: "none" }, { transform: frames.shift }], timing);
+    mapBoxRef.current.animate([{ clipPath: "inset(0px)" }, { clipPath: frames.clip }], timing).onfinish = finish;
+    // Animations don't run in a page that isn't on screen: never wait on one.
+    setTimeout(finish, MAP_GROW_MS + 150);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useLayoutEffect(() => {
+    const box = mapBoxRef.current;
+    const picture = mapPictureRef.current;
+    const wasFilled = mapFilledRef.current;
+    mapFilledRef.current = mapFills;
+    if (!box || !picture) return;
+    if (!mapFills) {
+      // In the page (back from shrinking, its end state let go): where.
+      for (const el of [box, picture]) for (const a of el.getAnimations()) a.cancel();
+      const area = mapAreaRef.current?.getBoundingClientRect();
+      const r = box.getBoundingClientRect();
+      if (area) mapSlotRef.current = { dx: r.left - area.left, dy: r.top - area.top, width: r.width, height: r.height };
+    } else if (!wasFilled) {
+      // Just filled the screen (MapView has already resized and drawn it):
+      // open out from the slot.
+      const frames = mapSlotFrames();
+      if (!frames) return;
+      const timing = { duration: MAP_GROW_MS, easing: "cubic-bezier(0.2, 0, 0, 1)" };
+      box.animate([{ clipPath: frames.clip }, { clipPath: "inset(0px)" }], timing);
+      picture.animate([{ transform: frames.shift }, { transform: "none" }], timing);
+    }
+  });
   const toggleMapExpanded = useCallback(() => {
     if (mapExpanded || mapFullScreen) {
-      setMapExpanded(false);
-      if (mapFullScreen) closeMapFocus();
+      shrinkMap(() => {
+        setMapExpanded(false);
+        if (mapFullScreen) closeMapFocus();
+      });
     } else {
       setMapExpanded(true);
     }
-  }, [mapExpanded, mapFullScreen, closeMapFocus]);
+  }, [mapExpanded, mapFullScreen, closeMapFocus, shrinkMap]);
+  // On a phone, closing a figure shown full screen shrinks the map too.
+  const closeFocusOnMap = useCallback(() => {
+    if (mapFullScreen && !mapExpanded) shrinkMap(closeMapFocus);
+    else closeMapFocus();
+  }, [mapFullScreen, mapExpanded, shrinkMap, closeMapFocus]);
   useEffect(() => {
     if (!mapFills) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && toggleMapExpanded();
@@ -507,6 +583,7 @@ function CityContent() {
          *  live WebGL map resizing on every frame read as janky. It stays
          *  mounted, so it comes back as it was. */}
         <div
+          ref={mapBoxRef}
           aria-hidden={(sectionView && !mapFills) || undefined}
           className={cn(
             "relative overflow-hidden md:h-full md:flex-1 transition-[height,opacity] duration-300 ease-out motion-reduce:transition-none md:transition-none",
@@ -518,7 +595,7 @@ function CityContent() {
           )}
           style={sectionView ? undefined : phoneMapStyle}
         >
-          <div className={cn("h-[23dvh] md:h-full relative", mapFills && "!h-full")} style={phoneMapStyle}>
+          <div ref={mapPictureRef} className={cn("h-[23dvh] md:h-full relative", mapFills && "!h-full")} style={phoneMapStyle}>
             {center ? (
               <MapView
                 lat={center.lat}
@@ -533,7 +610,7 @@ function CityContent() {
                 reservedBottomPx={isDesktop && pin ? pinPanelHeight : 0}
                 compact={!isDesktop || mapExpanded}
                 focus={mapFocus}
-                onCloseFocus={closeMapFocus}
+                onCloseFocus={closeFocusOnMap}
                 expanded={mapFills}
                 onToggleExpanded={toggleMapExpanded}
                 loadInside={data?.liveability.inside ? loadInside : undefined}

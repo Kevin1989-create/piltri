@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { AIRPORT_REACH_KM, driveMinutes, formatDriveTime, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
@@ -93,6 +93,49 @@ function yesCount(focus: MapFocus, tilePlaces: { places: MapPlace[]; done: boole
   }
   const n = focus.points.length;
   return n === 6 ? "6 nearest" : n > 1 ? `${n} places` : "";
+}
+
+/** The layer list's width plus its margin, kept clear when framing; only
+ *  on a map at least LIST_ROOM_MIN_WIDTH wide (on a phone it covers half
+ *  the map whatever we do - it's ticked and closed). */
+const LAYER_LIST_PX = 200;
+const LIST_ROOM_MIN_WIDTH = 640;
+
+/** Zoom buttons in MapLibre's own look, zooming around the place's centre
+ *  while it's in view (2026-10-30, owner: they zoomed around the map's
+ *  middle, which on a computer is behind the panels, so the city slid
+ *  away) - else around the middle of the view, like MapLibre's. */
+class CityZoomControl implements maplibregl.IControl {
+  private container: HTMLDivElement | null = null;
+  constructor(private centre: () => [number, number]) {}
+
+  onAdd(map: maplibregl.Map): HTMLElement {
+    const container = document.createElement("div");
+    container.className = "maplibregl-ctrl maplibregl-ctrl-group";
+    const add = (className: string, label: string, step: number) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = className;
+      button.title = label;
+      button.setAttribute("aria-label", label);
+      button.innerHTML = '<span class="maplibregl-ctrl-icon" aria-hidden="true"></span>';
+      button.addEventListener("click", (e) => {
+        const centre = this.centre();
+        const around = map.getBounds().contains(centre) ? centre : undefined;
+        map.easeTo({ zoom: map.getZoom() + step, around }, { originalEvent: e });
+      });
+      container.appendChild(button);
+    };
+    add("maplibregl-ctrl-zoom-in", "Zoom in", 1);
+    add("maplibregl-ctrl-zoom-out", "Zoom out", -1);
+    this.container = container;
+    return container;
+  }
+
+  onRemove(): void {
+    this.container?.remove();
+    this.container = null;
+  }
 }
 
 /** A line of the box saying what's on the map: the kind's icon, its name,
@@ -480,6 +523,17 @@ export function MapView({
   // (dataset) or the tiles within 5 km - for its line in the shown box.
   const [layerCounts, setLayerCounts] = useState<Partial<Record<NearbyKind, { n: number; from: "list" | "tiles" }>>>({});
   const [layersOpen, setLayersOpen] = useState(false);
+  // The list only on the expanded map (2026-10-30, owner): there's room for
+  // it, and it's the same on a phone and a computer. The button on the
+  // page's map expands it with the list open.
+  const listHere = expanded || !onToggleExpanded;
+  // Read by the framing (framePadding), and whether the view is still the
+  // one the page framed - the user hasn't zoomed or moved it since - so
+  // opening the list can make room for it without undoing theirs.
+  const layersOpenRef = useRef(false);
+  layersOpenRef.current = layersOpen && listHere;
+  const userMovedRef = useRef(false);
+  const reframeRef = useRef<((duration?: number) => void) | null>(null);
   const [detailed, setDetailed] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   // A Yes being shown counts as ticked in the layer list (2026-10-29, on
@@ -520,9 +574,12 @@ export function MapView({
   // column and the section panel beside it (at their open widths, but never
   // more than the map can spare); compact (mobile) layout has nothing
   // floating over the map, so it uses small symmetric padding.
-  // extraRight: room for a flag's name, which sits to its right.
+  // extraRight: room for a flag's name, which sits to its right - and for
+  // the layer list while it's open, where the map is wide enough to spare
+  // it (2026-10-30, owner: the list hid the city).
   const framePadding = (map: maplibregl.Map, extraTop = 0, extraRight = 0): maplibregl.PaddingOptions => {
-    if (compact) return { top: 40 + extraTop, bottom: 40, left: 40, right: 40 + extraRight };
+    const list = layersOpenRef.current && map.getContainer().clientWidth >= LIST_ROOM_MIN_WIDTH ? LAYER_LIST_PX : 0;
+    if (compact) return { top: 40 + extraTop, bottom: 40, left: 40, right: 40 + Math.max(extraRight, list) };
     const left = Math.max(60, Math.min(780, map.getContainer().clientWidth - 420));
     return { top: 60 + extraTop, bottom: 60, left, right: 60 + extraRight };
   };
@@ -576,7 +633,7 @@ export function MapView({
       attributionControl: false,
     });
 
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(new CityZoomControl(() => [cardContextRef.current.lng, cardContextRef.current.lat]), "top-right");
     // The credit OpenStreetMap's licence asks for is a line in the corner
     // (MapCredit, below) rather than MapLibre's control.
 
@@ -661,6 +718,11 @@ export function MapView({
     // the default drag cursor.)
     if (onMapClick) map.getCanvas().style.cursor = "pointer";
     map.on("zoomend", () => setDetailed(map.getZoom() >= DETAIL_ZOOM));
+    // Any move the user makes (drag, wheel, the zoom buttons) - the page's
+    // own framing has none.
+    map.on("movestart", (e) => {
+      if ((e as { originalEvent?: Event }).originalEvent) userMovedRef.current = true;
+    });
     // Touching the map closes the layer list.
     map.on("mousedown", () => setLayersOpen(false));
     map.on("touchstart", () => setLayersOpen(false));
@@ -884,6 +946,7 @@ export function MapView({
       const rings = area.geometry.type === "MultiPolygon" ? area.geometry.coordinates.flat() : (area.geometry as GeoJSON.Polygon).coordinates;
       for (const ring of rings) for (const coord of ring) bounds.extend(coord as [number, number]);
       areaBoundsRef.current = bounds;
+      userMovedRef.current = false;
       // A figure's place being shown takes the framing (see below) - a
       // flag's together with the place, now that its outline is here.
       const focused = focusRef.current;
@@ -1127,6 +1190,27 @@ export function MapView({
     };
   }, [mapReady, layerKinds, lat, lng, focusKind, loadInside]);
 
+  // Opening or closing the layer list reframes - room for it, then given
+  // back - unless the user has moved the map since it was framed. The list
+  // closes with the expanded map.
+  const listShown = layersOpen && listHere;
+  useEffect(() => {
+    if (mapLoadedRef.current && !userMovedRef.current) reframeRef.current?.(500);
+  }, [listShown]);
+  useEffect(() => {
+    if (!listHere) setLayersOpen(false);
+  }, [listHere]);
+
+  // Expanding or shrinking (the page animates it): resized and drawn at
+  // once, before the screen updates, so the picture is never stretched or
+  // blank for a frame.
+  useLayoutEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    map.resize();
+    map.redraw();
+  }, [expanded]);
+
   // A Yes: look for every place of its kind in the map's tiles (lib/
   // mapPlaces.ts) - the dataset's own nearest 6 show meanwhile, and stay
   // where the tiles have nothing near them.
@@ -1164,6 +1248,7 @@ export function MapView({
     // resized (on phones it goes full screen for a figure's place, and a
     // framing done at the small size would be off-centre).
     const frame = (duration = 800) => {
+      userMovedRef.current = false;
       const points = focusRef.current?.points ?? [];
       const current = points[0];
       if (current && focusRef.current?.style === "pin") {
@@ -1177,6 +1262,7 @@ export function MapView({
         map.fitBounds(areaBoundsRef.current, { padding: framePadding(map), duration });
       }
     };
+    reframeRef.current = frame;
     const apply = () => {
       const source = map.getSource(FOCUS_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
       if (!source) return;
@@ -1305,9 +1391,16 @@ export function MapView({
         <>
           <button
             type="button"
-            onClick={() => setLayersOpen((open) => !open)}
+            onClick={() => {
+              if (listHere) {
+                setLayersOpen((open) => !open);
+              } else {
+                onToggleExpanded?.();
+                setLayersOpen(true);
+              }
+            }}
             aria-label="Places to show on the map"
-            aria-expanded={layersOpen}
+            aria-expanded={listShown}
             title="Places to show on the map"
             className={cn(
               "absolute right-[10px] z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
@@ -1320,17 +1413,17 @@ export function MapView({
               <path d="M3 13l9 5 9-5" />
             </svg>
           </button>
-          {layersOpen && (
+          {listShown && (
             // Right under its button, against the map's edge, narrow
             // (2026-10-30, owner: "take less space from the map"); never
-            // taller than the map - it scrolls inside.
+            // taller than the map - it scrolls inside, under its title.
             <div
               className={cn(
-                "absolute right-[10px] z-20 w-[180px] overflow-y-auto rounded-xl bg-surface p-1 shadow-card",
+                "absolute right-[10px] z-20 w-[180px] overflow-y-auto rounded-xl bg-surface px-1 pb-1 shadow-card",
                 onToggleExpanded ? "top-[148px] max-h-[calc(100%-160px)]" : "top-[111px] max-h-[calc(100%-123px)]"
               )}
             >
-              <p className="px-1.5 pb-0.5 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show on the map</p>
+              <p className="sticky top-0 z-10 bg-surface px-1.5 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show on the map</p>
               {listKinds.map((kind) => {
                 const on = layerKinds.includes(kind) || kind === focusKind;
                 // None in the city: its nearest one's distance - ticking
