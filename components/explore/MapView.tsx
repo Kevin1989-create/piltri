@@ -203,13 +203,13 @@ const LAYER_LABELS: Record<InsideKind, string> = {
   metro: "Metro stations",
   tram: "Tram stops",
   bus: "Bus stations",
-  port: "Ports and ferries",
+  port: "Ports & ferries",
   nursery: "Nurseries",
   school: "Schools",
   university: "Universities",
   careHome: "Care homes",
   hospital: "Hospitals",
-  intlAirport: "International airports",
+  intlAirport: "Int'l airports",
   localAirport: "Local airports",
   beach: "Beaches",
   lakeBeach: "Lake beaches",
@@ -1282,12 +1282,22 @@ export function MapView({
             </svg>
           </button>
           {layersOpen && (
-            // Never taller than the map (2026-10-30: cut off on a laptop
-            // screen when the map isn't expanded) - it scrolls inside.
-            <div className="absolute right-[46px] top-[76px] z-20 w-56 max-h-[calc(100%-88px)] overflow-y-auto rounded-xl bg-surface p-1.5 shadow-card">
-              <p className="px-2 pb-1 pt-0.5 text-[11px] font-medium uppercase tracking-wide text-ink-500">Show on the map</p>
+            // Right under its button, against the map's edge, narrow
+            // (2026-10-30, owner: "take less space from the map"); never
+            // taller than the map - it scrolls inside.
+            <div
+              className={cn(
+                "absolute right-[10px] z-20 w-[180px] overflow-y-auto rounded-xl bg-surface p-1 shadow-card",
+                onToggleExpanded ? "top-[148px] max-h-[calc(100%-160px)]" : "top-[111px] max-h-[calc(100%-123px)]"
+              )}
+            >
+              <p className="px-1.5 pb-0.5 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show on the map</p>
               {listKinds.map((kind) => {
                 const on = layerKinds.includes(kind) || kind === focusKind;
+                // None in the city: its nearest one's distance - ticking
+                // shows it where it is, the map doesn't move (2026-10-29).
+                const none = insideFigures?.[kind as InsideKind]?.count === 0 ? insideFigures[kind as InsideKind]! : null;
+                const label = LAYER_LABELS[kind as InsideKind];
                 return (
                   <button
                     key={kind}
@@ -1295,28 +1305,24 @@ export function MapView({
                     role="menuitemcheckbox"
                     aria-checked={on}
                     onClick={() => toggleLayer(kind)}
-                    className={cn("flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-xs text-ink-900 hover:bg-surface-muted", on && "font-medium")}
+                    title={none ? (none.nearestKm != null ? `None in the city - the nearest is ${formatDistanceKm(none.nearestKm, prefs)} away` : "None within 500 km") : undefined}
+                    className={cn("flex w-full items-center gap-1.5 rounded-lg px-1.5 py-[3px] text-left text-[11px] text-ink-900 hover:bg-surface-muted", on && "font-medium")}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={mapIconUrl(kind)} alt="" width={18} height={18} />
-                    <span className="flex-1">
-                      {LAYER_LABELS[kind as InsideKind]}
-                      {/* None in the city: ticking shows the nearest, where it
-                       *  is - the map doesn't move to it (2026-10-29). */}
-                      {insideFigures?.[kind as InsideKind]?.count === 0 && (
-                        <span className="font-normal text-ink-500">
-                          {" "}
-                          · {insideFigures[kind as InsideKind]!.nearestKm != null ? `nearest ${formatDistanceKm(insideFigures[kind as InsideKind]!.nearestKm!, prefs)}` : "none near"}
-                        </span>
-                      )}
-                    </span>
-                    <span className={cn("flex h-4 w-4 items-center justify-center rounded border text-[10px]", on ? "border-piltri-amber bg-piltri-amber text-white" : "border-ink-300")}>
+                    <img src={mapIconUrl(kind)} alt="" width={16} height={16} />
+                    <span className="min-w-0 flex-1 truncate">{label}</span>
+                    {none && (
+                      <span className="shrink-0 text-[10px] font-normal text-ink-500">
+                        {none.nearestKm != null ? formatDistanceKm(none.nearestKm, prefs) : "none"}
+                      </span>
+                    )}
+                    <span className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border text-[9px]", on ? "border-piltri-amber bg-piltri-amber text-white" : "border-ink-300")}>
                       {on && "✓"}
                     </span>
                   </button>
                 );
               })}
-              <p className="px-2 pb-1 pt-1.5 text-[11px] leading-snug text-ink-500">
+              <p className="px-1.5 pb-0.5 pt-1 text-[10px] leading-snug text-ink-500">
                 {loadInside
                   ? `Every one in the city, or within 1 km of it${airportsByReach("intlAirport") ? `; airports within ${AIRPORT_REACH_KM} km` : ""}.`
                   : detailed
