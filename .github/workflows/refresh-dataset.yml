@@ -59,13 +59,6 @@ jobs:
             ${{ github.workspace }}/.pipeline-cache/raw/worldpop-2025
             ${{ github.workspace }}/.pipeline-cache/raw/GHS_POP_E2020_*
           key: static-inputs-population-v1
-      # Kummu et al.'s regional GDP (Zenodo, ~13 MB), a fixed release too:
-      # kept once downloaded, so later refreshes don't depend on Zenodo
-      # answering GitHub's machines (it didn't on 2026-10-28, twice).
-      - uses: actions/cache@v4
-        with:
-          path: ${{ github.workspace }}/.pipeline-cache/raw/kummu-v4-*
-          key: static-inputs-kummu-v4
       - run: npm run pipeline
       - name: Deploy the site with the new dataset
         if: ${{ env.VERCEL_DEPLOY_HOOK_URL != '' }}

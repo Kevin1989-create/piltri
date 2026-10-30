@@ -133,15 +133,6 @@ export const CRITERIA: CriterionDef[] = [
     getCityValue: (d) => d.economy.purchasingPowerIndex,
   },
   {
-    key: "economy.regionGdpVsNationalPct",
-    category: "economy",
-    label: "Regional GDP per head (% of national)",
-    unit: "%",
-    kind: "range",
-    suggestedRange: [50, 200],
-    getCityValue: (d) => d.economy.regionGdpVsNationalPct ?? null,
-  },
-  {
     key: "economy.gdpUsd",
     category: "economy",
     label: "GDP (billions)",

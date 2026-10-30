@@ -45,7 +45,8 @@ export function NavBar({ center, right, logoSide = "left", border = true }: NavB
   return (
     <header
       className={cn(
-        "flex flex-col gap-2 px-4 py-3 bg-surface",
+        // Tighter on short screens (phones): every pixel goes to the page.
+        "flex flex-col gap-2 px-4 py-3 [@media(max-height:820px)]:py-2 bg-surface",
         "md:grid md:grid-cols-[1fr_auto_1fr] md:items-center md:gap-4 md:px-6",
         border && "border-b border-surface-border"
       )}

@@ -109,11 +109,19 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
   canvas's desaturation filter).
 - **Local figures (phase 1, 2026-10-24)**: median age and population growth
   within 5 km (WorldPop, GHS-POP), nearest hospital (Overture), armed
-  conflict within 50 km (UCDP GED), regional GDP per head as reported
-  (Kummu et al., 2018+). Rows appear only when the dataset's manifest has
-  the source (`hasSource` in `lib/kpiRows.ts`); a failing source is left
-  out of that month's dataset (`optional` in `pipeline/build.ts`). Not
-  scored yet.
+  conflict within 50 km (UCDP GED). Rows appear only when the dataset's
+  manifest has the source (`hasSource` in `lib/kpiRows.ts`); a failing
+  source is left out of that month's dataset (`optional` in
+  `pipeline/build.ts`). Regional GDP per head (Kummu et al.) was switched
+  off on 2026-10-30 (owner): 2018-2021 figures for whole regions, counted
+  where people work - local household income comes in phase 2.
+- **Score, as local as the data allows** (2026-10-30, owner): Environment
+  is all local; Safety adds armed conflict nearby to the country's three
+  figures; Quality of Life adds healthcare access (a hospital in the city,
+  else by distance) and everyday services (train station, bus station,
+  school, nursery in the city) to its four local and two country figures.
+  Economy stays national until phase 2 (`sectionInputs` in
+  `lib/dataset/assemble.ts`). World ranks are computed by the refresh.
 - **Climate**: WorldClim normals incl. monthly highs/lows/rain (climate
   chart), summer high / winter low; climate type from Beck et al.'s
   published Köppen maps (today + projected 2071-2099, SSP2-4.5); sunshine, snowfall and **UV** (NASA

@@ -77,7 +77,34 @@ function exposure(
   return "Low";
 }
 
-/** Each section's 0-100 sub-scores, null where the input is missing. */
+/** Armed conflict within 50 km over 5 years (UCDP events): none scores
+ *  100, falling on a log scale to 0 at CONFLICT_CAP events or more. */
+const CONFLICT_CAP = 200;
+const conflictScore = (events: number) => 100 * (1 - Math.min(1, Math.log10(1 + events) / Math.log10(1 + CONFLICT_CAP)));
+
+/** A hospital in the city (or within 1 km of it) scores 100; otherwise the
+ *  score falls with the distance to the nearest one, to 0 at
+ *  HOSPITAL_FAR_KM. */
+const HOSPITAL_FAR_KM = 50;
+function healthcareAccess(hospital: { count: number; nearestKm: number | null } | undefined): number | null {
+  if (!hospital) return null;
+  if (hospital.count !== 0) return 100;
+  return hospital.nearestKm == null ? 0 : 100 * Math.max(0, 1 - hospital.nearestKm / HOSPITAL_FAR_KM);
+}
+
+/** Everyday services in the city: the share of these it has. */
+const EVERYDAY: InsideKind[] = ["train", "bus", "school", "nursery"];
+function everydayServices(inside: CityExploreData["liveability"]["inside"]): number | null {
+  if (!inside) return null;
+  return (100 * EVERYDAY.filter((kind) => (inside[kind]?.count ?? 0) !== 0).length) / EVERYDAY.length;
+}
+
+/** Each section's 0-100 sub-scores, null where the input is missing.
+ *  As local as the data allows (2026-10-30, owner: "the Piltri score should
+ *  be as local as possible"): Environment is all the place's own; Safety
+ *  adds armed conflict nearby to the country's figures, Quality of Life
+ *  healthcare access and everyday services. Economy stays national until
+ *  phase 2's local household income. */
 function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): Record<SectionKey, (number | null)[]> {
   const e = data.economy;
   const s = data.safetyStability;
@@ -99,6 +126,7 @@ function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): R
       s.politicalStabilityScore,
       s.ruleOfLawScore,
       orNull(s.homicideRatePer100k, (v) => normalise(v, RANGES.homicideRate.min, RANGES.homicideRate.max, true)),
+      orNull(s.conflictEvents5yr ?? null, conflictScore),
     ],
     climate: [
       orNull(c.avgAnnualTemperatureC, (v) => normalise(Math.abs(v - 20), RANGES.temperatureDistanceFrom20C.min, RANGES.temperatureDistanceFrom20C.max, true)),
@@ -116,6 +144,8 @@ function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): R
       // Countries that don't sit PISA get ~the OECD average, so not
       // participating neither rewards nor penalises them.
       normalise(pisaAverage ?? 470, RANGES.pisaScore.min, RANGES.pisaScore.max),
+      healthcareAccess(l.inside?.hospital),
+      everydayServices(l.inside),
     ],
   };
 }

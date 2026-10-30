@@ -6,6 +6,9 @@ The owner's requests and planned work, roughly in order. Updated
 
 ## Now
 
+- **Next refresh** (owner to run): brings Advanced search's "in the city"
+  filters and the local score into the world ranks, leaderboards and
+  search results (the city pages already show the new scores).
 - **WHO's data service is down** (since 2026-10-28): the national PM2.5
   estimate for small island countries outside the satellite map is left
   out (their towns show "No data" for air quality). The World Bank's copy
@@ -28,13 +31,11 @@ The owner's requests and planned work, roughly in order. Updated
 
 ## City page
 
-- **Resources needs a scroll on a phone** (owner, 2026-10-29: "I don't
-  want that"). Since phase 1 the city header has an extra line in each
-  block (average age, growth), and on a 375x812 phone the Resources row
-  ends 3 px from the bottom - below it on a real phone, whose browser bars
-  take ~100-150 px. The page was zero-scroll by design (2026-09-23). Fix:
-  let the map take whatever height is left (with a minimum), and tighten
-  the header blocks on phones.
+Done 2026-10-30: Resources shows without scrolling - on a phone the map
+takes the height left once the score card fits (never under 110 px), the
+world rank sits beside the score, and rows and the top bar are a little
+tighter on short screens. Phones under ~690 px of visible height still
+scroll a little.
 
 ## Map (owner, 2026-10-28)
 
@@ -60,7 +61,7 @@ Size: +42 MB compressed (151 MB), ~530 MB per Vercel deployment.
 Done 2026-10-29 (live after the next refresh): Advanced search's
 stations, schools... filters count "in the city" like the city pages
 (assemble.ts inCity), with a hospital filter and filters for average age,
-growth, armed conflict and regional GDP. On the map: tapping an icon opens
+growth and armed conflict. On the map: tapping an icon opens
 its card (name, kind, distance, Google Maps); ticking a kind the city has
 none of shows the nearest, with "nearest 25 km" in the list - the map
 doesn't move.
@@ -117,11 +118,10 @@ Done 2026-10-29: more names at a city's own zoom - main roads from zoom
    ~6,100), Philippines (official borders on HDX, ~3,100) - licences to
    check. India and China mostly stay estimated: their town borders
    aren't openly published.
-12. **Local figures in the scores** - owner, 2026-10-29: "the Piltri score
-    should be as local as possible". Proposal sent, awaiting approval.
-    Earlier suggestion: Suggested: armed
-    conflict nearby in Safety, nearest hospital in Quality of Life; not
-    regional GDP (86% coverage, high in commuter centres).
+Done 2026-10-30 (owner: "the Piltri score should be as local as
+possible"): armed conflict nearby in Safety; healthcare access and
+everyday services in Quality of Life. Regional GDP removed (too old,
+whole regions); Economy goes local with phase 2's household income.
 
 ## Hosting
 

@@ -165,11 +165,10 @@ const WORLDCLIM = "WorldClim 2.1 climate normals, 1970-2000 averages";
 const OVERTURE = "Overture Maps places (OpenStreetMap and other open sources)";
 // The years match pipeline/conflict.ts (GED 26.1: 2021-2025).
 const UCDP = "Uppsala Conflict Data Program, Georeferenced Event Dataset 26.1 (CC BY 4.0)";
-const REGION_GDP_SOURCE = "Kummu et al. (2025), GDP per capita v4 (Zenodo, CC BY 4.0) - regional figures as each country reported them";
 
 /** Whether the dataset being served has a source's figures (a
- *  manifest.sources key: "regionGdp", "age", "populationGrowth",
- *  "conflict"). The local figures added on 2026-10-24 - "No data" rows
+ *  manifest.sources key: "age", "populationGrowth", "conflict",
+ *  "inside"). The local figures added on 2026-10-24 - "No data" rows
  *  included - show only then: an older dataset, or one built in a month
  *  the source failed, has none of them. */
 export function hasSource(key: string): boolean {
@@ -189,29 +188,10 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           "How expensive everyday goods and services are, rescaled 0-100 (higher is more expensive). Shown in grey because cheaper isn't simply better: low prices usually come with low incomes - purchasing power shows what money actually buys.",
         source: WB("PA.NUS.PRVT.PLI, price level index"),
       };
-      const regionAbout = {
-        definition:
-          "GDP per head of the region this place is in, as its country reports it - a département in France, a district in Germany, a province in Italy or Spain, an economic area in the US, a province or state in China, India or Brazil." +
-          (e.regionGdpPerHeadPpp != null
-            ? ` In ${e.regionGdpYear}: ${e.regionGdpPerHeadPpp.toLocaleString("en-GB")} international dollars a person at purchasing-power parity${e.regionGdpVsNationalPct != null ? `, ${e.regionGdpVsNationalPct}% of ${data.country}'s figure` : ""}. Output is counted where people work, so a central district that draws commuters from around it reads high.`
-            : ` ${data.country} doesn't publish one recent enough (2018 or later), so none is shown - the country's figures are below.`),
-        source: REGION_GDP_SOURCE,
-      };
       // Two per line on the results page: GDP | rank, growth | tax, salary |
       // unemployment, cost of living | purchasing power, the three GDP
       // sectors, currency.
       const rows: (KpiRow | null)[] = [
-        !hasSource("regionGdp")
-          ? null
-          : e.regionGdpPerHeadPpp == null
-            ? missing("Regional GDP per head", "city", regionAbout)
-            : neutral(
-                "Regional GDP per head",
-                e.regionGdpVsNationalPct != null ? `${e.regionGdpVsNationalPct}% of national` : `$${e.regionGdpPerHeadPpp.toLocaleString("en-GB")} PPP`,
-                "city",
-                regionAbout,
-                `(${e.regionGdpYear})`
-              ),
         e.gdpUsd != null
           ? scored("GDP", e.gdpUsd, formatGdpUsd(e.gdpUsd), "country", SCALES.gdp, formatGdpUsd, {
               definition: "The total value of everything the country produces in a year, in US dollars. Larger economies tend to offer more jobs and services.",

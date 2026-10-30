@@ -220,7 +220,10 @@ async function main() {
   const populationGrowth = await optional("population growth", () => samplePopulationGrowth(points));
   const medianAge = await optional("median age", async () => sampleMedianAge(points, await ageFiles));
   const conflict = await optional("armed conflict", () => sampleConflict(points));
-  const regionGdp = await optional("regional GDP", () => sampleRegionalGdp(points, shortlist.map((c) => countryInfo[c.countryCode]?.iso3 ?? null)));
+  // Regional GDP per head (Kummu et al.) is switched off (2026-10-30, owner):
+  // 2018-2021 figures - Lyon's from the pandemic year - for a whole region,
+  // counted where people work. Local household income comes in phase 2.
+  const regionGdp = null as Awaited<ReturnType<typeof sampleRegionalGdp>> | null;
 
   const { glob: placesGlob, release } = await extractOverturePlaces();
   const { glob: railGlob } = await extractOvertureRail();

@@ -24,11 +24,11 @@ const GROUPS: { title: string; sources: Record<string, string> }[] = [
     // Local versions of country figures (2026-10-24, phase 1).
     title: "Local figures",
     sources: {
-      regionGdp: "Regional GDP per head",
       populationGrowth: "Population growth",
       age: "Average age",
       conflict: "Armed conflict nearby",
       hospitals: "Nearest hospital",
+      inside: "Stations, schools, hospitals... in the city",
     },
   },
   {
@@ -241,7 +241,7 @@ export default function SourcesPage() {
               Health data: World Health Organization, UHC service coverage index (via the World Bank). Köppen-Geiger maps: Beck, H. E.
               et al., Scientific Data 10, 724 (2023). Air quality: Atmospheric Composition Analysis Group, Washington University
               in St. Louis. Population: European Commission, Joint Research Centre, GHSL. Age structures: WorldPop
-              (www.worldpop.org), University of Southampton. Regional GDP: Kummu, M. et al., Scientific Data (2025). Armed
+              (www.worldpop.org), University of Southampton. Armed
               conflict: Uppsala Conflict Data Program, Georeferenced Event Dataset (Sundberg &amp; Melander, Journal of Peace
               Research, 2013).
             </p>

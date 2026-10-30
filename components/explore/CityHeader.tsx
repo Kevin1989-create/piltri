@@ -311,18 +311,22 @@ export function CityHeader({
       )}
 
       {/* Label and score on one line — saves the vertical space the label
-       *  used to take as its own row above the big number. */}
-      <div className="mt-1.5 flex items-baseline justify-between gap-2">
-        <p className="text-[11px] uppercase tracking-wide text-ink-500">
-          Piltri score{isCustomised ? " (custom)" : ""}
-        </p>
+       *  used to take as its own row above the big number - and the world
+       *  rank under the label, beside the number rather than on a line of
+       *  its own (2026-10-30: so Resources fits on a phone's screen). */}
+      <div className="mt-1.5 flex items-center justify-between gap-2">
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-ink-500">
+            Piltri score{isCustomised ? " (custom)" : ""}
+          </p>
+          {rank && !isCustomised && (
+            <p className="text-[10px] text-ink-500" title="World rank among every city in Piltri's dataset">
+              #{rank.position.toLocaleString()} of {rank.outOf.toLocaleString()} cities
+            </p>
+          )}
+        </div>
         <PiltriScoreDisplay score={piltriScore} />
       </div>
-      {rank && !isCustomised && (
-        <p className="text-[10px] text-ink-500 text-right -mt-0.5" title="World rank among every city in Piltri's dataset">
-          #{rank.position.toLocaleString()} of {rank.outOf.toLocaleString()} cities
-        </p>
-      )}
 
       {isCustomised && (
         <p className="mt-1.5 text-[11px] text-ink-500">

@@ -38,6 +38,9 @@ import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
  *  it back as it was. */
 const PIN_MODE = false;
 
+/** The smallest the map gets on a phone, to leave the score card room. */
+const PHONE_MAP_MIN_PX = 110;
+
 /** "Lyon, France" - with the region too for a town sharing its name with
  *  a bigger one in the same country ("Springfield, Illinois, United
  *  States"), whose id isn't the plain name-country one. */
@@ -151,6 +154,11 @@ function CityContent() {
   // ends up being, rather than guessing a fixed offset.
   const leftColumnBoxRef = useRef<HTMLDivElement | null>(null);
   const mapAreaRef = useRef<HTMLDivElement | null>(null);
+  // Phones: the map takes the height left once the score card fits below
+  // it, so Resources shows without scrolling (2026-10-30, on request - a
+  // fixed 23% of the screen pushed it off once the header grew).
+  const scoreColumnRef = useRef<HTMLDivElement | null>(null);
+  const [phoneMapPx, setPhoneMapPx] = useState<number | null>(null);
   const [pinPanelBottomPx, setPinPanelBottomPx] = useState(16);
   // Which section's detail panel is showing, if any. On desktop the main
   // column (CityHeader + 5 section rows) is a fixed size and never reacts
@@ -182,6 +190,28 @@ function CityContent() {
   // header, city info and other rows stay where they are (2026-09-30, on
   // request).
   const sectionView = !isDesktop && openSectionKey !== null;
+  // Phones: the room left for the map once the score card (and its 12 px
+  // margin) fits below it - never under PHONE_MAP_MIN_PX. Measured again
+  // when the card changes size or the screen does (a phone's browser bars
+  // come and go); not while a section is open, which hides the map.
+  useEffect(() => {
+    const column = scoreColumnRef.current;
+    const area = mapAreaRef.current;
+    if (isDesktop || sectionView || !column || !area) return;
+    const measure = () => {
+      const top = area.getBoundingClientRect().top + window.scrollY;
+      setPhoneMapPx(Math.max(PHONE_MAP_MIN_PX, Math.floor(window.innerHeight - top - column.offsetHeight - 12)));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [isDesktop, sectionView]);
+  const phoneMapStyle = !isDesktop && phoneMapPx != null ? { height: phoneMapPx } : undefined;
 
   // A Yes or distance figure's place, shown on the map (2026-10-10, on
   // request): a small flag with its name, and for a distance the dashed
@@ -480,13 +510,15 @@ function CityContent() {
           aria-hidden={(sectionView && !mapFills) || undefined}
           className={cn(
             "relative overflow-hidden md:h-full md:flex-1 transition-[height,opacity] duration-300 ease-out motion-reduce:transition-none md:transition-none",
+            // Until measured (phoneMapStyle): 23% of the screen.
             sectionView ? "h-0 opacity-0" : "h-[23dvh]",
             // Expanded, or a figure's place on a phone: the map takes the
             // whole screen.
             mapFills && "!fixed !inset-0 !z-50 !h-auto !opacity-100"
           )}
+          style={sectionView ? undefined : phoneMapStyle}
         >
-          <div className={cn("h-[23dvh] md:h-full relative", mapFills && "!h-full")}>
+          <div className={cn("h-[23dvh] md:h-full relative", mapFills && "!h-full")} style={phoneMapStyle}>
             {center ? (
               <MapView
                 lat={center.lat}
@@ -523,6 +555,7 @@ function CityContent() {
             (`externalDetail={isDesktop}` below) since there's no room for a
             side panel. */}
         <div
+          ref={scoreColumnRef}
           className={cn(
             "static md:absolute md:top-4 md:left-4 md:bottom-4 flex flex-col w-full md:w-[320px] px-4 md:px-0 mt-3 md:mt-0 pb-3 md:pb-0",
             sectionView && "flex-1"

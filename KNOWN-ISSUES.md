@@ -42,10 +42,6 @@ Updated 2026-10-27. The data is an offline dataset served as static files
   real data exists (the plan: https://claude.ai/artifact/D3ofpbjU5YYR3b42w7sXbm);
   never estimated, so many places keep only the country figure.
 - **Local figures (phase 1)**:
-  - Regional GDP per head is each country's own latest report (2018-2021),
-    for 70 countries (86% of places); it ages until countries report
-    again. Output is counted where people work, so a central district
-    that draws commuters reads high (Paris: 313% of France's figure).
   - Average age and growth are "within 5 km" like density; under 1,000
     people within 5 km they show "No data" (about 1% of places).
   - Armed conflict counts UCDP's individually sourced deadly events placed

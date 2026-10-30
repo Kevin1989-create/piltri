@@ -21,7 +21,9 @@ export function ResourcesRow({ isOpen, compact = false, onToggle }: ResourcesRow
       aria-expanded={isOpen}
       className={cn(
         "flex items-center gap-2.5 w-full text-left transition-colors border-t border-surface-border first:border-t-0 scroll-mt-4",
-        compact ? "px-4 py-1.5" : "px-4 py-2",
+        // A little tighter on short screens, so Resources fits too
+        // (2026-10-30, on request).
+        compact ? "px-4 py-1.5" : "px-4 py-2 [@media(max-height:820px)]:py-1.5",
         isOpen ? "bg-piltri-amber-light/40" : "hover:bg-surface-muted"
       )}
     >
