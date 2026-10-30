@@ -95,12 +95,6 @@ function yesCount(focus: MapFocus, tilePlaces: { places: MapPlace[]; done: boole
   return n === 6 ? "6 nearest" : n > 1 ? `${n} places` : "";
 }
 
-/** The layer list's width plus its margin, kept clear when framing; only
- *  on a map at least LIST_ROOM_MIN_WIDTH wide (on a phone it covers half
- *  the map whatever we do - it's ticked and closed). */
-const LAYER_LIST_PX = 200;
-const LIST_ROOM_MIN_WIDTH = 640;
-
 /** Zoom buttons in MapLibre's own look, zooming around the place's centre
  *  while it's in view (2026-10-30, owner: they zoomed around the map's
  *  middle, which on a computer is behind the panels, so the city slid
@@ -527,13 +521,7 @@ export function MapView({
   // it, and it's the same on a phone and a computer. The button on the
   // page's map expands it with the list open.
   const listHere = expanded || !onToggleExpanded;
-  // Read by the framing (framePadding), and whether the view is still the
-  // one the page framed - the user hasn't zoomed or moved it since - so
-  // opening the list can make room for it without undoing theirs.
-  const layersOpenRef = useRef(false);
-  layersOpenRef.current = layersOpen && listHere;
-  const userMovedRef = useRef(false);
-  const reframeRef = useRef<((duration?: number) => void) | null>(null);
+  const listShown = layersOpen && listHere;
   const [detailed, setDetailed] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   // A Yes being shown counts as ticked in the layer list (2026-10-29, on
@@ -574,14 +562,12 @@ export function MapView({
   // column and the section panel beside it (at their open widths, but never
   // more than the map can spare); compact (mobile) layout has nothing
   // floating over the map, so it uses small symmetric padding.
-  // extraRight: room for a flag's name, which sits to its right - and for
-  // the layer list while it's open, where the map is wide enough to spare
-  // it (2026-10-30, owner: the list hid the city).
+  // extraRight: room for a flag's name, which sits to its right.
+  // The layer list opening doesn't move the map (2026-10-30, owner).
   const framePadding = (map: maplibregl.Map, extraTop = 0, extraRight = 0): maplibregl.PaddingOptions => {
-    const list = layersOpenRef.current && map.getContainer().clientWidth >= LIST_ROOM_MIN_WIDTH ? LAYER_LIST_PX : 0;
     // Even on every side, so the place is in the very middle (2026-10-30,
-    // owner) - of the room left beside the list while it's open.
-    if (compact) return { top: 40 + extraTop, bottom: 40 + extraTop, left: 40 + extraRight, right: 40 + Math.max(extraRight, list) };
+    // owner).
+    if (compact) return { top: 40 + extraTop, bottom: 40 + extraTop, left: 40 + extraRight, right: 40 + extraRight };
     const left = Math.max(60, Math.min(780, map.getContainer().clientWidth - 420));
     return { top: 60 + extraTop, bottom: 60, left, right: 60 + extraRight };
   };
@@ -720,11 +706,6 @@ export function MapView({
     // the default drag cursor.)
     if (onMapClick) map.getCanvas().style.cursor = "pointer";
     map.on("zoomend", () => setDetailed(map.getZoom() >= DETAIL_ZOOM));
-    // Any move the user makes (drag, wheel, the zoom buttons) - the page's
-    // own framing has none.
-    map.on("movestart", (e) => {
-      if ((e as { originalEvent?: Event }).originalEvent) userMovedRef.current = true;
-    });
     // Touching the map closes the layer list.
     map.on("mousedown", () => setLayersOpen(false));
     map.on("touchstart", () => setLayersOpen(false));
@@ -948,7 +929,6 @@ export function MapView({
       const rings = area.geometry.type === "MultiPolygon" ? area.geometry.coordinates.flat() : (area.geometry as GeoJSON.Polygon).coordinates;
       for (const ring of rings) for (const coord of ring) bounds.extend(coord as [number, number]);
       areaBoundsRef.current = bounds;
-      userMovedRef.current = false;
       // A figure's place being shown takes the framing (see below) - a
       // flag's together with the place, now that its outline is here.
       const focused = focusRef.current;
@@ -1192,13 +1172,7 @@ export function MapView({
     };
   }, [mapReady, layerKinds, lat, lng, focusKind, loadInside]);
 
-  // Opening or closing the layer list reframes - room for it, then given
-  // back - unless the user has moved the map since it was framed. The list
-  // closes with the expanded map.
-  const listShown = layersOpen && listHere;
-  useEffect(() => {
-    if (mapLoadedRef.current && !userMovedRef.current) reframeRef.current?.(500);
-  }, [listShown]);
+  // The list closes with the expanded map.
   useEffect(() => {
     if (!listHere) setLayersOpen(false);
   }, [listHere]);
@@ -1250,7 +1224,6 @@ export function MapView({
     // resized (on phones it goes full screen for a figure's place, and a
     // framing done at the small size would be off-centre).
     const frame = (duration = 800) => {
-      userMovedRef.current = false;
       const points = focusRef.current?.points ?? [];
       const current = points[0];
       if (current && focusRef.current?.style === "pin") {
@@ -1264,7 +1237,6 @@ export function MapView({
         map.fitBounds(areaBoundsRef.current, { padding: framePadding(map), duration });
       }
     };
-    reframeRef.current = frame;
     const apply = () => {
       const source = map.getSource(FOCUS_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
       if (!source) return;
