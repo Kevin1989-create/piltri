@@ -40,13 +40,15 @@ const PIN_MODE = false;
 
 /** The smallest the map gets on a phone, to leave the score card room. */
 const PHONE_MAP_MIN_PX = 110;
-/** How long the map takes to fill the screen, or go back into the page
- *  (phones). */
-const MAP_GROW_MS = 320;
-/** The panels over the map on a computer slide away to the left for the
- *  expanded map, and back. */
-const PANEL_SLIDE = "md:transition-[transform,opacity] md:duration-300 md:ease-out motion-reduce:transition-none";
-const PANEL_AWAY = "pointer-events-none -translate-x-[calc(100%+360px)] opacity-0";
+/** How long the map takes to fill the screen under the top bar, or go
+ *  back into the page (phones), and how: eased in and out, as gently as
+ *  the map's own glide when the page opens (2026-10-30, owner). */
+const MAP_GROW_MS = 450;
+const MAP_GROW_EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
+/** The panels over the map on a computer fade away with a small drift for
+ *  the expanded map, and back. */
+const PANEL_SLIDE = "md:transition-[transform,opacity] md:duration-[450ms] md:ease-in-out motion-reduce:transition-none";
+const PANEL_AWAY = "pointer-events-none -translate-x-4 opacity-0";
 
 /** "Lyon, France" - with the region too for a town sharing its name with
  *  a bigger one in the same country ("Springfield, Illinois, United
@@ -280,7 +282,7 @@ function CityContent() {
       mapAnimatingRef.current = false;
       done();
     };
-    const timing = { duration: MAP_GROW_MS, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" as const };
+    const timing = { duration: MAP_GROW_MS, easing: MAP_GROW_EASING, fill: "forwards" as const };
     mapPictureRef.current.animate([{ transform: "none" }, { transform: frames.shift }], timing);
     mapBoxRef.current.animate([{ clipPath: "inset(0px)" }, { clipPath: frames.clip }], timing).onfinish = finish;
     // Animations don't run in a page that isn't on screen: never wait on one.
@@ -304,11 +306,15 @@ function CityContent() {
       // open out from the slot.
       const frames = mapSlotFrames();
       if (!frames) return;
-      const timing = { duration: MAP_GROW_MS, easing: "cubic-bezier(0.2, 0, 0, 1)" };
+      const timing = { duration: MAP_GROW_MS, easing: MAP_GROW_EASING };
       box.animate([{ clipPath: frames.clip }, { clipPath: "inset(0px)" }], timing);
       picture.animate([{ transform: frames.shift }, { transform: "none" }], timing);
     }
   });
+  // The full map on a phone starts under the top bar (2026-10-30, owner:
+  // keep it), wherever the page is scrolled. Read from the page as it is -
+  // filling the screen doesn't move the map area.
+  const phoneMapTop = mapFills && !isDesktop && mapAreaRef.current ? Math.max(0, Math.round(mapAreaRef.current.getBoundingClientRect().top)) : null;
   const toggleMapExpanded = useCallback(() => {
     if (mapExpanded || mapFullScreen) {
       shrinkMap(() => {
@@ -601,11 +607,12 @@ function CityContent() {
             // Until measured (phoneMapStyle): 23% of the screen.
             sectionView ? "h-0 opacity-0" : "h-[23dvh]",
             // On a phone, expanded or a figure's place: the map takes the
-            // whole screen. (On a computer it already fills the width under
-            // the top bar - the panels slide away instead.)
-            mapFills && "max-md:!fixed max-md:!inset-0 max-md:!z-50 max-md:!h-auto max-md:!opacity-100"
+            // screen under the top bar (its top: the layout effect above).
+            // On a computer it already fills the width under the top bar -
+            // the panels fade away instead.
+            mapFills && "max-md:!fixed max-md:!inset-x-0 max-md:!bottom-0 max-md:!z-50 max-md:!h-auto max-md:!opacity-100"
           )}
-          style={sectionView ? undefined : phoneMapStyle}
+          style={{ ...(sectionView ? undefined : phoneMapStyle), ...(phoneMapTop != null && { top: phoneMapTop }) }}
         >
           <div ref={mapPictureRef} className={cn("h-[23dvh] md:h-full relative", mapFills && "!h-full")} style={phoneMapStyle}>
             {center ? (
@@ -649,7 +656,7 @@ function CityContent() {
           className={cn(
             "static md:absolute md:top-4 md:left-4 md:bottom-4 flex flex-col w-full md:w-[320px] px-4 md:px-0 mt-3 md:mt-0 pb-3 md:pb-0",
             PANEL_SLIDE,
-            mapFills && "md:pointer-events-none md:-translate-x-[calc(100%+2rem)] md:opacity-0",
+            mapFills && "md:pointer-events-none md:-translate-x-4 md:opacity-0",
             sectionView && "flex-1"
           )}
         >
