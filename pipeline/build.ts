@@ -47,10 +47,10 @@ const SMALL_COUNTRY_KM2 = 10_000;
  *  its hospitals clinics and practices (2026-10-29: "929 universities" in
  *  London). The places a city page lists "in the city" keep the ones
  *  whose name says what they are. */
-const STATION_NAME = /station|railway|rail|bahnhof|gare|estaci[oó]n|stazione|esta[çc][aã]o|halte?|dworzec|n[aá]dra[žz]|вокзал|станция|stanica|駅|站/i;
+const STATION_NAME = /station|railway|\brail\b|bahnhof|\bgare\b|estaci[oó]n|stazione|esta[çc][aã]o|\bhalte?\b|dworzec|n[aá]dra[žz]|вокзал|станция|stanica|駅|站/i;
 const NOT_STATION_NAME = /bus stop|bus station|coach station|police station|fire station|petrol|gas station|charging/i;
 const UNIVERSITY_NAME = /univers|hochschule|polytechn|大学|大學|университет|الجامعة/i;
-const NOT_HOSPITAL_NAME = /(clinic|practice|surgery|dental|dentist|pharmacy|medical cent(?:er|re)|health cent(?:er|re)|laborator|physio|optic|veterinar|GP)/i;
+const NOT_HOSPITAL_NAME = /(clinic|practice|surgery|dental|dentist|pharmacy|medical cent(?:er|re)|health cent(?:er|re)|laborator|physio|optic|veterinar|\bGP\b|equipment|supplies|supplier|corporation)/i;
 const GHOST_MAX_PEOPLE = 1000;
 
 type Points = { lng: ArrayLike<number>; lat: ArrayLike<number>; names?: ArrayLike<string | null> | null };

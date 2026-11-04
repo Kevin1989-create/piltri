@@ -111,13 +111,19 @@ its icon's colour, a drawn close cross).
 
 ## Accounts (owner, 2026-10-28)
 
-8. **Accounts and saved spots**: sign in, save exact spots on the map
-   (with a note), find them again on any device. Fits the zero-cost rule
-   with Supabase's free sign-in and database, which would also keep
-   Supabase active. Needs a privacy notice (emails and saved places are
-   personal data - GDPR), account deletion, and a choice of sign-in
-   (email link, Google...). Suggested after the Cloudflare move; a first
-   step without accounts: spots saved in the browser and shared by link.
+Done 2026-11-04 (step 1, no account): spots on the expanded map - what's
+near, journeys by road, a second spot, saved in the browser, shared by
+link (HANDOFF "Spots").
+
+8. **Accounts** (step 2): sign in, and the spots saved on any device,
+   with a note. Supabase's free sign-in and database, called from the
+   browser (works on Vercel or Cloudflare alike), which also keeps
+   Supabase active; spots saved in the browser carry over at sign-in.
+   Needs a privacy notice (emails and saved places are personal data -
+   GDPR), "delete my account", and the owner's choice of sign-in: an
+   email link (needs a free email-sending account and DNS records at
+   Hostinger - Supabase's own sender allows only a few emails an hour) or
+   Google (a free Google Cloud sign-in client).
 
 ## Data
 

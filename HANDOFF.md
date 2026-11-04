@@ -17,9 +17,17 @@ Real Estate section** - no free, reliable global price source exists.
 - **Explore** (`/`): search a city -> `/city?id=lyon-fr`: map, score,
   section panels (the city's own figures, then its country's), world rank,
   a printable report (`/report?id=`), Compare (`/compare?id=…&id=…`, up
-  to 10 places), and pin mode. Tapping a Yes or a distance shows it on the
-  map: flags for a Yes (up to 6), the road journey for a distance, with an
-  "Open in Google Maps" link.
+  to 10 places). Tapping a Yes or a distance shows it on the map: every
+  place for a Yes, the road journey for a distance, with an "Open in
+  Google Maps" link. The old pin mode is switched off (`PIN_MODE`).
+- **Spots** (2026-10-31, owner): on the expanded map, drop a spot (the
+  pin button under the layer list's): its card lists the centre and the
+  nearest station, school, hospital... from the city's own lists; tapping
+  a line draws the journey by road; a second spot gives the journey
+  between them. Saved in the browser (`lib/spots.ts`, shown on the map and
+  under "Your spots" in the layer list) and shared by link
+  (`/city?id=…&spot=lat,lng&to=lat,lng`, which opens on the expanded map).
+  `components/explore/SpotCard.tsx`; accounts come next (BACKLOG).
 - **Advanced search** (`/search`): one page of plain choices, live results,
   each result's list position and "#N overall"; a country's figures at
   `/country?code=FR`.

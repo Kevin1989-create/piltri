@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
@@ -29,6 +29,7 @@ import { getCityBoundary, getCityExploreData, getCityInside, getCityNearby, getC
 import { cityIdFor, type InsideKind } from "@/lib/dataset/schema";
 import { cityUrl, compareUrl, readCityRef, reportUrl, settingsUrl } from "@/lib/urls";
 import { manifest } from "@/lib/dataset/files";
+import { parseSpotParam } from "@/lib/spots";
 import { usePageMeta } from "@/lib/pageMeta";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
@@ -107,6 +108,14 @@ function CityContent() {
   const ref = readCityRef(params);
   const refKey = ref ? [ref.countryCode, ref.id, ref.lat, ref.lng].join("|") : "";
   const cityId = ref?.id ?? "";
+  // A shared spot (`&spot=lat,lng&to=lat,lng`, lib/spots.ts): the page
+  // opens on the expanded map with it.
+  const spotParam = params.get("spot");
+  const toParam = params.get("to");
+  const linkSpots = useMemo(() => {
+    const a = parseSpotParam(spotParam);
+    return a ? { a, b: parseSpotParam(toParam) } : null;
+  }, [spotParam, toParam]);
   // The city on screen, so tidying an older address (below) doesn't load
   // it all over again.
   const loadedIdRef = useRef<string | null>(null);
@@ -236,7 +245,7 @@ function CityContent() {
   // screen - on a desktop the panels floating over it step aside. On a
   // phone, the full-screen map a figure opens is "expanded" too, and
   // making it smaller closes the figure as well.
-  const [mapExpanded, setMapExpanded] = useState(false);
+  const [mapExpanded, setMapExpanded] = useState(() => linkSpots != null);
   const mapFills = mapExpanded || mapFullScreen;
   // Expanding smoothly (2026-10-30, owner: "way too brutal"; keep the top
   // bar). On a computer the map already fills the width under the top bar:
@@ -635,6 +644,8 @@ function CityContent() {
                 loadInside={data?.liveability.inside ? loadInside : undefined}
                 areaName={data ? placeLabel(data) : undefined}
                 insideFigures={data?.liveability.inside}
+                placeId={data?.cityId}
+                initialSpots={linkSpots}
               />
             ) : (
               <div className="w-full h-full bg-surface-muted" />

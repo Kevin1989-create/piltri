@@ -15,6 +15,9 @@ import { INSIDE_KINDS, type InsideKind, type NearbyKind } from "@/lib/dataset/sc
 import { MapCredit } from "@/components/explore/MapCredit";
 import { airportsByReach, type MapKind } from "@/lib/kpiRows";
 import type { TravelTimes } from "@/lib/types";
+import { SpotCard, type SpotRow } from "@/components/explore/SpotCard";
+import { formatSpotParam, removeSpot, sameSpot, saveSpot, savedSpotsFor, type SavedSpot } from "@/lib/spots";
+import { cityUrl } from "@/lib/urls";
 
 /** OpenFreeMap: free OpenStreetMap vector tiles, no API key, no usage
  *  limits (https://openfreemap.org). "liberty" is the richer style with POI
@@ -222,7 +225,25 @@ interface MapViewProps {
   /** Per kind, how many are in the city and the nearest one's distance -
    *  the layer list says "nearest 25 km" for a kind the city has none of. */
   insideFigures?: Partial<Record<InsideKind, { count: number; nearestKm: number | null }>>;
+  /** The city page's id (`london-gb`): spots are saved under it and shared
+   *  with its address. No spots without it. */
+  placeId?: string;
+  /** Spots from a shared link (`?spot=&to=`), shown once the map is up. */
+  initialSpots?: { a: { lat: number; lng: number }; b: { lat: number; lng: number } | null } | null;
 }
+
+/** A spot dropped on the map (lib/spots.ts): where, and the name of what's
+ *  under it on the map, if anything. */
+type SpotPoint = { lat: number; lng: number; name: string | null };
+/** A spot's card lists the nearest of these (and the centre). */
+const SPOT_KINDS: InsideKind[] = ["train", "metro", "bus", "nursery", "school", "hospital", "intlAirport", "beach"];
+/** A spot's journeys by road, drawn like a distance figure's. */
+const SPOT_ROUTE_ID = "piltri-spot-route";
+/** From this zoom a tap's label names the spot (a street, a station, a
+ *  neighbourhood); below it, labels are towns. */
+const SPOT_NAME_MIN_ZOOM = 13;
+const SPOT_COLOR = "#BA7517";
+const SECOND_SPOT_COLOR = "#3B6E8F";
 
 const FOCUS_SOURCE_ID = "piltri-focus";
 /** A figure's places: the kind's icon on every one, and its name where
@@ -397,6 +418,18 @@ const KIND_NAMES: Record<MapKind, string> = {
   capital: "Capital",
 };
 
+/** A spot saved in this browser (lib/spots.ts): a small round badge with a
+ *  star, its name on hover. */
+function createSavedSpotElement(name: string | null): HTMLDivElement {
+  const el = document.createElement("div");
+  el.title = name ? `${name} - a spot you saved` : "A spot you saved";
+  el.style.cssText =
+    `width:18px;height:18px;border-radius:9999px;background:#fff;border:2px solid ${SPOT_COLOR};` +
+    "box-shadow:0 1px 2px rgba(30,26,22,0.35);cursor:pointer;display:flex;align-items:center;justify-content:center;";
+  el.innerHTML = `<svg viewBox="0 0 24 24" width="10" height="10" fill="${SPOT_COLOR}" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>`;
+  return el;
+}
+
 /** The card that opens on a tapped icon (2026-10-29, on request): its name,
  *  what it is and how far from the centre, and a link to Google Maps (by
  *  name - its listing, reviews and hours - or by its point when unnamed). */
@@ -489,6 +522,8 @@ export function MapView({
   loadInside,
   areaName,
   insideFigures,
+  placeId,
+  initialSpots,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -526,6 +561,24 @@ export function MapView({
   // closing the list with it goes back into the page. Expanded first, or
   // the map touched since: it stays expanded.
   const expandedForListRef = useRef(false);
+  // Spots (2026-10-31, owner): waiting for a tap to place the spot or a
+  // second one; the spots; the card's nearest places; which line's journey
+  // is on the map and that journey by road; the spots saved in this
+  // browser; "Link copied".
+  const [spotMode, setSpotMode] = useState<"a" | "b" | null>(null);
+  const spotModeRef = useRef(spotMode);
+  spotModeRef.current = spotMode;
+  const [spotA, setSpotA] = useState<SpotPoint | null>(null);
+  const [spotB, setSpotB] = useState<SpotPoint | null>(null);
+  const [spotNearest, setSpotNearest] = useState<{ key: string; kind: MapKind; label: string; name: string; lat: number; lng: number }[] | null>(null);
+  const [spotTarget, setSpotTarget] = useState<string | null>(null);
+  const [spotJourney, setSpotJourney] = useState<{ km: number; minutes: number; mode: "car" | "foot" } | "finding" | null>(null);
+  const [savedSpots, setSavedSpots] = useState<SavedSpot[]>([]);
+  const [shareNote, setShareNote] = useState<string | null>(null);
+  const spotMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const spotCardRef = useRef<HTMLDivElement | null>(null);
+  // Spots from a link, framed once the place's own framing is done.
+  const linkSpotsRef = useRef(false);
   const [detailed, setDetailed] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   // A Yes being shown counts as ticked in the layer list (2026-10-29, on
@@ -687,6 +740,26 @@ export function MapView({
     }
 
     map.on("click", async (e) => {
+      // Placing a spot: exactly where tapped, named after what's under it.
+      const placing = spotModeRef.current;
+      if (placing) {
+        linkSpotsRef.current = false;
+        const tapped = { lat: e.lngLat.lat, lng: e.lngLat.lng };
+        // Zoomed out, what's under a tap is a town's label ("London"), not
+        // the spot's street or place.
+        const { name } = map.getZoom() >= SPOT_NAME_MIN_ZOOM ? await resolveClickedFeature(e).catch(() => ({ name: null })) : { name: null };
+        if (placing === "a") {
+          // A new spot starts afresh.
+          setSpotA({ ...tapped, name });
+          setSpotB(null);
+          setSpotTarget(null);
+        } else {
+          setSpotB({ ...tapped, name });
+          setSpotTarget("second");
+        }
+        setSpotMode(null);
+        return;
+      }
       if (!onMapClickRef.current && !pickingDestinationRef.current) return; // view-only map
       // Belt-and-braces fallback: whatever goes wrong inside feature
       // resolution (network hiccup, an unforeseen map error, etc.), the
@@ -710,6 +783,11 @@ export function MapView({
     // the default drag cursor.)
     if (onMapClick) map.getCanvas().style.cursor = "pointer";
     map.on("zoomend", () => setDetailed(map.getZoom() >= DETAIL_ZOOM));
+    // Moved by hand (drag, wheel, the zoom buttons): a shared link's spots
+    // no longer hold the framing.
+    map.on("movestart", (e) => {
+      if ((e as { originalEvent?: Event }).originalEvent) linkSpotsRef.current = false;
+    });
     // Touching the map closes the layer list - and means the expanded map is
     // being used, so it stays expanded (expandedForListRef).
     const closeList = () => {
@@ -798,6 +876,33 @@ export function MapView({
         // Blue, so the journey never reads as part of the amber outline.
         paint: { "line-color": muteColor("#3B6E8F"), "line-width": 3.5 },
       });
+      // A spot's journey: the same look - dashed while it's the straight
+      // line, solid along the roads.
+      map.addSource(SPOT_ROUTE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] }, attribution: ROUTE_ATTRIBUTION });
+      map.addLayer({
+        id: `${SPOT_ROUTE_ID}-casing`,
+        type: "line",
+        source: SPOT_ROUTE_ID,
+        filter: ["!=", ["get", "straight"], true],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": muteColor("#FFFFFF"), "line-width": 7, "line-opacity": 0.9 },
+      });
+      map.addLayer({
+        id: SPOT_ROUTE_ID,
+        type: "line",
+        source: SPOT_ROUTE_ID,
+        filter: ["!=", ["get", "straight"], true],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": muteColor(SECOND_SPOT_COLOR), "line-width": 3.5 },
+      });
+      map.addLayer({
+        id: `${SPOT_ROUTE_ID}-straight`,
+        type: "line",
+        source: SPOT_ROUTE_ID,
+        filter: ["==", ["get", "straight"], true],
+        layout: { "line-cap": "round" },
+        paint: { "line-color": muteColor("#1E1A16"), "line-width": 2.5, "line-opacity": 0.75, "line-dasharray": [1.5, 1.5] },
+      });
       // A figure's places: a dot for every one, and its icon and name
       // where they fit (nearest first).
       addMapIcons(map);
@@ -844,6 +949,8 @@ export function MapView({
       const card = new maplibregl.Popup({ offset: 14, closeButton: true, maxWidth: "260px", className: "piltri-place-popup" });
       for (const id of [`${FOCUS_POINTS_ID}-icons`, `${LAYERS_SOURCE_ID}-icons`, ...MAP_LAYER_KINDS.map(osmLayerId)]) {
         map.on("click", id, (e) => {
+          // A tap placing a spot is for the spot.
+          if (spotModeRef.current) return;
           const feature = e.features?.[0];
           if (!feature || feature.geometry.type !== "Point") return;
           const [plng, plat] = feature.geometry.coordinates as [number, number];
@@ -945,6 +1052,8 @@ export function MapView({
         if (focused.style === "pin") map.fitBounds(yesView(focused), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration: 800 });
         return;
       }
+      // A shared link's spots are framed instead, until the map is moved.
+      if (frameLinkSpots(map)) return;
       map.fitBounds(bounds, { padding: framePadding(map), duration: 800 });
     }
 
@@ -1181,13 +1290,226 @@ export function MapView({
     };
   }, [mapReady, layerKinds, lat, lng, focusKind, loadInside]);
 
-  // The list closes with the expanded map.
+  // The list closes with the expanded map, and a spot waiting to be placed
+  // is let go.
   useEffect(() => {
     if (!listHere) {
       setLayersOpen(false);
+      setSpotMode(null);
       expandedForListRef.current = false;
     }
   }, [listHere]);
+
+  // Spots. The ones saved in this browser for this place; another place
+  // starts without any on the map.
+  const spotsPlaceRef = useRef(placeId);
+  useEffect(() => {
+    setSavedSpots(placeId ? savedSpotsFor(placeId) : []);
+    if (spotsPlaceRef.current && placeId !== spotsPlaceRef.current) closeSpot();
+    spotsPlaceRef.current = placeId;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placeId]);
+  const spotsRef = useRef({ a: spotA, b: spotB });
+  spotsRef.current = { a: spotA, b: spotB };
+  const closeSpot = () => {
+    linkSpotsRef.current = false;
+    setSpotA(null);
+    setSpotB(null);
+    setSpotTarget(null);
+    setSpotMode(null);
+  };
+  /** Room for the spot's card: beside it on a wide map, above it on a phone. */
+  const spotPadding = (map: maplibregl.Map): maplibregl.PaddingOptions => {
+    const box = map.getContainer();
+    const card = spotCardRef.current?.getBoundingClientRect();
+    if (box.clientWidth >= 640) return { top: 70, right: 70, bottom: 50, left: (card?.width ?? 300) + 50 };
+    return { top: 70, right: 50, bottom: Math.min((card?.height ?? 260) + 40, box.clientHeight * 0.55), left: 40 };
+  };
+  const frameSpots = (map: maplibregl.Map, points: { lat: number; lng: number }[]) => {
+    const bounds = new maplibregl.LngLatBounds();
+    for (const p of points) bounds.extend([p.lng, p.lat]);
+    map.fitBounds(bounds, { padding: spotPadding(map), maxZoom: 15, duration: 800 });
+  };
+  /** A shared link's spots, framed in place of the place itself until the
+   *  map is moved by hand or the spots change - the place's own framing
+   *  (its outline arriving, the map expanding) runs after them. */
+  const frameLinkSpots = (map: maplibregl.Map): boolean => {
+    const { a, b } = spotsRef.current;
+    if (!linkSpotsRef.current || !a) return false;
+    frameSpots(map, b ? [a, b] : [a]);
+    return true;
+  };
+  const openSpot = (spot: SpotPoint) => {
+    linkSpotsRef.current = false;
+    setSpotA(spot);
+    setSpotB(null);
+    setSpotTarget(null);
+    setLayersOpen(false);
+    if (mapRef.current) frameSpots(mapRef.current, [spot]);
+  };
+
+  // Spots from a shared link, once the map is up: framed now, and in place
+  // of the place's own framing after (frameLinkSpots).
+  useEffect(() => {
+    if (!initialSpots || !mapReady) return;
+    const { a, b } = initialSpots;
+    setSpotA({ ...a, name: null });
+    setSpotB(b ? { ...b, name: null } : null);
+    setSpotTarget(b ? "second" : null);
+    linkSpotsRef.current = true;
+    if (mapRef.current) frameSpots(mapRef.current, b ? [a, b] : [a]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSpots, mapReady]);
+
+  // Waiting for a tap: a crosshair, and Escape lets it go (before the
+  // page's Escape, which shrinks the map).
+  useEffect(() => {
+    const canvas = mapRef.current?.getCanvas();
+    if (canvas) canvas.style.cursor = spotMode ? "crosshair" : onMapClick ? "pointer" : "";
+    if (!spotMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      setSpotMode(null);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [spotMode, onMapClick]);
+
+  // The spots on the map: the spot (amber) and the second one (blue), both
+  // draggable to fine-tune; the ones saved here, small - a tap reopens one.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    for (const marker of spotMarkersRef.current) marker.remove();
+    const markers: maplibregl.Marker[] = [];
+    for (const saved of savedSpots) {
+      if (spotA && sameSpot(saved, spotA)) continue;
+      const el = createSavedSpotElement(saved.name);
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openSpot({ lat: saved.lat, lng: saved.lng, name: saved.name });
+      });
+      markers.push(new maplibregl.Marker({ element: el }).setLngLat([saved.lng, saved.lat]).addTo(map));
+    }
+    const pin = (spot: SpotPoint, color: string, moved: (spot: SpotPoint) => void) => {
+      const marker = new maplibregl.Marker({ element: createPinElement(color), anchor: "bottom", draggable: true }).setLngLat([spot.lng, spot.lat]).addTo(map);
+      marker.on("dragend", () => {
+        linkSpotsRef.current = false;
+        const { lat: mlat, lng: mlng } = marker.getLngLat();
+        moved({ lat: mlat, lng: mlng, name: null });
+      });
+      markers.push(marker);
+    };
+    if (spotA) pin(spotA, SPOT_COLOR, setSpotA);
+    if (spotB) pin(spotB, SECOND_SPOT_COLOR, setSpotB);
+    spotMarkersRef.current = markers;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spotA, spotB, savedSpots, mapReady]);
+
+  // What's near the spot: the nearest of each SPOT_KINDS from the city's
+  // own lists (or, for a kind it has none of, its nearest one).
+  useEffect(() => {
+    setSpotNearest(null);
+    if (!spotA) return;
+    let cancelled = false;
+    const centre = { key: "centre", kind: "large" as MapKind, label: "Centre", name: areaName?.split(",")[0] ?? "City centre", lat, lng };
+    Promise.all(
+      SPOT_KINDS.map(async (kind) => {
+        const places = loadInside ? await loadInside(kind).catch(() => null) : null;
+        let best: { lng: number; lat: number; name: string } | null = null;
+        let bestKm = Infinity;
+        for (const place of places ?? []) {
+          const km = straightLineKm(spotA, place);
+          if (km < bestKm) [best, bestKm] = [place, km];
+        }
+        return best && { key: kind, kind: kind as MapKind, label: KIND_NAMES[kind], name: best.name || KIND_NAMES[kind], lat: best.lat, lng: best.lng };
+      })
+    ).then((found) => {
+      if (!cancelled) setSpotNearest([centre, ...found.filter((row): row is NonNullable<typeof row> => !!row)]);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [spotA, loadInside, lat, lng, areaName]);
+
+  // The journey to the line tapped (or the second spot): the straight line
+  // at once, then along the roads (lib/routing.ts) when the server answers.
+  const spotTo = spotTarget === "second" ? spotB : spotNearest?.find((row) => row.key === spotTarget) ?? null;
+  const spotTravelMode = spotA && spotTo ? (straightLineKm(spotA, spotTo) <= WALK_MAX_KM ? "foot" : "car") : "car";
+  useEffect(() => {
+    const map = mapRef.current;
+    const source = map?.getSource(SPOT_ROUTE_ID) as maplibregl.GeoJSONSource | undefined;
+    if (!map || !source) return;
+    if (!spotA || !spotTo) {
+      source.setData({ type: "FeatureCollection", features: [] });
+      setSpotJourney(null);
+      return;
+    }
+    let cancelled = false;
+    const from = { lat: spotA.lat, lng: spotA.lng };
+    const to = { lat: spotTo.lat, lng: spotTo.lng };
+    source.setData({ type: "Feature", properties: { straight: true }, geometry: { type: "LineString", coordinates: [[from.lng, from.lat], [to.lng, to.lat]] } });
+    setSpotJourney("finding");
+    frameSpots(map, [from, to]);
+    fetchRoute(from, to, spotTravelMode).then((route) => {
+      if (cancelled) return;
+      setSpotJourney(route && { km: route.km, minutes: route.minutes, mode: route.mode });
+      if (route) source.setData({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: route.coordinates } });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spotA?.lat, spotA?.lng, spotTo?.lat, spotTo?.lng, mapReady]);
+
+  const spotSaved = !!spotA && savedSpots.some((saved) => sameSpot(saved, spotA));
+  const toggleSaveSpot = () => {
+    if (!spotA || !placeId) return;
+    if (spotSaved) removeSpot(spotA);
+    else saveSpot({ placeId, lat: spotA.lat, lng: spotA.lng, name: spotA.name });
+    setSavedSpots(savedSpotsFor(placeId));
+  };
+  const shareNoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** A link that opens this map on the spot (and the second one): the
+   *  phone's share sheet, or copied. */
+  const shareSpot = async () => {
+    if (!spotA || !placeId) return;
+    // Commas kept as they are, for a link that reads well.
+    const link = `${window.location.origin}${cityUrl(placeId)}&spot=${formatSpotParam(spotA)}${spotB ? `&to=${formatSpotParam(spotB)}` : ""}`;
+    let note: string | null = null;
+    try {
+      if (navigator.share && window.matchMedia("(pointer: coarse)").matches) {
+        await navigator.share({ title: `A spot in ${areaName ?? "this place"} · Piltri`, url: link });
+      } else {
+        await navigator.clipboard.writeText(link);
+        note = "Link copied";
+      }
+    } catch (error) {
+      // Not a share sheet closed: the browser wouldn't copy - show it.
+      if ((error as Error)?.name !== "AbortError") window.prompt("Copy this link:", link);
+    }
+    setShareNote(note);
+    if (shareNoteTimer.current) clearTimeout(shareNoteTimer.current);
+    shareNoteTimer.current = setTimeout(() => setShareNote(null), 2500);
+  };
+  /** A line of the card: how far from the spot, and roughly how long. */
+  const spotRow = (row: { key: string; kind: MapKind | "spot"; label: string; name: string; lat: number; lng: number }, from: SpotPoint): SpotRow => {
+    const km = straightLineKm(from, row);
+    const time =
+      km <= WALK_MAX_KM
+        ? `~${Math.max(1, Math.round(((km * ROAD_DETOUR_FACTOR) / WALK_KMH) * 60))} min walk`
+        : `~${formatDriveTime(driveMinutes(km) ?? 1)} by car`;
+    return { key: row.key, kind: row.kind, label: row.label, name: row.name, distance: formatDistanceKm(km, prefs), time };
+  };
+  const spotJourneyText =
+    spotJourney === "finding"
+      ? "Finding the roads…"
+      : spotJourney
+        ? `${formatDriveTime(Math.max(1, Math.round(spotJourney.minutes)))} ${spotJourney.mode === "foot" ? "on foot" : "by car"} · ${formatDistanceKm(spotJourney.km, prefs)} by road`
+        : spotTo
+          ? "No road route found - straight line shown"
+          : null;
 
   // Expanding or shrinking (the page animates it): resized and drawn at
   // once, before the screen updates, so the picture is never stretched or
@@ -1245,7 +1567,7 @@ export function MapView({
         if (routeBoundsRef.current) bounds.extend(routeBoundsRef.current);
         // Room for the chip above and the flag's name beside it.
         map.fitBounds(bounds, { padding: framePadding(map, compact ? 50 : 20, FLAG_LABEL_PX), maxZoom: 15, duration });
-      } else if (areaBoundsRef.current) {
+      } else if (areaBoundsRef.current && !frameLinkSpots(map)) {
         map.fitBounds(areaBoundsRef.current, { padding: framePadding(map), duration });
       }
     };
@@ -1404,14 +1726,45 @@ export function MapView({
               <path d="M3 13l9 5 9-5" />
             </svg>
           </button>
+          {placeId && (
+            // Drop a spot (2026-10-31, owner): under the layer button; on
+            // the page's map it expands the map first.
+            <button
+              type="button"
+              onClick={() => {
+                if (!listHere) onToggleExpanded?.();
+                setLayersOpen(false);
+                setSpotMode((mode) => (mode === "a" ? null : "a"));
+              }}
+              aria-label="Drop a spot on the map"
+              aria-pressed={spotMode === "a"}
+              title="Drop a spot: what's near it, journeys, save and share"
+              className={cn(
+                "absolute right-[10px] z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
+                onToggleExpanded ? "top-[150px]" : "top-[113px]",
+                spotMode === "a" || spotA ? "bg-piltri-amber text-white" : "bg-white text-ink-900 hover:bg-surface-muted"
+              )}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z" />
+                <circle cx="12" cy="9.8" r="2.3" />
+              </svg>
+            </button>
+          )}
           {listShown && (
-            // Right under its button, against the map's edge, narrow
+            // Right under the buttons, against the map's edge, narrow
             // (2026-10-30, owner: "take less space from the map"); never
             // taller than the map - it scrolls inside, under its title.
             <div
               className={cn(
                 "absolute right-[10px] z-20 w-[180px] overflow-y-auto rounded-xl bg-surface px-1 pb-1 shadow-card",
-                onToggleExpanded ? "top-[148px] max-h-[calc(100%-160px)]" : "top-[111px] max-h-[calc(100%-123px)]"
+                placeId
+                  ? onToggleExpanded
+                    ? "top-[185px] max-h-[calc(100%-197px)]"
+                    : "top-[148px] max-h-[calc(100%-160px)]"
+                  : onToggleExpanded
+                    ? "top-[148px] max-h-[calc(100%-160px)]"
+                    : "top-[111px] max-h-[calc(100%-123px)]"
               )}
             >
               <p className="sticky top-0 z-10 bg-surface px-1.5 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show on the map</p>
@@ -1465,11 +1818,66 @@ export function MapView({
                   </>
                 )}
               </p>
+              {savedSpots.length > 0 && (
+                // The spots saved here, to go back to one.
+                <>
+                  <p className="px-1.5 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wide text-ink-500">Your spots</p>
+                  {savedSpots.map((saved) => (
+                    <button
+                      key={`${saved.lat},${saved.lng}`}
+                      type="button"
+                      onClick={() => openSpot({ lat: saved.lat, lng: saved.lng, name: saved.name })}
+                      className="flex w-full items-center gap-1.5 rounded-lg px-1.5 py-[3px] text-left text-[11px] text-ink-900 hover:bg-surface-muted"
+                    >
+                      <svg viewBox="0 0 24 24" width="12" height="12" fill={SPOT_COLOR} aria-hidden className="mx-0.5 shrink-0">
+                        <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />
+                      </svg>
+                      <span className="min-w-0 flex-1 truncate">{saved.name ?? "Your spot"}</span>
+                      <span className="shrink-0 text-[10px] text-ink-500">{formatDistanceKm(straightLineKm({ lat, lng }, saved), prefs)}</span>
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           )}
         </>
       )}
-      <MapCredit routes={!!routeInfo} />
+      {spotMode === "a" && (
+        <div className="absolute bottom-8 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-pill bg-ink-900/80 py-1.5 pl-4 pr-1.5 text-xs text-white">
+          Tap the map to drop your spot
+          <button type="button" onClick={() => setSpotMode(null)} className="rounded-pill bg-white/15 px-2.5 py-0.5 hover:bg-white/25">
+            Cancel
+          </button>
+        </div>
+      )}
+      {listHere && spotA && spotMode !== "a" && (
+        // Bottom left, above the credit line; on a phone, at most about half
+        // the map, scrolling inside.
+        <div ref={spotCardRef} className="absolute bottom-6 left-3 z-10 flex max-h-[45%] w-[calc(100%-1.5rem)] flex-col sm:max-h-[calc(100%-110px)] sm:w-[300px]">
+          <SpotCard
+            name={spotA.name}
+            coords={`${spotA.lat.toFixed(5)}, ${spotA.lng.toFixed(5)}`}
+            rows={spotNearest && spotNearest.map((row) => spotRow(row, spotA))}
+            second={spotB && spotRow({ key: "second", kind: "spot", label: "Second spot", name: spotB.name ?? "Your second spot", lat: spotB.lat, lng: spotB.lng }, spotA)}
+            placingSecond={spotMode === "b"}
+            target={spotTarget}
+            journey={spotJourneyText}
+            journeyUrl={spotTo ? googleMapsDirectionsUrl(spotA, spotTo, spotTravelMode) : null}
+            saved={spotSaved}
+            shareNote={shareNote}
+            onPick={(key) => setSpotTarget((current) => (current === key ? null : key))}
+            onAddSecond={() => setSpotMode((mode) => (mode === "b" ? null : "b"))}
+            onClearSecond={() => {
+              setSpotB(null);
+              setSpotTarget((current) => (current === "second" ? null : current));
+            }}
+            onToggleSave={toggleSaveSpot}
+            onShare={shareSpot}
+            onClose={closeSpot}
+          />
+        </div>
+      )}
+      <MapCredit routes={!!routeInfo || !!spotTo} />
     </div>
   );
 }

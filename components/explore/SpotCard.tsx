@@ -1,0 +1,167 @@
+"use client";
+
+import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
+import { mapIconUrl } from "@/components/explore/mapIcons";
+import { cn } from "@/lib/cn";
+import type { MapKind } from "@/lib/kpiRows";
+
+/** A line of the card: the centre, the nearest place of a kind, or the
+ *  second spot - with how far, and roughly how long. */
+export interface SpotRow {
+  /** "centre", "second", or the kind. */
+  key: string;
+  kind: MapKind | "spot";
+  label: string;
+  name: string;
+  distance: string;
+  time: string;
+}
+
+interface SpotCardProps {
+  name: string | null;
+  coords: string;
+  /** Null while the nearest places are being found. */
+  rows: SpotRow[] | null;
+  second: SpotRow | null;
+  placingSecond: boolean;
+  /** The row whose journey is on the map, and that journey by road
+   *  ("12 min by car · 4.1 km", or "Finding the roads…"). */
+  target: string | null;
+  journey: string | null;
+  journeyUrl: string | null;
+  saved: boolean;
+  /** "Link copied", briefly. */
+  shareNote: string | null;
+  onPick: (key: string) => void;
+  onAddSecond: () => void;
+  onClearSecond: () => void;
+  onToggleSave: () => void;
+  onShare: () => void;
+  onClose: () => void;
+}
+
+/** The teardrop the spots wear on the map, small. */
+function SpotPin({ color }: { color: string }) {
+  return (
+    <svg viewBox="-2 -2 28 36" width="14" height="18" aria-hidden className="shrink-0">
+      <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 20 12 20s12-11 12-20C24 5.383 18.617 0 12 0z" fill="#FFFFFF" stroke={color} strokeWidth="2.5" />
+      <circle cx="12" cy="12" r="5" fill={color} />
+    </svg>
+  );
+}
+
+/** A spot dropped on the expanded map (2026-10-31, owner): what's near it
+ *  - the centre and the nearest station, school, hospital... from the
+ *  city's own lists - a second spot's journey, save and share. Tapping a
+ *  line draws its journey by road. */
+export function SpotCard(props: SpotCardProps) {
+  const { name, coords, rows, second, placingSecond, target, journey, journeyUrl, saved, shareNote } = props;
+
+  const row = (r: SpotRow, clear?: () => void) => {
+    const selected = r.key === target;
+    return (
+      <div key={r.key}>
+        <div className={cn("flex items-center rounded-lg hover:bg-surface-muted", selected && "bg-surface-muted")}>
+          <button
+            type="button"
+            onClick={() => props.onPick(r.key)}
+            title={`Show the journey to ${r.name} on the map`}
+            className="flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left"
+          >
+            {r.kind === "spot" ? (
+              <SpotPin color="#3B6E8F" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={mapIconUrl(r.kind)} alt="" width={16} height={16} className="shrink-0" />
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="block text-[10px] leading-tight text-ink-500">{r.label}</span>
+              <span className="block truncate text-xs font-medium leading-tight text-ink-900">{r.name}</span>
+            </span>
+            <span className="shrink-0 text-right tabular-nums">
+              <span className="block text-xs leading-tight text-ink-900">{r.distance}</span>
+              <span className="block text-[10px] leading-tight text-ink-500">{r.time}</span>
+            </span>
+          </button>
+          {clear && (
+            <button type="button" aria-label="Remove the second spot" onClick={clear} className="mr-1 shrink-0 rounded-full p-1 text-ink-500 hover:text-ink-900">
+              <CloseIcon className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+        {selected && journey && (
+          <p className="flex flex-wrap items-center gap-x-2 pb-1 pl-8 pr-2 text-[11px] text-ink-700">
+            <span>{journey}</span>
+            {journeyUrl && (
+              <a href={journeyUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-piltri-amber-dark underline-offset-2 hover:underline">
+                Google Maps
+                <ExternalLinkIcon className="h-3 w-3" />
+              </a>
+            )}
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex min-h-0 flex-col overflow-hidden rounded-2xl bg-surface shadow-card">
+      <div className="flex items-start gap-2 border-b border-surface-border px-3 pb-2 pt-2.5">
+        <span className="pt-0.5">
+          <SpotPin color="#BA7517" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-semibold leading-tight text-ink-900">{name ?? "Your spot"}</p>
+          <p className="text-[11px] leading-tight text-ink-500 tabular-nums">
+            {name && "Your spot · "}
+            {coords}
+          </p>
+        </div>
+        <button type="button" aria-label="Remove the spot" onClick={props.onClose} className="shrink-0 rounded-full p-1 text-ink-500 hover:text-ink-900">
+          <CloseIcon className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-1.5 py-1">
+        {second ? (
+          row(second, props.onClearSecond)
+        ) : (
+          <button
+            type="button"
+            onClick={props.onAddSecond}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-xs hover:bg-surface-muted",
+              placingSecond ? "font-medium text-piltri-amber-dark" : "text-ink-700"
+            )}
+          >
+            <SpotPin color="#3B6E8F" />
+            {placingSecond ? "Tap the map for your second spot…" : "Add a second spot - work, a school…"}
+          </button>
+        )}
+        <p className="px-1.5 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-ink-500">Nearest from here</p>
+        {rows ? rows.map((r) => row(r)) : <p className="animate-pulse px-1.5 py-1 text-xs text-ink-500">Finding what's near…</p>}
+      </div>
+
+      <div className="flex items-center gap-1.5 border-t border-surface-border px-2 py-1.5">
+        <button
+          type="button"
+          onClick={props.onToggleSave}
+          aria-pressed={saved}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium",
+            saved ? "bg-piltri-amber text-white" : "bg-surface-muted text-ink-900 hover:bg-surface-border"
+          )}
+        >
+          <svg viewBox="0 0 24 24" width="12" height="12" fill={saved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden>
+            <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />
+          </svg>
+          {saved ? "Saved" : "Save"}
+        </button>
+        <button type="button" onClick={props.onShare} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink-900 hover:bg-surface-border">
+          Share link
+        </button>
+        <span className="ml-auto truncate pr-1 text-[10px] text-ink-500">{shareNote ?? (saved ? "Kept in this browser" : "")}</span>
+      </div>
+    </div>
+  );
+}
