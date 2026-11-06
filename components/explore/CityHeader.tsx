@@ -44,6 +44,9 @@ interface CityHeaderProps {
    *  hidden when custom weights are active, since the rank was computed
    *  for the default score, not the customised one. */
   rank?: { position: number; outOf: number };
+  /** Leaves out the country's block - a phone with a section open
+   *  (2026-11-06, owner): the score and the city's own figures stay. */
+  hideCountry?: boolean;
 }
 
 /** Abbreviates large counts (population, density) to a short, glanceable
@@ -104,6 +107,7 @@ export function CityHeader({
   weights,
   settingsHref = SETTINGS_URL,
   rank,
+  hideCountry = false,
 }: CityHeaderProps) {
   const isCustomised = weights != null && isCustomWeights(weights);
   const { prefs } = useUnitPreferences();
@@ -299,7 +303,7 @@ export function CityHeader({
         </div>
       )}
 
-      {countryStats && (
+      {countryStats && !hideCountry && (
         <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
           <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{country}</p>
           <div className="mt-0.5 grid grid-cols-3 items-start gap-x-3 gap-y-0.5">

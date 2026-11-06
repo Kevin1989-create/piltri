@@ -135,7 +135,9 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
   school, nursery in the city) and an international airport within reach
   to its four local and two country figures.
   Economy stays national until phase 2 (`sectionInputs` in
-  `lib/dataset/assemble.ts`). World ranks are computed by the refresh.
+  `lib/dataset/assemble.ts`); inflation joined it on 2026-11-06 (owner:
+  closest to 2% a year is best, RANGES.inflation). World ranks are
+  computed by the refresh.
 - **Climate**: WorldClim normals incl. monthly highs/lows/rain (climate
   chart), summer high / winter low; climate type from Beck et al.'s
   published Köppen maps (today + projected 2071-2099, SSP2-4.5); sunshine, snowfall and **UV** (NASA
@@ -148,8 +150,10 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
   to 15/30 km where there are under 30 tests (radius stored and shown).
 - **Nearest large city** (500k+), distances to capital/airport/station,
   time zone (GeoNames; UTC offset computed in the browser), currency.
-- Country-level: World Bank (economy, safety, demographics, life expectancy,
-  internet use, PISA), WHO UHC (healthcare), ND-GAIN, UN median age.
+- Country-level: World Bank (economy incl. inflation, safety, demographics,
+  life expectancy, internet use, PISA), WHO UHC (healthcare), ND-GAIN, UN
+  median age. Trade balance was considered and left out (2026-11-06): a
+  surplus or deficit isn't good or bad in itself.
 - **Licences**: all open; credited publicly at /sources. Only Ookla
   is non-commercial - build with `PIPELINE_COMMERCIAL=1` to drop it. WHO
   data is CC BY 4.0.

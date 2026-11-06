@@ -65,6 +65,9 @@ export interface EconomyFields {
   /** GNI per capita converted to GBP - an average-income proxy. */
   averageSalaryGbp: number | null;
   unemploymentRatePct: number | null;
+  /** Consumer price inflation over the latest year, % (FP.CPI.TOTL.ZG) -
+   *  absent from datasets before 2026-11-06. */
+  inflationPct?: number | null;
   /** Agriculture/Industry/Services by share of GDP, largest first (0-3
    *  entries - only sectors World Bank has a value for). */
   gdpSectorRanking: GdpSectorShare[];

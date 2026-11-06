@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { loadOfficialLanguages } from "./sources/languages";
 import { getCountryMedianAge } from "./sources/medianAge";
 import { getClimateReadiness } from "./sources/climateReadiness";
@@ -20,6 +21,7 @@ const INDICATORS = {
   gdpLevel: "NY.GDP.MKTP.KD", // constant 2015 US$ - growth
   gni: "NY.GNP.PCAP.CD",
   unemployment: "SL.UEM.TOTL.ZS",
+  inflation: "FP.CPI.TOTL.ZG", // consumer prices, annual % (2026-11-06)
   ppp: "NY.GDP.PCAP.PP.CD",
   priceLevel: "PA.NUS.PRVT.PLI",
   politicalStability: "GOV_WGI_PV.SC",
@@ -114,7 +116,10 @@ export async function fetchWhoNationalPm25(): Promise<Record<string, number>> {
 /** One record per country in the shortlist (name, currency and capital come
  *  from GeoNames via the shortlist step). */
 export async function buildCountries(countryInfo: Record<string, CountryInfo>): Promise<Record<string, CountryRecord>> {
-  const series = await cached("worldbank-series", async () => {
+  // Keyed by the indicator list: adding one (inflation, 2026-11-06) fetches
+  // afresh rather than reading a cache without it.
+  const indicatorsKey = createHash("md5").update(Object.values(INDICATORS).join(",")).digest("hex").slice(0, 8);
+  const series = await cached(`worldbank-series-${indicatorsKey}`, async () => {
     const out: Partial<Record<IndicatorKey, Record<string, Series>>> = {};
     for (const [key, code] of Object.entries(INDICATORS) as [IndicatorKey, string][]) {
       log("worldbank", `${code}`);
@@ -163,6 +168,7 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
         economicGrowth5yrGdpPct: pctChange(get("gdpLevel")),
         averageSalaryGbp: gni != null ? Math.round(gni * 0.79) : null,
         unemploymentRatePct: latest(get("unemployment")),
+        inflationPct: round(latest(get("inflation")), 1),
         gdpSectorRanking: rankGdpSectors(latest(get("agriculture")), latest(get("industry")), latest(get("services"))),
         costOfLivingIndex: priceLevel != null ? normalise(priceLevel, RANGES.priceLevel.min, RANGES.priceLevel.max) : null,
         purchasingPowerIndex: ppp != null ? normalise(ppp, RANGES.ppp.min, RANGES.ppp.max) : null,

@@ -231,11 +231,6 @@ function CityContent() {
     };
   }, [isDesktop, sectionView]);
   const phoneMapStyle = !isDesktop && phoneMapPx != null ? { height: phoneMapPx } : undefined;
-  // With a section open, the map gives way first - down to its minimum - so
-  // the open section keeps the 200 px SectionColumn asks for; the picture
-  // follows its box.
-  const mapBoxStyle = sectionView && phoneMapPx != null ? { flexBasis: phoneMapPx, height: "auto", minHeight: PHONE_MAP_MIN_PX } : phoneMapStyle;
-  const mapPictureStyle = sectionView ? { height: "100%" } : phoneMapStyle;
 
   // A Yes or distance figure's place, shown on the map (2026-10-10, on
   // request): a small flag with its name, and for a distance the dashed
@@ -607,26 +602,25 @@ function CityContent() {
        *  (`main` above drops `h-screen` below `md` for exactly this reason).
        *  `relative` stays on unconditionally since it's still needed as the
        *  positioning context for the `md:absolute` children. */}
-      <div ref={mapAreaRef} className={cn("relative flex flex-col md:flex-1 md:overflow-hidden", sectionView && "min-h-0 flex-1")}>
+      <div ref={mapAreaRef} className={cn("relative flex flex-col md:flex-1 md:overflow-hidden", sectionView && "flex-1")}>
         {/* Mobile: the height measured for it (phoneMapStyle), 23dvh until
-         *  then. It stays while a section is open (2026-11-06, owner: "the
-         *  map is important, always visible"), giving way only as far as
-         *  the open section needs (mapBoxStyle); the other sections' rows
-         *  are hidden. */}
+         *  then. It stays exactly as it is while a section is open
+         *  (2026-11-06, owner: "the map is important", "shouldn't move at
+         *  all") - the other sections' rows and the country's figures make
+         *  the room instead. */}
         <div
           ref={mapBoxRef}
           className={cn(
-            "relative h-[23dvh] overflow-hidden md:h-full md:flex-1",
-            !sectionView && "shrink-0",
+            "relative h-[23dvh] shrink-0 overflow-hidden md:h-full md:flex-1",
             // On a phone, expanded or a figure's place: the map takes the
             // screen under the top bar (its top: the layout effect above).
             // On a computer it already fills the width under the top bar -
             // the panels fade away instead.
             mapFills && "max-md:!fixed max-md:!inset-x-0 max-md:!bottom-0 max-md:!z-50 max-md:!h-auto max-md:!opacity-100"
           )}
-          style={{ ...mapBoxStyle, ...(phoneMapTop != null && { top: phoneMapTop }) }}
+          style={{ ...phoneMapStyle, ...(phoneMapTop != null && { top: phoneMapTop }) }}
         >
-          <div ref={mapPictureRef} className={cn("h-[23dvh] md:h-full relative", mapFills && "!h-full")} style={mapPictureStyle}>
+          <div ref={mapPictureRef} className={cn("h-[23dvh] md:h-full relative", mapFills && "!h-full")} style={phoneMapStyle}>
             {center ? (
               <MapView
                 lat={center.lat}
@@ -687,8 +681,9 @@ function CityContent() {
             )}
             {data && (
               <>
-                {/* Always in full - on mobile too while a section is open
-                 *  (the map is what makes room; see the map div above). */}
+                {/* On a phone with a section open, without the country's
+                 *  figures: the score and the city's own stay (2026-11-06,
+                 *  owner). */}
                 <CityHeader
                   cityName={data.cityName}
                   country={data.country}
@@ -699,6 +694,7 @@ function CityContent() {
                   settingsHref={settingsHref}
                   weights={weights}
                   rank={data.ranks ? { position: data.ranks.piltri, outOf: data.ranks.outOf } : undefined}
+                  hideCountry={sectionView}
                 />
                 <SectionColumn data={data} externalDetail={isDesktop} fill onOpenSectionChange={setOpenSectionKey} />
               </>

@@ -13,6 +13,9 @@ const inCity = (city: CityRecord, kind: InsideKind): boolean | null =>
 export const RANGES = {
   gdpGrowth: { min: -10, max: 40 },
   unemployment: { min: 0, max: 25 },
+  /** Inflation: closest to 2% a year (most central banks' target) is best,
+   *  9 points away from it (11%, or -7%) scores 0 (2026-11-06, owner). */
+  inflation: { ideal: 2, range: 9 },
   salary: { min: 2000, max: 90000 }, // GNI per capita, USD
   ppp: { min: 2000, max: 120000 },
   priceLevel: { min: 15, max: 130 },
@@ -159,6 +162,7 @@ function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): R
     economy: [
       orNull(e.economicGrowth5yrGdpPct, (v) => normalise(v, RANGES.gdpGrowth.min, RANGES.gdpGrowth.max)),
       orNull(e.unemploymentRatePct, (v) => normalise(v, RANGES.unemployment.min, RANGES.unemployment.max, true)),
+      orNull(e.inflationPct ?? null, (v) => normalise(Math.abs(v - RANGES.inflation.ideal), 0, RANGES.inflation.range, true)),
       orNull(gniPerCapitaUsd, (v) => normalise(v, RANGES.salary.min, RANGES.salary.max)),
       orNull(e.costOfLivingIndex, (v) => 100 - v),
       e.purchasingPowerIndex,

@@ -133,6 +133,7 @@ const SCALES = {
   // averageSalaryGbp is GNI per capita x 0.79 - the scoring range, converted.
   salaryGbp: { kind: "higher", min: 1580, max: 71100 },
   unemployment: { kind: "lower", ...RANGES.unemployment },
+  inflation: { kind: "ideal", ...RANGES.inflation },
   // Under 2 per 100k is Western Europe / East Asia; above 10 is among the
   // world's most violent (the global average is ~6).
   homicide: { kind: "bands", goodMax: 2, moderateMax: 10 },
@@ -199,9 +200,18 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           "How expensive everyday goods and services are, rescaled 0-100 (higher is more expensive). Shown in grey because cheaper isn't simply better: low prices usually come with low incomes - purchasing power shows what money actually buys.",
         source: WB("PA.NUS.PRVT.PLI, price level index"),
       };
-      // Two per line on the results page: GDP | rank, growth | tax, salary |
-      // unemployment, cost of living | purchasing power, the three GDP
-      // sectors, currency.
+      // Two per line on the results page: GDP | rank, growth | inflation,
+      // salary | unemployment, cost of living | purchasing power, tax |
+      // currency, the three GDP sectors.
+      const inflationRow =
+        // Datasets from 2026-11-06 (before, the field isn't there at all).
+        e.inflationPct === undefined
+          ? null
+          : scoredOrMissing("Inflation", e.inflationPct, (n) => `${n.toFixed(1)}%`, "country", SCALES.inflation, withUnit("%", 1), {
+              definition:
+                "How much consumer prices rose over the latest year. Around 2% is what most central banks aim for; much higher eats into savings and salaries, and falling prices (deflation) usually go with a weak economy.",
+              source: WB("FP.CPI.TOTL.ZG"),
+            });
       const rows: (KpiRow | null)[] = [
         e.gdpUsd != null
           ? scored("GDP", e.gdpUsd, formatGdpUsd(e.gdpUsd), "country", SCALES.gdp, formatGdpUsd, {
@@ -219,12 +229,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           definition: "How much the economy has grown over roughly the last five years, after inflation.",
           source: WB("NY.GDP.MKTP.KD, constant 2015 US$"),
         }),
-        e.taxRevenuePctGdp != null
-          ? neutral("Tax revenue", `${e.taxRevenuePctGdp.toFixed(1)}% of GDP`, "country", {
-              definition: "Taxes collected by central government as a share of GDP. A policy choice rather than good or bad.",
-              source: WB("GC.TAX.TOTL.GD.ZS"),
-            })
-          : null,
+        inflationRow,
         scoredOrMissing("Average salary", e.averageSalaryGbp, (n) => formatCurrency(n, prefs), "country", SCALES.salaryGbp, (n) => formatCurrency(n, prefs), {
           definition: "Gross national income per person per year, in your currency - a guide to average income rather than a measured wage.",
           source: WB("NY.GNP.PCAP.CD"),
@@ -240,13 +245,19 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           definition: "What an average income buys locally - income per person adjusted for local prices, rescaled 0-100.",
           source: WB("NY.GDP.PCAP.PP.CD"),
         }),
-        ...gdpSectorRows(data),
+        e.taxRevenuePctGdp != null
+          ? neutral("Tax revenue", `${e.taxRevenuePctGdp.toFixed(1)}% of GDP`, "country", {
+              definition: "Taxes collected by central government as a share of GDP. A policy choice rather than good or bad.",
+              source: WB("GC.TAX.TOTL.GD.ZS"),
+            })
+          : null,
         e.currency
           ? neutral("Currency", `${e.currency.name} (${e.currency.code})`, "country", {
               definition: "The country's official currency.",
               source: "GeoNames country information",
             })
           : null,
+        ...gdpSectorRows(data),
       ];
       return rows.filter((r): r is KpiRow => r != null);
     }

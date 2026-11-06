@@ -148,6 +148,16 @@ export const DIFF_FACTS: DiffFact[] = [
     unit: 3,
   },
   {
+    key: "inflation",
+    label: "Inflation",
+    get: (d) => d.economy.inflationPct ?? null,
+    show: (v) => `${n1(v)}% a year`,
+    up: ["has faster-rising prices", "has the fastest-rising prices"],
+    down: ["has slower-rising prices", "has the slowest-rising prices"],
+    lead: "down",
+    unit: 3,
+  },
+  {
     key: "crime",
     label: "Homicide rate",
     get: (d) => d.safetyStability.homicideRatePer100k,
