@@ -1,4 +1,5 @@
 import type { PlaceTable } from "@/lib/advancedSearch/engine";
+import { BEACH_KM, ETERNAL_SPRING, SIZE_BANDS, SUNNY_HOURS, type SizeBand } from "@/lib/advancedSearch/finder";
 import { hasEnoughFigures } from "@/lib/dataset/assemble";
 import { manifest } from "@/lib/dataset/files";
 import { regionOf, type RegionKey } from "@/lib/regions";
@@ -6,16 +7,19 @@ import { formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
 import type { CriterionValue, SectionScores } from "@/lib/types";
 
 /**
- * Leaderboards (/leaderboards): ten rankings of every place, worked out in
- * the browser from the Advanced search files (section scores plus a few
- * criterion columns) - so they always match the data the site shows.
+ * Leaderboards (/leaderboards): eleven rankings of every place, worked out
+ * in the browser from the Advanced search files (section scores plus a
+ * few criterion columns) - so they always match the data the site shows.
+ * Its sizes, and its boards' rules, are Advanced search's own (2026-11-06,
+ * owner: "align"): the four sections, and a filter for each themed board.
  */
 
 export type BoardKey =
   | "overall"
   | "safest"
-  | "qualityOfLife"
   | "economy"
+  | "environment"
+  | "qualityOfLife"
   | "eternalSpring"
   | "sunniest"
   | "cleanAir"
@@ -23,33 +27,10 @@ export type BoardKey =
   | "beachLife"
   | "familyFriendly";
 
-export type SizeKey = "under10k" | "10to50k" | "50to100k" | "100to500k" | "over500k" | "all";
+/** Advanced search's size groups (SIZE_BANDS), or every size. */
+export type SizeKey = SizeBand | "all";
 
-/** Smallest to biggest, then everyone - ranges that don't overlap
- *  (2026-10-16, on request: "10k+" wasn't clear). */
-export const SIZE_ORDER: SizeKey[] = ["under10k", "10to50k", "50to100k", "100to500k", "over500k", "all"];
-
-export const SIZE_LABELS: Record<SizeKey, string> = {
-  under10k: "Population under 10k",
-  "10to50k": "Population 10k to 50k",
-  "50to100k": "Population 50k to 100k",
-  "100to500k": "Population 100k to 500k",
-  over500k: "Population over 500k",
-  all: "All populations",
-};
-
-/** Each range's bounds in thousands (population is in thousands, as in the
- *  Advanced search column): at least the first, under the second. */
-const SIZE_RANGE: Record<SizeKey, [number, number]> = {
-  under10k: [0, 10],
-  "10to50k": [10, 50],
-  "50to100k": [50, 100],
-  "100to500k": [100, 500],
-  over500k: [500, Infinity],
-  all: [0, Infinity],
-};
-
-const inSize = (size: SizeKey, populationK: number) => populationK >= SIZE_RANGE[size][0] && populationK < SIZE_RANGE[size][1];
+const inSize = (size: SizeKey, populationK: number) => size === "all" || SIZE_BANDS.find((b) => b.key === size)!.test(populationK);
 
 interface BoardContext {
   table: PlaceTable;
@@ -106,14 +87,6 @@ export const BOARDS: BoardDef[] = [
     show: ({ table }, i) => round(table.sections(i).safetyStability),
   },
   {
-    key: "qualityOfLife",
-    title: "Best quality of life",
-    blurb: "Quality of Life score: amenities, transport, health, internet",
-    needs: [],
-    score: ({ table }, i) => table.sections(i).liveability,
-    show: ({ table }, i) => round(table.sections(i).liveability),
-  },
-  {
     key: "economy",
     title: "Strongest economy",
     blurb: "Economy score: growth, salaries, jobs, purchasing power",
@@ -122,16 +95,32 @@ export const BOARDS: BoardDef[] = [
     show: ({ table }, i) => round(table.sections(i).economy),
   },
   {
+    key: "environment",
+    title: "Best environment",
+    blurb: "Environment score: climate, clean air, nature nearby",
+    needs: [],
+    score: ({ table }, i) => table.sections(i).climate,
+    show: ({ table }, i) => round(table.sections(i).climate),
+  },
+  {
+    key: "qualityOfLife",
+    title: "Best quality of life",
+    blurb: "Quality of Life score: amenities, transport, health, internet",
+    needs: [],
+    score: ({ table }, i) => table.sections(i).liveability,
+    show: ({ table }, i) => round(table.sections(i).liveability),
+  },
+  {
     key: "eternalSpring",
     title: "Eternal spring",
-    blurb: "Mild all year: around 20°C, summer highs under 27°C, winter nights above 12°C",
+    blurb: `Advanced search's Eternal spring - winter nights above ${ETERNAL_SPRING.minLowC}°C, summer days under ${ETERNAL_SPRING.maxHighC}°C - closest to 20°C`,
     needs: ["climate.avgAnnualTemperatureC", "climate.hottestMonthHighC", "climate.coldestMonthLowC"],
     score: ({ col }, i) => {
       const avg = num(col("climate.avgAnnualTemperatureC")(i));
       const hi = num(col("climate.hottestMonthHighC")(i));
       const lo = num(col("climate.coldestMonthLowC")(i));
-      if (avg == null || hi == null || lo == null) return null;
-      return 100 - (2 * Math.abs(avg - 20) + 1.5 * Math.max(0, hi - 27) + 1.5 * Math.max(0, 12 - lo));
+      if (avg == null || hi == null || lo == null || hi > ETERNAL_SPRING.maxHighC || lo < ETERNAL_SPRING.minLowC) return null;
+      return 100 - 2 * Math.abs(avg - 20);
     },
     show: ({ col }, i, prefs) => {
       const lo = num(col("climate.coldestMonthLowC")(i)) ?? 0;
@@ -169,19 +158,19 @@ export const BOARDS: BoardDef[] = [
   {
     key: "beachLife",
     title: "Beach life",
-    blurb: "A beach within 2 km and 2,000+ hours of sun, by Piltri score",
+    blurb: `Advanced search's Beach and Sunny - a beach within ${BEACH_KM} km, ${SUNNY_HOURS.toLocaleString("en-GB")}+ hours of sun - by Piltri score`,
     needs: ["liveability.distanceToBeachKm", "climate.avgAnnualSunshineHrs"],
     score: ({ table, weights, col }, i) => {
       const beach = num(col("liveability.distanceToBeachKm")(i));
       const sun = num(col("climate.avgAnnualSunshineHrs")(i));
-      return beach != null && beach <= 2 && sun != null && sun >= 2000 ? table.piltri(i, weights) : null;
+      return beach != null && beach <= BEACH_KM && sun != null && sun >= SUNNY_HOURS ? table.piltri(i, weights) : null;
     },
     show: ({ table, weights }, i) => round(table.piltri(i, weights)),
   },
   {
     key: "familyFriendly",
     title: "Family-friendly",
-    blurb: "School and nursery nearby; safety, quality of life, parks and family activities",
+    blurb: "Advanced search's School and Nursery, then safety, quality of life, parks and family activities",
     needs: ["liveability.hasSchool", "liveability.hasNursery", "liveability.parksPer10k", "liveability.familyActivitiesPer10k"],
     score: ({ table, col }, i) => {
       if (col("liveability.hasSchool")(i) !== true || col("liveability.hasNursery")(i) !== true) return null;

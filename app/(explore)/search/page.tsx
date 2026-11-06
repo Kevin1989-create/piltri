@@ -391,7 +391,7 @@ function SearchContent() {
   const worldRank = useMemo(() => {
     if (!table || !population) return null;
     const all = runFinder(table, (key) => columns[key] ?? (() => null), languagesOf, normalised, { ...EMPTY_STATE, sort: state.sort });
-    const listed = state.every ? all.indices : all.heads;
+    const listed = all.heads;
     const rank = new Int32Array(table.count);
     listed.forEach((i, k) => (rank[i] = k + 1));
     const isListed = new Uint8Array(table.count);
@@ -403,7 +403,7 @@ function SearchContent() {
     }
     return rank;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table, population, languagesOf, normalised, state.sort, state.every]);
+  }, [table, population, languagesOf, normalised, state.sort, columns]);
   const fresh = useMemo(
     () => (ready ? runFinder(table, (key) => columns[key] ?? (() => null), languagesOf, normalised, state) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -417,9 +417,14 @@ function SearchContent() {
   useEffect(() => setShown(PAGE), [fresh]);
 
   const col = (key: string): Column => columns[key] ?? (() => null);
-  const listed = result ? (state.every ? result.indices : result.heads) : [];
+  // One per neighbourhood (GROUP_KM), always - each row says how many more
+  // matches it stands for (2026-11-06, owner: no need for the choice).
+  const listed = result ? result.heads : [];
   const count = result?.indices.length ?? 0;
   const filterCount = activeFilterCount(state);
+  // Nothing is listed until something is chosen (2026-11-06, owner: no
+  // place names before searching).
+  const chosenNothing = filterCount === 0;
   const countText = `${count.toLocaleString("en-GB")} ${count === 1 ? "place" : "places"}`;
 
   const mapPoints: MapPoint[] = useMemo(
@@ -435,7 +440,7 @@ function SearchContent() {
           }))
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [table, result, normalised, state.every]
+    [table, result, normalised]
   );
 
   // Removable chips for what's chosen - shown above the results on phones,
@@ -450,7 +455,7 @@ function SearchContent() {
     ...state.languages.map((l) => ({ label: l, remove: () => set({ languages: toggle(state.languages, l) }) })),
   ];
 
-  const clearAll = () => setState((s) => ({ ...EMPTY_STATE, sort: s.sort, view: s.view, every: s.every }));
+  const clearAll = () => setState((s) => ({ ...EMPTY_STATE, sort: s.sort, view: s.view }));
 
   return (
     <main className={cn("min-h-dvh flex flex-col bg-surface-muted", picked.length > 0 && "pb-20")}>
@@ -493,7 +498,7 @@ function SearchContent() {
               </div>
               <div className="p-4 border-t border-surface-border flex-shrink-0">
                 <button type="button" onClick={() => setSheetOpen(false)} className="w-full rounded-pill bg-piltri-amber text-white py-3 text-sm font-medium">
-                  Show {countText}
+                  {chosenNothing ? "Close" : `Show ${countText}`}
                 </button>
               </div>
             </div>
@@ -512,7 +517,13 @@ function SearchContent() {
                 {filterCount > 0 && <span className="rounded-pill bg-piltri-amber text-white px-1.5 text-[10px] tabular-nums">{filterCount}</span>}
               </button>
               <p className="text-sm text-ink-900 tabular-nums mr-auto" aria-live="polite">
-                {result ? <span className="font-medium">{countText}</span> : <span className="text-ink-500">Loading places…</span>}
+                {chosenNothing ? (
+                  <span className="text-ink-500">Choose what matters to you</span>
+                ) : result ? (
+                  <span className="font-medium">{countText}</span>
+                ) : (
+                  <span className="text-ink-500">Loading places…</span>
+                )}
               </p>
               <select
                 value={state.sort}
@@ -540,14 +551,6 @@ function SearchContent() {
               </div>
             </div>
 
-            {result && count > 0 && state.view !== "countries" && (
-              <label className="mt-2.5 w-fit flex items-center gap-2 text-[11px] text-ink-500 cursor-pointer select-none">
-                <input type="checkbox" checked={!state.every} onChange={(e) => set({ every: !e.target.checked })} className="accent-piltri-amber" />
-                One per neighbourhood ({formatDistanceKm(GROUP_KM, prefs)})
-                {!state.every && result.heads.length < count && <span className="text-ink-300">· {result.heads.length.toLocaleString("en-GB")} shown</span>}
-              </label>
-            )}
-
             {chosen.length > 0 && (
               <div className="md:hidden mt-3 flex gap-1.5 overflow-x-auto no-scrollbar -mx-4 px-4">
                 {chosen.map((c) => (
@@ -561,6 +564,15 @@ function SearchContent() {
             <div className="mt-4">
               {failed ? (
                 <p className="text-sm text-score-weak">Couldn&apos;t load the places - please try again.</p>
+              ) : chosenNothing ? (
+                <div className="rounded-card border border-surface-border bg-surface px-5 py-8 text-center">
+                  <p className="text-sm text-ink-900">Pick what matters to you - where, size, climate, what&apos;s within reach.</p>
+                  <p className="text-xs text-ink-500 mt-1">
+                    <span className="md:hidden">Tap Filters to start; </span>
+                    <span className="hidden md:inline">Choose on the left; </span>
+                    the places that match appear here, best first.
+                  </p>
+                </div>
               ) : !table || !result ? (
                 <ul className="grid gap-3 lg:grid-cols-2">
                   {Array.from({ length: 8 }, (_, k) => (
@@ -603,7 +615,7 @@ function SearchContent() {
                           score={table.piltri(i, normalised)}
                           population={population ? (population(i) as number | null) : null}
                           facts={factsFor(col, i, state, prefs)}
-                          nearby={state.every ? 0 : (result.nearby.get(i) ?? 0)}
+                          nearby={result.nearby.get(i) ?? 0}
                           radius={formatDistanceKm(GROUP_KM, prefs)}
                           picked={picked.includes(id)}
                           onPick={() => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length < MAX_COMPARE ? [...p, id] : p))}

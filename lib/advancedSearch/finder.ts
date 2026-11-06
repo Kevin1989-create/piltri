@@ -18,12 +18,14 @@ type Col = (key: string) => Column;
 const num = (v: CriterionValue) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const thousands = (n: number) => Math.round(n).toLocaleString("en-GB");
 
-/* ---- Size: the population column is in thousands. ---- */
-export type SizeBand = "village" | "town" | "city" | "big";
+/* ---- Size: the population column is in thousands. The same five groups
+ *      on the leaderboards (2026-11-06, owner: "align"). ---- */
+export type SizeBand = "village" | "town" | "smallCity" | "city" | "big";
 export const SIZE_BANDS: { key: SizeBand; label: string; hint: string; test: (k: number) => boolean }[] = [
   { key: "village", label: "Villages", hint: "under 10k", test: (k) => k < 10 },
   { key: "town", label: "Towns", hint: "10k-50k", test: (k) => k >= 10 && k < 50 },
-  { key: "city", label: "Cities", hint: "50k-500k", test: (k) => k >= 50 && k < 500 },
+  { key: "smallCity", label: "Small cities", hint: "50k-100k", test: (k) => k >= 50 && k < 100 },
+  { key: "city", label: "Cities", hint: "100k-500k", test: (k) => k >= 100 && k < 500 },
   { key: "big", label: "Big cities", hint: "500k+", test: (k) => k >= 500 },
 ];
 const POPULATION = "demographics.population";
@@ -63,6 +65,13 @@ const PM25 = "climate.avgAnnualPm25";
 const rainText = (mm: number, prefs: UnitPreferences) =>
   prefs.distance === "imperial" ? `${Math.round(mm / 25.4)} in` : `${thousands(mm)} mm`;
 
+/** Shared with the leaderboards, so a filter and its board mean the same
+ *  (2026-11-06, owner: "align"): eternal spring's highs and lows, a sunny
+ *  year's hours, a beach's distance. */
+export const ETERNAL_SPRING = { maxHighC: 27, minLowC: 12 };
+export const SUNNY_HOURS = 2500;
+export const BEACH_KM = 10;
+
 export const CLIMATE: Toggle[] = [
   {
     key: "warm",
@@ -89,11 +98,19 @@ export const CLIMATE: Toggle[] = [
     fact: (col, i, p) => `${formatTemperature(num(col(T_HI)(i)) ?? 0, p)} summer days`,
   },
   {
+    key: "eternalSpring",
+    label: "Eternal spring",
+    hint: (p) => `${formatTemperature(ETERNAL_SPRING.minLowC, p)} nights, ${formatTemperature(ETERNAL_SPRING.maxHighC, p)} days at most`,
+    needs: [T_HI, T_LO],
+    test: (col, i) => atMost(T_HI, ETERNAL_SPRING.maxHighC)(col, i) && atLeast(T_LO, ETERNAL_SPRING.minLowC)(col, i),
+    fact: (col, i, p) => `${formatTemperature(num(col(T_LO)(i)) ?? 0, p)} to ${formatTemperature(num(col(T_HI)(i)) ?? 0, p)}`,
+  },
+  {
     key: "sunny",
     label: "Sunny",
-    hint: () => "2,500+ hours of sun",
+    hint: () => `${thousands(SUNNY_HOURS)}+ hours of sun`,
     needs: [SUN],
-    test: atLeast(SUN, 2500),
+    test: atLeast(SUN, SUNNY_HOURS),
     fact: (col, i) => `${thousands(num(col(SUN)(i)) ?? 0)} h of sun`,
   },
   {
@@ -142,9 +159,9 @@ export const NEARBY: Toggle[] = [
   {
     key: "beach",
     label: "Beach",
-    hint: (p) => `within ${formatDistanceKm(10, p)}`,
+    hint: (p) => `within ${formatDistanceKm(BEACH_KM, p)}`,
     needs: [BEACH],
-    test: atMost(BEACH, 10),
+    test: atMost(BEACH, BEACH_KM),
     fact: distanceFact(BEACH, "Beach"),
   },
   {
@@ -227,17 +244,27 @@ export const STRONG: { key: string; section: SectionKey }[] = [
 /* ---- Official language: the most widely official ones. ---- */
 export const LANGUAGES = ["English", "Spanish", "French", "Portuguese", "German", "Italian", "Dutch", "Arabic", "Chinese", "Russian"];
 
-/* ---- Sort ---- */
-export type SortKey = "match" | "safety" | "economy" | "environment" | "life" | "biggest" | "smallest";
+/* ---- Sort: the scores, and the leaderboards' figures (2026-11-06,
+ *      owner: "align"). ---- */
+export type SortKey = "match" | "safety" | "economy" | "environment" | "life" | "sun" | "air" | "internet" | "biggest" | "smallest";
 export const SORTS: { key: SortKey; label: string }[] = [
   { key: "match", label: "Piltri score" },
   { key: "safety", label: "Safety" },
   { key: "economy", label: "Economy" },
   { key: "environment", label: "Environment" },
   { key: "life", label: "Quality of Life" },
+  { key: "sun", label: "Sunniest" },
+  { key: "air", label: "Cleanest air" },
+  { key: "internet", label: "Fastest internet" },
   { key: "biggest", label: "Biggest first" },
   { key: "smallest", label: "Smallest first" },
 ];
+/** The figure a sort reads, and whether lower is better. */
+const SORT_FIGURE: Partial<Record<SortKey, { column: string; lowerIsBetter?: boolean }>> = {
+  sun: { column: SUN },
+  air: { column: PM25, lowerIsBetter: true },
+  internet: { column: BROADBAND },
+};
 
 export type View = "list" | "map" | "countries";
 
@@ -251,9 +278,6 @@ export interface FinderState {
   languages: string[];
   sort: SortKey;
   view: View;
-  /** Every matching place, rather than one per neighbourhood (see
-   *  groupNearby). */
-  every: boolean;
 }
 
 export const EMPTY_STATE: FinderState = {
@@ -266,7 +290,6 @@ export const EMPTY_STATE: FinderState = {
   languages: [],
   sort: "match",
   view: "list",
-  every: false,
 };
 
 export function activeFilterCount(s: FinderState): number {
@@ -291,7 +314,6 @@ export function readFinderState(params: URLSearchParams): FinderState {
     languages: only(list(params, "lang"), LANGUAGES),
     sort: SORTS.some((s) => s.key === sort) ? (sort as SortKey) : "match",
     view: view === "map" || view === "countries" ? view : "list",
-    every: params.get("every") === "1",
   };
 }
 
@@ -308,15 +330,15 @@ export function finderQuery(s: FinderState, from: string | null): string {
   put("lang", s.languages);
   if (s.sort !== "match") qs.set("sort", s.sort);
   if (s.view !== "list") qs.set("view", s.view);
-  if (s.every) qs.set("every", "1");
   return qs.toString().replace(/%2C/g, ",");
 }
 
 /** The criterion columns a state needs loaded (population always: size
- *  and sort read it). */
+ *  and sort read it; a figure's sort, its figure). */
 export function columnsFor(s: FinderState): string[] {
   const toggles = [...CLIMATE.filter((t) => s.climate.includes(t.key)), ...NEARBY.filter((t) => s.nearby.includes(t.key))];
-  return [...new Set([POPULATION, ...toggles.flatMap((t) => t.needs)])];
+  const sortFigure = SORT_FIGURE[s.sort]?.column;
+  return [...new Set([POPULATION, ...toggles.flatMap((t) => t.needs), ...(sortFigure ? [sortFigure] : [])])];
 }
 
 export interface FinderResult {
@@ -382,6 +404,12 @@ export function runFinder(
     if (v == null) piltri.set(i, (v = table.piltri(i, weights)));
     return v;
   };
+  // A figure's sort: places without it last.
+  const figure = SORT_FIGURE[s.sort];
+  const figureKey = (i: number) => {
+    const v = figure ? num(col(figure.column)(i)) : null;
+    return v == null ? -Infinity : figure?.lowerIsBetter ? -v : v;
+  };
   const key: (i: number) => number =
     s.sort === "biggest"
       ? pop
@@ -389,7 +417,9 @@ export function runFinder(
         ? (i) => -pop(i)
         : s.sort === "match"
           ? score
-          : (i) => table.sections(i)[SECTION_OF[s.sort]];
+          : figure
+            ? figureKey
+            : (i) => table.sections(i)[SECTION_OF[s.sort]];
   matches.sort((a, b) => key(b) - key(a) || pop(b) - pop(a));
 
   const counts = new Map<string, { cc: string; count: number; best: number }>();

@@ -5,11 +5,12 @@ import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { BackLink } from "@/components/ui/BackLink";
 import { Chip } from "@/components/ui/Chip";
-import { IconEconomy, IconLiveability, IconSafety, TrophyIcon } from "@/components/ui/icons";
+import { IconClimate, IconEconomy, IconLiveability, IconSafety, TrophyIcon } from "@/components/ui/icons";
+import { SIZE_BANDS } from "@/lib/advancedSearch/finder";
 import { getPlaceTable, type PlaceTable } from "@/lib/advancedSearch/engine";
 import { normaliseWeights } from "@/lib/aggregation/scoring";
 import { cn } from "@/lib/cn";
-import { boardRanks, BOARDS, LEADERBOARD_COLUMNS, rankBoard, SIZE_LABELS, SIZE_ORDER, type BoardKey, type Entry, type Filters } from "@/lib/leaderboards";
+import { boardRanks, BOARDS, LEADERBOARD_COLUMNS, rankBoard, type BoardKey, type Entry, type Filters } from "@/lib/leaderboards";
 import { REGION_LABELS, REGION_ORDER } from "@/lib/regions";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { useUnitPreferences } from "@/lib/unitPreferences";
@@ -26,8 +27,9 @@ const line = (props: SVGProps<SVGSVGElement>, children: ReactNode) => (
 const ICONS: Record<BoardKey, (p: SVGProps<SVGSVGElement>) => ReactNode> = {
   overall: (p) => <TrophyIcon {...p} />,
   safest: (p) => <IconSafety {...p} />,
-  qualityOfLife: (p) => <IconLiveability {...p} />,
   economy: (p) => <IconEconomy {...p} />,
+  environment: (p) => <IconClimate {...p} />,
+  qualityOfLife: (p) => <IconLiveability {...p} />,
   eternalSpring: (p) => line(p, <><circle cx="12" cy="12" r="2.2" /><path d="M12 4.5c1.8 1.8 1.8 3.6 0 5.3-1.8-1.7-1.8-3.5 0-5.3zM12 14.2c1.8 1.7 1.8 3.5 0 5.3-1.8-1.8-1.8-3.6 0-5.3zM4.5 12c1.8-1.8 3.6-1.8 5.3 0-1.7 1.8-3.5 1.8-5.3 0zM14.2 12c1.7-1.8 3.5-1.8 5.3 0-1.8 1.8-3.6 1.8-5.3 0z" /></>),
   sunniest: (p) => line(p, <><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" /></>),
   cleanAir: (p) => line(p, <path d="M3 8.5h11a2.5 2.5 0 10-2.5-2.5M3 12.5h15a2.5 2.5 0 11-2.5 2.5M3 16.5h7" />),
@@ -133,7 +135,7 @@ function Board({
 }
 
 /**
- * Leaderboards (/leaderboards, reached from a city page): ten rankings of
+ * Leaderboards (/leaderboards, reached from a city page): eleven rankings of
  * every place - overall, safety, quality of life, economy, and six of a
  * kind (eternal spring, sun, clean air, internet, beach life, family) -
  * worked out in the browser from the same files as Advanced search
@@ -155,7 +157,7 @@ export default function LeaderboardsPage() {
   const [table, setTable] = useState<PlaceTable | null>(null);
   const [columns, setColumns] = useState<Record<string, (i: number) => CriterionValue> | null>(null);
   const [failed, setFailed] = useState(false);
-  const [filters, setFilters] = useState<Filters>({ region: "world", size: "over500k", perCountry: 1 });
+  const [filters, setFilters] = useState<Filters>({ region: "world", size: "big", perCountry: 1 });
 
   useEffect(() => {
     let cancelled = false;
@@ -191,7 +193,7 @@ export default function LeaderboardsPage() {
         <div className="max-w-6xl mx-auto">
           <BackLink />
           <h1 className="font-serif text-3xl sm:text-4xl text-ink-900 mt-2">Leaderboards</h1>
-          <p className="text-sm text-ink-500 mt-1">The world&apos;s best places, ten ways.</p>
+          <p className="text-sm text-ink-500 mt-1">The world&apos;s best places, eleven ways.</p>
 
           {/* Filters: region, size, places per country. */}
           <div className="mt-6 space-y-2.5">
@@ -206,11 +208,15 @@ export default function LeaderboardsPage() {
               ))}
             </div>
             <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap items-center">
-              {SIZE_ORDER.map((s) => (
-                <Chip key={s} active={filters.size === s} onClick={() => setFilters((f) => ({ ...f, size: s }))}>
-                  {SIZE_LABELS[s]}
+              {/* Advanced search's size groups (2026-11-06, owner: "align"). */}
+              {SIZE_BANDS.map((b) => (
+                <Chip key={b.key} active={filters.size === b.key} onClick={() => setFilters((f) => ({ ...f, size: b.key }))} hint={b.hint}>
+                  {b.label}
                 </Chip>
               ))}
+              <Chip active={filters.size === "all"} onClick={() => setFilters((f) => ({ ...f, size: "all" }))}>
+                All sizes
+              </Chip>
             </div>
             <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
               {PER_COUNTRY.map(({ value, label }) => (
