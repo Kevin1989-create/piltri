@@ -39,8 +39,9 @@ import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
  *  it back as it was. */
 const PIN_MODE = false;
 
-/** The smallest the map gets on a phone, to leave the score card room. */
-const PHONE_MAP_MIN_PX = 110;
+/** The smallest the map gets on a phone, to leave the score card room -
+ *  enough for its three buttons (expand, places, spot). */
+const PHONE_MAP_MIN_PX = 125;
 /** How long the map takes to fill the screen under the top bar, or go
  *  back into the page (phones), and how: eased in and out, as gently as
  *  the map's own glide when the page opens (2026-10-30, owner). */
@@ -181,10 +182,9 @@ function CityContent() {
   // Which section's detail panel is showing, if any. On desktop the main
   // column (CityHeader + 5 section rows) is a fixed size and never reacts
   // to this — it only controls whether the separate SectionDetailPanel is
-  // rendered. On mobile, opening a section hides the map (only the map:
-  // header, city and country info and the other rows stay) and returns to
-  // the top, so the open section sits right under the city info; closing
-  // it brings the map back (2026-09-30, on request).
+  // rendered. On mobile, opening a section hides the other sections' rows
+  // (the map, header and city info stay - 2026-11-06, on request) and
+  // returns to the top, so the open section sits right under the city info.
   const [openSectionKey, setOpenSectionKey] = useState<OpenSectionKey | null>(null);
   // Persisted, shared preference (lib/scoreWeights.ts) — same weighting
   // applies here, in Discover mode's ranking, and on every other city you
@@ -202,21 +202,22 @@ function CityContent() {
   useEffect(() => {
     if (!isDesktop) window.scrollTo({ top: 0 });
   }, [openSectionKey, isDesktop]);
-  // Phone, with a section open: the page is exactly one screen tall, the
-  // map folds away, and the open section takes the height that's left,
-  // scrolling inside its own box (see SectionColumn's `fill`) while the
-  // header, city info and other rows stay where they are (2026-09-30, on
-  // request).
+  // Phone, with a section open: the page is exactly one screen tall and
+  // the open section takes the height left under the map and the city
+  // info, scrolling inside its own box (see SectionColumn's `fill`).
   const sectionView = !isDesktop && openSectionKey !== null;
   // Phones: the room left for the map once the score card (and its 12 px
   // margin) fits below it - never under PHONE_MAP_MIN_PX. Measured again
   // when the card changes size or the screen does (a phone's browser bars
-  // come and go); not while a section is open, which hides the map.
+  // come and go); not while a section is open - the map keeps its size.
+  // (Read from the rows themselves: the card grows as a section opens, a
+  // moment before the page hears of it.)
   useEffect(() => {
     const column = scoreColumnRef.current;
     const area = mapAreaRef.current;
     if (isDesktop || sectionView || !column || !area) return;
     const measure = () => {
+      if (column.querySelector('[aria-expanded="true"]')) return;
       const top = area.getBoundingClientRect().top + window.scrollY;
       setPhoneMapPx(Math.max(PHONE_MAP_MIN_PX, Math.floor(window.innerHeight - top - column.offsetHeight - 12)));
     };
@@ -230,6 +231,11 @@ function CityContent() {
     };
   }, [isDesktop, sectionView]);
   const phoneMapStyle = !isDesktop && phoneMapPx != null ? { height: phoneMapPx } : undefined;
+  // With a section open, the map gives way first - down to its minimum - so
+  // the open section keeps the 200 px SectionColumn asks for; the picture
+  // follows its box.
+  const mapBoxStyle = sectionView && phoneMapPx != null ? { flexBasis: phoneMapPx, height: "auto", minHeight: PHONE_MAP_MIN_PX } : phoneMapStyle;
+  const mapPictureStyle = sectionView ? { height: "100%" } : phoneMapStyle;
 
   // A Yes or distance figure's place, shown on the map (2026-10-10, on
   // request): a small flag with its name, and for a distance the dashed
@@ -601,29 +607,26 @@ function CityContent() {
        *  (`main` above drops `h-screen` below `md` for exactly this reason).
        *  `relative` stays on unconditionally since it's still needed as the
        *  positioning context for the `md:absolute` children. */}
-      <div ref={mapAreaRef} className={cn("relative flex flex-col md:flex-1 md:overflow-hidden", sectionView && "flex-1")}>
-        {/* Mobile: 23dvh - leaves a safety margin for the rows below on
-         *  real phones - folding smoothly away while a section is open and
-         *  back when it closes. Only this outer box changes height: the map
-         *  inside keeps its size and is just uncovered or covered, since a
-         *  live WebGL map resizing on every frame read as janky. It stays
-         *  mounted, so it comes back as it was. */}
+      <div ref={mapAreaRef} className={cn("relative flex flex-col md:flex-1 md:overflow-hidden", sectionView && "min-h-0 flex-1")}>
+        {/* Mobile: the height measured for it (phoneMapStyle), 23dvh until
+         *  then. It stays while a section is open (2026-11-06, owner: "the
+         *  map is important, always visible"), giving way only as far as
+         *  the open section needs (mapBoxStyle); the other sections' rows
+         *  are hidden. */}
         <div
           ref={mapBoxRef}
-          aria-hidden={(sectionView && !mapFills) || undefined}
           className={cn(
-            "relative overflow-hidden md:h-full md:flex-1 transition-[height,opacity] duration-300 ease-out motion-reduce:transition-none md:transition-none",
-            // Until measured (phoneMapStyle): 23% of the screen.
-            sectionView ? "h-0 opacity-0" : "h-[23dvh]",
+            "relative h-[23dvh] overflow-hidden md:h-full md:flex-1",
+            !sectionView && "shrink-0",
             // On a phone, expanded or a figure's place: the map takes the
             // screen under the top bar (its top: the layout effect above).
             // On a computer it already fills the width under the top bar -
             // the panels fade away instead.
             mapFills && "max-md:!fixed max-md:!inset-x-0 max-md:!bottom-0 max-md:!z-50 max-md:!h-auto max-md:!opacity-100"
           )}
-          style={{ ...(sectionView ? undefined : phoneMapStyle), ...(phoneMapTop != null && { top: phoneMapTop }) }}
+          style={{ ...mapBoxStyle, ...(phoneMapTop != null && { top: phoneMapTop }) }}
         >
-          <div ref={mapPictureRef} className={cn("h-[23dvh] md:h-full relative", mapFills && "!h-full")} style={phoneMapStyle}>
+          <div ref={mapPictureRef} className={cn("h-[23dvh] md:h-full relative", mapFills && "!h-full")} style={mapPictureStyle}>
             {center ? (
               <MapView
                 lat={center.lat}

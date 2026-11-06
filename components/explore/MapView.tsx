@@ -133,7 +133,16 @@ class CityZoomControl implements maplibregl.IControl {
     this.container?.remove();
     this.container = null;
   }
+
+  /** Hidden on a phone's small map, where pinching zooms and the room goes
+   *  to the other buttons. */
+  setVisible(visible: boolean): void {
+    if (this.container) this.container.style.display = visible ? "" : "none";
+  }
 }
+
+/** The buttons down the map's right edge: 29 px, 8 px apart. */
+const BUTTON_STEP_PX = 37;
 
 /** A line of the box saying what's on the map: the kind's icon, its name,
  *  how many (or how far), and its own close. */
@@ -557,10 +566,36 @@ export function MapView({
   // page's map expands it with the list open.
   const listHere = expanded || !onToggleExpanded;
   const listShown = layersOpen && listHere;
-  // Whether the list's button expanded the map (2026-10-30, owner): then
-  // closing the list with it goes back into the page. Expanded first, or
-  // the map touched since: it stays expanded.
-  const expandedForListRef = useRef(false);
+  const listShownRef = useRef(listShown);
+  listShownRef.current = listShown;
+  // Which buttons expanded the map from the page (2026-10-30 and 11-06,
+  // owner): the list's and the spot's. Turning the last of them off takes
+  // it back into the page. Null: it stays - expanded with its own button,
+  // or the list closed by touching the map (it's being looked at).
+  const expandedByRef = useRef<Set<"list" | "spot"> | null>(null);
+  /** A button turned on: it expands the map from the page, or joins the
+   *  ones that did. */
+  const expandFor = (button: "list" | "spot") => {
+    if (!listHere) {
+      expandedByRef.current = new Set([button]);
+      onToggleExpanded?.();
+    } else {
+      expandedByRef.current?.add(button);
+    }
+  };
+  /** A button turned off: back into the page if it was the last one. */
+  const releaseFor = (button: "list" | "spot", shrink = true) => {
+    const by = expandedByRef.current;
+    if (!by) return;
+    by.delete(button);
+    if (by.size > 0) return;
+    expandedByRef.current = null;
+    if (shrink) onToggleExpanded?.();
+  };
+  // For the map's own listeners, set up once.
+  const releaseForRef = useRef(releaseFor);
+  releaseForRef.current = releaseFor;
+  const zoomControlRef = useRef<CityZoomControl | null>(null);
   // Spots (2026-10-31, owner): waiting for a tap to place the spot or a
   // second one; the spots; the card's nearest places; which line's journey
   // is on the map and that journey by road; the spots saved in this
@@ -678,7 +713,9 @@ export function MapView({
       attributionControl: false,
     });
 
-    map.addControl(new CityZoomControl(() => [cardContextRef.current.lng, cardContextRef.current.lat]), "top-right");
+    const zoomControl = new CityZoomControl(() => [cardContextRef.current.lng, cardContextRef.current.lat]);
+    map.addControl(zoomControl, "top-right");
+    zoomControlRef.current = zoomControl;
     // The credit OpenStreetMap's licence asks for is a line in the corner
     // (MapCredit, below) rather than MapLibre's control.
 
@@ -789,10 +826,12 @@ export function MapView({
       if ((e as { originalEvent?: Event }).originalEvent) linkSpotsRef.current = false;
     });
     // Touching the map closes the layer list - and means the expanded map is
-    // being used, so it stays expanded (expandedForListRef).
+    // being looked at, so it stays expanded (expandedByRef). A tap placing
+    // a spot is the spot button's.
     const closeList = () => {
+      if (!listShownRef.current || spotModeRef.current) return;
       setLayersOpen(false);
-      expandedForListRef.current = false;
+      releaseForRef.current("list", false);
     };
     map.on("mousedown", closeList);
     map.on("touchstart", closeList);
@@ -1296,9 +1335,20 @@ export function MapView({
     if (!listHere) {
       setLayersOpen(false);
       setSpotMode(null);
-      expandedForListRef.current = false;
+      expandedByRef.current = null;
     }
   }, [listHere]);
+
+  // A phone's small map: the zoom buttons step aside (pinching zooms) so
+  // the others fit at the top; back on the expanded map.
+  const smallMap = compact && !expanded && !!onToggleExpanded;
+  useEffect(() => {
+    zoomControlRef.current?.setVisible(!smallMap);
+  }, [smallMap, mapReady]);
+  const expandTop = smallMap ? 10 : 76;
+  const layersTop = onToggleExpanded ? expandTop + BUTTON_STEP_PX : 76;
+  const spotTop = layersTop + BUTTON_STEP_PX;
+  const listTop = (placeId ? spotTop : layersTop) + 35;
 
   // Spots. The ones saved in this browser for this place; another place
   // starts without any on the map.
@@ -1318,6 +1368,21 @@ export function MapView({
     setSpotTarget(null);
     setSpotMode(null);
   };
+  /** The spot button on: waiting for a tap, or a spot on the map. Off: the
+   *  spot goes, and the map back into the page if this button expanded it. */
+  const spotOn = spotMode === "a" || !!spotA;
+  const turnSpotOff = () => {
+    closeSpot();
+    releaseFor("spot");
+  };
+  /** Cancel (or Escape) while waiting for a tap: the second spot's wait is
+   *  let go; the first spot's turns the button off. */
+  const cancelPlacing = () => {
+    if (spotMode === "a" && !spotA) turnSpotOff();
+    else setSpotMode(null);
+  };
+  const cancelPlacingRef = useRef(cancelPlacing);
+  cancelPlacingRef.current = cancelPlacing;
   /** Room for the spot's card: beside it on a wide map, above it on a phone. */
   const spotPadding = (map: maplibregl.Map): maplibregl.PaddingOptions => {
     const box = map.getContainer();
@@ -1370,7 +1435,7 @@ export function MapView({
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.stopImmediatePropagation();
-      setSpotMode(null);
+      cancelPlacingRef.current();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -1683,7 +1748,8 @@ export function MapView({
           onClick={onToggleExpanded}
           aria-label={expanded ? "Make the map smaller" : "Expand the map"}
           title={expanded ? "Make the map smaller" : "Expand the map"}
-          className="absolute right-[10px] top-[76px] z-10 flex h-[29px] w-[29px] items-center justify-center rounded bg-white text-ink-900 shadow-[0_0_0_2px_rgba(0,0,0,0.1)] hover:bg-surface-muted"
+          style={{ top: expandTop }}
+          className="absolute right-[10px] z-10 flex h-[29px] w-[29px] items-center justify-center rounded bg-white text-ink-900 shadow-[0_0_0_2px_rgba(0,0,0,0.1)] hover:bg-surface-muted"
         >
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             {expanded ? (
@@ -1694,30 +1760,29 @@ export function MapView({
           </svg>
         </button>
       )}
-      {(expanded || !compact) && (
-        // The layer list: under the zoom and expand buttons, in their style.
+      {(expanded || !compact || onToggleExpanded) && (
+        // The layer list and spots: under the zoom and expand buttons, in
+        // their style. On the page's map each expands it, and turning the
+        // last one off takes it back (expandFor / releaseFor).
         <>
           <button
             type="button"
             onClick={() => {
-              if (!listHere) {
-                expandedForListRef.current = true;
-                onToggleExpanded?.();
-                setLayersOpen(true);
-              } else if (listShown && expandedForListRef.current) {
-                // It expanded the map for the list: back into the page.
-                // What's ticked stays shown there.
-                onToggleExpanded?.();
+              if (listShown) {
+                // What's ticked stays shown.
+                setLayersOpen(false);
+                releaseFor("list");
               } else {
-                setLayersOpen((open) => !open);
+                expandFor("list");
+                setLayersOpen(true);
               }
             }}
             aria-label="Places to show on the map"
             aria-expanded={listShown}
             title="Places to show on the map"
+            style={{ top: layersTop }}
             className={cn(
               "absolute right-[10px] z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
-              onToggleExpanded ? "top-[113px]" : "top-[76px]",
               layerKinds.length || focusKind ? "bg-piltri-amber text-white" : "bg-white text-ink-900 hover:bg-surface-muted"
             )}
           >
@@ -1727,22 +1792,26 @@ export function MapView({
             </svg>
           </button>
           {placeId && (
-            // Drop a spot (2026-10-31, owner): under the layer button; on
-            // the page's map it expands the map first.
+            // Drop a spot (2026-10-31, owner): under the layer button. On,
+            // it waits for a tap; off, the spot goes (a saved one stays on
+            // the map).
             <button
               type="button"
               onClick={() => {
-                if (!listHere) onToggleExpanded?.();
-                setLayersOpen(false);
-                setSpotMode((mode) => (mode === "a" ? null : "a"));
+                if (spotOn) {
+                  turnSpotOff();
+                } else {
+                  expandFor("spot");
+                  setSpotMode("a");
+                }
               }}
               aria-label="Drop a spot on the map"
-              aria-pressed={spotMode === "a"}
-              title="Drop a spot: what's near it, journeys, save and share"
+              aria-pressed={spotOn}
+              title={spotOn ? "Remove the spot" : "Drop a spot: what's near it, journeys, save and share"}
+              style={{ top: spotTop }}
               className={cn(
                 "absolute right-[10px] z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
-                onToggleExpanded ? "top-[150px]" : "top-[113px]",
-                spotMode === "a" || spotA ? "bg-piltri-amber text-white" : "bg-white text-ink-900 hover:bg-surface-muted"
+                spotOn ? "bg-piltri-amber text-white" : "bg-white text-ink-900 hover:bg-surface-muted"
               )}
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -1756,16 +1825,8 @@ export function MapView({
             // (2026-10-30, owner: "take less space from the map"); never
             // taller than the map - it scrolls inside, under its title.
             <div
-              className={cn(
-                "absolute right-[10px] z-20 w-[180px] overflow-y-auto rounded-xl bg-surface px-1 pb-1 shadow-card",
-                placeId
-                  ? onToggleExpanded
-                    ? "top-[185px] max-h-[calc(100%-197px)]"
-                    : "top-[148px] max-h-[calc(100%-160px)]"
-                  : onToggleExpanded
-                    ? "top-[148px] max-h-[calc(100%-160px)]"
-                    : "top-[111px] max-h-[calc(100%-123px)]"
-              )}
+              style={{ top: listTop, maxHeight: `calc(100% - ${listTop + 12}px)` }}
+              className="absolute right-[10px] z-20 w-[180px] overflow-y-auto rounded-xl bg-surface px-1 pb-1 shadow-card"
             >
               <p className="sticky top-0 z-10 bg-surface px-1.5 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show on the map</p>
               {listKinds.map((kind) => {
@@ -1845,7 +1906,7 @@ export function MapView({
       {spotMode === "a" && (
         <div className="absolute bottom-8 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-pill bg-ink-900/80 py-1.5 pl-4 pr-1.5 text-xs text-white">
           Tap the map to drop your spot
-          <button type="button" onClick={() => setSpotMode(null)} className="rounded-pill bg-white/15 px-2.5 py-0.5 hover:bg-white/25">
+          <button type="button" onClick={cancelPlacing} className="rounded-pill bg-white/15 px-2.5 py-0.5 hover:bg-white/25">
             Cancel
           </button>
         </div>
@@ -1873,7 +1934,7 @@ export function MapView({
             }}
             onToggleSave={toggleSaveSpot}
             onShare={shareSpot}
-            onClose={closeSpot}
+            onClose={turnSpotOff}
           />
         </div>
       )}
