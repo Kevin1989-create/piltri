@@ -1,5 +1,5 @@
 import type { PlaceTable } from "@/lib/advancedSearch/engine";
-import { BEACH_KM, ETERNAL_SPRING, SIZE_BANDS, SUNNY_HOURS, type SizeBand } from "@/lib/advancedSearch/finder";
+import { BEACH_KM, ETERNAL_SPRING, MOUNTAINS_KM, SIZE_BANDS, SUNNY_HOURS, type SizeBand } from "@/lib/advancedSearch/finder";
 import { hasEnoughFigures } from "@/lib/dataset/assemble";
 import { manifest } from "@/lib/dataset/files";
 import { regionOf, type RegionKey } from "@/lib/regions";
@@ -7,7 +7,7 @@ import { formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
 import type { CriterionValue, SectionScores } from "@/lib/types";
 
 /**
- * Leaderboards (/leaderboards): eleven rankings of every place, worked out
+ * Leaderboards (/leaderboards): twelve rankings of every place, worked out
  * in the browser from the Advanced search files (section scores plus a
  * few criterion columns) - so they always match the data the site shows.
  * Its sizes, and its boards' rules, are Advanced search's own (2026-11-06,
@@ -25,6 +25,7 @@ export type BoardKey =
   | "cleanAir"
   | "fastInternet"
   | "beachLife"
+  | "mountainLife"
   | "familyFriendly";
 
 /** Advanced search's size groups (SIZE_BANDS), or every size. */
@@ -113,14 +114,19 @@ export const BOARDS: BoardDef[] = [
   {
     key: "eternalSpring",
     title: "Eternal spring",
-    blurb: `Advanced search's Eternal spring - winter nights above ${ETERNAL_SPRING.minLowC}°C, summer days under ${ETERNAL_SPRING.maxHighC}°C - closest to 20°C`,
+    // Ranked by how close a place comes to Advanced search's Eternal
+    // spring, so the board is always full: places that meet it lead
+    // (2026-11-06: as a strict filter, only 3 big cities made it).
+    blurb: `Closest to Advanced search's Eternal spring: winter nights above ${ETERNAL_SPRING.minLowC}°C, summer days under ${ETERNAL_SPRING.maxHighC}°C, around 20°C`,
     needs: ["climate.avgAnnualTemperatureC", "climate.hottestMonthHighC", "climate.coldestMonthLowC"],
     score: ({ col }, i) => {
       const avg = num(col("climate.avgAnnualTemperatureC")(i));
       const hi = num(col("climate.hottestMonthHighC")(i));
       const lo = num(col("climate.coldestMonthLowC")(i));
-      if (avg == null || hi == null || lo == null || hi > ETERNAL_SPRING.maxHighC || lo < ETERNAL_SPRING.minLowC) return null;
-      return 100 - 2 * Math.abs(avg - 20);
+      if (avg == null || hi == null || lo == null) return null;
+      const meets = hi <= ETERNAL_SPRING.maxHighC && lo >= ETERNAL_SPRING.minLowC;
+      const closeness = 100 - (2 * Math.abs(avg - 20) + 1.5 * Math.max(0, hi - ETERNAL_SPRING.maxHighC) + 1.5 * Math.max(0, ETERNAL_SPRING.minLowC - lo));
+      return (meets ? 1000 : 0) + closeness;
     },
     show: ({ col }, i, prefs) => {
       const lo = num(col("climate.coldestMonthLowC")(i)) ?? 0;
@@ -164,6 +170,18 @@ export const BOARDS: BoardDef[] = [
       const beach = num(col("liveability.distanceToBeachKm")(i));
       const sun = num(col("climate.avgAnnualSunshineHrs")(i));
       return beach != null && beach <= BEACH_KM && sun != null && sun >= SUNNY_HOURS ? table.piltri(i, weights) : null;
+    },
+    show: ({ table, weights }, i) => round(table.piltri(i, weights)),
+  },
+  {
+    // The twelfth, so the boards pair up (2026-11-06, owner).
+    key: "mountainLife",
+    title: "Mountain life",
+    blurb: `Advanced search's Mountains - a 1,000 m+ peak rising 500 m above the place, within ${MOUNTAINS_KM} km - by Piltri score`,
+    needs: ["liveability.distanceToMountainKm"],
+    score: ({ table, weights, col }, i) => {
+      const mountain = num(col("liveability.distanceToMountainKm")(i));
+      return mountain != null && mountain <= MOUNTAINS_KM ? table.piltri(i, weights) : null;
     },
     show: ({ table, weights }, i) => round(table.piltri(i, weights)),
   },

@@ -16,7 +16,7 @@
  *                          settings merged in, 2026-10-14; /score-settings
  *                          redirects here)
  *   /sources               data sources
- *   /leaderboards          top places, eleven ways
+ *   /leaderboards          top places, twelve ways
  *
  * `from=<city id>` on Advanced search, Leaderboards, Settings and Sources is only
  * there so their Back link can return to that city.

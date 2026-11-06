@@ -31,7 +31,7 @@ Real Estate section** - no free, reliable global price source exists.
 - **Advanced search** (`/search`): one page of plain choices, live results,
   each result's list position and "#N overall"; a country's figures at
   `/country?code=FR`.
-- **Leaderboards** (`/leaderboards`): 11 rankings, top 10, by region,
+- **Leaderboards** (`/leaderboards`): 12 rankings, top 10, by region,
   population size and places per country.
 - Every page address is listed in `lib/urls.ts`; the older `/explore/...`
   addresses redirect (next.config.js).

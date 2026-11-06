@@ -35,6 +35,7 @@ const ICONS: Record<BoardKey, (p: SVGProps<SVGSVGElement>) => ReactNode> = {
   cleanAir: (p) => line(p, <path d="M3 8.5h11a2.5 2.5 0 10-2.5-2.5M3 12.5h15a2.5 2.5 0 11-2.5 2.5M3 16.5h7" />),
   fastInternet: (p) => line(p, <path d="M13 2.5L5 13.5h6l-1 8 8-11h-6l1-8z" />),
   beachLife: (p) => line(p, <><path d="M3 18c2 0 2-1.5 4.5-1.5S9.5 18 12 18s2.5-1.5 4.5-1.5S19 18 21 18" /><path d="M12 15V6M12 6c-2.5 0-4.5 1.5-5 3.5 1.5-1 3.5-1 5-.5M12 6c2.5 0 4.5 1.5 5 3.5-1.5-1-3.5-1-5-.5" /></>),
+  mountainLife: (p) => line(p, <path d="M2.5 19.5l6.5-11 4 6.5 2.5-4 6 8.5zM7 12.5l2 1.5 2-1.5" />),
   familyFriendly: (p) => line(p, <><circle cx="8" cy="6.5" r="2.2" /><circle cx="16.5" cy="9" r="1.8" /><path d="M4.5 20v-4.5A3.5 3.5 0 018 12a3.5 3.5 0 013.5 3.5V20M13.5 20v-3a3 3 0 016 0v3" /></>),
 };
 
@@ -135,7 +136,7 @@ function Board({
 }
 
 /**
- * Leaderboards (/leaderboards, reached from a city page): eleven rankings of
+ * Leaderboards (/leaderboards, reached from a city page): twelve rankings of
  * every place - overall, safety, quality of life, economy, and six of a
  * kind (eternal spring, sun, clean air, internet, beach life, family) -
  * worked out in the browser from the same files as Advanced search
@@ -193,7 +194,7 @@ export default function LeaderboardsPage() {
         <div className="max-w-6xl mx-auto">
           <BackLink />
           <h1 className="font-serif text-3xl sm:text-4xl text-ink-900 mt-2">Leaderboards</h1>
-          <p className="text-sm text-ink-500 mt-1">The world&apos;s best places, eleven ways.</p>
+          <p className="text-sm text-ink-500 mt-1">The world&apos;s best places, twelve ways.</p>
 
           {/* Filters: region, size, places per country. */}
           <div className="mt-6 space-y-2.5">

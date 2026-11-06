@@ -71,6 +71,7 @@ const rainText = (mm: number, prefs: UnitPreferences) =>
 export const ETERNAL_SPRING = { maxHighC: 27, minLowC: 12 };
 export const SUNNY_HOURS = 2500;
 export const BEACH_KM = 10;
+export const MOUNTAINS_KM = 30;
 
 export const CLIMATE: Toggle[] = [
   {
@@ -175,9 +176,9 @@ export const NEARBY: Toggle[] = [
   {
     key: "mountains",
     label: "Mountains",
-    hint: (p) => `within ${formatDistanceKm(30, p)}`,
+    hint: (p) => `within ${formatDistanceKm(MOUNTAINS_KM, p)}`,
     needs: [MOUNTAIN],
-    test: atMost(MOUNTAIN, 30),
+    test: atMost(MOUNTAIN, MOUNTAINS_KM),
     fact: distanceFact(MOUNTAIN, "Mountains"),
   },
   {
