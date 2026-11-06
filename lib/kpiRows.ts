@@ -4,7 +4,7 @@ import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferenc
 import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
 import { SECTION_LABELS, type CityExploreData, type SectionKey } from "@/lib/types";
 import { manifest } from "@/lib/dataset/files";
-import type { InsideKind, NearbyKind } from "@/lib/dataset/schema";
+import { INSIDE_TRACK_ONLY, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
 
 /** Which tier a value describes: "country" (national statistics),
  *  "city" (a statistic for the place or the region it's in - regional
@@ -520,7 +520,16 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
             `Whether there is ${what} ${where}.` +
             ` If not, the straight-line distance from the centre to the nearest one${!yes && nearestKm != null && byCar(nearestKm) ? `.${driveNote}` : "."}`;
           const nearest = nearestKm != null ? `nearest ${distance(nearestKm)} ${byCar(nearestKm) ?? ""}`.trim() : `none within ${distance(500)}`;
-          const note = airport && yes ? `${count} within ${distance(AIRPORT_REACH_KM)} · nearest ${distance(nearestKm ?? 0)}` : yes ? undefined : nearest;
+          // A Yes from the line alone (a tram with no stop mapped - London's
+          // Tramlink): nothing to show on the map yet (2026-11-06).
+          const trackOnly = count === INSIDE_TRACK_ONLY;
+          const note = trackOnly
+            ? "the line runs through it; its stops aren't mapped yet"
+            : airport && yes
+              ? `${count} within ${distance(AIRPORT_REACH_KM)} · nearest ${distance(nearestKm ?? 0)}`
+              : yes
+                ? undefined
+                : nearest;
           const near = NEARNESS[kind];
           const tier: Tier = near
             ? (() => {
@@ -542,8 +551,9 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               ];
           const row: KpiRow = { ...categorical(label, yes ? "Yes" : "No", "pinned", tier, legend, { definition, source }), note };
           // A Yes shows every one on the map; a No, the journey to the
-          // nearest (none to show when there's none within reach).
-          return [yes ? onMap(row, kind, "pin")! : nearestKm != null ? onMap(row, kind, "journey")! : row];
+          // nearest (none to show when there's none within reach, or only
+          // the line).
+          return [trackOnly ? row : yes ? onMap(row, kind, "pin")! : nearestKm != null ? onMap(row, kind, "journey")! : row];
         });
       const rows: (KpiRow | null)[] = [
         ratioRow("Restaurants, bars & cafés", l.restaurantsBarsPer1k, l.restaurantsBarsWithin5km, "restaurantsBars", "Places to eat and drink"),

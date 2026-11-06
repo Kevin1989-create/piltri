@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
 import { addMapIcons, mapIconColor, mapIconId, mapIconUrl } from "@/components/explore/mapIcons";
 import { muteBasemap, muteColor } from "@/lib/mapColors";
-import { INSIDE_KINDS, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
+import { INSIDE_KINDS, INSIDE_TRACK_ONLY, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
 import { MapCredit } from "@/components/explore/MapCredit";
 import { airportsByReach, type MapKind } from "@/lib/kpiRows";
 import type { TravelTimes } from "@/lib/types";
@@ -1843,10 +1843,14 @@ export function MapView({
                   Clear
                 </button>
               </div>
-              {/* Only the kinds the city has (2026-11-06, owner); the city
-               *  page's No rows still show the nearest one. */}
+              {/* Only the kinds the city has places of (2026-11-06, owner):
+               *  not a No (its row still shows the nearest one), nor a line
+               *  with no stop mapped (a tram's track). */}
               {listKinds
-                .filter((kind) => insideFigures?.[kind as InsideKind]?.count !== 0)
+                .filter((kind) => {
+                  const count = insideFigures?.[kind as InsideKind]?.count;
+                  return count !== 0 && count !== INSIDE_TRACK_ONLY;
+                })
                 .map((kind) => {
                   const on = layerKinds.includes(kind) || kind === focusKind;
                   return (
