@@ -404,6 +404,9 @@ export interface DatasetManifest {
   nearbyChunks?: string[];
   /** Chunks with an inside/<CC>-<n>.json file (InsideChunkFile). */
   insideChunks?: string[];
+  /** leaderboards/<region>.json files, worked out at the default score
+   *  settings (lib/leaderboards.ts) - absent before 2026-11-07. */
+  leaderboards?: boolean;
   /** Human-readable source + vintage notes, shown on /admin. */
   sources: Record<string, string>;
 }

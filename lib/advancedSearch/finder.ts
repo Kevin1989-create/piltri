@@ -18,16 +18,10 @@ type Col = (key: string) => Column;
 const num = (v: CriterionValue) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const thousands = (n: number) => Math.round(n).toLocaleString("en-GB");
 
-/* ---- Size: the population column is in thousands. The same five groups
- *      on the leaderboards (2026-11-06, owner: "align"). ---- */
-export type SizeBand = "village" | "town" | "smallCity" | "city" | "big";
-export const SIZE_BANDS: { key: SizeBand; label: string; hint: string; test: (k: number) => boolean }[] = [
-  { key: "village", label: "Villages", hint: "under 10k", test: (k) => k < 10 },
-  { key: "town", label: "Towns", hint: "10k-50k", test: (k) => k >= 10 && k < 50 },
-  { key: "smallCity", label: "Small cities", hint: "50k-100k", test: (k) => k >= 50 && k < 100 },
-  { key: "city", label: "Cities", hint: "100k-500k", test: (k) => k >= 100 && k < 500 },
-  { key: "big", label: "Big cities", hint: "500k+", test: (k) => k >= 500 },
-];
+/* ---- Size, and the thresholds shared with the leaderboards
+ *      (thresholds.ts). ---- */
+import { BEACH_KM, ETERNAL_SPRING, MOUNTAINS_KM, SIZE_BANDS, SUNNY_HOURS, type SizeBand } from "./thresholds";
+export { BEACH_KM, ETERNAL_SPRING, MOUNTAINS_KM, SIZE_BANDS, SUNNY_HOURS, type SizeBand };
 const POPULATION = "demographics.population";
 
 /* ---- Yes/no choices (climate and what's within reach). ---- */
@@ -65,13 +59,6 @@ const PM25 = "climate.avgAnnualPm25";
 const rainText = (mm: number, prefs: UnitPreferences) =>
   prefs.distance === "imperial" ? `${Math.round(mm / 25.4)} in` : `${thousands(mm)} mm`;
 
-/** Shared with the leaderboards, so a filter and its board mean the same
- *  (2026-11-06, owner: "align"): eternal spring's highs and lows, a sunny
- *  year's hours, a beach's distance. */
-export const ETERNAL_SPRING = { maxHighC: 27, minLowC: 12 };
-export const SUNNY_HOURS = 2500;
-export const BEACH_KM = 10;
-export const MOUNTAINS_KM = 30;
 
 export const CLIMATE: Toggle[] = [
   {

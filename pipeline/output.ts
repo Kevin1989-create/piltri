@@ -3,9 +3,14 @@ import path from "path";
 import { once } from "events";
 import { createGzip } from "zlib";
 import { aggregateForCountry, CRITERIA, kindForScope } from "@/lib/advancedSearch/criteria";
+import type { PlaceTable } from "@/lib/advancedSearch/engine";
+import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
+import { precomputeLeaderboards } from "@/lib/leaderboards";
+import { DEFAULT_WEIGHT_PERCENTAGES, weightPercentagesToScores } from "@/lib/scoreWeights";
 import {
   CITY_CHUNK_SIZE,
   cityChunk,
+  cityIdFor,
   DATASET_SCHEMA_VERSION,
   encodeCity,
   normaliseSearchText,
@@ -26,7 +31,7 @@ import {
   type NearbyPoint,
   type SearchEntry,
 } from "@/lib/dataset/schema";
-import type { CityExploreData, CriterionValue } from "@/lib/types";
+import type { CityExploreData, CriterionValue, SectionScores } from "@/lib/types";
 import { buildPoiTiles } from "./poiTiles";
 import { log } from "./util";
 
@@ -244,6 +249,37 @@ export async function writeDataset(outDir: string, ds: DatasetToWrite): Promise<
   }
   writeJson(outDir, "adv/countries.json", countries);
 
+  // ---- Leaderboards, at the default score settings ---------------------------
+  // The same places the browser builds from the adv/ files (engine.ts
+  // getPlaceTable), so the boards match what it would work out itself; the
+  // page reads these instead of downloading every place's figures
+  // (2026-11-07, owner: it took 2-3 s).
+  const placeCc = countryCodes.flatMap((cc, i) => Array<string>(base.countryCounts[i]).fill(cc));
+  const sectionsAt = (i: number): SectionScores => ({
+    economy: base.economy[i],
+    safetyStability: base.safetyStability[i],
+    climate: base.climate[i],
+    liveability: base.liveability[i],
+  });
+  const table: PlaceTable = {
+    count: placeCc.length,
+    cc: placeCc,
+    name: places.name,
+    region: places.region,
+    lat: places.lat,
+    lng: places.lng,
+    id: (i) => places.customIds?.[i] ?? cityIdFor(places.name[i], placeCc[i]),
+    sections: sectionsAt,
+    piltri: (i, weights) => computePiltriScore(sectionsAt(i), weights),
+    values: async () => () => null,
+  };
+  const column = (key: string) => {
+    const values = valuesByKey.get(key);
+    return values ? (i: number) => values[i] : () => null;
+  };
+  const leaderboards = precomputeLeaderboards({ table, weights: normaliseWeights(weightPercentagesToScores(DEFAULT_WEIGHT_PERCENTAGES)), col: column });
+  for (const [region, file] of Object.entries(leaderboards)) writeJson(outDir, `leaderboards/${region}.json`, file);
+
   // ---- Pin mode tiles --------------------------------------------------------
   const tiles = buildPoiTiles(path.join(outDir, "poi"), ds.poi);
 
@@ -262,6 +298,7 @@ export async function writeDataset(outDir: string, ds: DatasetToWrite): Promise<
     builtUpChunks,
     nearbyChunks,
     ...(ds.inside ? { insideChunks } : {}),
+    leaderboards: true,
     sources: ds.sources,
   };
   writeJson(outDir, "manifest.json", manifest);

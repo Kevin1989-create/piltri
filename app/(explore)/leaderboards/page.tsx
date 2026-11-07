@@ -6,16 +6,31 @@ import { NavBar } from "@/components/ui/NavBar";
 import { BackLink } from "@/components/ui/BackLink";
 import { Chip } from "@/components/ui/Chip";
 import { IconClimate, IconEconomy, IconLiveability, IconSafety, TrophyIcon } from "@/components/ui/icons";
-import { SIZE_BANDS } from "@/lib/advancedSearch/finder";
+import { SIZE_BANDS } from "@/lib/advancedSearch/thresholds";
 import { getPlaceTable, type PlaceTable } from "@/lib/advancedSearch/engine";
 import { normaliseWeights } from "@/lib/aggregation/scoring";
 import { cn } from "@/lib/cn";
-import { boardRanks, BOARDS, LEADERBOARD_COLUMNS, rankBoard, type BoardKey, type Entry, type Filters } from "@/lib/leaderboards";
+import { loadFile, manifest } from "@/lib/dataset/files";
+import {
+  boardOrder,
+  boardRanks,
+  BOARDS,
+  comboKey,
+  LEADERBOARD_COLUMNS,
+  PER_COUNTRY_CHOICES,
+  topOf,
+  type BoardKey,
+  type Entry,
+  type Filters,
+  type LeaderboardsFile,
+} from "@/lib/leaderboards";
 import { REGION_LABELS, REGION_ORDER } from "@/lib/regions";
-import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
+import { isCustomWeights, useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { useUnitPreferences } from "@/lib/unitPreferences";
 import { cityUrl } from "@/lib/urls";
 import type { CriterionValue } from "@/lib/types";
+
+const countryName = (cc: string) => manifest.countryNames[cc] ?? cc;
 
 /* ---- Board icons: the section icons where there is one, simple line
  *      drawings for the rest. ---- */
@@ -65,13 +80,14 @@ function Board({
   title,
   blurb,
   entries,
-  overall,
+  show,
 }: {
   boardKey: BoardKey;
   title: string;
   blurb: string;
   entries: Entry[];
-  overall: (index: number) => number | null;
+  /** The figure beside a place, in the viewer's units. */
+  show: (entry: Entry) => string;
 }) {
   const Icon = ICONS[boardKey];
   const rest = entries.slice(3, 10);
@@ -98,14 +114,14 @@ function Board({
               if (!e) return <div key={place} />;
               return (
                 <div key={place} className="min-w-0 flex flex-col items-center text-center">
-                  <Link href={cityUrl(e.id)} className="min-w-0 max-w-full group" title={`${e.name}, ${e.country}`}>
+                  <Link href={cityUrl(e.id)} className="min-w-0 max-w-full group" title={`${e.name}, ${countryName(e.countryCode)}`}>
                     <p className={cn("font-medium text-ink-900 leading-tight line-clamp-2 group-hover:text-piltri-amber-dark", place === 0 ? "text-sm" : "text-xs")}>
                       {e.name}
                     </p>
-                    <p className="text-[10px] text-ink-500 truncate">{e.country}</p>
+                    <p className="text-[10px] text-ink-500 truncate">{countryName(e.countryCode)}</p>
                   </Link>
-                  <p className="font-serif text-piltri-amber-dark tabular-nums lining-nums text-sm mt-1">{e.shown}</p>
-                  <Overall rank={overall(e.index)} />
+                  <p className="font-serif text-piltri-amber-dark tabular-nums lining-nums text-sm mt-1">{show(e)}</p>
+                  <Overall rank={e.overall} />
                   <div className={cn("mt-1.5 w-full rounded-t-lg flex items-start justify-center pt-1 font-serif font-semibold lining-nums text-sm", block)}>
                     {place + 1}
                   </div>
@@ -121,10 +137,10 @@ function Board({
                   <span className="w-6 text-xs text-ink-300 tabular-nums text-right flex-shrink-0">{e.rank}</span>
                   <span className="min-w-0 flex-1">
                     <span className="text-sm text-ink-900">{e.name}</span>
-                    <span className="text-[11px] text-ink-500"> · {e.country}</span>
-                    <Overall rank={overall(e.index)} className="block sm:inline sm:ml-1.5" />
+                    <span className="text-[11px] text-ink-500"> · {countryName(e.countryCode)}</span>
+                    <Overall rank={e.overall} className="block sm:inline sm:ml-1.5" />
                   </span>
-                  <span className="text-sm text-ink-700 tabular-nums flex-shrink-0">{e.shown}</span>
+                  <span className="text-sm text-ink-700 tabular-nums flex-shrink-0">{show(e)}</span>
                 </Link>
               </li>
             ))}
@@ -146,21 +162,38 @@ function Board({
  * country's towns all tied at the top - or 3, or any number.
  */
 
-/** How many places one country may have on a board (null: any number). */
-const PER_COUNTRY: { value: number | null; label: string }[] = [
-  { value: 1, label: "At most 1 city per country" },
-  { value: 3, label: "At most 3 cities per country" },
-  { value: null, label: "No limit per country" },
-];
+/** How many places one country may have on a board (PER_COUNTRY_CHOICES). */
+const PER_COUNTRY_LABEL = (value: number | null) => (value == null ? "No limit per country" : `At most ${value} ${value === 1 ? "city" : "cities"} per country`);
+
 export default function LeaderboardsPage() {
   const { weights } = useScoreWeights();
   const { prefs } = useUnitPreferences();
+  const [filters, setFilters] = useState<Filters>({ region: "world", size: "big", perCountry: 1 });
+  const [failed, setFailed] = useState(false);
+  // At the default score settings, the boards worked out ahead of time: one
+  // small file per region (2026-11-07, owner: the page took 2-3 s).
+  // Otherwise - custom settings, or a dataset from before - worked out here
+  // from every place's figures, each board's order once (boardOrder), each
+  // filter a walk down it.
+  const precomputed = !!manifest.leaderboards && !isCustomWeights(weights);
+  const [files, setFiles] = useState<Partial<Record<Filters["region"], LeaderboardsFile>>>({});
   const [table, setTable] = useState<PlaceTable | null>(null);
   const [columns, setColumns] = useState<Record<string, (i: number) => CriterionValue> | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [filters, setFilters] = useState<Filters>({ region: "world", size: "big", perCountry: 1 });
 
   useEffect(() => {
+    if (!precomputed || files[filters.region]) return;
+    let cancelled = false;
+    const region = filters.region;
+    loadFile<LeaderboardsFile>(`leaderboards/${region}.json`)
+      .then((file) => !cancelled && setFiles((f) => ({ ...f, [region]: file })))
+      .catch(() => !cancelled && setFailed(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [precomputed, filters.region, files]);
+
+  useEffect(() => {
+    if (precomputed || table) return;
     let cancelled = false;
     (async () => {
       const t = await getPlaceTable();
@@ -172,20 +205,30 @@ export default function LeaderboardsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [precomputed, table]);
 
   const normalised = useMemo(() => normaliseWeights(weightPercentagesToScores(weights)), [weights]);
+  const ctx = useMemo(
+    () => (table && columns ? { table, weights: normalised, col: (key: string) => columns[key] ?? (() => null) } : null),
+    [table, columns, normalised]
+  );
+  // Each board's order and unfiltered positions - they don't depend on the
+  // filters.
+  const orders = useMemo(
+    () => (precomputed || !ctx ? null : BOARDS.map((def) => {
+      const order = boardOrder(def, ctx);
+      return { order, ranks: boardRanks(ctx.table, order) };
+    })),
+    [precomputed, ctx]
+  );
   const boards = useMemo(() => {
-    if (!table || !columns) return null;
-    const ctx = { table, weights: normalised, col: (key: string) => columns[key] ?? (() => null) };
-    return BOARDS.map((def) => ({ def, entries: rankBoard(def, ctx, filters, prefs) }));
-  }, [table, columns, normalised, filters, prefs]);
-  // Each board's unfiltered positions - they don't depend on the filters.
-  const ranks = useMemo(() => {
-    if (!table || !columns) return null;
-    const ctx = { table, weights: normalised, col: (key: string) => columns[key] ?? (() => null) };
-    return Object.fromEntries(BOARDS.map((def) => [def.key, boardRanks(def, ctx)])) as Record<BoardKey, Int32Array>;
-  }, [table, columns, normalised]);
+    if (precomputed) {
+      const combo = files[filters.region]?.boards[comboKey(filters.size, filters.perCountry)];
+      return combo ? BOARDS.map((def) => ({ def, entries: combo[def.key] ?? [] })) : null;
+    }
+    if (!ctx || !orders) return null;
+    return BOARDS.map((def, k) => ({ def, entries: topOf(def, ctx, orders[k].order, orders[k].ranks, filters) }));
+  }, [precomputed, files, filters, ctx, orders]);
 
   return (
     <main className="min-h-dvh flex flex-col bg-surface-muted">
@@ -220,9 +263,9 @@ export default function LeaderboardsPage() {
               </Chip>
             </div>
             <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
-              {PER_COUNTRY.map(({ value, label }) => (
-                <Chip key={label} active={filters.perCountry === value} onClick={() => setFilters((f) => ({ ...f, perCountry: value }))}>
-                  {label}
+              {PER_COUNTRY_CHOICES.map((value) => (
+                <Chip key={String(value)} active={filters.perCountry === value} onClick={() => setFilters((f) => ({ ...f, perCountry: value }))}>
+                  {PER_COUNTRY_LABEL(value)}
                 </Chip>
               ))}
             </div>
@@ -256,13 +299,13 @@ export default function LeaderboardsPage() {
           ) : (
             <div className="mt-4 grid gap-5 md:grid-cols-2 items-start">
               {boards.map(({ def, entries }) => (
-                <Board key={def.key} boardKey={def.key} title={def.title} blurb={def.blurb} entries={entries} overall={(i) => (ranks ? ranks[def.key][i] || null : null)} />
+                <Board key={def.key} boardKey={def.key} title={def.title} blurb={def.blurb} entries={entries} show={(e) => def.format(e.figure, prefs)} />
               ))}
             </div>
           )}
 
           <p className="mt-8 text-xs text-ink-500 leading-relaxed">
-            Rankings use Piltri&apos;s open data for {(table?.count ?? 0).toLocaleString("en-GB")} places, one per metro area.
+            Rankings use Piltri&apos;s open data for {manifest.cityCount.toLocaleString("en-GB")} places, one per metro area.
             Safety and economy are mostly measured country-wide, hence one place per country by default, and only
             countries with most of those figures are ranked. &quot;Best overall&quot; and &quot;Beach life&quot; use your
             score settings.

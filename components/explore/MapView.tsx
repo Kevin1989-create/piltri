@@ -133,12 +133,6 @@ class CityZoomControl implements maplibregl.IControl {
     this.container?.remove();
     this.container = null;
   }
-
-  /** Hidden on a phone's small map, where pinching zooms and the room goes
-   *  to the other buttons. */
-  setVisible(visible: boolean): void {
-    if (this.container) this.container.style.display = visible ? "" : "none";
-  }
 }
 
 /** The buttons down the map's right edge: 29 px, 8 px apart. */
@@ -547,6 +541,10 @@ export function MapView({
   // The searched place's framing, to come back to once a figure's place
   // (focus) is closed.
   const areaBoundsRef = useRef<maplibregl.LngLatBounds | null>(null);
+  // The view before the map was expanded, and - just after shrinking - the
+  // one to go back to (see the expanded layout effect).
+  const preExpandCameraRef = useRef<{ center: maplibregl.LngLat; zoom: number } | null>(null);
+  const restoreCameraRef = useRef<{ center: maplibregl.LngLat; zoom: number } | null>(null);
   const focusRef = useRef<MapFocus | null>(focus);
   // A Yes's places from the map's tiles, as they arrive (null: none being
   // looked for - a distance, or a kind the tiles don't hold).
@@ -595,7 +593,6 @@ export function MapView({
   // For the map's own listeners, set up once.
   const releaseForRef = useRef(releaseFor);
   releaseForRef.current = releaseFor;
-  const zoomControlRef = useRef<CityZoomControl | null>(null);
   // Spots (2026-10-31, owner): waiting for a tap to place the spot or a
   // second one; the spots; the card's nearest places; which line's journey
   // is on the map and that journey by road; the spots saved in this
@@ -713,9 +710,7 @@ export function MapView({
       attributionControl: false,
     });
 
-    const zoomControl = new CityZoomControl(() => [cardContextRef.current.lng, cardContextRef.current.lat]);
-    map.addControl(zoomControl, "top-right");
-    zoomControlRef.current = zoomControl;
+    map.addControl(new CityZoomControl(() => [cardContextRef.current.lng, cardContextRef.current.lat]), "top-right");
     // The credit OpenStreetMap's licence asks for is a line in the corner
     // (MapCredit, below) rather than MapLibre's control.
 
@@ -1091,6 +1086,11 @@ export function MapView({
         if (focused.style === "pin") map.fitBounds(yesView(focused), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration: 800 });
         return;
       }
+      // Just shrunk: back to the view from before expanding.
+      if (restoreCameraRef.current) {
+        map.easeTo({ ...restoreCameraRef.current, duration: 700 });
+        return;
+      }
       // A shared link's spots are framed instead, until the map is moved.
       if (frameLinkSpots(map)) return;
       map.fitBounds(bounds, { padding: framePadding(map), duration: 800 });
@@ -1339,16 +1339,17 @@ export function MapView({
     }
   }, [listHere]);
 
-  // A phone's small map: the zoom buttons step aside (pinching zooms) so
-  // the others fit at the top; back on the expanded map.
+  // A phone's small map: the expand, places and spot buttons in a column
+  // beside the zoom buttons rather than under them, so all fit in its
+  // height (2026-11-06, owner: keep + and - there too).
   const smallMap = compact && !expanded && !!onToggleExpanded;
-  useEffect(() => {
-    zoomControlRef.current?.setVisible(!smallMap);
-  }, [smallMap, mapReady]);
+  const buttonsRight = smallMap ? 10 + BUTTON_STEP_PX - 1 : 10;
   const expandTop = smallMap ? 10 : 76;
   const layersTop = onToggleExpanded ? expandTop + BUTTON_STEP_PX : 76;
   const spotTop = layersTop + BUTTON_STEP_PX;
   const listTop = (placeId ? spotTop : layersTop) + 35;
+  /** The shown box sits left of the buttons. */
+  const shownRight = buttonsRight + 36;
 
   // Spots. The ones saved in this browser for this place; another place
   // starts without any on the map.
@@ -1578,12 +1579,25 @@ export function MapView({
 
   // Expanding or shrinking (the page animates it): resized and drawn at
   // once, before the screen updates, so the picture is never stretched or
-  // blank for a frame.
+  // blank for a frame. Shrinking goes back to the view from before
+  // expanding (2026-11-06, owner: it stayed at the expanded map's zoom) -
+  // the place's own reframing (applyArea, frame) gives way to it.
+  const firstExpandedRef = useRef(true);
   useLayoutEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapLoadedRef.current) return;
+    const first = firstExpandedRef.current;
+    firstExpandedRef.current = false;
+    if (!map || first) return;
+    if (expanded) {
+      restoreCameraRef.current = null;
+      preExpandCameraRef.current = { center: map.getCenter(), zoom: map.getZoom() };
+    } else if (preExpandCameraRef.current) {
+      restoreCameraRef.current = preExpandCameraRef.current;
+      preExpandCameraRef.current = null;
+    }
     map.resize();
-    map.redraw();
+    if (mapLoadedRef.current) map.redraw();
+    if (!expanded && restoreCameraRef.current) map.easeTo({ ...restoreCameraRef.current, duration: 700 });
   }, [expanded]);
 
   // A Yes: look for every place of its kind in the map's tiles (lib/
@@ -1632,6 +1646,8 @@ export function MapView({
         if (routeBoundsRef.current) bounds.extend(routeBoundsRef.current);
         // Room for the chip above and the flag's name beside it.
         map.fitBounds(bounds, { padding: framePadding(map, compact ? 50 : 20, FLAG_LABEL_PX), maxZoom: 15, duration });
+      } else if (restoreCameraRef.current) {
+        map.easeTo({ ...restoreCameraRef.current, duration: 700 });
       } else if (areaBoundsRef.current && !frameLinkSpots(map)) {
         map.fitBounds(areaBoundsRef.current, { padding: framePadding(map), duration });
       }
@@ -1688,6 +1704,15 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, lat, lng, compact]);
 
+  // The view to go back to after shrinking serves the reframing of that
+  // moment (the place's and the figure's, above, and a phone's late resize)
+  // - then it's let go.
+  useEffect(() => {
+    if (!restoreCameraRef.current) return;
+    const timer = setTimeout(() => (restoreCameraRef.current = null), 1500);
+    return () => clearTimeout(timer);
+  }, [expanded]);
+
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
@@ -1696,7 +1721,7 @@ export function MapView({
         // the same for a tapped figure and a kind ticked in the layer list,
         // always beside the buttons (2026-10-30, owner: "more consistent").
         // A journey adds the same one in Google Maps in a new tab.
-        <div className="absolute right-[46px] top-[10px] z-10 max-w-[min(20rem,calc(100%-56px))] rounded-2xl bg-surface py-0.5 pl-2.5 pr-0.5 shadow-card">
+        <div style={{ right: shownRight, maxWidth: `min(20rem, calc(100% - ${shownRight + 10}px))` }} className="absolute top-[10px] z-10 rounded-2xl bg-surface py-0.5 pl-2.5 pr-0.5 shadow-card">
           {focus && (
             <>
               <ShownLine
@@ -1748,8 +1773,8 @@ export function MapView({
           onClick={onToggleExpanded}
           aria-label={expanded ? "Make the map smaller" : "Expand the map"}
           title={expanded ? "Make the map smaller" : "Expand the map"}
-          style={{ top: expandTop }}
-          className="absolute right-[10px] z-10 flex h-[29px] w-[29px] items-center justify-center rounded bg-white text-ink-900 shadow-[0_0_0_2px_rgba(0,0,0,0.1)] hover:bg-surface-muted"
+          style={{ top: expandTop, right: buttonsRight }}
+          className="absolute z-10 flex h-[29px] w-[29px] items-center justify-center rounded bg-white text-ink-900 shadow-[0_0_0_2px_rgba(0,0,0,0.1)] hover:bg-surface-muted"
         >
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             {expanded ? (
@@ -1780,9 +1805,9 @@ export function MapView({
             aria-label="Places to show on the map"
             aria-expanded={listShown}
             title="Places to show on the map"
-            style={{ top: layersTop }}
+            style={{ top: layersTop, right: buttonsRight }}
             className={cn(
-              "absolute right-[10px] z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
+              "absolute z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
               layerKinds.length || focusKind ? "bg-piltri-amber text-white" : "bg-white text-ink-900 hover:bg-surface-muted"
             )}
           >
@@ -1808,9 +1833,9 @@ export function MapView({
               aria-label="Drop a spot on the map"
               aria-pressed={spotOn}
               title={spotOn ? "Remove the spot" : "Drop a spot: what's near it, journeys, save and share"}
-              style={{ top: spotTop }}
+              style={{ top: spotTop, right: buttonsRight }}
               className={cn(
-                "absolute right-[10px] z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
+                "absolute z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
                 spotOn ? "bg-piltri-amber text-white" : "bg-white text-ink-900 hover:bg-surface-muted"
               )}
             >

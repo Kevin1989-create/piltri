@@ -32,7 +32,11 @@ Real Estate section** - no free, reliable global price source exists.
   each result's list position and "#N overall"; a country's figures at
   `/country?code=FR`.
 - **Leaderboards** (`/leaderboards`): 12 rankings, top 10, by region,
-  population size and places per country.
+  population size and places per country. At the default score settings
+  the page reads `leaderboards/<region>.json`, worked out by the pipeline
+  with the same code (`precomputeLeaderboards` in `lib/leaderboards.ts`,
+  2026-11-07: it used to download every place's figures, 2-3 s); with
+  custom settings the browser works them out.
 - Every page address is listed in `lib/urls.ts`; the older `/explore/...`
   addresses redirect (next.config.js).
 - **/admin** (password): dataset status and the Resources links editor.
