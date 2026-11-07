@@ -267,7 +267,9 @@ const SORT_FIGURE: Partial<Record<SortKey, { column: string; lowerIsBetter?: boo
   internet: { column: BROADBAND },
 };
 
-export type View = "list" | "map" | "countries";
+/** Results as a list or on a map - cities only (2026-11-07, owner: the
+ *  per-country count is gone; "Add a country" narrows to one). */
+export type View = "list" | "map";
 
 export interface FinderState {
   regions: RegionKey[];
@@ -314,7 +316,7 @@ export function readFinderState(params: URLSearchParams): FinderState {
     strong: only(list(params, "strong"), STRONG.map((s) => s.key)),
     languages: only(list(params, "lang"), LANGUAGES),
     sort: SORTS.some((s) => s.key === sort) ? (sort as SortKey) : "match",
-    view: view === "map" || view === "countries" ? view : "list",
+    view: view === "map" ? "map" : "list",
   };
 }
 
@@ -349,8 +351,6 @@ export interface FinderResult {
   heads: number[];
   /** Head -> how many other matches it stands for. */
   nearby: Map<number, number>;
-  /** Matching places per country, most first. */
-  byCountry: { cc: string; count: number; best: number }[];
 }
 
 const SECTION_OF: Record<string, SectionKey> = { safety: "safetyStability", economy: "economy", environment: "climate", life: "liveability" };
@@ -423,18 +423,10 @@ export function runFinder(
             : (i) => table.sections(i)[SECTION_OF[s.sort]];
   matches.sort((a, b) => key(b) - key(a) || pop(b) - pop(a));
 
-  const counts = new Map<string, { cc: string; count: number; best: number }>();
-  for (const i of matches) {
-    const cc = table.cc[i];
-    const entry = counts.get(cc);
-    if (entry) entry.count++;
-    else counts.set(cc, { cc, count: 1, best: i });
-  }
-  const byCountry = [...counts.values()].sort((a, b) => b.count - a.count);
   // Sorted by a score, a bigger place within a point of its neighbourhood's
   // best stands for it (Monaco, not its quarter Fontvieille).
   const tolerance = s.sort === "biggest" || s.sort === "smallest" ? 0 : 1;
-  return { indices: matches, ...groupNearby(table, matches, key, pop, tolerance), byCountry };
+  return { indices: matches, ...groupNearby(table, matches, key, pop, tolerance) };
 }
 
 /** Places this close to a better match are folded into it: GeoNames lists

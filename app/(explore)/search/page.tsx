@@ -41,7 +41,7 @@ import { REGION_LABELS, REGION_ORDER } from "@/lib/regions";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { SECTION_LABELS, type CriterionValue, type SectionKey } from "@/lib/types";
 import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
-import { cityUrl, compareUrl, countryUrl, readFrom } from "@/lib/urls";
+import { cityUrl, compareUrl, readFrom } from "@/lib/urls";
 
 const DiscoverResultsMap = dynamic(() => import("@/components/explore/DiscoverResultsMap").then((m) => m.DiscoverResultsMap), {
   ssr: false,
@@ -279,40 +279,6 @@ function ResultRow({
   );
 }
 
-function CountriesView({ result, table, onOnly }: { result: FinderResult; table: PlaceTable; onOnly: (cc: string) => void }) {
-  const max = result.byCountry[0]?.count ?? 1;
-  return (
-    <ul className="rounded-card border border-surface-border bg-surface divide-y divide-surface-border">
-      {result.byCountry.slice(0, 100).map(({ cc, count, best }) => (
-        <li key={cc} className="px-4 py-3 flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-baseline gap-2">
-              <button type="button" onClick={() => onOnly(cc)} className="font-serif text-base text-ink-900 hover:text-piltri-amber-dark truncate">
-                {countryName(cc)}
-              </button>
-              <span className="text-xs text-ink-500 tabular-nums flex-shrink-0">
-                {count.toLocaleString("en-GB")} {count === 1 ? "place" : "places"}
-              </span>
-            </div>
-            <div className="mt-1.5 h-1 rounded-pill bg-surface-muted overflow-hidden">
-              <div className="h-full bg-piltri-amber-light rounded-pill" style={{ width: `${Math.max(2, (count / max) * 100)}%` }} />
-            </div>
-            <p className="text-[11px] text-ink-500 mt-1 truncate">
-              Top match:{" "}
-              <Link href={cityUrl(table.id(best))} className="text-ink-700 hover:text-piltri-amber-dark">
-                {table.name[best]}
-              </Link>
-            </p>
-          </div>
-          <Link href={countryUrl(cc)} className="text-[11px] text-ink-500 hover:text-piltri-amber-dark whitespace-nowrap flex-shrink-0">
-            Country data →
-          </Link>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 /* ------------------------------------------------------------------ */
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
@@ -322,8 +288,8 @@ function CountriesView({ result, table, onOnly }: { result: FinderResult; table:
  * page - pick a scope, fill in min/max boxes for 60 criteria, then open a
  * results page - was too hard to use). Now one page: plain choices as
  * chips on the left (lib/advancedSearch/finder.ts), matching places on the
- * right, updated on every tap. Results as a list, a map, or counted by
- * country (which replaces the old "search countries" scope). Every choice
+ * right, updated on every tap. Results as a list or a map - cities only
+ * (2026-11-07, owner: the count by country is gone). Every choice
  * is kept in the address, so a search can be shared or bookmarked. Tap "+"
  * on places to compare them side by side.
  */
@@ -538,7 +504,7 @@ function SearchContent() {
                 ))}
               </select>
               <div className="flex items-center rounded-pill border border-surface-border bg-surface overflow-hidden text-xs">
-                {(["list", "map", "countries"] as View[]).map((v) => (
+                {(["list", "map"] as View[]).map((v) => (
                   <button
                     key={v}
                     type="button"
@@ -598,8 +564,6 @@ function SearchContent() {
                   </div>
                   {listed.length > MAP_POINTS && <p className="mt-2 text-[11px] text-ink-500">Showing the top {MAP_POINTS}.</p>}
                 </div>
-              ) : state.view === "countries" ? (
-                <CountriesView result={result} table={table} onOnly={(cc) => set({ countries: [cc], regions: [], view: "list" })} />
               ) : (
                 <>
                   <ul className="grid gap-3 lg:grid-cols-2">
