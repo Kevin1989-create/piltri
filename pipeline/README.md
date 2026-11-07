@@ -36,6 +36,7 @@ also picks up the latest published dataset.
 | Climate type today (1991-2020) and by 2085 (SSP2-4.5) | Beck et al. (2023) 1 km Köppen-Geiger maps | CC BY 4.0 |
 | UV index | NASA POWER all-sky UV climatology (CERES SYN1deg, 2001-2020) | public domain |
 | Air pollution (PM2.5) | ACAG satellite-derived PM2.5 V6.GL.03, 2024, 0.01° (AWS Open Data) | CC BY 4.0 |
+| Water stress, groundwater trend - for the river basin (and aquifer) the place is in | WRI Aqueduct 4.0 (2023) baseline: ~68,500 areas, median ~370 km² (`pipeline/water.ts`; the 261 MB zip is cached by the workflow) | CC BY 4.0 |
 | Population density (5 km) | GHS-POP R2023A, 2025, 1 km (EC JRC) | CC BY 4.0 |
 | Broadband / mobile speed | Ookla Speedtest open data, latest quarter (AWS Open Data) | CC BY-NC-SA 4.0* |
 | Coastline, major lakes (which beaches count) | Natural Earth 1:10m | public domain |

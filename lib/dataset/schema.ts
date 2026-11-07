@@ -172,6 +172,9 @@ export const CITY_FIELDS = [
   // INSIDE_KINDS kind.
   "insideCounts",
   "insideNearestKm",
+  // Water, for the river basin (2026-11-07, WRI Aqueduct 4.0).
+  "waterStressPct",
+  "groundwaterTrendCmYr",
 ] as const;
 
 export type CityFieldKey = (typeof CITY_FIELDS)[number];
@@ -265,6 +268,15 @@ export interface CityRecord {
   /** Per INSIDE_KINDS kind: km from the centre to the nearest one, null
    *  when there's none within NEARBY_MAX_KM. */
   insideNearestKm?: (number | null)[] | null;
+  /** Water for the river basin (and aquifer) the place is in - WRI
+   *  Aqueduct 4.0, 2026-11-07: the share of the water renewed each year
+   *  that is used, % (over 100 where more is drawn than renewed; capped at
+   *  999), or WATER_STRESS_ARID for "arid, little water used"; and how
+   *  many cm a year the water table falls (negative: rises; 0: no
+   *  significant trend). Absent before 2026-11-07; null where WRI has no
+   *  figure. */
+  waterStressPct?: number | null;
+  groundwaterTrendCmYr?: number | null;
   /** Test-weighted average download speed (Ookla) within the stored
    *  radius: 5 km, or 15/30 km where there were too few tests nearer. */
   broadbandDownloadMbps: number | null;
@@ -344,6 +356,9 @@ export const INSIDE_NO_OUTLINE_KM = 5;
 /** insideCounts value for "yes, a line runs through it, but no stop is
  *  mapped" (trams: Overture has the tracks, not the stops). */
 export const INSIDE_TRACK_ONLY = -1;
+/** waterStressPct value for WRI's "arid and low water use": too little
+ *  water renewed for a meaningful share, and little drawn. */
+export const WATER_STRESS_ARID = -1;
 /** inside/<CC>-<n>.json: city id -> one item per INSIDE_KINDS kind: every
  *  one in the city (nearest the centre first), or 0. */
 export type InsideChunkFile = Record<string, (NearbyPoint[] | 0)[]>;

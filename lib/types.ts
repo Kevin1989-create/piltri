@@ -133,6 +133,12 @@ export interface ClimateFields {
   /** Average noon UV index across the year, including cloud (from NASA
    *  POWER's 2001-2020 all-sky UV climatology). */
   avgAnnualUvIndexMax: number | null;
+  /** For the river basin (and aquifer) the place is in, WRI Aqueduct 4.0
+   *  (2026-11-07): the share of the water renewed each year that is used,
+   *  % (or WATER_STRESS_ARID), and how many cm a year the water table falls
+   *  (negative: rises; 0: no significant trend). */
+  waterStressPct?: number | null;
+  groundwaterTrendCmYr?: number | null;
   /** Magnitude-5+ earthquakes within 200 km since 1970 (USGS). */
   earthquakeCount50yr: number | null;
   distanceToVolcanoKm: number | null;

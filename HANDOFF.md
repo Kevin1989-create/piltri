@@ -133,7 +133,7 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
   where people work - local household income comes in phase 2.
 - **Score, as local as the data allows** (2026-10-30, owner): Environment
   is all local, with nature nearby (beach, mountain, forest) since
-  2026-10-30; Safety adds armed conflict nearby to the country's three
+  2026-10-30 and its river basin's water since 2026-11-07; Safety adds armed conflict nearby to the country's three
   figures; Quality of Life adds healthcare access (a hospital in the city,
   else by distance), everyday services (train station, bus station,
   school, nursery in the city) and an international airport within reach
@@ -148,6 +148,14 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
   POWER, converted to noon peak, includes cloud) are disclosed estimates.
 - **Air pollution**: ACAG satellite PM2.5 (2024) - **counts in the
   Environment score** (5 µg/m³ scores 100, 50+ scores 0).
+- **Water** (2026-11-07, owner): water stress (share of the renewed water
+  used) and the groundwater trend, from WRI Aqueduct 4.0 - **for the
+  river basin** (cut by province and aquifer, median ~370 km²), not the
+  town alone; the rows say "For its river basin". Both count in the
+  Environment score as one figure, the worse of the two (`waterScore` in
+  `lib/dataset/assemble.ts`: a stable water table, four places in five,
+  shouldn't lift a score on its own); "Plenty of water" in Advanced search;
+  "water stress" on Compare.
 - **Density** = people within 5 km / 78.5 km² (GHS-POP 2025). City land area
   isn't shown (no free city boundaries).
 - **Internet**: Ookla fixed + mobile download speeds within 5 km, widened

@@ -38,6 +38,7 @@ const GROUPS: { title: string; sources: Record<string, string> }[] = [
       climateType: "Climate type",
       uv: "UV index",
       airQuality: "Air pollution",
+      water: "Water stress & groundwater (river basin)",
       earthquakes: "Earthquakes",
       elevation: "Elevation",
       coast: "Coast & beaches",
@@ -243,7 +244,7 @@ export default function SourcesPage() {
               in St. Louis. Population: European Commission, Joint Research Centre, GHSL. Age structures: WorldPop
               (www.worldpop.org), University of Southampton. Armed
               conflict: Uppsala Conflict Data Program, Georeferenced Event Dataset (Sundberg &amp; Melander, Journal of Peace
-              Research, 2013).
+              Research, 2013). Water: World Resources Institute, Aqueduct 4.0 (2023).
             </p>
           </div>
         </div>

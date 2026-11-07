@@ -1,7 +1,7 @@
 import { getDaylightRange } from "@/lib/data-sources/daylight";
 import { averageScores, computePiltriScore, normalise } from "@/lib/aggregation/scoring";
 import type { CityExploreData, SectionKey, SectionScores } from "@/lib/types";
-import { INSIDE_KINDS, type CityRecord, type CountryRecord, type InsideKind } from "./schema";
+import { INSIDE_KINDS, WATER_STRESS_ARID, type CityRecord, type CountryRecord, type InsideKind } from "./schema";
 
 /** Whether there's one in the city (or within 1 km of it) - null for a
  *  dataset from before 2026-10-29. */
@@ -85,6 +85,38 @@ function exposure(
 const CONFLICT_CAP = 200;
 const conflictScore = (events: number) => 100 * (1 - Math.min(1, Math.log10(1 + events) / Math.log10(1 + CONFLICT_CAP)));
 
+/** Water stress for the river basin (WRI Aqueduct 4.0; 2026-11-07, owner):
+ *  up to 10% of the renewed water used scores 100, then a quarter less
+ *  for each doubling - 20% (WRI's "medium-high" from here) 75, 40%
+ *  ("high") 50, 80% ("extremely high") 25, 160%+ 0. An arid basin with
+ *  little water used scores 25: little water to draw on. */
+export function waterStressScore(pct: number): number {
+  if (pct === WATER_STRESS_ARID) return 25;
+  if (pct <= 10) return 100;
+  return Math.max(0, 100 - 25 * Math.log2(pct / 10));
+}
+
+/** Groundwater for the river basin and aquifer: stable or rising scores
+ *  100, falling to 75 at 2 cm a year (WRI's "medium-high" from here), then
+ *  a quarter less for each doubling - 4 cm ("high") 50, 8 cm ("extremely
+ *  high") 25, 16 cm+ 0. */
+export function groundwaterScore(cmPerYear: number): number {
+  if (cmPerYear <= 0) return 100;
+  if (cmPerYear <= 2) return 100 - 12.5 * cmPerYear;
+  return Math.max(0, 75 - 25 * Math.log2(cmPerYear / 2));
+}
+
+/** The river basin's water, one Environment figure: the worse of water
+ *  stress and the groundwater trend - water is as secure as its weaker
+ *  side, and a stable water table (four places in five) shouldn't lift a
+ *  score on its own. */
+function waterScore(stressPct: number | null, groundwaterCmYr: number | null): number | null {
+  const parts = [stressPct == null ? null : waterStressScore(stressPct), groundwaterCmYr == null ? null : groundwaterScore(groundwaterCmYr)].filter(
+    (v): v is number => v != null
+  );
+  return parts.length ? Math.min(...parts) : null;
+}
+
 /** A hospital in the city (or within 1 km of it) scores 100; otherwise the
  *  score falls with the distance to the nearest one, to 0 at
  *  HOSPITAL_FAR_KM. */
@@ -147,7 +179,8 @@ function everydayServices(inside: CityExploreData["liveability"]["inside"]): num
  *  be as local as possible"): Environment is all the place's own; Safety
  *  adds armed conflict nearby to the country's figures, Quality of Life
  *  healthcare access, everyday services and an airport within reach;
- *  Environment nature within reach. Economy stays national until phase
+ *  Environment nature within reach and its river basin's water
+ *  (2026-11-07). Economy stays national until phase
  *  2's local household income. */
 function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): Record<SectionKey, (number | null)[]> {
   const e = data.economy;
@@ -180,6 +213,7 @@ function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): R
       orNull(c.avgAnnualSnowfallCm, (v) => normalise(v, RANGES.snowfallCm.min, RANGES.snowfallCm.max, true)),
       orNull(c.avgAnnualPm25, (v) => normalise(v, RANGES.pm25.min, RANGES.pm25.max, true)),
       natureNearby(l.inside),
+      waterScore(c.waterStressPct ?? null, c.groundwaterTrendCmYr ?? null),
     ],
     liveability: [
       orNull(l.restaurantsBarsPer1k, (v) => logScore(v, AMENITY_RATIOS.restaurantsBars.cap)),
@@ -284,6 +318,8 @@ export function assembleCityExploreData(
       avgAnnualPm25: city.avgAnnualPm25 ?? country.pm25NationalEstimate,
       avgAnnualPm25IsNational: city.avgAnnualPm25 == null && country.pm25NationalEstimate != null,
       avgAnnualUvIndexMax: city.avgAnnualUvIndexMax,
+      waterStressPct: city.waterStressPct ?? null,
+      groundwaterTrendCmYr: city.groundwaterTrendCmYr ?? null,
       earthquakeCount50yr: city.earthquakeCount50yr,
       distanceToVolcanoKm: city.distanceToVolcanoKm,
       coastalFloodExposure: exposure(city.elevationM, city.distanceToCoastKm, { elev: 5, km: 2 }, { elev: 15, km: 10 }),

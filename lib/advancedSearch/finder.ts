@@ -55,6 +55,8 @@ const SUN = "climate.avgAnnualSunshineHrs";
 const RAIN = "climate.avgAnnualRainfallMm";
 const SNOW = "climate.avgAnnualSnowfallCm";
 const PM25 = "climate.avgAnnualPm25";
+const WATER_STRESS = "climate.waterStressPct";
+const GROUNDWATER = "climate.groundwaterTrendCmYr";
 
 const rainText = (mm: number, prefs: UnitPreferences) =>
   prefs.distance === "imperial" ? `${Math.round(mm / 25.4)} in` : `${thousands(mm)} mm`;
@@ -123,6 +125,16 @@ export const CLIMATE: Toggle[] = [
     needs: [PM25],
     test: atMost(PM25, 10),
     fact: (col, i) => `PM2.5 ${(num(col(PM25)(i)) ?? 0).toFixed(1)}`,
+  },
+  {
+    // WRI's low and low-medium water stress, groundwater not falling fast
+    // (both for the river basin - 2026-11-07).
+    key: "water",
+    label: "Plenty of water",
+    hint: () => "under 20% of the river basin's water used",
+    needs: [WATER_STRESS, GROUNDWATER],
+    test: (col, i) => atLeast(WATER_STRESS, 0)(col, i) && atMost(WATER_STRESS, 19.9)(col, i) && atMost(GROUNDWATER, 2)(col, i),
+    fact: (col, i) => `${Math.round(num(col(WATER_STRESS)(i)) ?? 0)}% of its water used`,
   },
 ];
 

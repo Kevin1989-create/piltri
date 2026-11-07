@@ -153,7 +153,7 @@ function Filters({ state, set }: { state: FinderState; set: (patch: Partial<Find
       </Group>
 
       <Group title="Climate">
-        {CLIMATE.map((t) => (
+        {CLIMATE.filter(available).map((t) => (
           <Chip key={t.key} active={state.climate.includes(t.key)} onClick={() => set({ climate: toggle(state.climate, t.key) })} hint={t.hint(prefs)}>
             {t.label}
           </Chip>

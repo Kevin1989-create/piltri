@@ -59,6 +59,12 @@ jobs:
             ${{ github.workspace }}/.pipeline-cache/raw/worldpop-2025
             ${{ github.workspace }}/.pipeline-cache/raw/GHS_POP_E2020_*
           key: static-inputs-population-v1
+      # WRI Aqueduct 4.0 (2026-11-07), water for each place's river basin:
+      # a fixed 2023 release, 261 MB.
+      - uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.pipeline-cache/raw/aqueduct-4.0/aqueduct-4-0-water-risk-data.zip
+          key: static-inputs-aqueduct40-v1
       - run: npm run pipeline
       - name: Deploy the site with the new dataset
         if: ${{ env.VERCEL_DEPLOY_HOOK_URL != '' }}

@@ -106,6 +106,19 @@ export const DIFF_FACTS: DiffFact[] = [
     offset: 2,
   },
   {
+    // For the river basin (2026-11-07); an arid basin isn't compared.
+    key: "water",
+    label: "Water stress (river basin)",
+    get: (d) => (d.climate.waterStressPct == null || d.climate.waterStressPct < 0 ? null : d.climate.waterStressPct),
+    show: (v) => (v >= 100 ? "over 100% of its water used" : `${n0(v)}% of its water used`),
+    up: ["is under more water stress", "is under the most water stress"],
+    down: ["has more water to spare", "has the most water to spare"],
+    lead: "down",
+    unit: 2,
+    ratio: true,
+    offset: 5,
+  },
+  {
     key: "population",
     label: "Population",
     get: (d) => d.demographics.cityPopulation,

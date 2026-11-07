@@ -278,6 +278,25 @@ export const CRITERIA: CriterionDef[] = [
     suggestedRange: [0, 50],
     getCityValue: (d) => d.climate.avgAnnualPm25,
   },
+  // Water for the river basin (2026-11-07): -1 is an arid basin.
+  {
+    key: "climate.waterStressPct",
+    category: "climate",
+    label: "Water stress (river basin)",
+    unit: "%",
+    kind: "range",
+    suggestedRange: [0, 100],
+    getCityValue: (d) => d.climate.waterStressPct ?? null,
+  },
+  {
+    key: "climate.groundwaterTrendCmYr",
+    category: "climate",
+    label: "Groundwater fall a year (river basin)",
+    unit: "cm",
+    kind: "range",
+    suggestedRange: [0, 10],
+    getCityValue: (d) => d.climate.groundwaterTrendCmYr ?? null,
+  },
   {
     key: "climate.avgAnnualUvIndexMax",
     category: "climate",

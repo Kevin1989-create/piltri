@@ -18,6 +18,7 @@ import { countNearCities } from "./nearCities";
 import { writeDataset } from "./output";
 import { extractOvertureBeaches, extractOverturePlaces, extractOvertureRail, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
 import { POPULATION_GROWTH_SOURCE, POPULATION_SOURCE, sampleDensity, samplePopulationGrowth } from "./population";
+import { sampleWater, WATER_SOURCE } from "./water";
 import { REGIONAL_GDP_SOURCE, sampleRegionalGdp } from "./regionalGdp";
 import { anyInside, circleArea, cityArea, placesInside, type PlaceIndex } from "./insidePlaces";
 import { KOPPEN_SOURCE, sampleKoppen } from "./koppenMap";
@@ -220,6 +221,8 @@ async function main() {
   const populationGrowth = await optional("population growth", () => samplePopulationGrowth(points));
   const medianAge = await optional("median age", async () => sampleMedianAge(points, await ageFiles));
   const conflict = await optional("armed conflict", () => sampleConflict(points));
+  // Water for the river basin (2026-11-07, owner) - WRI Aqueduct 4.0.
+  const water = await optional("water", () => sampleWater(points));
   // Regional GDP per head (Kummu et al.) is switched off (2026-10-30, owner):
   // 2018-2021 figures - Lyon's from the pandemic year - for a whole region,
   // counted where people work. Local household income comes in phase 2.
@@ -460,6 +463,8 @@ async function main() {
         regionGdpVsNationalPct: regionGdp?.[i].vsNationalPct ?? null,
         insideCounts,
         insideNearestKm,
+        waterStressPct: water?.stressPct[i] ?? null,
+        groundwaterTrendCmYr: water?.groundwaterCmYr[i] ?? null,
         nearestLargeCityName: nearestLarge ? large[nearestLarge.id].cityName : null,
         nearestLargeCityKm: nearestLarge ? round(nearestLarge.km, 0) : null,
         restaurantsBarsWithin5km: ovCount(i, POI.eating),
@@ -521,6 +526,8 @@ async function main() {
   report("hospital km", records.map((r) => r.record.distanceToHospitalKm));
   report("conflict events 50 km", records.map((r) => r.record.conflictEvents5yr));
   report("regional GDP vs national %", records.map((r) => r.record.regionGdpVsNationalPct));
+  report("water stress % (basin)", records.map((r) => r.record.waterStressPct ?? null));
+  report("groundwater cm/yr (basin)", records.map((r) => r.record.groundwaterTrendCmYr ?? null));
   log("dist", `tram: ${records.filter((r) => r.record.hasTramway).length} cities, metro: ${records.filter((r) => r.record.hasSubway).length} cities`);
 
   // World ranks: score every city exactly as the site does, then rank.
@@ -608,6 +615,7 @@ async function main() {
       hospitals: `Overture Maps places ${release} - hospitals and emergency departments (CDLA-Permissive-2.0)`,
       inside: `In the city or within 1 km of its outline (5 km of the centre without one), airports within ${AIRPORT_REACH_KM} km: GeoNames, Overture Maps places ${release}, OurAirports, mapped beaches and peaks`,
       ...(conflict ? { conflict: CONFLICT_SOURCE } : {}),
+      ...(water ? { water: WATER_SOURCE } : {}),
       ...(regionGdp ? { regionGdp: REGIONAL_GDP_SOURCE } : {}),
     },
   });

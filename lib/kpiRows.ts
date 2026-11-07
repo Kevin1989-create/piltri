@@ -4,7 +4,7 @@ import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferenc
 import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
 import { SECTION_LABELS, type CityExploreData, type SectionKey } from "@/lib/types";
 import { manifest } from "@/lib/dataset/files";
-import { INSIDE_TRACK_ONLY, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
+import { INSIDE_TRACK_ONLY, WATER_STRESS_ARID, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
 
 /** Which tier a value describes: "country" (national statistics),
  *  "city" (a statistic for the place or the region it's in - regional
@@ -170,6 +170,10 @@ const WORLDCLIM = "WorldClim 2.1 climate normals, 1970-2000 averages";
 const OVERTURE = "Overture Maps places (OpenStreetMap and other open sources)";
 // The years match pipeline/conflict.ts (GED 26.1: 2021-2025).
 const UCDP = "Uppsala Conflict Data Program, Georeferenced Event Dataset 26.1 (CC BY 4.0)";
+const AQUEDUCT = "WRI Aqueduct 4.0, World Resources Institute (2023, CC BY 4.0) - baseline, modelled from rainfall, river flows and water use";
+/** Water figures are WRI's for the river basin, cut by province and
+ *  aquifer (median ~370 km²) - not measured for the town itself. */
+const BASIN_NOTE = "For its river basin";
 
 /** Whether the dataset being served has a source's figures (a
  *  manifest.sources key: "age", "populationGrowth", "conflict",
@@ -185,6 +189,64 @@ export function hasSource(key: string): boolean {
  *  says so); before, airports were counted in the city like the rest. */
 export function airportsByReach(kind: string): boolean {
   return (kind === "intlAirport" || kind === "localAirport") && /airports within/.test(manifest.sources.inside ?? "");
+}
+
+/** Water stress for the river basin: WRI's level, with the share used
+ *  (2026-11-07). Colours follow WRI's categories, as the score does
+ *  (waterStressScore in lib/dataset/assemble.ts). */
+function waterStressRow(pct: number | null): KpiRow {
+  const about = {
+    definition:
+      "How much of the water renewed each year - rain, rivers, groundwater recharge - is drawn by homes, farms and industry, for the river basin the place is in (not the town alone). Over 40% is high: a dry year can bring shortages. Over 100% means more is drawn than is renewed. Arid basins have little water to share at all.",
+    source: AQUEDUCT,
+  };
+  if (pct == null) return { ...missing("Water stress", "city", about), note: BASIN_NOTE };
+  const [level, tier]: [string, Tier] =
+    pct === WATER_STRESS_ARID
+      ? ["Arid, little used", "poor"]
+      : pct < 10
+        ? ["Low", "good"]
+        : pct < 20
+          ? ["Low-medium", "good"]
+          : pct < 40
+            ? ["Medium-high", "moderate"]
+            : pct < 80
+              ? ["High", "poor"]
+              : ["Extremely high", "poor"];
+  const share = pct === WATER_STRESS_ARID ? undefined : pct >= 100 ? "(over 100% used)" : `(${num(pct, 1)}% used)`;
+  return {
+    ...categorical("Water stress", level, "city", tier, [
+      { tier: "good", text: "Low - under 20% of the renewed water used" },
+      { tier: "moderate", text: "Medium-high - 20% to 40%" },
+      { tier: "poor", text: "High - 40% or more, or an arid basin" },
+    ], about),
+    valueSuffix: share,
+    note: BASIN_NOTE,
+  };
+}
+
+/** Groundwater for the river basin and aquifer: stable, rising, or falling
+ *  so many cm (inches) a year (2026-11-07; groundwaterScore). */
+function groundwaterRow(cmPerYear: number | null, prefs: UnitPreferences): KpiRow {
+  const about = {
+    definition:
+      "Whether the water table - the level of the water underground - is rising or falling, for the river basin and aquifer the place is in. Falling year after year means more is pumped than rain refills: wells run deeper and can dry up, and the ground can sink.",
+    source: AQUEDUCT,
+  };
+  if (cmPerYear == null) return { ...missing("Groundwater", "city", about), note: BASIN_NOTE };
+  const imperial = prefs.distance === "imperial";
+  const rate = (cm: number) => (imperial ? `${num(Math.abs(cm) / 2.54, 1)} in` : `${num(Math.abs(cm), 1)} cm`);
+  const level = cmPerYear === 0 ? "Stable" : cmPerYear < 0 ? "Rising" : cmPerYear <= 2 ? "Falling slowly" : cmPerYear <= 4 ? "Falling" : "Falling fast";
+  const tier: Tier = cmPerYear <= 2 ? "good" : cmPerYear <= 4 ? "moderate" : "poor";
+  return {
+    ...categorical("Groundwater", level, "city", tier, [
+      { tier: "good", text: `Stable, rising, or falling under ${rate(2)} a year` },
+      { tier: "moderate", text: `Falling ${rate(2)} to ${rate(4)} a year` },
+      { tier: "poor", text: `Falling more than ${rate(4)} a year` },
+    ], about),
+    valueSuffix: cmPerYear === 0 ? undefined : `(${rate(cmPerYear)} a year)`,
+    note: BASIN_NOTE,
+  };
 }
 
 /** Each section's KPI list - shared by the results page's detail panel,
@@ -366,6 +428,8 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               source: "NASA POWER, 2001-2020 averages, converted to the midday value",
             })
           : null,
+        hasSource("water") ? waterStressRow(c.waterStressPct ?? null) : null,
+        hasSource("water") ? groundwaterRow(c.groundwaterTrendCmYr ?? null, prefs) : null,
         c.earthquakeCount50yr != null
           ? scored("Seismic activity", c.earthquakeCount50yr, `${c.earthquakeCount50yr} quakes`, "pinned", SCALES.earthquakes, withUnit(" quakes"), {
               definition: "The number of magnitude 5+ earthquakes within 200 km since 1970 - a real count, not a risk model.",
