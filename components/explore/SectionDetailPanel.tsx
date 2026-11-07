@@ -7,6 +7,8 @@ import { cn } from "@/lib/cn";
 interface SectionDetailPanelProps {
   section: SectionKey;
   data: CityExploreData;
+  /** Closing: it fades out the way it came (the page removes it after). */
+  leaving?: boolean;
   /** Added to the panel (the city page slides it away for the expanded map). */
   className?: string;
 }
@@ -22,12 +24,21 @@ interface SectionDetailPanelProps {
  *  bounding box with flex-col, and the actual visible card inside sized
  *  with flex-shrink) so it only takes up as much height as its own content
  *  needs — matching the main column's height instead of stretching to fill
- *  the full available height, which read as noticeably taller/bigger. */
-export function SectionDetailPanel({ section, data, className }: SectionDetailPanelProps) {
+ *  the full available height, which read as noticeably taller/bigger.
+ *
+ *  The card glides in from the column (2026-11-07, owner: smoother), again
+ *  for each section opened, and out as it closes. */
+export function SectionDetailPanel({ section, data, leaving = false, className }: SectionDetailPanelProps) {
   const Icon = SECTION_ICONS[section];
   return (
-    <div className={cn("absolute top-4 left-[344px] bottom-4 flex flex-col w-[400px]", className)}>
-      <div className="bg-surface/95 backdrop-blur rounded-card shadow-card overflow-y-auto flex-shrink">
+    <div className={cn("absolute top-4 left-[344px] bottom-4 flex flex-col w-[400px]", leaving && "pointer-events-none", className)}>
+      <div
+        key={section}
+        className={cn(
+          "bg-surface/95 backdrop-blur rounded-card shadow-card overflow-y-auto flex-shrink",
+          leaving ? "motion-safe:animate-panel-out" : "motion-safe:animate-panel-in"
+        )}
+      >
         <div className="px-4 py-3 flex items-center gap-2.5 border-b border-surface-border sticky top-0 bg-surface/95 backdrop-blur">
           <Icon className="w-4 h-4 text-ink-700 flex-shrink-0" />
           <span className="text-sm font-medium text-ink-900 flex-1 truncate">{SECTION_LABELS[section]}</span>

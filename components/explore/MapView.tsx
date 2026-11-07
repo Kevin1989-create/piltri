@@ -18,6 +18,8 @@ import type { TravelTimes } from "@/lib/types";
 import { SpotCard, type SpotRow } from "@/components/explore/SpotCard";
 import { formatSpotParam, removeSpot, sameSpot, saveSpot, savedSpotsFor, type SavedSpot } from "@/lib/spots";
 import { cityUrl } from "@/lib/urls";
+import { cameraMotion, motionEase } from "@/lib/motion";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 
 /** OpenFreeMap: free OpenStreetMap vector tiles, no API key, no usage
  *  limits (https://openfreemap.org). "liberty" is the richer style with POI
@@ -119,7 +121,7 @@ class CityZoomControl implements maplibregl.IControl {
       button.addEventListener("click", (e) => {
         const centre = this.centre();
         const around = map.getBounds().contains(centre) ? centre : undefined;
-        map.easeTo({ zoom: map.getZoom() + step, around }, { originalEvent: e });
+        map.easeTo({ zoom: map.getZoom() + step, around, duration: 420, easing: motionEase }, { originalEvent: e });
       });
       container.appendChild(button);
     };
@@ -218,6 +220,10 @@ interface MapViewProps {
    *  button's action; no button without it. */
   expanded?: boolean;
   onToggleExpanded?: () => void;
+  /** The page is taking the expanded map back into its slot (a phone): the
+   *  camera heads back to the view from before at the same time, so the
+   *  slot shows exactly that view when it lands. */
+  collapsing?: boolean;
   /** A kind's places in the city, from the dataset (from 2026-10-29) - the
    *  layer list then offers every INSIDE_KINDS kind and shows them all;
    *  without it, the kinds the map's tiles hold, within 5 km. */
@@ -522,6 +528,7 @@ export function MapView({
   onCloseFocus,
   expanded = false,
   onToggleExpanded,
+  collapsing = false,
   loadInside,
   areaName,
   insideFigures,
@@ -541,11 +548,21 @@ export function MapView({
   // The searched place's framing, to come back to once a figure's place
   // (focus) is closed.
   const areaBoundsRef = useRef<maplibregl.LngLatBounds | null>(null);
-  // The view before the map was expanded, and - just after shrinking - the
-  // one to go back to (see the expanded layout effect).
+  // The view before the map was expanded, to go back to (see the expanded
+  // layout effect); and whether the camera is already on its way there
+  // (collapsing).
   const preExpandCameraRef = useRef<{ center: maplibregl.LngLat; zoom: number } | null>(null);
-  const restoreCameraRef = useRef<{ center: maplibregl.LngLat; zoom: number } | null>(null);
+  const headingBackRef = useRef(false);
+  // The expanded layout effect framed the map in this commit: the focus
+  // effect, running after it, doesn't start the same move again (two moves
+  // at once restart each other - the jolts, 2026-11-07).
+  const framedThisCommitRef = useRef(false);
+  // Read when a frame is worked out, which can be later than the render
+  // that asked for it (a route arriving, the outline loading).
   const focusRef = useRef<MapFocus | null>(focus);
+  focusRef.current = focus;
+  const compactRef = useRef(compact);
+  compactRef.current = compact;
   // A Yes's places from the map's tiles, as they arrive (null: none being
   // looked for - a distance, or a kind the tiles don't hold).
   const [tilePlaces, setTilePlaces] = useState<{ places: MapPlace[]; done: boolean } | null>(null);
@@ -656,7 +673,7 @@ export function MapView({
   const framePadding = (map: maplibregl.Map, extraTop = 0, extraRight = 0): maplibregl.PaddingOptions => {
     // Even on every side, so the place is in the very middle (2026-10-30,
     // owner).
-    if (compact) return { top: 40 + extraTop, bottom: 40 + extraTop, left: 40 + extraRight, right: 40 + extraRight };
+    if (compactRef.current) return { top: 40 + extraTop, bottom: 40 + extraTop, left: 40 + extraRight, right: 40 + extraRight };
     const left = Math.max(60, Math.min(780, map.getContainer().clientWidth - 420));
     return { top: 60 + extraTop, bottom: 60, left, right: 60 + extraRight };
   };
@@ -678,7 +695,28 @@ export function MapView({
   };
   /** Room on the right for the labels: less on a phone, where the map
    *  hides those that don't fit. */
-  const FLAG_LABEL_PX = compact ? 40 : 110;
+  const flagLabelPx = () => (compactRef.current ? 40 : 110);
+  /** The place's own framing, whatever is on it: a Yes's places, a
+   *  distance's journey, a shared link's spots, else the place's outline.
+   *  Every button and every change of size frames through here, in one
+   *  move on the shared curve (2026-11-07, owner: "align strictly"). */
+  const frameHome = (map: maplibregl.Map, ms?: number) => {
+    const motion = cameraMotion(ms);
+    const focused = focusRef.current;
+    const current = focused?.points[0];
+    const extraTop = compactRef.current ? 50 : 0;
+    if (focused && current && focused.style === "pin") {
+      map.fitBounds(yesView(focused), { padding: framePadding(map, extraTop, flagLabelPx()), ...motion });
+    } else if (current) {
+      const { lat: clat, lng: clng } = cardContextRef.current;
+      const bounds = new maplibregl.LngLatBounds([clng, clat], [clng, clat]).extend([current.lng, current.lat]);
+      if (routeBoundsRef.current) bounds.extend(routeBoundsRef.current);
+      // Room for the chip above and the flag's name beside it.
+      map.fitBounds(bounds, { padding: framePadding(map, compactRef.current ? 50 : 20, flagLabelPx()), maxZoom: 15, ...motion });
+    } else if (!frameLinkSpots(map, ms) && areaBoundsRef.current) {
+      map.fitBounds(areaBoundsRef.current, { padding: framePadding(map), ...motion });
+    }
+  };
   // Camera position from just before a pin was dropped, so closing the pin
   // can fly back to the same view rather than staying zoomed in on it.
   const preDropCameraRef = useRef<{ center: maplibregl.LngLat; zoom: number } | null>(null);
@@ -850,36 +888,40 @@ export function MapView({
       // caused a visible flash of the old small circle before the real
       // boundary (or a correctly-sized fallback) replaced it.
       // Every outline drawn alike (2026-10-14, on request) - an official
-      // boundary, a built-up area or the 5 km circle: the world outside
-      // gently veiled, a whisper of amber inside, and a crisp amber line on
-      // a soft white casing that reads on any part of the map.
+      // boundary, a built-up area or the 5 km circle. Restyled 2026-11-07
+      // (owner: "super classy and modern"): the world outside under a warm
+      // paper veil, the place itself left crisp, and its edge a fine line in
+      // Piltri's amber - full colour, not the basemap's muted tones - on a
+      // white casing with a soft amber glow, a touch bolder as you zoom in.
+      const byZoom = (far: number, city: number, close: number) => ["interpolate", ["linear"], ["zoom"], 8, far, 12, city, 15, close] as any;
       map.addSource(MASK_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({
         id: `${MASK_SOURCE_ID}-fill`,
         type: "fill",
         source: MASK_SOURCE_ID,
-        paint: { "fill-color": muteColor("#FAF7F2"), "fill-opacity": 0.45 },
+        paint: { "fill-color": "#F5F1EB", "fill-opacity": 0.6 },
       });
       map.addSource(AREA_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({
-        id: `${AREA_SOURCE_ID}-fill`,
-        type: "fill",
+        id: `${AREA_SOURCE_ID}-glow`,
+        type: "line",
         source: AREA_SOURCE_ID,
-        paint: { "fill-color": muteColor("#E3B27A"), "fill-opacity": 0.1 },
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#C77D1A", "line-width": byZoom(10, 14, 22), "line-blur": byZoom(7, 9, 14), "line-opacity": 0.3 },
       });
       map.addLayer({
         id: `${AREA_SOURCE_ID}-line-halo`,
         type: "line",
         source: AREA_SOURCE_ID,
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": muteColor("#FFFFFF"), "line-width": 6, "line-opacity": 0.85, "line-blur": 1 },
+        paint: { "line-color": "#FFFFFF", "line-width": byZoom(3.5, 4.5, 5.5), "line-opacity": 0.9 },
       });
       map.addLayer({
         id: `${AREA_SOURCE_ID}-line`,
         type: "line",
         source: AREA_SOURCE_ID,
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": muteColor("#96600F"), "line-width": 2.25, "line-opacity": 1 },
+        paint: { "line-color": "#A0600E", "line-width": byZoom(1.5, 2.2, 3) },
       });
 
       // The line from the centre to a distance figure's place ("nearest
@@ -1079,21 +1121,11 @@ export function MapView({
       const rings = area.geometry.type === "MultiPolygon" ? area.geometry.coordinates.flat() : (area.geometry as GeoJSON.Polygon).coordinates;
       for (const ring of rings) for (const coord of ring) bounds.extend(coord as [number, number]);
       areaBoundsRef.current = bounds;
-      // A figure's place being shown takes the framing (see below) - a
-      // flag's together with the place, now that its outline is here.
+      // The place's framing, now that its outline is here (a journey's
+      // doesn't depend on it). The opening glide: a little longer.
       const focused = focusRef.current;
-      if (focused?.points.length) {
-        if (focused.style === "pin") map.fitBounds(yesView(focused), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration: 800 });
-        return;
-      }
-      // Just shrunk: back to the view from before expanding.
-      if (restoreCameraRef.current) {
-        map.easeTo({ ...restoreCameraRef.current, duration: 700 });
-        return;
-      }
-      // A shared link's spots are framed instead, until the map is moved.
-      if (frameLinkSpots(map)) return;
-      map.fitBounds(bounds, { padding: framePadding(map), duration: 800 });
+      if (focused?.points.length && focused.style === "journey") return;
+      frameHome(map, 800);
     }
 
     if (mapLoadedRef.current) {
@@ -1105,7 +1137,8 @@ export function MapView({
     return () => {
       cancelled = true;
     };
-  }, [lat, lng, zoom, compact, outline]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lat, lng, zoom, outline]);
 
   // Show/hide the dropped pin marker — persists correctly now that MapView
   // is never remounted when pin mode toggles. Also zooms in on the pinned
@@ -1339,6 +1372,11 @@ export function MapView({
     }
   }, [listHere]);
 
+  // A phone on its side (2026-11-07, owner): no height for the list under
+  // the buttons - it runs along the top of the map instead, the kinds in a
+  // row that scrolls sideways, and the shown box drops under it.
+  const landscapeShort = useMediaQuery("(orientation: landscape) and (max-height: 520px)");
+  const listAsStrip = listShown && landscapeShort;
   // A phone's small map: the expand, places and spot buttons in a column
   // beside the zoom buttons rather than under them, so all fit in its
   // height (2026-11-06, owner: keep + and - there too).
@@ -1348,8 +1386,26 @@ export function MapView({
   const layersTop = onToggleExpanded ? expandTop + BUTTON_STEP_PX : 76;
   const spotTop = layersTop + BUTTON_STEP_PX;
   const listTop = (placeId ? spotTop : layersTop) + 35;
-  /** The shown box sits left of the buttons. */
+  /** The shown box sits left of the buttons (under the strip, when it's
+   *  open). */
   const shownRight = buttonsRight + 36;
+  const shownTop = listAsStrip ? 58 : 10;
+  /** The kinds the list offers: only those the city has places of
+   *  (2026-11-06, owner) - not a No (its row still shows the nearest one),
+   *  nor a line with no stop mapped (a tram's track). */
+  const offeredKinds = listKinds.filter((kind) => {
+    const count = insideFigures?.[kind as InsideKind]?.count;
+    return count !== 0 && count !== INSIDE_TRACK_ONLY;
+  });
+  const listNote = loadInside
+    ? `Every one in the city, or within 1 km of it${airportsByReach("intlAirport") ? `; airports within ${AIRPORT_REACH_KM} km` : ""}.`
+    : detailed
+      ? "Every one in view."
+      : "Within 5 km of the centre - zoom in to see them anywhere.";
+  const clearList = () => {
+    setLayerKinds([]);
+    if (focusKind) onCloseFocus?.();
+  };
 
   // Spots. The ones saved in this browser for this place; another place
   // starts without any on the map.
@@ -1391,18 +1447,18 @@ export function MapView({
     if (box.clientWidth >= 640) return { top: 70, right: 70, bottom: 50, left: (card?.width ?? 300) + 50 };
     return { top: 70, right: 50, bottom: Math.min((card?.height ?? 260) + 40, box.clientHeight * 0.55), left: 40 };
   };
-  const frameSpots = (map: maplibregl.Map, points: { lat: number; lng: number }[]) => {
+  const frameSpots = (map: maplibregl.Map, points: { lat: number; lng: number }[], ms?: number) => {
     const bounds = new maplibregl.LngLatBounds();
     for (const p of points) bounds.extend([p.lng, p.lat]);
-    map.fitBounds(bounds, { padding: spotPadding(map), maxZoom: 15, duration: 800 });
+    map.fitBounds(bounds, { padding: spotPadding(map), maxZoom: 15, ...cameraMotion(ms) });
   };
   /** A shared link's spots, framed in place of the place itself until the
    *  map is moved by hand or the spots change - the place's own framing
    *  (its outline arriving, the map expanding) runs after them. */
-  const frameLinkSpots = (map: maplibregl.Map): boolean => {
+  const frameLinkSpots = (map: maplibregl.Map, ms?: number): boolean => {
     const { a, b } = spotsRef.current;
     if (!linkSpotsRef.current || !a) return false;
-    frameSpots(map, b ? [a, b] : [a]);
+    frameSpots(map, b ? [a, b] : [a], ms);
     return true;
   };
   const openSpot = (spot: SpotPoint) => {
@@ -1577,28 +1633,48 @@ export function MapView({
           ? "No road route found - straight line shown"
           : null;
 
-  // Expanding or shrinking (the page animates it): resized and drawn at
-  // once, before the screen updates, so the picture is never stretched or
-  // blank for a frame. Shrinking goes back to the view from before
-  // expanding (2026-11-06, owner: it stayed at the expanded map's zoom) -
-  // the place's own reframing (applyArea, frame) gives way to it.
+  // Expanding or shrinking - from any of the three buttons, a figure's
+  // place on a phone, a phone or a computer - goes through here, the same
+  // every time (2026-11-07, owner: "align strictly"): resized and drawn at
+  // once, before the screen updates (never a stretched or blank frame),
+  // then one camera move on the shared curve while the page animates the
+  // box: expanding frames the place in the whole map; shrinking goes back
+  // to the view from before (2026-11-06, owner).
   const firstExpandedRef = useRef(true);
   useLayoutEffect(() => {
     const map = mapRef.current;
     const first = firstExpandedRef.current;
     firstExpandedRef.current = false;
     if (!map || first) return;
-    if (expanded) {
-      restoreCameraRef.current = null;
-      preExpandCameraRef.current = { center: map.getCenter(), zoom: map.getZoom() };
-    } else if (preExpandCameraRef.current) {
-      restoreCameraRef.current = preExpandCameraRef.current;
-      preExpandCameraRef.current = null;
-    }
+    const back = preExpandCameraRef.current;
+    if (expanded) preExpandCameraRef.current = { center: map.getCenter(), zoom: map.getZoom() };
+    else preExpandCameraRef.current = null;
     map.resize();
     if (mapLoadedRef.current) map.redraw();
-    if (!expanded && restoreCameraRef.current) map.easeTo({ ...restoreCameraRef.current, duration: 700 });
+    framedThisCommitRef.current = true;
+    if (expanded) {
+      frameHome(map);
+    } else if (back && headingBackRef.current) {
+      // Already there (collapsing): settle exactly.
+      map.jumpTo(back);
+    } else if (back && !focusRef.current) {
+      map.easeTo({ ...back, ...cameraMotion() });
+    } else {
+      frameHome(map);
+    }
+    headingBackRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded]);
+
+  // A phone taking the map back into the page: the camera heads to the
+  // view from before at the same pace, so the slot lands on it.
+  useLayoutEffect(() => {
+    const map = mapRef.current;
+    const back = preExpandCameraRef.current;
+    if (!collapsing || !map || !back) return;
+    headingBackRef.current = true;
+    map.easeTo({ ...back, ...cameraMotion() });
+  }, [collapsing]);
 
   // A Yes: look for every place of its kind in the map's tiles (lib/
   // mapPlaces.ts) - the dataset's own nearest 6 show meanwhile, and stay
@@ -1630,28 +1706,12 @@ export function MapView({
   // Show (or clear) a figure's place: the point, a dashed line from the
   // centre, framed together - back to the place's own framing when closed.
   useEffect(() => {
-    focusRef.current = focus;
     const map = mapRef.current;
     if (!map) return;
-    // Frames whatever is current when it runs - also after the map has
-    // resized (on phones it goes full screen for a figure's place, and a
-    // framing done at the small size would be off-centre).
-    const frame = (duration = 800) => {
-      const points = focusRef.current?.points ?? [];
-      const current = points[0];
-      if (current && focusRef.current?.style === "pin") {
-        map.fitBounds(yesView(focusRef.current), { padding: framePadding(map, compact ? 50 : 0, FLAG_LABEL_PX), duration });
-      } else if (current) {
-        const bounds = new maplibregl.LngLatBounds([lng, lat], [lng, lat]).extend([current.lng, current.lat]);
-        if (routeBoundsRef.current) bounds.extend(routeBoundsRef.current);
-        // Room for the chip above and the flag's name beside it.
-        map.fitBounds(bounds, { padding: framePadding(map, compact ? 50 : 20, FLAG_LABEL_PX), maxZoom: 15, duration });
-      } else if (restoreCameraRef.current) {
-        map.easeTo({ ...restoreCameraRef.current, duration: 700 });
-      } else if (areaBoundsRef.current && !frameLinkSpots(map)) {
-        map.fitBounds(areaBoundsRef.current, { padding: framePadding(map), duration });
-      }
-    };
+    // The expanded layout effect has just framed this (a phone opening a
+    // figure's place full screen): not a second move on top of it.
+    const framedAlready = framedThisCommitRef.current;
+    const frame = (ms?: number) => frameHome(map, ms);
     const apply = () => {
       const source = map.getSource(FOCUS_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
       if (!source) return;
@@ -1691,9 +1751,7 @@ export function MapView({
           frame();
         });
       }
-      frame();
-      // Straight to the new framing once it has (the map has just appeared).
-      if (compact) map.once("resize", () => frame(0));
+      if (!framedAlready) frame();
       // Shown before the map had loaded: once it has fully drawn, frame
       // again - the outline may have arrived, or the size settled, since.
       if (late) map.once("idle", () => frame(0));
@@ -1702,16 +1760,12 @@ export function MapView({
     if (mapLoadedRef.current) apply();
     else map.once("load", apply);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focus, lat, lng, compact]);
+  }, [focus, lat, lng]);
 
-  // The view to go back to after shrinking serves the reframing of that
-  // moment (the place's and the figure's, above, and a phone's late resize)
-  // - then it's let go.
+  // The end of every commit: the next one starts unframed.
   useEffect(() => {
-    if (!restoreCameraRef.current) return;
-    const timer = setTimeout(() => (restoreCameraRef.current = null), 1500);
-    return () => clearTimeout(timer);
-  }, [expanded]);
+    framedThisCommitRef.current = false;
+  });
 
   return (
     <div className="relative w-full h-full">
@@ -1721,7 +1775,7 @@ export function MapView({
         // the same for a tapped figure and a kind ticked in the layer list,
         // always beside the buttons (2026-10-30, owner: "more consistent").
         // A journey adds the same one in Google Maps in a new tab.
-        <div style={{ right: shownRight, maxWidth: `min(20rem, calc(100% - ${shownRight + 10}px))` }} className="absolute top-[10px] z-10 rounded-2xl bg-surface py-0.5 pl-2.5 pr-0.5 shadow-card">
+        <div style={{ top: shownTop, right: shownRight, maxWidth: `min(20rem, calc(100% - ${shownRight + 10}px))` }} className="absolute z-10 rounded-2xl bg-surface py-0.5 pl-2.5 pr-0.5 shadow-card">
           {focus && (
             <>
               <ShownLine
@@ -1845,38 +1899,18 @@ export function MapView({
               </svg>
             </button>
           )}
-          {listShown && (
-            // Right under the buttons, against the map's edge, narrow
-            // (2026-10-30, owner: "take less space from the map"); never
-            // taller than the map - it scrolls inside, under its title.
+          {listAsStrip && (
+            // On its side: along the top, left of the buttons - its title,
+            // the kinds and your spots in a row that scrolls sideways, and
+            // Clear at the end.
             <div
-              style={{ top: listTop, maxHeight: `calc(100% - ${listTop + 12}px)` }}
-              className="absolute right-[10px] z-20 w-[180px] overflow-y-auto rounded-xl bg-surface px-1 pb-1 shadow-card"
+              style={{ right: buttonsRight + 38 }}
+              title={listNote}
+              className="absolute left-[10px] top-[10px] z-20 flex items-center gap-1.5 rounded-xl bg-surface py-1 pl-2.5 pr-1 shadow-card motion-safe:animate-fade-in"
             >
-              {/* Its title, and Clear at the top (2026-11-06, owner). */}
-              <div className="sticky top-0 z-10 flex items-center bg-surface px-1.5 pb-1 pt-1.5">
-                <p className="flex-1 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show on the map</p>
-                <button
-                  type="button"
-                  disabled={!layerKinds.length && !focusKind}
-                  onClick={() => {
-                    setLayerKinds([]);
-                    if (focusKind) onCloseFocus?.();
-                  }}
-                  className="text-[11px] font-medium text-piltri-amber-dark underline-offset-2 hover:underline disabled:text-ink-300 disabled:no-underline"
-                >
-                  Clear
-                </button>
-              </div>
-              {/* Only the kinds the city has places of (2026-11-06, owner):
-               *  not a No (its row still shows the nearest one), nor a line
-               *  with no stop mapped (a tram's track). */}
-              {listKinds
-                .filter((kind) => {
-                  const count = insideFigures?.[kind as InsideKind]?.count;
-                  return count !== 0 && count !== INSIDE_TRACK_ONLY;
-                })
-                .map((kind) => {
+              <p className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show</p>
+              <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto py-0.5 [scrollbar-width:none]">
+                {offeredKinds.map((kind) => {
                   const on = layerKinds.includes(kind) || kind === focusKind;
                   return (
                     <button
@@ -1885,24 +1919,82 @@ export function MapView({
                       role="menuitemcheckbox"
                       aria-checked={on}
                       onClick={() => toggleLayer(kind)}
-                      className={cn("flex w-full items-center gap-1.5 rounded-lg px-1.5 py-[3px] text-left text-[11px] text-ink-900 hover:bg-surface-muted", on && "font-medium")}
+                      className={cn(
+                        "flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border py-[3px] pl-1 pr-2 text-[11px] transition-colors",
+                        on ? "border-piltri-amber bg-piltri-amber/10 font-medium text-ink-900" : "border-surface-border text-ink-700 hover:bg-surface-muted"
+                      )}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={mapIconUrl(kind)} alt="" width={16} height={16} />
-                      <span className="min-w-0 flex-1 truncate">{LAYER_LABELS[kind as InsideKind]}</span>
-                      <span className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border text-[9px]", on ? "border-piltri-amber bg-piltri-amber text-white" : "border-ink-300")}>
-                        {on && "✓"}
-                      </span>
+                      {LAYER_LABELS[kind as InsideKind]}
                     </button>
                   );
                 })}
-              <p className="px-1.5 pb-0.5 pt-1 text-[10px] leading-snug text-ink-500">
-                {loadInside
-                  ? `Every one in the city, or within 1 km of it${airportsByReach("intlAirport") ? `; airports within ${AIRPORT_REACH_KM} km` : ""}.`
-                  : detailed
-                    ? "Every one in view."
-                    : "Within 5 km of the centre - zoom in to see them anywhere."}
-              </p>
+                {savedSpots.map((saved) => (
+                  <button
+                    key={`${saved.lat},${saved.lng}`}
+                    type="button"
+                    onClick={() => openSpot({ lat: saved.lat, lng: saved.lng, name: saved.name })}
+                    className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-surface-border py-[3px] pl-1.5 pr-2 text-[11px] text-ink-700 hover:bg-surface-muted"
+                  >
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill={SPOT_COLOR} aria-hidden className="shrink-0">
+                      <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />
+                    </svg>
+                    {saved.name ?? "Your spot"}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                disabled={!layerKinds.length && !focusKind}
+                onClick={clearList}
+                className="shrink-0 px-1.5 text-[11px] font-medium text-piltri-amber-dark underline-offset-2 hover:underline disabled:text-ink-300 disabled:no-underline"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+          {listShown && !listAsStrip && (
+            // Right under the buttons, against the map's edge, narrow
+            // (2026-10-30, owner: "take less space from the map"); never
+            // taller than the map - it scrolls inside, under its title.
+            <div
+              style={{ top: listTop, maxHeight: `calc(100% - ${listTop + 12}px)` }}
+              className="absolute right-[10px] z-20 w-[180px] overflow-y-auto rounded-xl bg-surface px-1 pb-1 shadow-card motion-safe:animate-fade-in"
+            >
+              {/* Its title, and Clear at the top (2026-11-06, owner). */}
+              <div className="sticky top-0 z-10 flex items-center bg-surface px-1.5 pb-1 pt-1.5">
+                <p className="flex-1 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show on the map</p>
+                <button
+                  type="button"
+                  disabled={!layerKinds.length && !focusKind}
+                  onClick={clearList}
+                  className="text-[11px] font-medium text-piltri-amber-dark underline-offset-2 hover:underline disabled:text-ink-300 disabled:no-underline"
+                >
+                  Clear
+                </button>
+              </div>
+              {offeredKinds.map((kind) => {
+                const on = layerKinds.includes(kind) || kind === focusKind;
+                return (
+                  <button
+                    key={kind}
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={on}
+                    onClick={() => toggleLayer(kind)}
+                    className={cn("flex w-full items-center gap-1.5 rounded-lg px-1.5 py-[3px] text-left text-[11px] text-ink-900 hover:bg-surface-muted", on && "font-medium")}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={mapIconUrl(kind)} alt="" width={16} height={16} />
+                    <span className="min-w-0 flex-1 truncate">{LAYER_LABELS[kind as InsideKind]}</span>
+                    <span className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border text-[9px]", on ? "border-piltri-amber bg-piltri-amber text-white" : "border-ink-300")}>
+                      {on && "✓"}
+                    </span>
+                  </button>
+                );
+              })}
+              <p className="px-1.5 pb-0.5 pt-1 text-[10px] leading-snug text-ink-500">{listNote}</p>
               {savedSpots.length > 0 && (
                 // The spots saved here, to go back to one.
                 <>

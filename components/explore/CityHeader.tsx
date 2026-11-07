@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { PiltriScoreDisplay } from "@/components/ui/ScoreBadge";
 import { EyeIcon, PlusIcon } from "@/components/ui/icons";
+import { Collapse } from "@/components/ui/Collapse";
 import { hasSource } from "@/lib/kpiRows";
 import { isCustomWeights } from "@/lib/scoreWeights";
 import { formatUtcOffset } from "@/lib/timezone";
@@ -303,15 +304,18 @@ export function CityHeader({
         </div>
       )}
 
-      {countryStats && !hideCountry && (
-        <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
-          <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{country}</p>
-          <div className="mt-0.5 grid grid-cols-3 items-start gap-x-3 gap-y-0.5">
-            {countryStats.map((stat) => (
-              <StatCell key={stat.label} stat={stat} />
-            ))}
+      {countryStats && (
+        // Folds away smoothly rather than vanishing (2026-11-07).
+        <Collapse open={!hideCountry}>
+          <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
+            <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{country}</p>
+            <div className="mt-0.5 grid grid-cols-3 items-start gap-x-3 gap-y-0.5">
+              {countryStats.map((stat) => (
+                <StatCell key={stat.label} stat={stat} />
+              ))}
+            </div>
           </div>
-        </div>
+        </Collapse>
       )}
 
       {/* Label and score on one line — saves the vertical space the label

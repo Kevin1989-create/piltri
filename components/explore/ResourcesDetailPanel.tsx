@@ -4,20 +4,28 @@ import { cn } from "@/lib/cn";
 
 interface ResourcesDetailPanelProps {
   countryCode: string;
+  /** Closing: it fades out the way it came (the page removes it after). */
+  leaving?: boolean;
   /** Added to the panel (the city page slides it away for the expanded map). */
   className?: string;
 }
 
 /** Same floating side panel as SectionDetailPanel (identical positioning/
- *  sizing), for the Resources row specifically - kept separate rather
- *  than generalising SectionDetailPanel to accept Resources, since that
- *  component is built entirely around SectionKey (score badge, KPI rows)
- *  and Resources has neither. No score badge in the header here - see
- *  ResourcesRow's doc comment for why that matters. */
-export function ResourcesDetailPanel({ countryCode, className }: ResourcesDetailPanelProps) {
+ *  sizing, and the same glide in and out), for the Resources row
+ *  specifically - kept separate rather than generalising
+ *  SectionDetailPanel to accept Resources, since that component is built
+ *  entirely around SectionKey (score badge, KPI rows) and Resources has
+ *  neither. No score badge in the header here - see ResourcesRow's doc
+ *  comment for why that matters. */
+export function ResourcesDetailPanel({ countryCode, leaving = false, className }: ResourcesDetailPanelProps) {
   return (
-    <div className={cn("absolute top-4 left-[344px] bottom-4 flex flex-col w-[400px]", className)}>
-      <div className="bg-surface/95 backdrop-blur rounded-card shadow-card overflow-y-auto flex-shrink">
+    <div className={cn("absolute top-4 left-[344px] bottom-4 flex flex-col w-[400px]", leaving && "pointer-events-none", className)}>
+      <div
+        className={cn(
+          "bg-surface/95 backdrop-blur rounded-card shadow-card overflow-y-auto flex-shrink",
+          leaving ? "motion-safe:animate-panel-out" : "motion-safe:animate-panel-in"
+        )}
+      >
         <div className="px-4 py-3 flex items-center gap-2.5 border-b border-surface-border sticky top-0 bg-surface/95 backdrop-blur">
           <IconResources className="w-4 h-4 text-ink-700 flex-shrink-0" />
           <span className="text-sm font-medium text-ink-900 flex-1 truncate">Resources</span>

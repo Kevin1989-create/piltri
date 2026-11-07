@@ -31,6 +31,7 @@ import { cityUrl, compareUrl, readCityRef, reportUrl, settingsUrl } from "@/lib/
 import { manifest } from "@/lib/dataset/files";
 import { parseSpotParam } from "@/lib/spots";
 import { usePageMeta } from "@/lib/pageMeta";
+import { MOTION_CSS, MOTION_MS, QUICK_MS } from "@/lib/motion";
 import type { CityExploreData, NearbyPlace, TravelTimes } from "@/lib/types";
 
 /** Pin mode (click the map for local details and directions) - switched
@@ -42,15 +43,27 @@ const PIN_MODE = false;
 /** The smallest the map gets on a phone, to leave the score card room -
  *  enough for its three buttons (expand, places, spot). */
 const PHONE_MAP_MIN_PX = 125;
-/** How long the map takes to fill the screen under the top bar, or go
- *  back into the page (phones), and how: eased in and out, as gently as
- *  the map's own glide when the page opens (2026-10-30, owner). */
-const MAP_GROW_MS = 450;
-const MAP_GROW_EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
 /** The panels over the map on a computer fade away with a small drift for
- *  the expanded map, and back. */
-const PANEL_SLIDE = "md:transition-[transform,opacity] md:duration-[450ms] md:ease-in-out motion-reduce:transition-none";
+ *  the expanded map, and back - at the map's own pace and curve
+ *  (lib/motion.ts), so the camera, the map and the panels move as one. The
+ *  map filling the screen on a phone uses the same (MOTION_MS, MOTION_CSS). */
+const PANEL_SLIDE = "md:transition-[transform,opacity] md:duration-[700ms] md:ease-[cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none";
 const PANEL_AWAY = "pointer-events-none -translate-x-4 opacity-0";
+
+/** `value`, kept for `ms` after it turns null (with `leaving` set) -
+ *  so what it shows can animate away. */
+function useLingering<T>(value: T | null, ms: number): { value: T | null; leaving: boolean } {
+  const [last, setLast] = useState<T | null>(value);
+  useEffect(() => {
+    if (value !== null) {
+      setLast(value);
+      return;
+    }
+    const timer = setTimeout(() => setLast(null), ms);
+    return () => clearTimeout(timer);
+  }, [value, ms]);
+  return value !== null ? { value, leaving: false } : { value: last, leaving: last !== null };
+}
 
 /** "Lyon, France" - with the region too for a town sharing its name with
  *  a bigger one in the same country ("Springfield, Illinois, United
@@ -200,24 +213,43 @@ function CityContent() {
   // MapView's `compact` prop for the other half of this.
   const isDesktop = useMediaQuery("(min-width: 768px)");
   useEffect(() => {
-    if (!isDesktop) window.scrollTo({ top: 0 });
+    if (!isDesktop && window.scrollY > 0) window.scrollTo({ top: 0, behavior: "smooth" });
   }, [openSectionKey, isDesktop]);
   // Phone, with a section open: the page is exactly one screen tall and
   // the open section takes the height left under the map and the city
   // info, scrolling inside its own box (see SectionColumn's `fill`).
   const sectionView = !isDesktop && openSectionKey !== null;
+  // The desktop panel for the open section, kept a moment after it closes
+  // so it can fade out.
+  const shownPanel = useLingering(openSectionKey, QUICK_MS);
   // Phones: the room left for the map once the score card (and its 12 px
   // margin) fits below it - never under PHONE_MAP_MIN_PX. Measured again
   // when the card changes size or the screen does (a phone's browser bars
   // come and go); not while a section is open - the map keeps its size.
   // (Read from the rows themselves: the card grows as a section opens, a
   // moment before the page hears of it.)
+  // While the rows are still sliding open or shut, the card isn't its
+  // final size: measured once they've settled, so the map never twitches
+  // (2026-11-07, owner: "super super smooth").
   useEffect(() => {
     const column = scoreColumnRef.current;
     const area = mapAreaRef.current;
     if (isDesktop || sectionView || !column || !area) return;
+    let cancelled = false;
+    let waiting = false;
     const measure = () => {
-      if (column.querySelector('[aria-expanded="true"]')) return;
+      if (cancelled || column.querySelector('[aria-expanded="true"]')) return;
+      const moving = column.getAnimations({ subtree: true }).filter((a) => a.playState === "running");
+      if (moving.length) {
+        if (!waiting) {
+          waiting = true;
+          Promise.allSettled(moving.map((a) => a.finished)).then(() => {
+            waiting = false;
+            measure();
+          });
+        }
+        return;
+      }
       const top = area.getBoundingClientRect().top + window.scrollY;
       setPhoneMapPx(Math.max(PHONE_MAP_MIN_PX, Math.floor(window.innerHeight - top - column.offsetHeight - 12)));
     };
@@ -226,6 +258,7 @@ function CityContent() {
     observer.observe(column);
     window.addEventListener("resize", measure);
     return () => {
+      cancelled = true;
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
@@ -260,6 +293,9 @@ function CityContent() {
   const mapPictureRef = useRef<HTMLDivElement | null>(null);
   const mapSlotRef = useRef<{ dx: number; dy: number; width: number; height: number } | null>(null);
   const mapAnimatingRef = useRef(false);
+  // Going back into the page (a phone): MapView's camera heads back to the
+  // view from before at the same time.
+  const [mapCollapsing, setMapCollapsing] = useState(false);
   const mapFilledRef = useRef(mapFills);
   /** The clip and the shift that make the full-screen map look like the
    *  page's map: only its slot shown, its centre at the slot's centre.
@@ -285,18 +321,20 @@ function CityContent() {
     const frames = mapSlotFrames();
     if (!frames || !mapBoxRef.current || !mapPictureRef.current) return done();
     mapAnimatingRef.current = true;
+    setMapCollapsing(true);
     let finished = false;
     const finish = () => {
       if (finished) return;
       finished = true;
       mapAnimatingRef.current = false;
+      setMapCollapsing(false);
       done();
     };
-    const timing = { duration: MAP_GROW_MS, easing: MAP_GROW_EASING, fill: "forwards" as const };
+    const timing = { duration: MOTION_MS, easing: MOTION_CSS, fill: "forwards" as const };
     mapPictureRef.current.animate([{ transform: "none" }, { transform: frames.shift }], timing);
     mapBoxRef.current.animate([{ clipPath: "inset(0px)" }, { clipPath: frames.clip }], timing).onfinish = finish;
     // Animations don't run in a page that isn't on screen: never wait on one.
-    setTimeout(finish, MAP_GROW_MS + 150);
+    setTimeout(finish, MOTION_MS + 150);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useLayoutEffect(() => {
@@ -316,7 +354,7 @@ function CityContent() {
       // open out from the slot.
       const frames = mapSlotFrames();
       if (!frames) return;
-      const timing = { duration: MAP_GROW_MS, easing: MAP_GROW_EASING };
+      const timing = { duration: MOTION_MS, easing: MOTION_CSS };
       box.animate([{ clipPath: frames.clip }, { clipPath: "inset(0px)" }], timing);
       picture.animate([{ transform: frames.shift }, { transform: "none" }], timing);
     }
@@ -562,14 +600,14 @@ function CityContent() {
           // its own below the logo on mobile (see NavBar). Advanced search
           // and Leaderboards are reached from the home page (2026-10-11, on
           // request), beside Settings.
-          <div className="flex items-center gap-2 md:gap-3 w-full max-w-md md:max-w-none md:w-auto">
+          <div className="flex items-center gap-2 md:gap-3 w-full max-w-md md:max-w-none md:w-auto land:max-w-none land:w-auto">
             <SearchBar
               // Remounted once the city has loaded, to show its name.
               key={data?.cityId ?? "loading"}
               variant="compact"
               initialValue={data ? placeLabel(data) : ""}
               placeholder="Search for a place you will call home"
-              className="flex-1 min-w-0 md:w-[300px] md:flex-none"
+              className="flex-1 min-w-0 md:w-[300px] md:flex-none land:w-[300px] land:flex-none"
             />
           </div>
         }
@@ -579,7 +617,7 @@ function CityContent() {
             // scrolling): the logo row has room beside the logo, and it adds
             // no height. Nudged down on phones to line up with the logo's
             // lettering, which sits low in its box.
-            <div className="flex flex-col items-end gap-0.5 translate-y-1.5 md:translate-y-0">
+            <div className="flex flex-col items-end gap-0.5 translate-y-1.5 md:translate-y-0 land:translate-y-0">
               {/* Data & Sources is linked from the home page only (2026-09-30,
                *  on request); the date stays, as plain text. */}
               <span className="text-[11px] text-ink-300 whitespace-nowrap">
@@ -638,6 +676,7 @@ function CityContent() {
                 onCloseFocus={closeFocusOnMap}
                 expanded={mapFills}
                 onToggleExpanded={toggleMapExpanded}
+                collapsing={mapCollapsing}
                 loadInside={data?.liveability.inside ? loadInside : undefined}
                 areaName={data ? placeLabel(data) : undefined}
                 insideFigures={data?.liveability.inside}
@@ -702,11 +741,19 @@ function CityContent() {
           </div>
         </div>
 
-        {data && openSectionKey && openSectionKey !== "resources" && isDesktop && (
-          <SectionDetailPanel section={openSectionKey} data={data} className={cn(PANEL_SLIDE, mapFills && PANEL_AWAY)} />
+        {/* A section's panel glides in beside the column and fades out as
+         *  it closes (2026-11-07, owner: smoother); its inner card animates,
+         *  so the panel's own fade for the expanded map stays separate. */}
+        {data && shownPanel.value && shownPanel.value !== "resources" && isDesktop && (
+          <SectionDetailPanel
+            section={shownPanel.value}
+            data={data}
+            leaving={shownPanel.leaving}
+            className={cn(PANEL_SLIDE, mapFills && PANEL_AWAY)}
+          />
         )}
-        {data && openSectionKey === "resources" && isDesktop && (
-          <ResourcesDetailPanel countryCode={data.countryCode} className={cn(PANEL_SLIDE, mapFills && PANEL_AWAY)} />
+        {data && shownPanel.value === "resources" && isDesktop && (
+          <ResourcesDetailPanel countryCode={data.countryCode} leaving={shownPanel.leaving} className={cn(PANEL_SLIDE, mapFills && PANEL_AWAY)} />
         )}
 
         {/* Pin marker itself stays on the map (MapView); its details show

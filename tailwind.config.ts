@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 // Piltri design tokens.
 // Brand colour: amber/ochre #BA7517 (warm, earthy, Patagonian feel).
@@ -66,13 +67,27 @@ const config: Config = {
       },
       keyframes: {
         "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
+        // A section's content and the panel beside the column (2026-11-07):
+        // in with a small rise or glide, out the way it came.
+        "fade-up": { from: { opacity: "0", transform: "translateY(6px)" }, to: { opacity: "1", transform: "none" } },
+        "panel-in": { from: { opacity: "0", transform: "translateX(-10px)" }, to: { opacity: "1", transform: "none" } },
+        "panel-out": { from: { opacity: "1", transform: "none" }, to: { opacity: "0", transform: "translateX(-10px)" } },
       },
       animation: {
         "fade-in": "fade-in 200ms ease-out",
+        "fade-up": "fade-up 280ms cubic-bezier(0.25, 0.1, 0.25, 1) both",
+        "panel-in": "panel-in 280ms cubic-bezier(0.25, 0.1, 0.25, 1) both",
+        "panel-out": "panel-out 280ms cubic-bezier(0.25, 0.1, 0.25, 1) both",
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // `land:` - a phone on its side (2026-11-07): little height, so the top
+    // bar keeps to one row, as on a computer. A variant rather than a
+    // screen: a screen that isn't a plain width turns off Tailwind's
+    // max-* variants (max-md:), which the city page relies on.
+    plugin(({ addVariant }) => addVariant("land", "@media (orientation: landscape) and (max-height: 520px)")),
+  ],
 };
 
 export default config;

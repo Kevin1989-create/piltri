@@ -6,6 +6,7 @@ import { SectionDetail } from "./SectionDetail";
 import { ResourcesRow } from "./ResourcesRow";
 import { ResourcesDetail } from "./ResourcesDetail";
 import { ScrollArea } from "@/components/ui/ScrollArea";
+import { Collapse } from "@/components/ui/Collapse";
 import { cn } from "@/lib/cn";
 import { prefetchResourceLinks } from "@/lib/resourceLinksCache";
 import type { CityExploreData, SectionKey } from "@/lib/types";
@@ -72,7 +73,7 @@ export function SectionColumn({ data, externalDetail = false, onOpenSectionChang
   function detail(content: (className?: string) => ReactNode) {
     if (!filling) return content();
     return (
-      <ScrollArea className="flex-1 min-h-[200px] border-t border-piltri-amber/20 motion-safe:animate-fade-in">
+      <ScrollArea className="flex-1 min-h-[200px] border-t border-piltri-amber/20 motion-safe:animate-fade-up">
         {content("flex-1")}
       </ScrollArea>
     );
@@ -84,17 +85,20 @@ export function SectionColumn({ data, externalDetail = false, onOpenSectionChang
         const isOpen = openKey === key;
         const isOtherRow = openKey !== null && !isOpen;
         return (
-          // Filling (phones): only the open section shows; the others come
-          // back when it closes (2026-10-10, on request).
-          <div key={key} className={cn(filling && isOpen && "flex-1 flex flex-col", filling && isOtherRow && "hidden")}>
-            <SectionRow
-              sectionKey={key}
-              score={data.sectionsWithoutData.includes(key) ? null : data.sectionScores[key]}
-              isOpen={isOpen}
-              compact={!externalDetail && isOtherRow}
-              onToggle={() => toggle(key)}
-              rank={data.ranks ? { position: data.ranks[key], outOf: data.ranks.outOf } : undefined}
-            />
+          // Filling (phones): only the open section shows; the others fold
+          // away and come back when it closes (2026-10-10, on request;
+          // folding smoothly since 2026-11-07).
+          <div key={key} className={cn(filling && isOpen && "flex-1 flex flex-col")}>
+            <Collapse open={!(fill && !externalDetail && isOtherRow)}>
+              <SectionRow
+                sectionKey={key}
+                score={data.sectionsWithoutData.includes(key) ? null : data.sectionScores[key]}
+                isOpen={isOpen}
+                compact={!externalDetail && isOtherRow}
+                onToggle={() => toggle(key)}
+                rank={data.ranks ? { position: data.ranks[key], outOf: data.ranks.outOf } : undefined}
+              />
+            </Collapse>
             {!externalDetail &&
               isOpen &&
               detail((className) => <SectionDetail section={key} data={data} bordered={!filling} className={className} />)}
@@ -105,8 +109,10 @@ export function SectionColumn({ data, externalDetail = false, onOpenSectionChang
         const isOpen = openKey === "resources";
         const isOtherRow = openKey !== null && !isOpen;
         return (
-          <div className={cn(filling && isOpen && "flex-1 flex flex-col", filling && isOtherRow && "hidden")}>
-            <ResourcesRow isOpen={isOpen} compact={!externalDetail && isOtherRow} onToggle={() => toggle("resources")} />
+          <div className={cn(filling && isOpen && "flex-1 flex flex-col")}>
+            <Collapse open={!(fill && !externalDetail && isOtherRow)}>
+              <ResourcesRow isOpen={isOpen} compact={!externalDetail && isOtherRow} onToggle={() => toggle("resources")} />
+            </Collapse>
             {!externalDetail &&
               isOpen &&
               detail((className) => (

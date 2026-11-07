@@ -48,18 +48,21 @@ export function NavBar({ center, right, logoSide = "left", border = true }: NavB
         // Tighter on short screens (phones): every pixel goes to the page.
         "flex flex-col gap-2 px-4 py-3 [@media(max-height:820px)]:py-2 bg-surface",
         "md:grid md:grid-cols-[1fr_auto_1fr] md:items-center md:gap-4 md:px-6",
+        // A phone on its side keeps to one row too (2026-11-07): the map
+        // needs the height.
+        "land:grid land:grid-cols-[1fr_auto_1fr] land:items-center land:gap-4 land:py-1.5",
         border && "border-b border-surface-border"
       )}
     >
-      <div className="flex items-center justify-between gap-3 md:contents">
-        <div className={cn("flex items-center min-w-0 md:order-1", logoSide === "left" ? "justify-start" : "justify-end")}>
+      <div className="flex items-center justify-between gap-3 md:contents land:contents">
+        <div className={cn("flex items-center min-w-0 md:order-1 land:order-1", logoSide === "left" ? "justify-start" : "justify-end")}>
           {leftSlot}
         </div>
-        <div className={cn("flex items-center min-w-0 md:order-3", logoSide === "left" ? "justify-end" : "justify-start")}>
+        <div className={cn("flex items-center min-w-0 md:order-3 land:order-3", logoSide === "left" ? "justify-end" : "justify-start")}>
           {rightSlot}
         </div>
       </div>
-      {center && <div className="flex items-center justify-center min-w-0 w-full md:order-2">{center}</div>}
+      {center && <div className="flex items-center justify-center min-w-0 w-full md:order-2 land:order-2">{center}</div>}
     </header>
   );
 }

@@ -20,6 +20,16 @@ Real Estate section** - no free, reliable global price source exists.
   to 10 places). Tapping a Yes or a distance shows it on the map: every
   place for a Yes, the road journey for a distance, with an "Open in
   Google Maps" link. The old pin mode is switched off (`PIN_MODE`).
+- **Map motion** (2026-11-07, owner: "align strictly", "super super
+  smooth"): the expand, layer-list and spot buttons expand the map the
+  same way on every device - one camera move framing the place
+  (`frameHome` in MapView), and back to the view from before on the way
+  out; the camera, the phone's map box and the panels share one pace and
+  curve (`lib/motion.ts`). Never start a second camera move for the same
+  change: two at once restart each other (the old jolts). Phone sections
+  and the desktop section panel fold and glide (`components/ui/Collapse`).
+  A phone on its side (`land:` variant in tailwind.config.ts) gets a
+  one-row top bar and the layer list as a strip along the top of the map.
 - **Spots** (2026-10-31, owner): on the expanded map, drop a spot (the
   pin button under the layer list's): its card lists the centre and the
   nearest station, school, hospital... from the city's own lists; tapping
