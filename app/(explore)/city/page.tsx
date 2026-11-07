@@ -682,6 +682,9 @@ function CityContent() {
                 insideFigures={data?.liveability.inside}
                 placeId={data?.cityId}
                 initialSpots={linkSpots}
+                countryCode={data?.countryCode}
+                countryName={data?.country}
+                sidePanelOpen={isDesktop && openSectionKey !== null}
               />
             ) : (
               <div className="w-full h-full bg-surface-muted" />

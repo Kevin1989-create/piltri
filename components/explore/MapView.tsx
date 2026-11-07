@@ -18,7 +18,8 @@ import type { TravelTimes } from "@/lib/types";
 import { SpotCard, type SpotRow } from "@/components/explore/SpotCard";
 import { formatSpotParam, removeSpot, sameSpot, saveSpot, savedSpotsFor, type SavedSpot } from "@/lib/spots";
 import { cityUrl } from "@/lib/urls";
-import { cameraMotion, motionEase } from "@/lib/motion";
+import { cameraMotion, motionEase, prefersReducedMotion } from "@/lib/motion";
+import { CountryLocator } from "@/components/explore/CountryLocator";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 
 /** OpenFreeMap: free OpenStreetMap vector tiles, no API key, no usage
@@ -137,6 +138,27 @@ class CityZoomControl implements maplibregl.IControl {
   }
 }
 
+const glides = new WeakMap<maplibregl.Marker, number>();
+/** A marker eased to a new place on the shared curve (a moved spot). */
+function glideMarker(marker: maplibregl.Marker, to: [number, number], ms = 380): void {
+  const from = marker.getLngLat();
+  const running = glides.get(marker);
+  if (running) cancelAnimationFrame(running);
+  if (prefersReducedMotion() || (from.lng === to[0] && from.lat === to[1])) {
+    marker.setLngLat(to);
+    return;
+  }
+  const start = performance.now();
+  const step = (now: number) => {
+    const t = Math.min(1, (now - start) / ms);
+    const k = motionEase(t);
+    marker.setLngLat([from.lng + (to[0] - from.lng) * k, from.lat + (to[1] - from.lat) * k]);
+    if (t < 1) glides.set(marker, requestAnimationFrame(step));
+    else glides.delete(marker);
+  };
+  glides.set(marker, requestAnimationFrame(step));
+}
+
 /** The buttons down the map's right edge: 29 px, 8 px apart. */
 const BUTTON_STEP_PX = 37;
 
@@ -239,6 +261,13 @@ interface MapViewProps {
   placeId?: string;
   /** Spots from a shared link (`?spot=&to=`), shown once the map is up. */
   initialSpots?: { a: { lat: number; lng: number }; b: { lat: number; lng: number } | null } | null;
+  /** The country, for the locator in the corner (CountryLocator). */
+  countryCode?: string;
+  countryName?: string;
+  /** A computer's section panel is open beside the score column: the
+   *  place is framed in the room right of both (and the map glides across
+   *  as it opens and closes). */
+  sidePanelOpen?: boolean;
 }
 
 /** A spot dropped on the map (lib/spots.ts): where, and the name of what's
@@ -248,6 +277,10 @@ type SpotPoint = { lat: number; lng: number; name: string | null };
 const SPOT_KINDS: InsideKind[] = ["train", "metro", "bus", "nursery", "school", "hospital", "intlAirport", "beach"];
 /** A spot's journeys by road, drawn like a distance figure's. */
 const SPOT_ROUTE_ID = "piltri-spot-route";
+/** What the spot's card lists, on the map too (2026-11-07, owner): each
+ *  nearest place's icon with how far it is, and a fine line to it. */
+const SPOT_NEAR_ID = "piltri-spot-near";
+const SPOT_LINE_MAX_KM = 25;
 /** From this zoom a tap's label names the spot (a street, a station, a
  *  neighbourhood); below it, labels are towns. */
 const SPOT_NAME_MIN_ZOOM = 13;
@@ -534,6 +567,9 @@ export function MapView({
   insideFigures,
   placeId,
   initialSpots,
+  countryCode,
+  countryName,
+  sidePanelOpen = false,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -563,6 +599,8 @@ export function MapView({
   focusRef.current = focus;
   const compactRef = useRef(compact);
   compactRef.current = compact;
+  const sidePanelRef = useRef(sidePanelOpen);
+  sidePanelRef.current = sidePanelOpen;
   // A Yes's places from the map's tiles, as they arrive (null: none being
   // looked for - a distance, or a kind the tiles don't hold).
   const [tilePlaces, setTilePlaces] = useState<{ places: MapPlace[]; done: boolean } | null>(null);
@@ -630,6 +668,10 @@ export function MapView({
   const linkSpotsRef = useRef(false);
   const [detailed, setDetailed] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+  /** The map's cursor off the icons: a crosshair while a tap places or
+   *  moves a spot. */
+  const restingCursorRef = useRef<() => string>(() => "");
+  restingCursorRef.current = () => (spotMode || spotA ? "crosshair" : onMapClick ? "pointer" : "");
   // A Yes being shown counts as ticked in the layer list (2026-10-29, on
   // request: tap a Yes, expand the map - it's already ticked).
   const focusKind = focus?.style === "pin" && focus.kind !== "capital" ? focus.kind : null;
@@ -665,16 +707,19 @@ export function MapView({
   const cardContextRef = useRef({ lat, lng, prefs, areaName });
   cardContextRef.current = { lat, lng, prefs, areaName };
   // Asymmetric padding keeps what's framed clear of the floating left
-  // column and the section panel beside it (at their open widths, but never
-  // more than the map can spare); compact (mobile) layout has nothing
+  // column - and of the section panel beside it while one is open
+  // (2026-11-07, owner: the place looked small - room used to be kept for
+  // the panel all the time; now the map glides across as it opens) - never
+  // more than the map can spare; compact (mobile) layout has nothing
   // floating over the map, so it uses small symmetric padding.
   // extraRight: room for a flag's name, which sits to its right.
   // The layer list opening doesn't move the map (2026-10-30, owner).
+  const leftRoom = (width: number, panelOpen: boolean) => Math.max(60, Math.min(panelOpen ? 784 : 384, width - 420));
   const framePadding = (map: maplibregl.Map, extraTop = 0, extraRight = 0): maplibregl.PaddingOptions => {
     // Even on every side, so the place is in the very middle (2026-10-30,
     // owner).
     if (compactRef.current) return { top: 40 + extraTop, bottom: 40 + extraTop, left: 40 + extraRight, right: 40 + extraRight };
-    const left = Math.max(60, Math.min(780, map.getContainer().clientWidth - 420));
+    const left = leftRoom(map.getContainer().clientWidth, sidePanelRef.current);
     return { top: 60 + extraTop, bottom: 60, left, right: 60 + extraRight };
   };
   /** A Yes (MapFocus style "pin") in one view: the circle its places are
@@ -788,9 +833,10 @@ export function MapView({
             [e.point.x - HIT_TOLERANCE_PX, e.point.y - HIT_TOLERANCE_PX],
             [e.point.x + HIT_TOLERANCE_PX, e.point.y + HIT_TOLERANCE_PX],
           ];
+          // The basemap's labels only - not Piltri's own icons drawn on top.
           const hit = map
             .queryRenderedFeatures(hitBox)
-            .find((f) => f.layer?.type === "symbol" && typeof f.properties?.name === "string" && f.properties.name.trim());
+            .find((f) => f.layer?.type === "symbol" && !f.layer.id.startsWith("piltri-") && typeof f.properties?.name === "string" && f.properties.name.trim());
           if (hit) {
             const name = (hit.properties?.name as string | undefined) ?? null;
             const point =
@@ -809,25 +855,53 @@ export function MapView({
       return { point: clickPoint, name: null };
     }
 
+    /** Whether a tap landed on one of Piltri's icons (a place's card, or
+     *  one of the spot's nearest places). */
+    const hitsIcon = (point: maplibregl.Point): boolean => {
+      if (!mapLoadedRef.current) return false;
+      const layers = [`${SPOT_NEAR_ID}-icons`, `${FOCUS_POINTS_ID}-icons`, `${LAYERS_SOURCE_ID}-icons`, ...MAP_LAYER_KINDS.map(osmLayerId)].filter((id) => map.getLayer(id));
+      try {
+        return map.queryRenderedFeatures([[point.x - 10, point.y - 10], [point.x + 10, point.y + 10]], { layers }).length > 0;
+      } catch {
+        return false;
+      }
+    };
+
     map.on("click", async (e) => {
       // Placing a spot: exactly where tapped, named after what's under it.
+      // With a spot on the map, any tap moves it there (2026-11-07, owner:
+      // "without having to click on the cross") - except a tap on an icon,
+      // which opens that place's card, or picks the journey to one of the
+      // spot's nearest places.
       const placing = spotModeRef.current;
-      if (placing) {
+      const moving = !placing && !!spotsRef.current.a;
+      if (moving && hitsIcon(e.point)) return;
+      if (placing || moving) {
         linkSpotsRef.current = false;
         const tapped = { lat: e.lngLat.lat, lng: e.lngLat.lng };
-        // Zoomed out, what's under a tap is a town's label ("London"), not
-        // the spot's street or place.
-        const { name } = map.getZoom() >= SPOT_NAME_MIN_ZOOM ? await resolveClickedFeature(e).catch(() => ({ name: null })) : { name: null };
+        const takeName = (name: string | null) => {
+          // A slower lookup for an earlier tap doesn't rename a later spot.
+          const current = placing === "b" ? spotsRef.current.b : spotsRef.current.a;
+          if (current && current.lat === tapped.lat && current.lng === tapped.lng) (placing === "b" ? setSpotB : setSpotA)({ ...tapped, name });
+        };
         if (placing === "a") {
           // A new spot starts afresh.
-          setSpotA({ ...tapped, name });
+          setSpotA({ ...tapped, name: null });
           setSpotB(null);
           setSpotTarget(null);
-        } else {
-          setSpotB({ ...tapped, name });
+        } else if (placing === "b") {
+          setSpotB({ ...tapped, name: null });
           setSpotTarget("second");
+        } else {
+          // Moved: the second spot and the chosen journey stay.
+          setSpotA({ ...tapped, name: null });
         }
-        setSpotMode(null);
+        if (placing) setSpotMode(null);
+        spotsRef.current = placing === "b" ? { ...spotsRef.current, b: { ...tapped, name: null } } : { ...spotsRef.current, a: { ...tapped, name: null } };
+        // Zoomed out, what's under a tap is a town's label ("London"), not
+        // the spot's street or place. Named once found - the spot moves at
+        // once.
+        if (map.getZoom() >= SPOT_NAME_MIN_ZOOM) resolveClickedFeature(e).then(({ name }) => takeName(name)).catch(() => {});
         return;
       }
       if (!onMapClickRef.current && !pickingDestinationRef.current) return; // view-only map
@@ -952,6 +1026,17 @@ export function MapView({
         // Blue, so the journey never reads as part of the amber outline.
         paint: { "line-color": muteColor("#3B6E8F"), "line-width": 3.5 },
       });
+      // The spot's nearest places: fine lines out to them (the chosen one's
+      // journey is drawn instead), under everything else of the spot's.
+      map.addSource(SPOT_NEAR_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({
+        id: `${SPOT_NEAR_ID}-lines`,
+        type: "line",
+        source: SPOT_NEAR_ID,
+        filter: ["all", ["==", ["geometry-type"], "LineString"], ["!=", ["get", "chosen"], true]],
+        layout: { "line-cap": "round" },
+        paint: { "line-color": "#6B5A45", "line-width": 1.2, "line-opacity": 0.45, "line-dasharray": [1, 2.2] },
+      });
       // A spot's journey: the same look - dashed while it's the straight
       // line, solid along the roads.
       map.addSource(SPOT_ROUTE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] }, attribution: ROUTE_ATTRIBUTION });
@@ -1021,6 +1106,38 @@ export function MapView({
         layout: { ...PLACE_ICON_LAYOUT, "icon-image": ["get", "icon"], "symbol-sort-key": ["get", "rank"] } as any,
         paint: PLACE_ICON_PAINT,
       });
+      // The spot's nearest places, on top: each one's icon, and what it is
+      // and how far, as on the card (names where there's room).
+      map.addLayer({
+        id: `${SPOT_NEAR_ID}-icons`,
+        type: "symbol",
+        source: SPOT_NEAR_ID,
+        filter: ["==", ["geometry-type"], "Point"],
+        layout: {
+          "icon-image": ["get", "icon"],
+          "icon-size": 0.85,
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "symbol-sort-key": ["get", "rank"],
+          "text-field": ["format", ["get", "what"], { "font-scale": 0.92 }, "\n", {}, ["get", "far"], { "font-scale": 1.05 }],
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 11,
+          // Beside its icon on whichever side is free - nearby places
+          // crowd together around a spot.
+          "text-variable-anchor": ["left", "right", "top", "bottom"],
+          "text-radial-offset": 1.1,
+          "text-justify": "auto",
+          "text-optional": true,
+        } as any,
+        paint: { "text-color": "#2B241D", "text-halo-color": "#FFFFFF", "text-halo-width": 1.8, "text-halo-blur": 0.3 },
+      });
+      // Tapping one shows the journey to it, as tapping its line on the card.
+      map.on("click", `${SPOT_NEAR_ID}-icons`, (e) => {
+        const key = e.features?.[0]?.properties?.key;
+        if (typeof key === "string") setSpotTarget((current) => (current === key ? null : key));
+      });
+      map.on("mouseenter", `${SPOT_NEAR_ID}-icons`, () => (map.getCanvas().style.cursor = "pointer"));
+      map.on("mouseleave", `${SPOT_NEAR_ID}-icons`, () => (map.getCanvas().style.cursor = restingCursorRef.current()));
       // Tapping an icon opens its card.
       const card = new maplibregl.Popup({ offset: 14, closeButton: true, maxWidth: "260px", className: "piltri-place-popup" });
       for (const id of [`${FOCUS_POINTS_ID}-icons`, `${LAYERS_SOURCE_ID}-icons`, ...MAP_LAYER_KINDS.map(osmLayerId)]) {
@@ -1036,7 +1153,7 @@ export function MapView({
           card.setLngLat([plng, plat]).setHTML(placeCardHtml(String(feature.properties?.name ?? ""), kind, distance, plat, plng, area)).addTo(map);
         });
         map.on("mouseenter", id, () => (map.getCanvas().style.cursor = "pointer"));
-        map.on("mouseleave", id, () => (map.getCanvas().style.cursor = onMapClick ? "pointer" : ""));
+        map.on("mouseleave", id, () => (map.getCanvas().style.cursor = restingCursorRef.current()));
       }
       setMapReady(true);
 
@@ -1407,6 +1524,27 @@ export function MapView({
     if (focusKind) onCloseFocus?.();
   };
 
+  // The country locator (2026-11-07, owner): bottom right, smaller on a
+  // phone's map in the page; out of the way while a spot is being placed,
+  // or of a phone's spot card along the bottom. Tapping it glides out to
+  // the whole country, and back.
+  const [showingCountry, setShowingCountry] = useState(false);
+  useEffect(() => setShowingCountry(false), [lat, lng]);
+  const wideScreen = useMediaQuery("(min-width: 640px)");
+  const locatorSize = smallMap || landscapeShort ? 64 : 112;
+  const locatorShown = !!countryCode && spotMode !== "a" && !(spotA && listHere && !wideScreen) && !pickingDestination;
+  const showCountry = (bounds: [[number, number], [number, number]] | null) => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (bounds) {
+      map.fitBounds(bounds, { padding: framePadding(map), maxZoom: Math.max(map.getZoom() - 1, 3), ...cameraMotion(1000) });
+      setShowingCountry(true);
+    } else {
+      frameHome(map, 1000);
+      setShowingCountry(false);
+    }
+  };
+
   // Spots. The ones saved in this browser for this place; another place
   // starts without any on the map.
   const spotsPlaceRef = useRef(placeId);
@@ -1483,11 +1621,11 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSpots, mapReady]);
 
-  // Waiting for a tap: a crosshair, and Escape lets it go (before the
-  // page's Escape, which shrinks the map).
+  // Waiting for a tap, or a spot a tap will move: a crosshair; Escape lets
+  // a wait go (before the page's Escape, which shrinks the map).
   useEffect(() => {
     const canvas = mapRef.current?.getCanvas();
-    if (canvas) canvas.style.cursor = spotMode ? "crosshair" : onMapClick ? "pointer" : "";
+    if (canvas) canvas.style.cursor = restingCursorRef.current();
     if (!spotMode) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
@@ -1496,10 +1634,9 @@ export function MapView({
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [spotMode, onMapClick]);
+  }, [spotMode, onMapClick, !!spotA]);
 
-  // The spots on the map: the spot (amber) and the second one (blue), both
-  // draggable to fine-tune; the ones saved here, small - a tap reopens one.
+  // The spots saved here, small - a tap reopens one.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -1514,26 +1651,76 @@ export function MapView({
       });
       markers.push(new maplibregl.Marker({ element: el }).setLngLat([saved.lng, saved.lat]).addTo(map));
     }
-    const pin = (spot: SpotPoint, color: string, moved: (spot: SpotPoint) => void) => {
-      const marker = new maplibregl.Marker({ element: createPinElement(color), anchor: "bottom", draggable: true }).setLngLat([spot.lng, spot.lat]).addTo(map);
-      marker.on("dragend", () => {
-        linkSpotsRef.current = false;
-        const { lat: mlat, lng: mlng } = marker.getLngLat();
-        moved({ lat: mlat, lng: mlng, name: null });
-      });
-      markers.push(marker);
-    };
-    if (spotA) pin(spotA, SPOT_COLOR, setSpotA);
-    if (spotB) pin(spotB, SECOND_SPOT_COLOR, setSpotB);
     spotMarkersRef.current = markers;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spotA, spotB, savedSpots, mapReady]);
+  }, [spotA, savedSpots, mapReady]);
+
+  // The spot (amber) and the second one (blue), both draggable to
+  // fine-tune. Moved by a tap, a pin glides to its new place rather than
+  // jumping (2026-11-07, owner: "very fluid").
+  const spotPinsRef = useRef<{ a: maplibregl.Marker | null; b: maplibregl.Marker | null }>({ a: null, b: null });
+  const placePin = (which: "a" | "b", spot: SpotPoint | null) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const pins = spotPinsRef.current;
+    const marker = pins[which];
+    if (!spot) {
+      marker?.remove();
+      pins[which] = null;
+      return;
+    }
+    if (marker) {
+      glideMarker(marker, [spot.lng, spot.lat]);
+      return;
+    }
+    const created = new maplibregl.Marker({ element: createPinElement(which === "a" ? SPOT_COLOR : SECOND_SPOT_COLOR), anchor: "bottom", draggable: true })
+      .setLngLat([spot.lng, spot.lat])
+      .addTo(map);
+    created.on("dragend", () => {
+      linkSpotsRef.current = false;
+      const { lat: mlat, lng: mlng } = created.getLngLat();
+      (which === "a" ? setSpotA : setSpotB)({ lat: mlat, lng: mlng, name: null });
+    });
+    pins[which] = created;
+  };
+  useEffect(() => {
+    placePin("a", spotA);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spotA?.lat, spotA?.lng, !!spotA, mapReady]);
+  // A spot just dropped where its card then opens (a phone's lower half):
+  // the map eases up so the spot sits in the free room above the card.
+  const hadSpotRef = useRef(false);
+  useEffect(() => {
+    const had = hadSpotRef.current;
+    hadSpotRef.current = !!spotA;
+    const map = mapRef.current;
+    if (!spotA || had || !map) return;
+    const frame = requestAnimationFrame(() => {
+      const card = spotCardRef.current?.getBoundingClientRect();
+      const box = map.getContainer().getBoundingClientRect();
+      if (!card) return;
+      const at = map.project([spotA.lng, spotA.lat]);
+      const cardTop = card.top - box.top;
+      const cardRight = card.right - box.left;
+      if (at.y < cardTop - 30 || at.x > cardRight + 20) return;
+      map.panBy([0, at.y - cardTop / 2], cameraMotion(520));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [spotA]);
+  useEffect(() => {
+    placePin("b", spotB);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spotB?.lat, spotB?.lng, !!spotB, mapReady]);
 
   // What's near the spot: the nearest of each SPOT_KINDS from the city's
-  // own lists (or, for a kind it has none of, its nearest one).
+  // own lists (or, for a kind it has none of, its nearest one). A moved
+  // spot keeps the lines it had until the new ones are in - their
+  // distances update at once - so the card never blanks.
   useEffect(() => {
-    setSpotNearest(null);
-    if (!spotA) return;
+    if (!spotA) {
+      setSpotNearest(null);
+      return;
+    }
     let cancelled = false;
     const centre = { key: "centre", kind: "large" as MapKind, label: "Centre", name: areaName?.split(",")[0] ?? "City centre", lat, lng };
     Promise.all(
@@ -1559,6 +1746,37 @@ export function MapView({
   // at once, then along the roads (lib/routing.ts) when the server answers.
   const spotTo = spotTarget === "second" ? spotB : spotNearest?.find((row) => row.key === spotTarget) ?? null;
   const spotTravelMode = spotA && spotTo ? (straightLineKm(spotA, spotTo) <= WALK_MAX_KM ? "foot" : "car") : "car";
+  const framedTargetRef = useRef<string | null>(null);
+  /** How far from the spot - "<100 m" rather than "0 km" right beside it. */
+  const spotDistance = (km: number) => (km < 0.1 ? (prefs.distance === "imperial" ? "<0.1 mi" : "<100 m") : formatDistanceKm(km, prefs));
+
+  // The card's nearest places on the map too: each one's icon with what it
+  // is and how far, and a fine line from the spot - the chosen one's
+  // journey drawn instead of its line.
+  useEffect(() => {
+    const map = mapRef.current;
+    const source = map?.getSource(SPOT_NEAR_ID) as maplibregl.GeoJSONSource | undefined;
+    if (!map || !source) return;
+    if (!spotA || !spotNearest) {
+      source.setData({ type: "FeatureCollection", features: [] });
+      return;
+    }
+    const features: GeoJSON.Feature[] = [];
+    spotNearest.forEach((row, rank) => {
+      const chosen = row.key === spotTarget;
+      const km = straightLineKm(spotA, row);
+      const far = spotDistance(km);
+      // No line across half the country to a far beach or airport.
+      if (km <= SPOT_LINE_MAX_KM) features.push({ type: "Feature", properties: { chosen }, geometry: { type: "LineString", coordinates: [[spotA.lng, spotA.lat], [row.lng, row.lat]] } });
+      features.push({
+        type: "Feature",
+        properties: { key: row.key, icon: mapIconId(row.kind), what: row.label, far, rank: chosen ? -1 : rank },
+        geometry: { type: "Point", coordinates: [row.lng, row.lat] },
+      });
+    });
+    source.setData({ type: "FeatureCollection", features });
+  }, [spotA, spotNearest, spotTarget, prefs, mapReady]);
+
   useEffect(() => {
     const map = mapRef.current;
     const source = map?.getSource(SPOT_ROUTE_ID) as maplibregl.GeoJSONSource | undefined;
@@ -1566,6 +1784,7 @@ export function MapView({
     if (!spotA || !spotTo) {
       source.setData({ type: "FeatureCollection", features: [] });
       setSpotJourney(null);
+      framedTargetRef.current = null;
       return;
     }
     let cancelled = false;
@@ -1573,7 +1792,10 @@ export function MapView({
     const to = { lat: spotTo.lat, lng: spotTo.lng };
     source.setData({ type: "Feature", properties: { straight: true }, geometry: { type: "LineString", coordinates: [[from.lng, from.lat], [to.lng, to.lat]] } });
     setSpotJourney("finding");
-    frameSpots(map, [from, to]);
+    // Framed when a journey is picked - not again each time the spot is
+    // moved with it (the map stays where you are tapping).
+    if (framedTargetRef.current !== spotTarget) frameSpots(map, [from, to]);
+    framedTargetRef.current = spotTarget;
     fetchRoute(from, to, spotTravelMode).then((route) => {
       if (cancelled) return;
       setSpotJourney(route && { km: route.km, minutes: route.minutes, mode: route.mode });
@@ -1622,7 +1844,7 @@ export function MapView({
       km <= WALK_MAX_KM
         ? `~${Math.max(1, Math.round(((km * ROAD_DETOUR_FACTOR) / WALK_KMH) * 60))} min walk`
         : `~${formatDriveTime(driveMinutes(km) ?? 1)} by car`;
-    return { key: row.key, kind: row.kind, label: row.label, name: row.name, distance: formatDistanceKm(km, prefs), time };
+    return { key: row.key, kind: row.kind, label: row.label, name: row.name, distance: spotDistance(km), time };
   };
   const spotJourneyText =
     spotJourney === "finding"
@@ -1665,6 +1887,21 @@ export function MapView({
     headingBackRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded]);
+
+  // A computer's section panel opening or closing beside the column: the
+  // map glides across by half the room it takes or gives back, so what's
+  // in the middle of the free room stays there.
+  const panelWasRef = useRef(sidePanelOpen);
+  useEffect(() => {
+    const map = mapRef.current;
+    const was = panelWasRef.current;
+    panelWasRef.current = sidePanelOpen;
+    if (!map || was === sidePanelOpen || compactRef.current || !mapLoadedRef.current) return;
+    const width = map.getContainer().clientWidth;
+    const shift = (leftRoom(width, sidePanelOpen) - leftRoom(width, was)) / 2;
+    if (shift) map.panBy([-shift, 0], cameraMotion(520));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sidePanelOpen]);
 
   // A phone taking the map back into the page: the camera heads to the
   // view from before at the same pace, so the slot lands on it.
@@ -1959,7 +2196,7 @@ export function MapView({
             // (2026-10-30, owner: "take less space from the map"); never
             // taller than the map - it scrolls inside, under its title.
             <div
-              style={{ top: listTop, maxHeight: `calc(100% - ${listTop + 12}px)` }}
+              style={{ top: listTop, maxHeight: `calc(100% - ${listTop + 12 + (locatorShown ? locatorSize + 34 : 0)}px)` }}
               className="absolute right-[10px] z-20 w-[180px] overflow-y-auto rounded-xl bg-surface px-1 pb-1 shadow-card motion-safe:animate-fade-in"
             >
               {/* Its title, and Clear at the top (2026-11-06, owner). */}
@@ -2053,6 +2290,19 @@ export function MapView({
             onClose={turnSpotOff}
           />
         </div>
+      )}
+      {locatorShown && countryCode && (
+        <CountryLocator
+          countryCode={countryCode}
+          countryName={countryName}
+          placeName={areaName?.split(",")[0]}
+          lat={lat}
+          lng={lng}
+          size={locatorSize}
+          showingCountry={showingCountry}
+          onShowCountry={showCountry}
+          style={{ right: locatorSize < 96 ? 8 : 10, bottom: locatorSize < 96 ? 8 : 24 }}
+        />
       )}
       <MapCredit routes={!!routeInfo || !!spotTo} />
     </div>

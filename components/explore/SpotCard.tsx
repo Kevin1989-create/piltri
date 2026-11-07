@@ -116,6 +116,8 @@ export function SpotCard(props: SpotCardProps) {
             {name && "Your spot · "}
             {coords}
           </p>
+          {/* 2026-11-07, owner: move it without closing the card. */}
+          <p className="pt-0.5 text-[10px] leading-tight text-piltri-amber-dark">Tap anywhere on the map to move it</p>
         </div>
         <button type="button" aria-label="Remove the spot" onClick={props.onClose} className="shrink-0 rounded-full p-1 text-ink-500 hover:text-ink-900">
           <CloseIcon className="h-3.5 w-3.5" />

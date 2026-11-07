@@ -30,11 +30,24 @@ Real Estate section** - no free, reliable global price source exists.
   and the desktop section panel fold and glide (`components/ui/Collapse`).
   A phone on its side (`land:` variant in tailwind.config.ts) gets a
   one-row top bar and the layer list as a strip along the top of the map.
+- **Opening view** (2026-11-07, owner): on a computer the place is framed
+  in the room right of the score column (room is no longer kept for a
+  section panel - the map glides across when one opens, `sidePanelOpen`),
+  so you see inside it; a locator in the corner shows the country with
+  the place as a pulsing dot (`CountryLocator.tsx`; tap: the whole
+  country, and back). Silhouettes: `public/geo/countries/<CC>.json`, from
+  Natural Earth (public domain) by `scripts/build-country-shapes.mjs` -
+  run by hand and committed; parts far apart are separate clusters
+  (mainland France / Réunion...), and GeoNames territories Natural Earth
+  folds into another country get the cluster their largest town is in.
 - **Spots** (2026-10-31, owner): on the expanded map, drop a spot (the
   pin button under the layer list's): its card lists the centre and the
   nearest station, school, hospital... from the city's own lists; tapping
   a line draws the journey by road; a second spot gives the journey
-  between them. Saved in the browser (`lib/spots.ts`, shown on the map and
+  between them. Those nearest places are on the map too (icon, what, how
+  far, a fine line; tapping one picks its journey), and while the spot is
+  on, any tap on the map moves it there - the pin glides, the card
+  updates in place (2026-11-07, owner). Saved in the browser (`lib/spots.ts`, shown on the map and
   under "Your spots" in the layer list) and shared by link
   (`/city?id=…&spot=lat,lng&to=lat,lng`, which opens on the expanded map).
   `components/explore/SpotCard.tsx`; accounts come next (BACKLOG).
