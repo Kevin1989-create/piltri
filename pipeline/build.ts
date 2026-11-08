@@ -19,6 +19,7 @@ import { writeDataset } from "./output";
 import { extractOvertureBeaches, extractOverturePlaces, extractOvertureRail, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
 import { POPULATION_GROWTH_SOURCE, POPULATION_SOURCE, sampleDensity, samplePopulationGrowth } from "./population";
 import { sampleWater, WATER_SOURCE } from "./water";
+import { keepHospitals } from "./hospitals";
 import { REGIONAL_GDP_SOURCE, sampleRegionalGdp } from "./regionalGdp";
 import { anyInside, circleArea, cityArea, placesInside, type PlaceIndex } from "./insidePlaces";
 import { KOPPEN_SOURCE, sampleKoppen } from "./koppenMap";
@@ -51,7 +52,6 @@ const SMALL_COUNTRY_KM2 = 10_000;
 const STATION_NAME = /station|railway|\brail\b|bahnhof|\bgare\b|estaci[oó]n|stazione|esta[çc][aã]o|\bhalte?\b|dworzec|n[aá]dra[žz]|вокзал|станция|stanica|駅|站/i;
 const NOT_STATION_NAME = /bus stop|bus station|coach station|police station|fire station|petrol|gas station|charging/i;
 const UNIVERSITY_NAME = /univers|hochschule|polytechn|大学|大學|университет|الجامعة/i;
-const NOT_HOSPITAL_NAME = /(clinic|practice|surgery|dental|dentist|pharmacy|medical cent(?:er|re)|health cent(?:er|re)|laborator|physio|optic|veterinar|\bGP\b|equipment|supplies|supplier|corporation)/i;
 const GHOST_MAX_PEOPLE = 1000;
 
 type Points = { lng: ArrayLike<number>; lat: ArrayLike<number>; names?: ArrayLike<string | null> | null };
@@ -253,8 +253,11 @@ async function main() {
   const riverIdx = buildIndex(rivers);
   const ovBeaches = await loadOvertureCategory((await extractOvertureBeaches()).glob, "beach", true);
   const airports = await loadAirports();
-  const hospitals = await loadOvertureCategory(placesGlob, POI.hospital, true);
-  log("build", `hospitals: ${hospitals.lng.length}`);
+  // Only those named as hospitals, one per site (pipeline/hospitals.ts,
+  // 2026-11-08): for the nearest-hospital distance and the city's list.
+  const overtureHospitals = await loadOvertureCategory(placesGlob, POI.hospital, true);
+  const hospitals = keepHospitals(overtureHospitals);
+  log("build", `hospitals: ${hospitals.lng.length} named as hospitals, of ${overtureHospitals.lng.length} in Overture's category`);
   // Every Overture place of the kinds a city page counts "in the city"
   // (2026-10-29) - their places in each city, and the nearest anywhere.
   const ovAll = {
@@ -310,7 +313,7 @@ async function main() {
   const metroTrackIdx = buildIndex(metroTrack);
   // The listed stations and hospitals: by name (see STATION_NAME).
   const trainListed = buildIndex(mergePoints(gn.rail, keepNamed(ovTrain, (n) => STATION_NAME.test(n) && !NOT_STATION_NAME.test(n))));
-  const hospitalListed = buildIndex(keepNamed(hospitals, (n) => !NOT_HOSPITAL_NAME.test(n), true));
+  const hospitalListed = idx.hospital;
   /** Where each kind's places in a city come from (the same sources as its
    *  figures), and a line that alone makes it a Yes (tram and metro track). */
   const INSIDE_SOURCES: Record<InsideKind, { sources: PlaceIndex[]; track?: PlaceIndex }> = {
@@ -612,7 +615,7 @@ async function main() {
       // The site shows a local figure's rows only when its source is here.
       ...(populationGrowth ? { populationGrowth: POPULATION_GROWTH_SOURCE } : {}),
       ...(medianAge ? { age: AGE_SOURCE } : {}),
-      hospitals: `Overture Maps places ${release} - hospitals and emergency departments (CDLA-Permissive-2.0)`,
+      hospitals: `Overture Maps places ${release} - hospitals and emergency departments named as such, one per site (CDLA-Permissive-2.0)`,
       inside: `In the city or within 1 km of its outline (5 km of the centre without one), airports within ${AIRPORT_REACH_KM} km: GeoNames, Overture Maps places ${release}, OurAirports, mapped beaches and peaks`,
       ...(conflict ? { conflict: CONFLICT_SOURCE } : {}),
       ...(water ? { water: WATER_SOURCE } : {}),
