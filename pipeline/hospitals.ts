@@ -159,9 +159,20 @@ const NOT_A_HOSPITAL = new RegExp(
     String.raw`\bward\b|\bunit\b|\bwing\b|\bentr[ée]e\b|\bentrance\b|\bbuilding\b|\bblock\b|\bparking\b|car park|\bgate\b`,
     String.raw`outpatient|out-patient|department of|dept\.?\s|\bpharmacy\b|laborator|\blab\b|blood bank|mortuary|morgue|canteen|cafeteria|\bshop\b|\bstore\b`,
     String.raw`head ?office|headquarters|\bsi[eè]ge\b|administra|employee|staff|recruit|education|academy`,
+    // Its departments and services, and its schools (2026-11-08: "Service
+    // Pneumo Hôpital", a nursing school "IFSI Hôpital..."; not
+    // "universit" - a university hospital is one).
+    String.raw`\bservices?\b|\bservi\b|\bschool\b|\bifsi\b|training|\bformation\b|aufenthalt`,
+    // Day hospitals: day care, no beds.
+    String.raw`day hospital|tagesklinik|h[oô]pital de jour`,
+    // Practices named "clinique" (an osteopath's, a beauty clinic).
+    String.raw`ost[eé]opath|chiropract|physioth|kin[eé]sith|podolog|psycholog|psychoth[eé]rap|orthophon|est?h[eé]ti|aesthetic|cosmetic|\blaser\b|massage|\bspa\b`,
     // Suppliers, care homes, and places named by a hospital they're near.
-    String.raw`equipment|supplies|supplier|einrichtungen|pflegeheim|pflegezentrum|nursing home|care home|ehpad|maison de retraite|retirement`,
+    String.raw`equipment|supplies|supplier|einrichtungen|technolog|installation|pflegeheim|pflegezentrum|nursing home|care home|ehpad|maison de retraite|retirement`,
     String.raw`\bnear\b|\bopp(osite)?\.?\s|bus stop|\bstop\b|\barr[eê]t\b|\bparada\b|バス停|停留所|入口`,
+    // A street named after a hospital, and what's on it ("Kiosque
+    // Boulevard de l'Hôpital", "12 Hospital Road").
+    String.raw`\b(kiosque|boulevard|bd|avenue|rue|place|calle|avenida|via|stra(ss|ß)e)\.?\s+(de\s+l['’]\s?|del\s+|de\s+|do\s+)?h[oô]s?pital|h[oô]s?pital\s+(road|street|lane|avenue)\b`,
   ].join("|"),
   "i"
 );
