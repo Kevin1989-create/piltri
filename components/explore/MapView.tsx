@@ -18,7 +18,7 @@ import type { TravelTimes } from "@/lib/types";
 import { SpotCard, type SpotRow } from "@/components/explore/SpotCard";
 import { formatSpotParam, removeSpot, sameSpot, saveSpot, savedSpotsFor, type SavedSpot } from "@/lib/spots";
 import { cityUrl } from "@/lib/urls";
-import { cameraMotion, motionEase, prefersReducedMotion } from "@/lib/motion";
+import { cameraMotion, MOTION_CSS, MOTION_MS, motionEase, prefersReducedMotion } from "@/lib/motion";
 import { CountryLocator } from "@/components/explore/CountryLocator";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 
@@ -161,6 +161,9 @@ function glideMarker(marker: maplibregl.Marker, to: [number, number], ms = 380):
 
 /** The buttons down the map's right edge: 29 px, 8 px apart. */
 const BUTTON_STEP_PX = 37;
+/** Buttons moving between the small map's layout and the expanded one's,
+ *  at the map's pace (lib/motion.ts). */
+const BUTTON_GLIDE = "transition-[top,right] duration-[700ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none";
 
 /** A line of the box saying what's on the map: the kind's icon, its name,
  *  how many (or how far), and its own close. */
@@ -243,9 +246,10 @@ interface MapViewProps {
   expanded?: boolean;
   onToggleExpanded?: () => void;
   /** The page is taking the expanded map back into its slot (a phone): the
-   *  camera heads back to the view from before at the same time, so the
-   *  slot shows exactly that view when it lands. */
-  collapsing?: boolean;
+   *  slot's height, the curtain closing up to it. The camera heads back to
+   *  the view from before at the same time, settling it in that height,
+   *  so the slot shows exactly that view when it lands. */
+  collapseTo?: number | null;
   /** A kind's places in the city, from the dataset (from 2026-10-29) - the
    *  layer list then offers every INSIDE_KINDS kind and shows them all;
    *  without it, the kinds the map's tiles hold, within 5 km. */
@@ -561,7 +565,7 @@ export function MapView({
   onCloseFocus,
   expanded = false,
   onToggleExpanded,
-  collapsing = false,
+  collapseTo = null,
   loadInside,
   areaName,
   insideFigures,
@@ -589,6 +593,16 @@ export function MapView({
   // (collapsing).
   const preExpandCameraRef = useRef<{ center: maplibregl.LngLat; zoom: number } | null>(null);
   const headingBackRef = useRef(false);
+  const collapsing = collapseTo != null;
+  // The map's height before its latest change of size - a phone's slot,
+  // read as the map fills the screen (the curtain opens from it).
+  const lastHeightRef = useRef(0);
+  // What rides the curtain's edge (the locator, the credit line) and the
+  // lists that fade as it closes.
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const locatorWrapRef = useRef<HTMLDivElement | null>(null);
+  const listColumnRef = useRef<HTMLDivElement | null>(null);
+  const curtainRef = useRef<Animation[]>([]);
   // The expanded layout effect framed the map in this commit: the focus
   // effect, running after it, doesn't start the same move again (two moves
   // at once restart each other - the jolts, 2026-11-07).
@@ -745,22 +759,48 @@ export function MapView({
    *  distance's journey, a shared link's spots, else the place's outline.
    *  Every button and every change of size frames through here, in one
    *  move on the shared curve (2026-11-07, owner: "align strictly"). */
-  const frameHome = (map: maplibregl.Map, ms?: number) => {
-    const motion = cameraMotion(ms);
+  const homeFrame = (map: maplibregl.Map): { bounds: maplibregl.LngLatBounds; padding: maplibregl.PaddingOptions; maxZoom?: number } | null => {
     const focused = focusRef.current;
     const current = focused?.points[0];
-    const extraTop = compactRef.current ? 50 : 0;
     if (focused && current && focused.style === "pin") {
-      map.fitBounds(yesView(focused), { padding: framePadding(map, extraTop, flagLabelPx()), ...motion });
-    } else if (current) {
+      return { bounds: yesView(focused), padding: framePadding(map, compactRef.current ? 50 : 0, flagLabelPx()) };
+    }
+    if (current) {
       const { lat: clat, lng: clng } = cardContextRef.current;
       const bounds = new maplibregl.LngLatBounds([clng, clat], [clng, clat]).extend([current.lng, current.lat]);
       if (routeBoundsRef.current) bounds.extend(routeBoundsRef.current);
       // Room for the chip above and the flag's name beside it.
-      map.fitBounds(bounds, { padding: framePadding(map, compactRef.current ? 50 : 20, flagLabelPx()), maxZoom: 15, ...motion });
-    } else if (!frameLinkSpots(map, ms) && areaBoundsRef.current) {
-      map.fitBounds(areaBoundsRef.current, { padding: framePadding(map), ...motion });
+      return { bounds, padding: framePadding(map, compactRef.current ? 50 : 20, flagLabelPx()), maxZoom: 15 };
     }
+    const { a, b } = spotsRef.current;
+    if (linkSpotsRef.current && a) {
+      const bounds = new maplibregl.LngLatBounds([a.lng, a.lat], [a.lng, a.lat]);
+      if (b) bounds.extend([b.lng, b.lat]);
+      return { bounds, padding: spotPadding(map), maxZoom: 15 };
+    }
+    return areaBoundsRef.current ? { bounds: areaBoundsRef.current, padding: framePadding(map) } : null;
+  };
+  const frameHome = (map: maplibregl.Map, ms?: number) => {
+    const frame = homeFrame(map);
+    if (frame) map.fitBounds(frame.bounds, { padding: frame.padding, ...(frame.maxZoom != null && { maxZoom: frame.maxZoom }), ...cameraMotion(ms) });
+  };
+  const NO_PADDING = { top: 0, right: 0, bottom: 0, left: 0 };
+  /** The curtain's companions, on the map's own pace and curve: the layer
+   *  that carries the locator and the credit line follows the curtain's
+   *  edge from one height to the other, and the locator grows or shrinks
+   *  between its two sizes. */
+  const runCurtain = (fromHeight: number, toHeight: number) => {
+    for (const a of curtainRef.current) a.cancel();
+    if (prefersReducedMotion()) return;
+    const timing: KeyframeAnimationOptions = { duration: MOTION_MS, easing: MOTION_CSS, fill: "forwards" };
+    const small = `translate(2px, 16px) scale(${64 / 112})`;
+    const anims: Animation[] = [];
+    if (overlayRef.current) anims.push(overlayRef.current.animate([{ height: `${fromHeight}px` }, { height: `${toHeight}px` }], timing));
+    if (locatorWrapRef.current)
+      anims.push(locatorWrapRef.current.animate(toHeight > fromHeight ? [{ transform: small }, { transform: "none" }] : [{ transform: "none" }, { transform: small }], timing));
+    // Opening: let go at the end (the layer's own size takes over).
+    if (toHeight > fromHeight) for (const a of anims) a.onfinish = () => a.cancel();
+    curtainRef.current = anims;
   };
   // Camera position from just before a pin was dropped, so closing the pin
   // can fly back to the same view rather than staying zoomed in on it.
@@ -1188,7 +1228,11 @@ export function MapView({
     // waits until resize events stop arriving for a beat (comfortably past
     // the 300ms CSS transition) before doing the one resize that matters.
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
-    const resizeObserver = new ResizeObserver(() => {
+    // The height is noted at once: the expanded layout effect, which runs
+    // before this hears of a change, reads the one from before it.
+    lastHeightRef.current = containerRef.current.clientHeight;
+    const resizeObserver = new ResizeObserver((entries) => {
+      lastHeightRef.current = entries[0]?.contentRect.height ?? lastHeightRef.current;
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => map.resize(), 350);
     });
@@ -1492,21 +1536,39 @@ export function MapView({
   // A phone on its side (2026-11-07, owner): no height for the list under
   // the buttons - it runs along the top of the map instead, the kinds in a
   // row that scrolls sideways, and the shown box drops under it.
+  // A phone upright too (2026-11-08, owner: "displaying the filters right
+  // in the middle of the map"): along the top, over a few lines.
   const landscapeShort = useMediaQuery("(orientation: landscape) and (max-height: 520px)");
-  const listAsStrip = listShown && landscapeShort;
+  const wideScreen = useMediaQuery("(min-width: 640px)");
+  const listOnTop = listShown && (landscapeShort || !wideScreen);
+  const topListRef = useRef<HTMLDivElement | null>(null);
+  const [topListHeight, setTopListHeight] = useState(0);
+  useEffect(() => {
+    const el = topListRef.current;
+    if (!listOnTop || !el) return;
+    const measure = () => setTopListHeight(el.offsetHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [listOnTop]);
   // A phone's small map: the expand, places and spot buttons in a column
   // beside the zoom buttons rather than under them, so all fit in its
   // height (2026-11-06, owner: keep + and - there too).
   const smallMap = compact && !expanded && !!onToggleExpanded;
-  const buttonsRight = smallMap ? 10 + BUTTON_STEP_PX - 1 : 10;
-  const expandTop = smallMap ? 10 : 76;
+  // The buttons take their small-map places as soon as the map starts
+  // going back into the page, and glide there with the curtain (and out
+  // again as it opens) - never hidden and shown again (2026-11-08, owner).
+  const buttonsSmall = compact && !!onToggleExpanded && (!expanded || collapsing);
+  const buttonsRight = buttonsSmall ? 10 + BUTTON_STEP_PX - 1 : 10;
+  const expandTop = buttonsSmall ? 10 : 76;
   const layersTop = onToggleExpanded ? expandTop + BUTTON_STEP_PX : 76;
   const spotTop = layersTop + BUTTON_STEP_PX;
   const listTop = (placeId ? spotTop : layersTop) + 35;
   /** The shown box sits left of the buttons (under the strip, when it's
    *  open). */
   const shownRight = buttonsRight + 36;
-  const shownTop = listAsStrip ? 58 : 10;
+  const shownTop = listOnTop ? 18 + topListHeight : 10;
   /** The kinds the list offers: only those the city has places of
    *  (2026-11-06, owner) - not a No (its row still shows the nearest one),
    *  nor a line with no stop mapped (a tram's track). */
@@ -1530,7 +1592,6 @@ export function MapView({
   // the whole country, and back.
   const [showingCountry, setShowingCountry] = useState(false);
   useEffect(() => setShowingCountry(false), [lat, lng]);
-  const wideScreen = useMediaQuery("(min-width: 640px)");
   const locatorSize = smallMap || landscapeShort ? 64 : 112;
   const locatorShown = !!countryCode && spotMode !== "a" && !(spotA && listHere && !wideScreen) && !pickingDestination;
   const showCountry = (bounds: [[number, number], [number, number]] | null) => {
@@ -1589,6 +1650,20 @@ export function MapView({
     const bounds = new maplibregl.LngLatBounds();
     for (const p of points) bounds.extend([p.lng, p.lat]);
     map.fitBounds(bounds, { padding: spotPadding(map), maxZoom: 15, ...cameraMotion(ms) });
+  };
+  /** Points brought into the room the spot's card leaves - only if one of
+   *  them is outside it, and zooming out at most. */
+  const revealSpots = (map: maplibregl.Map, points: { lat: number; lng: number }[]) => {
+    const pad = spotPadding(map);
+    const box = map.getContainer();
+    const inView = points.every((p) => {
+      const at = map.project([p.lng, p.lat]);
+      return at.x >= pad.left && at.x <= box.clientWidth - pad.right && at.y >= pad.top && at.y <= box.clientHeight - pad.bottom;
+    });
+    if (inView) return;
+    const bounds = new maplibregl.LngLatBounds();
+    for (const p of points) bounds.extend([p.lng, p.lat]);
+    map.fitBounds(bounds, { padding: pad, maxZoom: map.getZoom(), ...cameraMotion() });
   };
   /** A shared link's spots, framed in place of the place itself until the
    *  map is moved by hand or the spots change - the place's own framing
@@ -1792,9 +1867,10 @@ export function MapView({
     const to = { lat: spotTo.lat, lng: spotTo.lng };
     source.setData({ type: "Feature", properties: { straight: true }, geometry: { type: "LineString", coordinates: [[from.lng, from.lat], [to.lng, to.lat]] } });
     setSpotJourney("finding");
-    // Framed when a journey is picked - not again each time the spot is
-    // moved with it (the map stays where you are tapping).
-    if (framedTargetRef.current !== spotTarget) frameSpots(map, [from, to]);
+    // When a journey is picked, both ends brought into view if they aren't
+    // - never zooming in (2026-11-08, owner: tapping a bus station near the
+    // spot zoomed right in); not again each time the spot is moved with it.
+    if (framedTargetRef.current !== spotTarget) revealSpots(map, [from, to]);
     framedTargetRef.current = spotTarget;
     fetchRoute(from, to, spotTravelMode).then((route) => {
       if (cancelled) return;
@@ -1869,18 +1945,35 @@ export function MapView({
     firstExpandedRef.current = false;
     if (!map || first) return;
     const back = preExpandCameraRef.current;
-    if (expanded) preExpandCameraRef.current = { center: map.getCenter(), zoom: map.getZoom() };
+    const before = { center: map.getCenter(), zoom: map.getZoom() };
+    const fromHeight = lastHeightRef.current;
+    if (expanded) preExpandCameraRef.current = before;
     else preExpandCameraRef.current = null;
     map.resize();
     if (mapLoadedRef.current) map.redraw();
     framedThisCommitRef.current = true;
-    if (expanded) {
+    const height = map.getContainer().clientHeight;
+    if (expanded && height - fromHeight > 20 && !prefersReducedMotion()) {
+      // A phone: the map now fills the screen, but the page's curtain
+      // shows only its old slot at first - the same view there (the place
+      // held in the slot's middle by padding the rest), then the curtain
+      // opens and the camera glides to the place's framing in the whole
+      // map, together (2026-11-08, owner: "like a curtain").
+      const frame = homeFrame(map);
+      const target = frame ? map.cameraForBounds(frame.bounds, { padding: frame.padding, ...(frame.maxZoom != null && { maxZoom: frame.maxZoom }) }) : undefined;
+      map.jumpTo({ ...before, padding: { ...NO_PADDING, bottom: height - fromHeight } });
+      map.easeTo({ ...(target && { center: target.center, zoom: target.zoom }), padding: NO_PADDING, ...cameraMotion() });
+      runCurtain(fromHeight, height);
+    } else if (expanded) {
       frameHome(map);
     } else if (back && headingBackRef.current) {
-      // Already there (collapsing): settle exactly.
-      map.jumpTo(back);
+      // Already there (collapsing): settle exactly, the padding let go now
+      // the map is the slot's size.
+      for (const a of curtainRef.current) a.cancel();
+      curtainRef.current = [];
+      map.jumpTo({ ...back, padding: NO_PADDING });
     } else if (back && !focusRef.current) {
-      map.easeTo({ ...back, ...cameraMotion() });
+      map.easeTo({ ...back, padding: NO_PADDING, ...cameraMotion() });
     } else {
       frameHome(map);
     }
@@ -1903,15 +1996,22 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sidePanelOpen]);
 
-  // A phone taking the map back into the page: the camera heads to the
-  // view from before at the same pace, so the slot lands on it.
+  // A phone taking the map back into the page: the curtain closes up to
+  // the slot, and at the same pace the camera heads back to the view from
+  // before, held in the middle of what stays open - so the slot lands on
+  // exactly that view. The lists fade; the locator and the credit line
+  // ride the curtain's edge.
   useLayoutEffect(() => {
     const map = mapRef.current;
     const back = preExpandCameraRef.current;
-    if (!collapsing || !map || !back) return;
+    if (collapseTo == null || !map || !back) return;
     headingBackRef.current = true;
-    map.easeTo({ ...back, ...cameraMotion() });
-  }, [collapsing]);
+    const height = map.getContainer().clientHeight;
+    map.easeTo({ ...back, padding: { ...NO_PADDING, bottom: Math.max(0, height - collapseTo) }, ...cameraMotion() });
+    runCurtain(height, collapseTo);
+    for (const el of [topListRef.current, listColumnRef.current]) el?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-out", fill: "forwards" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collapseTo]);
 
   // A Yes: look for every place of its kind in the map's tiles (lib/
   // mapPlaces.ts) - the dataset's own nearest 6 show meanwhile, and stay
@@ -2012,7 +2112,7 @@ export function MapView({
         // the same for a tapped figure and a kind ticked in the layer list,
         // always beside the buttons (2026-10-30, owner: "more consistent").
         // A journey adds the same one in Google Maps in a new tab.
-        <div style={{ top: shownTop, right: shownRight, maxWidth: `min(20rem, calc(100% - ${shownRight + 10}px))` }} className="absolute z-10 rounded-2xl bg-surface py-0.5 pl-2.5 pr-0.5 shadow-card">
+        <div style={{ top: shownTop, right: shownRight, maxWidth: `min(20rem, calc(100% - ${shownRight + 10}px))` }} className={cn("absolute z-10 rounded-2xl bg-surface py-0.5 pl-2.5 pr-0.5 shadow-card", BUTTON_GLIDE)}>
           {focus && (
             <>
               <ShownLine
@@ -2065,7 +2165,7 @@ export function MapView({
           aria-label={expanded ? "Make the map smaller" : "Expand the map"}
           title={expanded ? "Make the map smaller" : "Expand the map"}
           style={{ top: expandTop, right: buttonsRight }}
-          className="absolute z-10 flex h-[29px] w-[29px] items-center justify-center rounded bg-white text-ink-900 shadow-[0_0_0_2px_rgba(0,0,0,0.1)] hover:bg-surface-muted"
+          className={cn("absolute z-10 flex h-[29px] w-[29px] items-center justify-center rounded bg-white text-ink-900 shadow-[0_0_0_2px_rgba(0,0,0,0.1)] hover:bg-surface-muted", BUTTON_GLIDE)}
         >
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             {expanded ? (
@@ -2099,6 +2199,7 @@ export function MapView({
             style={{ top: layersTop, right: buttonsRight }}
             className={cn(
               "absolute z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
+              BUTTON_GLIDE,
               layerKinds.length || focusKind ? "bg-piltri-amber text-white" : "bg-white text-ink-900 hover:bg-surface-muted"
             )}
           >
@@ -2127,6 +2228,7 @@ export function MapView({
               style={{ top: spotTop, right: buttonsRight }}
               className={cn(
                 "absolute z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
+                BUTTON_GLIDE,
                 spotOn ? "bg-piltri-amber text-white" : "bg-white text-ink-900 hover:bg-surface-muted"
               )}
             >
@@ -2136,66 +2238,94 @@ export function MapView({
               </svg>
             </button>
           )}
-          {listAsStrip && (
-            // On its side: along the top, left of the buttons - its title,
-            // the kinds and your spots in a row that scrolls sideways, and
-            // Clear at the end.
-            <div
-              style={{ right: buttonsRight + 38 }}
-              title={listNote}
-              className="absolute left-[10px] top-[10px] z-20 flex items-center gap-1.5 rounded-xl bg-surface py-1 pl-2.5 pr-1 shadow-card motion-safe:animate-fade-in"
-            >
-              <p className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show</p>
-              <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto py-0.5 [scrollbar-width:none]">
-                {offeredKinds.map((kind) => {
-                  const on = layerKinds.includes(kind) || kind === focusKind;
-                  return (
+          {listOnTop &&
+            (() => {
+              const chips = (
+                <>
+                  {offeredKinds.map((kind) => {
+                    const on = layerKinds.includes(kind) || kind === focusKind;
+                    return (
+                      <button
+                        key={kind}
+                        type="button"
+                        role="menuitemcheckbox"
+                        aria-checked={on}
+                        onClick={() => toggleLayer(kind)}
+                        className={cn(
+                          "flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border py-[3px] pl-1 pr-2 text-[11px] transition-colors",
+                          on ? "border-piltri-amber bg-piltri-amber/10 font-medium text-ink-900" : "border-surface-border text-ink-700 hover:bg-surface-muted"
+                        )}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={mapIconUrl(kind)} alt="" width={16} height={16} />
+                        {LAYER_LABELS[kind as InsideKind]}
+                      </button>
+                    );
+                  })}
+                  {savedSpots.map((saved) => (
                     <button
-                      key={kind}
+                      key={`${saved.lat},${saved.lng}`}
                       type="button"
-                      role="menuitemcheckbox"
-                      aria-checked={on}
-                      onClick={() => toggleLayer(kind)}
-                      className={cn(
-                        "flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border py-[3px] pl-1 pr-2 text-[11px] transition-colors",
-                        on ? "border-piltri-amber bg-piltri-amber/10 font-medium text-ink-900" : "border-surface-border text-ink-700 hover:bg-surface-muted"
-                      )}
+                      onClick={() => openSpot({ lat: saved.lat, lng: saved.lng, name: saved.name })}
+                      className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-surface-border py-[3px] pl-1.5 pr-2 text-[11px] text-ink-700 hover:bg-surface-muted"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={mapIconUrl(kind)} alt="" width={16} height={16} />
-                      {LAYER_LABELS[kind as InsideKind]}
+                      <svg viewBox="0 0 24 24" width="11" height="11" fill={SPOT_COLOR} aria-hidden className="shrink-0">
+                        <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />
+                      </svg>
+                      {saved.name ?? "Your spot"}
                     </button>
-                  );
-                })}
-                {savedSpots.map((saved) => (
-                  <button
-                    key={`${saved.lat},${saved.lng}`}
-                    type="button"
-                    onClick={() => openSpot({ lat: saved.lat, lng: saved.lng, name: saved.name })}
-                    className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-surface-border py-[3px] pl-1.5 pr-2 text-[11px] text-ink-700 hover:bg-surface-muted"
-                  >
-                    <svg viewBox="0 0 24 24" width="11" height="11" fill={SPOT_COLOR} aria-hidden className="shrink-0">
-                      <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />
-                    </svg>
-                    {saved.name ?? "Your spot"}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                disabled={!layerKinds.length && !focusKind}
-                onClick={clearList}
-                className="shrink-0 px-1.5 text-[11px] font-medium text-piltri-amber-dark underline-offset-2 hover:underline disabled:text-ink-300 disabled:no-underline"
-              >
-                Clear
-              </button>
-            </div>
-          )}
-          {listShown && !listAsStrip && (
+                  ))}
+                </>
+              );
+              const clear = (
+                <button
+                  type="button"
+                  disabled={!layerKinds.length && !focusKind}
+                  onClick={clearList}
+                  className="shrink-0 px-1.5 text-[11px] font-medium text-piltri-amber-dark underline-offset-2 hover:underline disabled:text-ink-300 disabled:no-underline"
+                >
+                  Clear
+                </button>
+              );
+              return (
+                // On a phone, along the top of the map, left of the buttons
+                // (2026-11-08, owner: not over the middle of the city):
+                // upright, the kinds as chips over a few lines; on its side,
+                // in one row that scrolls sideways.
+                <div
+                  ref={topListRef}
+                  style={{ right: buttonsRight + 38 }}
+                  title={landscapeShort ? listNote : undefined}
+                  className={cn(
+                    "absolute left-[10px] top-[10px] z-20 rounded-xl bg-surface shadow-card motion-safe:animate-fade-in",
+                    landscapeShort ? "flex items-center gap-1.5 py-1 pl-2.5 pr-1" : "max-h-[46%] overflow-y-auto px-2 pb-2 pt-1.5"
+                  )}
+                >
+                  {landscapeShort ? (
+                    <>
+                      <p className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show</p>
+                      <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto py-0.5 [scrollbar-width:none]">{chips}</div>
+                      {clear}
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center pb-1.5 pl-0.5">
+                        <p className="flex-1 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show on the map</p>
+                        {clear}
+                      </div>
+                      <div className="flex flex-wrap gap-1">{chips}</div>
+                      <p className="pl-0.5 pt-1.5 text-[10px] leading-snug text-ink-500">{listNote}</p>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+          {listShown && !listOnTop && (
             // Right under the buttons, against the map's edge, narrow
             // (2026-10-30, owner: "take less space from the map"); never
             // taller than the map - it scrolls inside, under its title.
             <div
+              ref={listColumnRef}
               style={{ top: listTop, maxHeight: `calc(100% - ${listTop + 12 + (locatorShown ? locatorSize + 34 : 0)}px)` }}
               className="absolute right-[10px] z-20 w-[180px] overflow-y-auto rounded-xl bg-surface px-1 pb-1 shadow-card motion-safe:animate-fade-in"
             >
@@ -2291,20 +2421,31 @@ export function MapView({
           />
         </div>
       )}
-      {locatorShown && countryCode && (
-        <CountryLocator
-          countryCode={countryCode}
-          countryName={countryName}
-          placeName={areaName?.split(",")[0]}
-          lat={lat}
-          lng={lng}
-          size={locatorSize}
-          showingCountry={showingCountry}
-          onShowCountry={showCountry}
-          style={{ right: locatorSize < 96 ? 8 : 10, bottom: locatorSize < 96 ? 8 : 24 }}
-        />
-      )}
-      <MapCredit routes={!!routeInfo || !!spotTo} />
+      {/* What sits along the map's bottom edge, on a layer that follows
+       *  the curtain's edge as a phone's map opens and closes (runCurtain). */}
+      <div ref={overlayRef} className="pointer-events-none absolute inset-x-0 top-0 z-10 h-full">
+        {locatorShown && countryCode && (
+          <div
+            ref={locatorWrapRef}
+            className="pointer-events-auto absolute"
+            style={{ right: locatorSize < 96 ? 8 : 10, bottom: locatorSize < 96 ? 8 : 24, transformOrigin: "100% 100%" }}
+          >
+            <CountryLocator
+              countryCode={countryCode}
+              countryName={countryName}
+              placeName={areaName?.split(",")[0]}
+              lat={lat}
+              lng={lng}
+              size={locatorSize}
+              showingCountry={showingCountry}
+              onShowCountry={showCountry}
+            />
+          </div>
+        )}
+        <div className="pointer-events-auto">
+          <MapCredit routes={!!routeInfo || !!spotTo} />
+        </div>
+      </div>
     </div>
   );
 }

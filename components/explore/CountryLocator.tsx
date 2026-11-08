@@ -128,7 +128,7 @@ export function CountryLocator({
       title={showingCountry ? back : `Where ${placeName ?? "it"} is in ${country} - tap to see the whole country`}
       style={{ width: size, height: size, ...style }}
       className={cn(
-        "group absolute z-10 overflow-hidden rounded-xl bg-surface/90 shadow-card ring-1 ring-black/5 backdrop-blur-sm transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-lg motion-safe:animate-fade-in",
+        "group relative block overflow-hidden rounded-xl bg-surface/90 shadow-card ring-1 ring-black/5 backdrop-blur-sm transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-lg motion-safe:animate-fade-in",
         className
       )}
     >

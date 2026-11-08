@@ -234,7 +234,7 @@ function ResultRow({
             {where}
             {population != null && <span className="text-ink-300"> · {populationText(population)}</span>}
           </p>
-          <div className="mt-2 flex items-center gap-3">
+          <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 sm:gap-x-3">
             {SECTION_ORDER.map((key) => {
               const Icon = SECTION_ICONS[key];
               return (
@@ -391,7 +391,12 @@ function SearchContent() {
   // Nothing is listed until something is chosen (2026-11-06, owner: no
   // place names before searching).
   const chosenNothing = filterCount === 0;
-  const countText = `${count.toLocaleString("en-GB")} ${count === 1 ? "place" : "places"}`;
+  // The count is for the choices as they are now, or not shown at all: while
+  // a new choice's figures download, the last results stay (dimmed) but
+  // their count isn't passed off as the new one (2026-11-08, owner: it
+  // showed the total first, then the filtered number).
+  const current = fresh != null;
+  const countText = current ? `${count.toLocaleString("en-GB")} ${count === 1 ? "place" : "places"}` : "Counting…";
 
   const mapPoints: MapPoint[] = useMemo(
     () =>
@@ -464,7 +469,7 @@ function SearchContent() {
               </div>
               <div className="p-4 border-t border-surface-border flex-shrink-0">
                 <button type="button" onClick={() => setSheetOpen(false)} className="w-full rounded-pill bg-piltri-amber text-white py-3 text-sm font-medium">
-                  {chosenNothing ? "Close" : `Show ${countText}`}
+                  {chosenNothing ? "Close" : current ? `Show ${countText}` : "Counting places…"}
                 </button>
               </div>
             </div>
@@ -486,7 +491,7 @@ function SearchContent() {
                 {chosenNothing ? (
                   <span className="text-ink-500">Choose what matters to you</span>
                 ) : result ? (
-                  <span className="font-medium">{countText}</span>
+                  <span className={cn("font-medium", !current && "font-normal text-ink-500")}>{countText}</span>
                 ) : (
                   <span className="text-ink-500">Loading places…</span>
                 )}
@@ -540,7 +545,7 @@ function SearchContent() {
                   </p>
                 </div>
               ) : !table || !result ? (
-                <ul className="grid gap-3 lg:grid-cols-2">
+                <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                   {Array.from({ length: 8 }, (_, k) => (
                     <li key={k} className="h-[104px] rounded-card border border-surface-border bg-surface animate-pulse" />
                   ))}
@@ -566,7 +571,7 @@ function SearchContent() {
                 </div>
               ) : (
                 <>
-                  <ul className="grid gap-3 lg:grid-cols-2">
+                  <ul className={cn("grid grid-cols-1 gap-3 lg:grid-cols-2 transition-opacity duration-200", !current && "opacity-60")}>
                     {listed.slice(0, shown).map((i, k) => {
                       const id = table.id(i);
                       return (

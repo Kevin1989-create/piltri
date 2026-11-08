@@ -29,7 +29,17 @@ Real Estate section** - no free, reliable global price source exists.
   change: two at once restart each other (the old jolts). Phone sections
   and the desktop section panel fold and glide (`components/ui/Collapse`).
   A phone on its side (`land:` variant in tailwind.config.ts) gets a
-  one-row top bar and the layer list as a strip along the top of the map.
+  one-row top bar and the layer list as a strip along the top of the map;
+  upright, the list sits along the top too, as chips (2026-11-08).
+  A phone's map opens and closes as a curtain (2026-11-08, owner): the
+  page keeps the map's slot in place, the clip's bottom edge moves, the
+  camera holds the place in the open part with bottom padding
+  (`collapseTo`), the buttons glide between their two layouts and the
+  locator rides the curtain's edge (`runCurtain`).
+- **Launch splash** (2026-11-08, owner): the installed app opens on the
+  animated wordmark and "Find your Piltri" (~2 s, a tap skips it) -
+  `components/ui/LaunchSplash.tsx`, CSS in globals.css; `?splash=1` shows
+  it in a browser.
 - **Opening view** (2026-11-07, owner): on a computer the place is framed
   in the room right of the score column (room is no longer kept for a
   section panel - the map glides across when one opens, `sidePanelOpen`),

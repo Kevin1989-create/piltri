@@ -293,13 +293,17 @@ function CityContent() {
   const mapPictureRef = useRef<HTMLDivElement | null>(null);
   const mapSlotRef = useRef<{ dx: number; dy: number; width: number; height: number } | null>(null);
   const mapAnimatingRef = useRef(false);
-  // Going back into the page (a phone): MapView's camera heads back to the
-  // view from before at the same time.
-  const [mapCollapsing, setMapCollapsing] = useState(false);
+  // Going back into the page (a phone): the slot's height, which the
+  // curtain closes up to - MapView's camera heads back to the view from
+  // before at the same time, settling it there.
+  const [mapCollapseTo, setMapCollapseTo] = useState<number | null>(null);
   const mapFilledRef = useRef(mapFills);
-  /** The clip and the shift that make the full-screen map look like the
-   *  page's map: only its slot shown, its centre at the slot's centre.
-   *  None on a computer, where the map doesn't change size. */
+  /** The clip that shows only the page's slot of the full-screen map -
+   *  its top part, as the map starts under the top bar - and that slot's
+   *  height in the map. A curtain: opening, the clip's bottom edge drops
+   *  to the screen's; closing, it rises back (2026-11-08, owner: "like a
+   *  curtain"); the map's picture never moves. None on a computer, where
+   *  the map doesn't change size. */
   const mapSlotFrames = () => {
     const el = mapBoxRef.current;
     if (!el || getComputedStyle(el).position !== "fixed") return null;
@@ -310,28 +314,24 @@ function CityContent() {
     const left = area.left + slot.dx;
     const top = area.top + slot.dy;
     const inset = [top - box.top, box.right - left - slot.width, box.bottom - top - slot.height, left - box.left].map((v) => `${Math.max(0, v)}px`);
-    return {
-      clip: `inset(${inset.join(" ")})`,
-      shift: `translate(${left + slot.width / 2 - (box.left + box.width / 2)}px, ${top + slot.height / 2 - (box.top + box.height / 2)}px)`,
-    };
+    return { clip: `inset(${inset.join(" ")})`, height: Math.max(0, top + slot.height - box.top) };
   };
   /** Back into the page: shrinks to the slot, then `done` puts it there. */
   const shrinkMap = useCallback((done: () => void) => {
     if (mapAnimatingRef.current) return;
     const frames = mapSlotFrames();
-    if (!frames || !mapBoxRef.current || !mapPictureRef.current) return done();
+    if (!frames || !mapBoxRef.current) return done();
     mapAnimatingRef.current = true;
-    setMapCollapsing(true);
+    setMapCollapseTo(frames.height);
     let finished = false;
     const finish = () => {
       if (finished) return;
       finished = true;
       mapAnimatingRef.current = false;
-      setMapCollapsing(false);
+      setMapCollapseTo(null);
       done();
     };
     const timing = { duration: MOTION_MS, easing: MOTION_CSS, fill: "forwards" as const };
-    mapPictureRef.current.animate([{ transform: "none" }, { transform: frames.shift }], timing);
     mapBoxRef.current.animate([{ clipPath: "inset(0px)" }, { clipPath: frames.clip }], timing).onfinish = finish;
     // Animations don't run in a page that isn't on screen: never wait on one.
     setTimeout(finish, MOTION_MS + 150);
@@ -339,13 +339,12 @@ function CityContent() {
   }, []);
   useLayoutEffect(() => {
     const box = mapBoxRef.current;
-    const picture = mapPictureRef.current;
     const wasFilled = mapFilledRef.current;
     mapFilledRef.current = mapFills;
-    if (!box || !picture) return;
+    if (!box) return;
     if (!mapFills) {
       // In the page (back from shrinking, its end state let go): where.
-      for (const el of [box, picture]) for (const a of el.getAnimations()) a.cancel();
+      for (const a of box.getAnimations()) a.cancel();
       const area = mapAreaRef.current?.getBoundingClientRect();
       const r = box.getBoundingClientRect();
       if (area) mapSlotRef.current = { dx: r.left - area.left, dy: r.top - area.top, width: r.width, height: r.height };
@@ -354,9 +353,7 @@ function CityContent() {
       // open out from the slot.
       const frames = mapSlotFrames();
       if (!frames) return;
-      const timing = { duration: MOTION_MS, easing: MOTION_CSS };
-      box.animate([{ clipPath: frames.clip }, { clipPath: "inset(0px)" }], timing);
-      picture.animate([{ transform: frames.shift }, { transform: "none" }], timing);
+      box.animate([{ clipPath: frames.clip }, { clipPath: "inset(0px)" }], { duration: MOTION_MS, easing: MOTION_CSS });
     }
   });
   // The full map on a phone starts under the top bar (2026-10-30, owner:
@@ -646,19 +643,23 @@ function CityContent() {
          *  (2026-11-06, owner: "the map is important", "shouldn't move at
          *  all") - the other sections' rows and the country's figures make
          *  the room instead. */}
+        {/* The map's slot keeps its place in the page while the map fills
+         *  the screen, so nothing below it moves up behind it - the page is
+         *  already as it will be when the curtain lifts (2026-11-08). */}
+        <div className="relative h-[23dvh] shrink-0 md:h-full md:flex-1" style={phoneMapStyle}>
         <div
           ref={mapBoxRef}
           className={cn(
-            "relative h-[23dvh] shrink-0 overflow-hidden md:h-full md:flex-1",
+            "absolute inset-0 overflow-hidden",
             // On a phone, expanded or a figure's place: the map takes the
             // screen under the top bar (its top: the layout effect above).
             // On a computer it already fills the width under the top bar -
             // the panels fade away instead.
-            mapFills && "max-md:!fixed max-md:!inset-x-0 max-md:!bottom-0 max-md:!z-50 max-md:!h-auto max-md:!opacity-100"
+            mapFills && "max-md:!fixed max-md:!inset-x-0 max-md:!bottom-0 max-md:!z-50 max-md:!opacity-100"
           )}
-          style={{ ...phoneMapStyle, ...(phoneMapTop != null && { top: phoneMapTop }) }}
+          style={phoneMapTop != null ? { top: phoneMapTop } : undefined}
         >
-          <div ref={mapPictureRef} className={cn("h-[23dvh] md:h-full relative", mapFills && "!h-full")} style={phoneMapStyle}>
+          <div ref={mapPictureRef} className="relative h-full">
             {center ? (
               <MapView
                 lat={center.lat}
@@ -676,7 +677,7 @@ function CityContent() {
                 onCloseFocus={closeFocusOnMap}
                 expanded={mapFills}
                 onToggleExpanded={toggleMapExpanded}
-                collapsing={mapCollapsing}
+                collapseTo={mapCollapseTo}
                 loadInside={data?.liveability.inside ? loadInside : undefined}
                 areaName={data ? placeLabel(data) : undefined}
                 insideFigures={data?.liveability.inside}
@@ -690,6 +691,7 @@ function CityContent() {
               <div className="w-full h-full bg-surface-muted" />
             )}
           </div>
+        </div>
         </div>
 
         {/* Score column — floats on top of the map on desktop (fixed size

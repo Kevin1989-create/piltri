@@ -56,7 +56,14 @@ export function ClimateChart({ monthly }: { monthly: { highC: number[]; lowC: nu
 
   return (
     <figure className="w-full relative select-none" onMouseLeave={() => setActive(null)}>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Monthly average high and low temperature and rainfall">
+      {/* What it is, in words (2026-11-08, owner: "not very clear"). */}
+      <div className="mb-1.5 text-center">
+        <p className="font-serif text-[13px] font-semibold leading-tight text-ink-900">A typical year, month by month</p>
+        <p className="mt-0.5 text-[10px] leading-snug text-ink-500">
+          The usual daytime high and night-time low in each month, and how much rain falls in it - averages over 1970-2000.
+        </p>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="A typical year: each month's average daytime high and night-time low temperature, and its rainfall">
         {ticks.map((v) => (
           <g key={v}>
             <line x1={PAD.left} x2={W - PAD.right} y1={yT(v)} y2={yT(v)} stroke={GRID} strokeWidth={0.6} />
@@ -123,15 +130,15 @@ export function ClimateChart({ monthly }: { monthly: { highC: number[]; lowC: nu
       )}
       <figcaption className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-[10px] text-ink-500">
         <span className="flex items-center gap-1">
-          <span className="inline-block w-2.5 h-0.5" style={{ background: HIGH }} /> Avg high ({tUnit})
+          <span className="inline-block w-2.5 h-0.5" style={{ background: HIGH }} /> Daytime high ({tUnit}, left scale)
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block w-2.5 h-0.5" style={{ background: LOW }} /> Avg low ({tUnit})
+          <span className="inline-block w-2.5 h-0.5" style={{ background: LOW }} /> Night-time low ({tUnit})
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block w-2 h-2 rounded-sm" style={{ background: RAIN }} /> Rain ({rUnit} per month)
+          <span className="inline-block w-2 h-2 rounded-sm" style={{ background: RAIN }} /> Rain in the month ({rUnit}, written under each bar)
         </span>
-        <span className="print:hidden">Hover or tap a month for its values</span>
+        <span className="print:hidden">Hover or tap a month for its figures</span>
       </figcaption>
     </figure>
   );

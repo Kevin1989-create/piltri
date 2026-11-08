@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { LaunchSplash, SPLASH_SCRIPT } from "@/components/ui/LaunchSplash";
 
 export const metadata: Metadata = {
   title: { default: "Piltri — Find your Piltri.", template: "%s · Piltri" },
@@ -22,8 +23,16 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    // The launch splash's switch is set on <html> before React loads
+    // (components/ui/LaunchSplash.tsx).
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: SPLASH_SCRIPT }} />
+      </head>
+      <body>
+        <LaunchSplash />
+        {children}
+      </body>
     </html>
   );
 }
