@@ -10,9 +10,11 @@ import type { Map as MaplibreMap } from "maplibre-gl";
  * (muteColor); the icons keep theirs.
  */
 
-const SATURATE = 0.45;
-const BRIGHTNESS = 1.08;
-const CONTRAST = 0.95;
+// A little less muted since 2026-11-08 (owner: "a bit more contrast and
+// details"): 0.45 / 1.08 / 0.95 before.
+const SATURATE = 0.6;
+const BRIGHTNESS = 1.04;
+const CONTRAST = 1;
 
 const clamp = (v: number) => Math.min(1, Math.max(0, v));
 
@@ -70,6 +72,63 @@ function muteValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(muteValue);
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, muteValue(v)]));
   return value;
+}
+
+/** A width expression ["interpolate", curve, ["zoom"], z, w, ...] with every
+ *  width times `factor`; anything else as it was. */
+function widen(value: unknown, factor: number): unknown {
+  if (!Array.isArray(value) || value[0] !== "interpolate") return typeof value === "number" ? value * factor : value;
+  return value.map((v, i) => (i >= 4 && i % 2 === 1 && typeof v === "number" ? v * factor : v));
+}
+
+/** The streets read like a street map's (2026-11-08, owner: "more contrast
+ *  and details ... highlight of the high street like in Google Maps"),
+ *  after muteBasemap: a clear road hierarchy - warm amber motorways,
+ *  honey main streets, pale yellow secondary ones, crisp white side streets,
+ *  each with a defined edge and a little wider at a city's zoom - and the
+ *  shopping and business districts, where the high streets are, in a soft
+ *  peach, as Google Maps marks its "areas of interest" (OpenStreetMap's
+ *  retail and commercial land, in the tiles already). */
+export function emphasizeStreets(map: MaplibreMap): void {
+  const style: [string[], string, number][] = [
+    // [layers, colour, width factor]
+    [["road_motorway", "bridge_motorway", "road_motorway_link", "bridge_motorway_link"], "#F3C164", 1.15],
+    [["road_motorway_casing", "bridge_motorway_casing", "road_motorway_link_casing", "bridge_motorway_link_casing"], "#CF9640", 1.15],
+    [["road_trunk_primary", "bridge_trunk_primary"], "#F9DC90", 1.3],
+    [["road_trunk_primary_casing", "bridge_trunk_primary_casing"], "#D3A65A", 1.3],
+    [["road_secondary_tertiary", "bridge_secondary_tertiary", "road_link", "bridge_link"], "#FFF0C7", 1.2],
+    [["road_secondary_tertiary_casing", "bridge_secondary_tertiary_casing", "road_link_casing", "bridge_link_casing"], "#DABF86", 1.2],
+    [["road_minor", "bridge_street"], "#FFFFFF", 1.1],
+    [["road_minor_casing", "bridge_street_casing"], "#D5CCBF", 1.1],
+  ];
+  for (const [ids, color, factor] of style) {
+    for (const id of ids) {
+      if (!map.getLayer(id)) continue;
+      map.setPaintProperty(id, "line-color", color);
+      map.setPaintProperty(id, "line-width", widen(map.getPaintProperty(id, "line-width"), factor) as any);
+    }
+  }
+  // Buildings a touch firmer, so blocks and streets stand apart.
+  if (map.getLayer("building")) map.setPaintProperty("building", "fill-color", "#E3DBD0");
+  if (map.getLayer("building-3d")) map.setPaintProperty("building-3d", "fill-extrusion-color", "#E6DED3");
+  // Shopping and business districts, under the roads.
+  const firstRoad = map.getStyle()?.layers?.find((l) => "source-layer" in l && l["source-layer"] === "transportation")?.id;
+  if (!map.getLayer("piltri-shopping-areas")) {
+    map.addLayer(
+      {
+        id: "piltri-shopping-areas",
+        type: "fill",
+        source: "openmaptiles",
+        "source-layer": "landuse",
+        filter: ["match", ["get", "class"], ["retail", "commercial"], true, false],
+        paint: {
+          "fill-color": "#F6CFA6",
+          "fill-opacity": ["interpolate", ["linear"], ["zoom"], 11, 0, 12.5, 0.5, 16, 0.6],
+        },
+      },
+      firstRoad
+    );
+  }
 }
 
 /** Mutes the basemap's style (call once it has loaded, before adding any

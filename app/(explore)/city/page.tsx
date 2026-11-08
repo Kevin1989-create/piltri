@@ -485,6 +485,9 @@ function CityContent() {
     setError(null);
     setData(null);
     closePin();
+    // A figure's places belong to the place before (2026-11-08, owner: the
+    // map sometimes framed the old city's after a search).
+    closeMapFocus();
     // Start the outline's download alongside the city's data.
     if (ref.id) getCityBoundary(ref.countryCode, ref.id).catch(() => null);
     getCityExploreData(ref.countryCode, ref.id, ref.lat, ref.lng)

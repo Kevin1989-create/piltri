@@ -39,7 +39,16 @@ Real Estate section** - no free, reliable global price source exists.
 - **Launch splash** (2026-11-08, owner): the installed app opens on the
   animated wordmark and "Find your Piltri" (~2 s, a tap skips it) -
   `components/ui/LaunchSplash.tsx`, CSS in globals.css; `?splash=1` shows
-  it in a browser.
+  it in a browser. Android draws its own launch screen first (the icon on
+  the cream) and no page can remove it, so the splash starts on that same
+  amber disc and P, and the P becomes the wordmark's first letter.
+- **Basemap** (2026-11-08, owner: "more contrast and details ... like
+  Google Maps"): less muted (`lib/mapColors.ts`), a clear road hierarchy
+  and shopping/business districts in peach (`emphasizeStreets`).
+- **The spot's card** frames the place and the spot in the room it leaves
+  (above it on a phone, beside it on a computer); the place's framing
+  comes back when it closes. Changing city closes a figure's places and
+  forgets the view from before expanding.
 - **Opening view** (2026-11-07, owner): on a computer the place is framed
   in the room right of the score column (room is no longer kept for a
   section panel - the map glides across when one opens, `sidePanelOpen`),

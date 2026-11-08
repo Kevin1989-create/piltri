@@ -27,12 +27,23 @@ d.addEventListener("pointerdown",end,{once:true,capture:true});
 
 const LETTERS = ["P", "i", "l", "t", "r", "i"];
 
+/** The phone's own launch screen comes first, before any page can load:
+ *  on Android the app icon - the cream "P" on an amber disc - on the app's
+ *  cream (2026-11-08, owner: "we can still see the old one"). So the
+ *  splash opens on that same disc and P, and the P becomes the wordmark's
+ *  first letter: the disc melts away as the P glides into its place and
+ *  turns ink, and "iltri" rises beside it - one movement from the icon. */
 export function LaunchSplash() {
   return (
     <div id="piltri-splash" aria-hidden="true">
       <p className="piltri-splash-mark">
+        <span className="piltri-splash-disc" />
         {LETTERS.map((ch, i) => (
-          <span key={i} style={{ "--i": i } as React.CSSProperties} className={i >= 3 ? "piltri-splash-amber" : undefined}>
+          <span
+            key={i}
+            style={{ "--i": i } as React.CSSProperties}
+            className={i === 0 ? "piltri-splash-p" : i >= 3 ? "piltri-splash-letter piltri-splash-amber" : "piltri-splash-letter"}
+          >
             {ch}
           </span>
         ))}

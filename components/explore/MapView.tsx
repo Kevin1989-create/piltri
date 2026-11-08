@@ -10,7 +10,7 @@ import { hasMapPlaces, loadMapPlaces, MAP_LAYER_KINDS, osmPoiFilter, yesRadiusKm
 import { cn } from "@/lib/cn";
 import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
 import { addMapIcons, mapIconColor, mapIconId, mapIconUrl } from "@/components/explore/mapIcons";
-import { muteBasemap, muteColor } from "@/lib/mapColors";
+import { emphasizeStreets, muteBasemap, muteColor } from "@/lib/mapColors";
 import { INSIDE_KINDS, INSIDE_TRACK_ONLY, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
 import { MapCredit } from "@/components/explore/MapCredit";
 import { airportsByReach, type MapKind } from "@/lib/kpiRows";
@@ -991,6 +991,7 @@ export function MapView({
       // a filter on the whole canvas until 2026-10-29). The lines and
       // fills below keep that muted look through muteColor.
       muteBasemap(map);
+      emphasizeStreets(map);
       // More names at a city's own zoom (2026-10-29, on request: "names of
       // key streets, buildings, stations"): the style shows main roads'
       // from 12.2, streets' and places' of interest from 15 - a city page
@@ -1254,6 +1255,10 @@ export function MapView({
   // page switches place) would fly back there.
   useEffect(() => {
     preDropCameraRef.current = null;
+    // Likewise the view from before expanding (2026-11-08, owner: after a
+    // search on the expanded map, making it smaller flew back to the old
+    // city) - shrinking then frames the new place.
+    preExpandCameraRef.current = null;
   }, [lat, lng]);
 
   // Draw and frame the searched place: its real outline, or the 5 km circle
@@ -1642,9 +1647,10 @@ export function MapView({
   /** Room for the spot's card: beside it on a wide map, above it on a phone. */
   const spotPadding = (map: maplibregl.Map): maplibregl.PaddingOptions => {
     const box = map.getContainer();
-    const card = spotCardRef.current?.getBoundingClientRect();
-    if (box.clientWidth >= 640) return { top: 70, right: 70, bottom: 50, left: (card?.width ?? 300) + 50 };
-    return { top: 70, right: 50, bottom: Math.min((card?.height ?? 260) + 40, box.clientHeight * 0.55), left: 40 };
+    if (box.clientWidth >= 640) return { top: 70, right: 70, bottom: 50, left: (spotCardRef.current?.getBoundingClientRect().width ?? 300) + 50 };
+    // A phone: the card's full height (its max-h-[45%], 24 px up from the
+    // bottom) - not what it measures now, as it grows once its list is in.
+    return { top: 70, right: 50, bottom: Math.round(box.clientHeight * 0.45) + 24 + 16, left: 40 };
   };
   const frameSpots = (map: maplibregl.Map, points: { lat: number; lng: number }[], ms?: number) => {
     const bounds = new maplibregl.LngLatBounds();
@@ -1676,6 +1682,7 @@ export function MapView({
   };
   const openSpot = (spot: SpotPoint) => {
     linkSpotsRef.current = false;
+    if (!spotsRef.current.a) spotFramedRef.current = true;
     setSpotA(spot);
     setSpotB(null);
     setSpotTarget(null);
@@ -1692,6 +1699,7 @@ export function MapView({
     setSpotB(b ? { ...b, name: null } : null);
     setSpotTarget(b ? "second" : null);
     linkSpotsRef.current = true;
+    spotFramedRef.current = true;
     if (mapRef.current) frameSpots(mapRef.current, b ? [a, b] : [a]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSpots, mapReady]);
@@ -1762,25 +1770,35 @@ export function MapView({
     placePin("a", spotA);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spotA?.lat, spotA?.lng, !!spotA, mapReady]);
-  // A spot just dropped where its card then opens (a phone's lower half):
-  // the map eases up so the spot sits in the free room above the card.
+  // The spot's card opening takes room from the map - the bottom of a
+  // phone's, the left of a computer's: the place and the spot are framed
+  // in the room left (2026-11-08, owner: "the window ... is hiding the
+  // part of the city"), and the place's own framing comes back when the
+  // card closes. A spot reopened from the list or a link frames itself.
   const hadSpotRef = useRef(false);
+  const spotFramedRef = useRef(false);
   useEffect(() => {
     const had = hadSpotRef.current;
     hadSpotRef.current = !!spotA;
+    const selfFramed = spotFramedRef.current;
+    if (had !== !!spotA) spotFramedRef.current = false;
     const map = mapRef.current;
-    if (!spotA || had || !map) return;
+    if (!map || !mapLoadedRef.current || !listHere || had === !!spotA) return;
+    if (!spotA) {
+      // Closed - not when the map is going back into the page anyway.
+      if (!headingBackRef.current) frameHome(map);
+      return;
+    }
+    if (selfFramed) return;
     const frame = requestAnimationFrame(() => {
-      const card = spotCardRef.current?.getBoundingClientRect();
-      const box = map.getContainer().getBoundingClientRect();
-      if (!card) return;
-      const at = map.project([spotA.lng, spotA.lat]);
-      const cardTop = card.top - box.top;
-      const cardRight = card.right - box.left;
-      if (at.y < cardTop - 30 || at.x > cardRight + 20) return;
-      map.panBy([0, at.y - cardTop / 2], cameraMotion(520));
+      const home = homeFrame(map);
+      const bounds = new maplibregl.LngLatBounds([spotA.lng, spotA.lat], [spotA.lng, spotA.lat]);
+      if (home) bounds.extend(home.bounds);
+      // Never closer than now: the room only shrinks.
+      map.fitBounds(bounds, { padding: spotPadding(map), maxZoom: map.getZoom(), ...cameraMotion() });
     });
     return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spotA]);
   useEffect(() => {
     placePin("b", spotB);
@@ -2003,10 +2021,20 @@ export function MapView({
   // ride the curtain's edge.
   useLayoutEffect(() => {
     const map = mapRef.current;
-    const back = preExpandCameraRef.current;
-    if (collapseTo == null || !map || !back) return;
-    headingBackRef.current = true;
+    if (collapseTo == null || !map) return;
     const height = map.getContainer().clientHeight;
+    // No view from before (the place changed while expanded): the place's
+    // own framing in the slot - its middle, and the zoom that fits it in
+    // the slot's height.
+    if (!preExpandCameraRef.current) {
+      const frame = homeFrame(map);
+      const pad = frame?.padding as { top: number; right: number; bottom: number; left: number } | undefined;
+      const fit = frame && pad ? map.cameraForBounds(frame.bounds, { padding: { ...pad, bottom: pad.bottom + Math.max(0, height - collapseTo) } }) : undefined;
+      if (frame && fit?.zoom != null) preExpandCameraRef.current = { center: frame.bounds.getCenter(), zoom: Math.min(fit.zoom, frame.maxZoom ?? 22) };
+    }
+    const back = preExpandCameraRef.current;
+    if (!back) return;
+    headingBackRef.current = true;
     map.easeTo({ ...back, padding: { ...NO_PADDING, bottom: Math.max(0, height - collapseTo) }, ...cameraMotion() });
     runCurtain(height, collapseTo);
     for (const el of [topListRef.current, listColumnRef.current]) el?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-out", fill: "forwards" });

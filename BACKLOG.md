@@ -148,6 +148,43 @@ possible"): armed conflict nearby in Safety; healthcare access and
 everyday services in Quality of Life. Regional GDP removed (too old,
 whole regions); Economy goes local with phase 2's household income.
 
+11. **Real-estate prices and a momentum score** (owner, 2026-11-08: "can
+   we predict gentrification ... and real estate prices at city level
+   everywhere?"). Agreed plan, in order:
+   1. **Real prices where official open data exists** - France DVF (every
+      sale since 2014, Licence Ouverte), England & Wales Land Registry
+      (every sale since 1995, OGL), US Census ACS median home value
+      (every place, public domain) first; then the Netherlands, Belgium,
+      the Nordic statistics offices, Ireland's price register, Spain,
+      Portugal, Italy (OMI), Japan (official land prices). ~56,000 of
+      147,500 places (38%). Shown with source and year like the other
+      local figures; elsewhere "No data" - no worldwide modelled price
+      (a model trained on these countries would mostly echo national
+      income elsewhere, errors of 50%+; it breaks the no-estimates rule).
+   2. **Momentum score** - where a place is heading, not how it is today:
+      night-time lights 2014-2024 (NOAA VIIRS annual, CC BY 4.0), new
+      construction (GHSL built-up 2015 vs 2025, CC BY 4.0), population
+      change and the 25-39 share's change (GHS-POP, WorldPop - in the
+      pipeline already), "next door to a boom" (smaller places within an
+      hour by train of a growing big city), and later amenity growth
+      (start archiving Overture's monthly counts now). 0-100 with a label
+      (Rising fast / Growing / Steady / Slowing / Declining) and the
+      measured changes behind it. Coverage measured 2026-11-08: ~99% of
+      places; solid for 81% (5,000+ people within 5 km), "small place,
+      less certain" for 14%, "Too small to tell" under 2,000 (4.8%).
+      Kept apart from the Piltri Score; its own leaderboard ("Rising
+      places") and search filter.
+   3. **Validate it** against step 1: does the score measured on
+      2015-2020 predict 2020-2025 price growth in France, England & Wales
+      and the US? Set its weights from what did; call it a forecast only
+      if it does, else "momentum".
+   4. Later: more price countries; a 1 km neighbourhood layer on big
+      cities' maps (gentrification happens street by street).
+   Considered and set aside: UNSW's Sydney gentrification model (Cities,
+   2023) - Sydney only, ~80 inputs (Australian census, sales reports,
+   business registers, Airbnb) that don't exist openly worldwide; its
+   approach (train on real past change) is the one above.
+
 ## Hosting
 
 13. **Move from Vercel to Cloudflare's free hosting** - after the items
