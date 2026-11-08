@@ -1,10 +1,11 @@
 /**
  * Spots people drop on a city's map (2026-10-31, owner): kept in this
- * browser for now - no account yet, so nothing about the person leaves
- * their device - and shared by link (`?spot=lat,lng&to=lat,lng`). Accounts
- * (BACKLOG) will carry them across devices. A browser that blocks storage
- * just doesn't keep them.
+ * browser, and in the person's account once signed in (2026-11-08,
+ * lib/account.ts) - and shared by link (`?spot=lat,lng&to=lat,lng`). A
+ * browser that blocks storage just doesn't keep them.
  */
+import { announceOp, SAVED_CHANGE, type SavedItem } from "@/lib/savedPlaces";
+
 export interface SavedSpot {
   /** The city page it was saved on (`london-gb`). */
   placeId: string;
@@ -27,12 +28,20 @@ function readAll(): SavedSpot[] {
   }
 }
 
-function writeAll(spots: SavedSpot[]): void {
+/** Replaces the whole list (the account's sync), without announcing ops. */
+export function writeSpots(spots: SavedSpot[]): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(spots));
   } catch {
     // Storage blocked or full: the spot just isn't kept.
   }
+  window.dispatchEvent(new Event(SAVED_CHANGE));
+}
+
+export const spotKey = (spot: { lat: number; lng: number }) => `spot:${formatSpotParam(spot)}`;
+
+export function spotItem(s: SavedSpot): SavedItem {
+  return { key: spotKey(s), kind: "spot", placeId: s.placeId, name: s.name, country: null, lat: s.lat, lng: s.lng, savedAt: s.savedAt };
 }
 
 /** Within about a metre: the same spot. */
@@ -47,11 +56,17 @@ export function savedSpotsFor(placeId: string): SavedSpot[] {
 export function saveSpot(spot: Omit<SavedSpot, "savedAt">): void {
   const all = readAll();
   if (all.some((s) => sameSpot(s, spot))) return;
-  writeAll([...all, { ...spot, savedAt: new Date().toISOString() }]);
+  const saved = { ...spot, savedAt: new Date().toISOString() };
+  writeSpots([...all, saved]);
+  announceOp({ op: "add", item: spotItem(saved) });
 }
 
 export function removeSpot(spot: { lat: number; lng: number }): void {
-  writeAll(readAll().filter((s) => !sameSpot(s, spot)));
+  const all = readAll();
+  const gone = all.filter((s) => sameSpot(s, spot));
+  if (!gone.length) return;
+  writeSpots(all.filter((s) => !sameSpot(s, spot)));
+  for (const s of gone) announceOp({ op: "remove", item: spotItem(s) });
 }
 
 /** A spot in a link: "51.50735,-0.12776" (about a metre). */

@@ -115,15 +115,20 @@ Done 2026-11-04 (step 1, no account): spots on the expanded map - what's
 near, journeys by road, a second spot, saved in the browser, shared by
 link (HANDOFF "Spots").
 
-8. **Accounts** (step 2): sign in, and the spots saved on any device,
-   with a note. Supabase's free sign-in and database, called from the
-   browser (works on Vercel or Cloudflare alike), which also keeps
-   Supabase active; spots saved in the browser carry over at sign-in.
-   Needs a privacy notice (emails and saved places are personal data -
-   GDPR), "delete my account", and the owner's choice of sign-in: an
-   email link (needs a free email-sending account and DNS records at
-   Hostinger - Supabase's own sender allows only a few emails an hour) or
-   Google (a free Google Cloud sign-in client).
+Done 2026-11-08 (step 2, code): accounts by email link (Supabase Auth),
+saved places and spots in the account (`supabase/saved-items.sql`,
+`lib/account.ts`), the Saved page's globe and filtered list, a privacy
+notice (`/privacy`) and "Delete my account".
+
+8. **Accounts - to switch on and finish** (owner): run
+   `supabase/saved-items.sql`; add `NEXT_PUBLIC_SUPABASE_ANON_KEY` (Vercel
+   and `.env.local`); Supabase Authentication > URL Configuration: site
+   `https://www.piltri.me`, redirects `https://www.piltri.me/**` and
+   `http://localhost:3000/**`. Before opening to the public: an email
+   sender (Supabase's own sends only a few an hour - e.g. Resend or Brevo's
+   free plan, with DNS records at Hostinger), and the privacy notice
+   reviewed (a contact address). Later: Google sign-in (a free Google Cloud
+   client).
 
 ## Data
 

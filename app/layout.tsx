@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { LaunchSplash, SPLASH_SCRIPT } from "@/components/ui/LaunchSplash";
+import { AccountSync } from "@/components/ui/AccountSync";
 
 export const metadata: Metadata = {
   title: { default: "Piltri — Find your Piltri.", template: "%s · Piltri" },
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <LaunchSplash />
+        <AccountSync />
         {children}
       </body>
     </html>

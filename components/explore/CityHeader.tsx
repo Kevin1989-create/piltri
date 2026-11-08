@@ -51,7 +51,7 @@ interface CityHeaderProps {
   hideCountry?: boolean;
   /** Shows the heart that saves this place (2026-11-08, owner), before
    *  the eye and the "+". */
-  savePlace?: { id: string; name: string; country: string };
+  savePlace?: { id: string; name: string; country: string; lat: number; lng: number };
 }
 
 /** Abbreviates large counts (population, density) to a short, glanceable

@@ -1,8 +1,7 @@
 /**
  * Places people save with the heart (2026-11-08, owner: "save a city ...
- * and a specific point within the city"): kept in this browser for now,
- * like spots (lib/spots.ts) - no account yet, so nothing about the person
- * leaves their device. Accounts (BACKLOG) will carry both across devices.
+ * and a specific point within the city"): kept in this browser, and in the
+ * person's account once signed in (lib/account.ts keeps the two in step).
  * A browser that blocks storage just doesn't keep them.
  */
 export interface SavedPlace {
@@ -10,13 +9,42 @@ export interface SavedPlace {
   id: string;
   name: string;
   country: string;
+  /** Where it is, for the Saved page's globe (absent on early saves). */
+  lat?: number | null;
+  lng?: number | null;
   savedAt: string;
 }
 
 const STORAGE_KEY = "piltri:places";
-/** Fired on window when the saved places change, so every heart on the
- *  page (and the Saved page) shows the same. */
+/** Fired on window when saved places or spots change, so every heart on
+ *  the page (and the Saved page) shows the same. */
 export const SAVED_CHANGE = "piltri:saved-change";
+/** Fired on window for a save or removal made here (detail: SavedOp), so
+ *  a signed-in account can follow it. */
+export const SAVED_OP = "piltri:saved-op";
+
+/** One saved thing as an account stores it. */
+export interface SavedItem {
+  key: string;
+  kind: "place" | "spot";
+  placeId: string;
+  name: string | null;
+  country: string | null;
+  lat: number | null;
+  lng: number | null;
+  savedAt: string;
+}
+export type SavedOp = { op: "add" | "remove"; item: SavedItem };
+
+export const placeKey = (id: string) => `place:${id}`;
+
+export function placeItem(p: SavedPlace): SavedItem {
+  return { key: placeKey(p.id), kind: "place", placeId: p.id, name: p.name, country: p.country, lat: p.lat ?? null, lng: p.lng ?? null, savedAt: p.savedAt };
+}
+
+export function announceOp(detail: SavedOp): void {
+  window.dispatchEvent(new CustomEvent<SavedOp>(SAVED_OP, { detail }));
+}
 
 export function savedPlaces(): SavedPlace[] {
   try {
@@ -28,7 +56,8 @@ export function savedPlaces(): SavedPlace[] {
   }
 }
 
-function writeAll(places: SavedPlace[]): void {
+/** Replaces the whole list (the account's sync), without announcing ops. */
+export function writePlaces(places: SavedPlace[]): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(places));
   } catch {
@@ -44,14 +73,22 @@ export function isPlaceSaved(id: string): boolean {
 /** Saved now: true; unsaved: false. */
 export function togglePlace(place: Omit<SavedPlace, "savedAt">): boolean {
   const all = savedPlaces();
-  if (all.some((p) => p.id === place.id)) {
-    writeAll(all.filter((p) => p.id !== place.id));
+  const found = all.find((p) => p.id === place.id);
+  if (found) {
+    writePlaces(all.filter((p) => p.id !== place.id));
+    announceOp({ op: "remove", item: placeItem(found) });
     return false;
   }
-  writeAll([{ ...place, savedAt: new Date().toISOString() }, ...all]);
+  const saved = { ...place, savedAt: new Date().toISOString() };
+  writePlaces([saved, ...all]);
+  announceOp({ op: "add", item: placeItem(saved) });
   return true;
 }
 
 export function removePlace(id: string): void {
-  writeAll(savedPlaces().filter((p) => p.id !== id));
+  const all = savedPlaces();
+  const found = all.find((p) => p.id === id);
+  if (!found) return;
+  writePlaces(all.filter((p) => p.id !== id));
+  announceOp({ op: "remove", item: placeItem(found) });
 }

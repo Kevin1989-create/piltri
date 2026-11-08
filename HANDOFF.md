@@ -59,10 +59,17 @@ Real Estate section** - no free, reliable global price source exists.
   run by hand and committed; parts far apart are separate clusters
   (mainland France / Réunion...), and GeoNames territories Natural Earth
   folds into another country get the cluster their largest town is in.
-- **Saved** (2026-11-08, owner): a heart beside a city's name saves the
-  place, Save on a spot's card saves the spot (the same heart); both are
-  listed on `/saved` (linked from home and the city page). Kept in the
-  browser (`lib/savedPlaces.ts`, `lib/spots.ts`) until accounts.
+- **Saved and accounts** (2026-11-08, owner): a heart beside a city's
+  name saves the place, Save on a spot's card saves the spot (the same
+  heart); `/saved` shows them on a globe (`components/saved/SavedGlobe.tsx`,
+  d3-geo on a canvas, land from `public/geo/world.json`) or as a list
+  filtered by kind, country and name. Kept in the browser, and in the
+  account once signed in: Supabase Auth by email link, table `saved_items`
+  with row-level security (`supabase/saved-items.sql`), kept in step by
+  `lib/account.ts` (first sign-in on a browser merges, then the account is
+  the truth; sign-out clears the browser's copy). `/privacy`; "Delete my
+  account" (`/api/account/delete`). Switched on by
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY` - see BACKLOG for the owner's steps.
 - **Spots** (2026-10-31, owner): on the expanded map, drop a spot (the
   pin button under the layer list's): its card lists the centre and the
   nearest station, school, hospital... from the city's own lists; tapping

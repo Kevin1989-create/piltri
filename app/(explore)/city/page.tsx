@@ -748,7 +748,7 @@ function CityContent() {
                   weights={weights}
                   rank={data.ranks ? { position: data.ranks.piltri, outOf: data.ranks.outOf } : undefined}
                   hideCountry={sectionView}
-                  savePlace={{ id: data.cityId, name: data.cityName, country: data.country }}
+                  savePlace={{ id: data.cityId, name: data.cityName, country: data.country, lat: data.lat, lng: data.lng }}
                 />
                 <SectionColumn data={data} externalDetail={isDesktop} fill onOpenSectionChange={setOpenSectionKey} />
               </>
