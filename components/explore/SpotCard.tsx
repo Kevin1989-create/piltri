@@ -1,6 +1,6 @@
 "use client";
 
-import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
+import { CloseIcon, ExternalLinkIcon, HeartIcon } from "@/components/ui/icons";
 import { mapIconUrl } from "@/components/explore/mapIcons";
 import { cn } from "@/lib/cn";
 import type { MapKind } from "@/lib/kpiRows";
@@ -154,9 +154,8 @@ export function SpotCard(props: SpotCardProps) {
             saved ? "bg-piltri-amber text-white" : "bg-surface-muted text-ink-900 hover:bg-surface-border"
           )}
         >
-          <svg viewBox="0 0 24 24" width="12" height="12" fill={saved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden>
-            <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />
-          </svg>
+          {/* The same heart as a saved city's (2026-11-08, owner). */}
+          <HeartIcon width={12} height={12} fill={saved ? "currentColor" : "none"} aria-hidden />
           {saved ? "Saved" : "Save"}
         </button>
         <button type="button" onClick={props.onShare} className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink-900 hover:bg-surface-border">

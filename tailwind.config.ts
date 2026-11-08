@@ -72,8 +72,11 @@ const config: Config = {
         "fade-up": { from: { opacity: "0", transform: "translateY(6px)" }, to: { opacity: "1", transform: "none" } },
         "panel-in": { from: { opacity: "0", transform: "translateX(-10px)" }, to: { opacity: "1", transform: "none" } },
         "panel-out": { from: { opacity: "1", transform: "none" }, to: { opacity: "0", transform: "translateX(-10px)" } },
+        // The heart as a place is saved (2026-11-08).
+        "heart-beat": { "0%": { transform: "scale(1)" }, "35%": { transform: "scale(1.22)" }, "70%": { transform: "scale(0.94)" }, "100%": { transform: "scale(1)" } },
       },
       animation: {
+        "heart-beat": "heart-beat 420ms cubic-bezier(0.25, 0.1, 0.25, 1)",
         "fade-in": "fade-in 200ms ease-out",
         "fade-up": "fade-up 280ms cubic-bezier(0.25, 0.1, 0.25, 1) both",
         "panel-in": "panel-in 280ms cubic-bezier(0.25, 0.1, 0.25, 1) both",

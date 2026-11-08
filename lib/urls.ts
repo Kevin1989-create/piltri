@@ -39,6 +39,7 @@ export const searchUrl = (from?: string | null) => withQuery("/search", { from }
 export const settingsUrl = (from?: string | null) => withQuery(SETTINGS_URL, { from });
 export const sourcesUrl = (from?: string | null) => withQuery("/sources", { from });
 export const leaderboardsUrl = (from?: string | null) => withQuery("/leaderboards", { from });
+export const savedUrl = (from?: string | null) => withQuery("/saved", { from });
 
 export function compareUrl(ids: string[]): string {
   const qs = new URLSearchParams();

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PiltriScoreDisplay } from "@/components/ui/ScoreBadge";
 import { EyeIcon, PlusIcon } from "@/components/ui/icons";
 import { Collapse } from "@/components/ui/Collapse";
+import { SaveHeart } from "@/components/explore/SaveHeart";
 import { hasSource } from "@/lib/kpiRows";
 import { isCustomWeights } from "@/lib/scoreWeights";
 import { formatUtcOffset } from "@/lib/timezone";
@@ -48,6 +49,9 @@ interface CityHeaderProps {
   /** Leaves out the country's block - a phone with a section open
    *  (2026-11-06, owner): the score and the city's own figures stay. */
   hideCountry?: boolean;
+  /** Shows the heart that saves this place (2026-11-08, owner), before
+   *  the eye and the "+". */
+  savePlace?: { id: string; name: string; country: string };
 }
 
 /** Abbreviates large counts (population, density) to a short, glanceable
@@ -109,6 +113,7 @@ export function CityHeader({
   settingsHref = SETTINGS_URL,
   rank,
   hideCountry = false,
+  savePlace,
 }: CityHeaderProps) {
   const isCustomised = weights != null && isCustomWeights(weights);
   const { prefs } = useUnitPreferences();
@@ -258,8 +263,9 @@ export function CityHeader({
            *  stat group's own header. */}
           <span className="font-serif text-3xl text-ink-900">{cityName}</span>
         </h1>
-        {(reportHref || compareHref) && (
+        {(reportHref || compareHref || savePlace) && (
           <div className="flex-shrink-0 mt-0.5 flex items-center gap-1.5">
+            {savePlace && <SaveHeart place={savePlace} />}
             {reportHref && (
               <Link
                 href={reportHref}

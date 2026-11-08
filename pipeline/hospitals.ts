@@ -165,6 +165,10 @@ const NOT_A_HOSPITAL = new RegExp(
     String.raw`\bservices?\b|\bservi\b|\bschool\b|\bifsi\b|training|\bformation\b|aufenthalt`,
     // Day hospitals: day care, no beds.
     String.raw`day hospital|tagesklinik|h[oô]pital de jour`,
+    // Rehabilitation and convalescence (2026-11-08, owner: Olivet's
+    // "nearest hospital" was an SSR clinic, soins de suite et de
+    // réadaptation).
+    String.raw`\bssr\b|soins de suite|r[eé]adaptation|r[eé][ée]ducation|rehabilita|\brehab\b|reha-?klinik|kurklinik|convalescen`,
     // Practices named "clinique" (an osteopath's, a beauty clinic).
     String.raw`ost[eé]opath|chiropract|physioth|kin[eé]sith|podolog|psycholog|psychoth[eé]rap|orthophon|est?h[eé]ti|aesthetic|cosmetic|\blaser\b|massage|\bspa\b`,
     // Suppliers, care homes, and places named by a hospital they're near.

@@ -2,8 +2,8 @@ import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
 import type { ComponentType, SVGProps } from "react";
-import { CogIcon, FilterIcon, TrophyIcon } from "@/components/ui/icons";
-import { leaderboardsUrl, searchUrl, SETTINGS_URL, sourcesUrl } from "@/lib/urls";
+import { CogIcon, FilterIcon, HeartIcon, TrophyIcon } from "@/components/ui/icons";
+import { leaderboardsUrl, savedUrl, searchUrl, SETTINGS_URL, sourcesUrl } from "@/lib/urls";
 
 /** An icon-only bordered amber button under the search bar; hovering (or
  *  focusing) shows the page's name in a small label beneath it, at once -
@@ -57,7 +57,7 @@ export default function ExploreLandingPage() {
             Find your Piltri.
           </h1>
 
-          <SearchBar autoFocus placeholder="Search for a place you will call home" />
+          <SearchBar autoFocus placeholder="Search for a place you will call home…" />
 
           {/* Under the search bar, icons only (2026-10-11, on request):
            *  Advanced search, Leaderboards (both moved here from the city
@@ -68,6 +68,7 @@ export default function ExploreLandingPage() {
           <div className="absolute inset-x-0 top-full mt-3 flex justify-center gap-2.5 sm:static">
             <IconLink href={searchUrl()} label="Advanced search" Icon={FilterIcon} />
             <IconLink href={leaderboardsUrl()} label="Leaderboards" Icon={TrophyIcon} />
+            <IconLink href={savedUrl()} label="Saved" Icon={HeartIcon} />
             <IconLink href={SETTINGS_URL} label="Settings" Icon={CogIcon} />
           </div>
         </div>

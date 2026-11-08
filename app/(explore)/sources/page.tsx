@@ -49,6 +49,7 @@ const GROUPS: { title: string; sources: Record<string, string> }[] = [
     title: "Amenities & connectivity",
     sources: {
       places: "Amenities & transport",
+      transit: "Stations & stops",
       airports: "Airports",
       internet: "Internet speed",
     },

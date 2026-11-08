@@ -65,3 +65,8 @@ export function parseSpotParam(value: string | null): { lat: number; lng: number
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
   return { lat, lng };
 }
+
+/** Every spot saved in this browser, newest first (the Saved page). */
+export function allSavedSpots(): SavedSpot[] {
+  return readAll().sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+}

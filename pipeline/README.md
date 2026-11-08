@@ -40,12 +40,13 @@ also picks up the latest published dataset.
 | Population density (5 km) | GHS-POP R2023A, 2025, 1 km (EC JRC) | CC BY 4.0 |
 | Broadband / mobile speed | Ookla Speedtest open data, latest quarter (AWS Open Data) | CC BY-NC-SA 4.0* |
 | Coastline, major lakes (which beaches count) | Natural Earth 1:10m | public domain |
-| Restaurants/bars/cafés, cultural venues, family activities, parks, nurseries, care homes, schools, universities, stations | Overture Maps places | CDLA-Permissive-2.0 |
+| Restaurants/bars/cafés, cultural venues, family activities, parks, nurseries, care homes, schools, universities | Overture Maps places | CDLA-Permissive-2.0 |
+| Train, metro and tram stations and stops, bus stations - one per site | OpenStreetMap by its tags (railway=station, tram_stop, station=subway...), via Overture Maps base theme infrastructure (`extractOvertureTransit`, `pipeline/transit.ts`; 2026-11-08 - Overture's places listed tram stops as train stations, and no tram stops) | ODbL |
 | Tram / light rail / metro lines | Overture Maps transportation (OpenStreetMap rail) | ODbL |
 | City outlines on the map | Overture Maps divisions (OpenStreetMap boundaries) | ODbL |
 | Built-up area outlines (towns with no boundary) | GHS-POP R2023A (EC JRC), the density grid above | CC BY 4.0 |
 | Official languages | Unicode CLDR territory data (+ constitutional corrections in `sources/languages.ts`) | Unicode License |
-| Airports, rail/metro/bus stations, ports & ferry terminals, beaches, 1,000 m+ peaks, forests, volcanoes | GeoNames `allCountries` | CC BY 4.0 |
+| Airports, bus stations, ports & ferry terminals, beaches, 1,000 m+ peaks, forests, volcanoes | GeoNames `allCountries` | CC BY 4.0 |
 | Earthquakes (M5+ since 1970) | USGS catalogue | public domain |
 | Population growth 2020-2025 (5 km) | GHS-POP R2023A, 2020 and 2025 epochs, 1 km (EC JRC) | CC BY 4.0 |
 | Average (median) age (5 km) | WorldPop age structures R2025A, 2025, 1 km, constrained | CC BY 4.0 |

@@ -146,6 +146,16 @@ export function EyeIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** Save (2026-11-08, owner): a place or a spot kept for later. Outline;
+ *  give it fill="currentColor" when saved. */
+export function HeartIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M12 20.3s-7.6-4.6-9.2-9.4C1.6 7.3 3.7 4.2 7 4.2c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.3 0 5.4 3.1 4.2 6.7-1.6 4.8-9.2 9.4-9.2 9.4z" />
+    </svg>
+  );
+}
+
 /** Data-precision icon set — shown next to individual stats in
  *  SectionDetail / the report page to disclose whether a figure is genuine
  *  to this city, or a wider country-level figure shown as the best

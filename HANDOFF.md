@@ -59,6 +59,10 @@ Real Estate section** - no free, reliable global price source exists.
   run by hand and committed; parts far apart are separate clusters
   (mainland France / Réunion...), and GeoNames territories Natural Earth
   folds into another country get the cluster their largest town is in.
+- **Saved** (2026-11-08, owner): a heart beside a city's name saves the
+  place, Save on a spot's card saves the spot (the same heart); both are
+  listed on `/saved` (linked from home and the city page). Kept in the
+  browser (`lib/savedPlaces.ts`, `lib/spots.ts`) until accounts.
 - **Spots** (2026-10-31, owner): on the expanded map, drop a spot (the
   pin button under the layer list's): its card lists the centre and the
   nearest station, school, hospital... from the city's own lists; tapping
@@ -140,8 +144,11 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
 - **Amenities** = Overture places within 5 km of the centre per resident of
   those 5 km, log-scale scored (`AMENITY_RATIOS`).
 - **Transport**: metro = subway/monorail line or station within 5 km; tram =
-  tram/light-rail track within 5 km (Overture transportation = OSM rail);
-  train/bus/airport from GeoNames + Overture. Pin-mode station names come
+  tram/light-rail track within 5 km (Overture transportation = OSM rail).
+  Stations and stops since 2026-11-08 come from OpenStreetMap's own tags
+  (via Overture's base theme, `extractOvertureTransit`): Overture's places
+  had a tram stop as Olivet's train station and no tram stops at all.
+  Airports from OurAirports/GeoNames. Pin-mode station names come
   from GeoNames only (Overture's category includes kiosks).
 - **Beach** = a mapped beach (GeoNames, OpenStreetMap via Overture) within
   1 km of the sea coast with open water beside it; a **lake beach** is its

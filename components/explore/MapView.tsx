@@ -465,14 +465,14 @@ const KIND_NAMES: Record<MapKind, string> = {
 };
 
 /** A spot saved in this browser (lib/spots.ts): a small round badge with a
- *  star, its name on hover. */
+  heart, its name on hover. */
 function createSavedSpotElement(name: string | null): HTMLDivElement {
   const el = document.createElement("div");
   el.title = name ? `${name} - a spot you saved` : "A spot you saved";
   el.style.cssText =
     `width:18px;height:18px;border-radius:9999px;background:#fff;border:2px solid ${SPOT_COLOR};` +
     "box-shadow:0 1px 2px rgba(30,26,22,0.35);cursor:pointer;display:flex;align-items:center;justify-content:center;";
-  el.innerHTML = `<svg viewBox="0 0 24 24" width="10" height="10" fill="${SPOT_COLOR}" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>`;
+  el.innerHTML = `<svg viewBox="0 0 24 24" width="10" height="10" fill="${SPOT_COLOR}" aria-hidden="true"><path d="M12 20.3s-7.6-4.6-9.2-9.4C1.6 7.3 3.7 4.2 7 4.2c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.3 0 5.4 3.1 4.2 6.7-1.6 4.8-9.2 9.4-9.2 9.4z"/></svg>`;
   return el;
 }
 
@@ -2298,7 +2298,7 @@ export function MapView({
                       className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-surface-border py-[3px] pl-1.5 pr-2 text-[11px] text-ink-700 hover:bg-surface-muted"
                     >
                       <svg viewBox="0 0 24 24" width="11" height="11" fill={SPOT_COLOR} aria-hidden className="shrink-0">
-                        <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />
+                        <path d="M12 20.3s-7.6-4.6-9.2-9.4C1.6 7.3 3.7 4.2 7 4.2c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.3 0 5.4 3.1 4.2 6.7-1.6 4.8-9.2 9.4-9.2 9.4z" />
                       </svg>
                       {saved.name ?? "Your spot"}
                     </button>
@@ -2402,7 +2402,7 @@ export function MapView({
                       className="flex w-full items-center gap-1.5 rounded-lg px-1.5 py-[3px] text-left text-[11px] text-ink-900 hover:bg-surface-muted"
                     >
                       <svg viewBox="0 0 24 24" width="12" height="12" fill={SPOT_COLOR} aria-hidden className="mx-0.5 shrink-0">
-                        <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />
+                        <path d="M12 20.3s-7.6-4.6-9.2-9.4C1.6 7.3 3.7 4.2 7 4.2c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.3 0 5.4 3.1 4.2 6.7-1.6 4.8-9.2 9.4-9.2 9.4z" />
                       </svg>
                       <span className="min-w-0 flex-1 truncate">{saved.name ?? "Your spot"}</span>
                       <span className="shrink-0 text-[10px] text-ink-500">{formatDistanceKm(straightLineKm({ lat, lng }, saved), prefs)}</span>

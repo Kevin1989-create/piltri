@@ -16,7 +16,8 @@ import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M,
 import { loadAllLakeShorePoints, loadCoastlinePoints, loadEarthquakes, loadRiverPoints } from "./hazards";
 import { countNearCities } from "./nearCities";
 import { writeDataset } from "./output";
-import { extractOvertureBeaches, extractOverturePlaces, extractOvertureRail, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
+import { extractOvertureBeaches, extractOverturePlaces, extractOvertureRail, extractOvertureTransit, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
+import { onePerSite } from "./transit";
 import { POPULATION_GROWTH_SOURCE, POPULATION_SOURCE, sampleDensity, samplePopulationGrowth } from "./population";
 import { sampleWater, WATER_SOURCE } from "./water";
 import { keepHospitals } from "./hospitals";
@@ -44,13 +45,12 @@ const RIVER_CLEAR_KM = 1;
 /** Lake beaches further than this aren't shown. */
 const LAKE_BEACH_MAX_KM = 100;
 const SMALL_COUNTRY_KM2 = 10_000;
-/** Overture's categories are broad: its train stations include bus stops
- *  and training academies, its universities language schools and gyms,
- *  its hospitals clinics and practices (2026-10-29: "929 universities" in
- *  London). The places a city page lists "in the city" keep the ones
- *  whose name says what they are. */
-const STATION_NAME = /station|railway|\brail\b|bahnhof|\bgare\b|estaci[oó]n|stazione|esta[çc][aã]o|\bhalte?\b|dworzec|n[aá]dra[žz]|вокзал|станция|stanica|駅|站/i;
-const NOT_STATION_NAME = /bus stop|bus station|coach station|police station|fire station|petrol|gas station|charging/i;
+/** Overture's places categories are broad: its universities include
+ *  language schools and gyms (2026-10-29: "929 universities" in London),
+ *  its hospitals practices (pipeline/hospitals.ts). The places a city page
+ *  lists "in the city" keep the ones whose name says what they are.
+ *  Stations and stops come from OpenStreetMap's tags instead
+ *  (extractOvertureTransit, 2026-11-08). */
 const UNIVERSITY_NAME = /univers|hochschule|polytechn|大学|大學|университет|الجامعة/i;
 const GHOST_MAX_PEOPLE = 1000;
 
@@ -230,19 +230,28 @@ async function main() {
 
   const { glob: placesGlob, release } = await extractOverturePlaces();
   const { glob: railGlob } = await extractOvertureRail();
+  // Stations and stops from OpenStreetMap's tags (2026-11-08, owner: a
+  // tram stop was Olivet's "train station", its own tram stops missing),
+  // one per site.
+  const { glob: transitGlob } = await extractOvertureTransit();
+  const osm = {
+    train: onePerSite(await loadOvertureCategory(transitGlob, "train", true)),
+    metro: onePerSite(await loadOvertureCategory(transitGlob, "metro", true)),
+    tram: onePerSite(await loadOvertureCategory(transitGlob, "tram", true)),
+    bus: onePerSite(await loadOvertureCategory(transitGlob, "bus", true)),
+  };
+  log("build", `stations and stops (OpenStreetMap): train ${osm.train.lng.length}, metro ${osm.metro.lng.length}, tram ${osm.tram.lng.length}, bus ${osm.bus.lng.length}`);
   // Counting within 5 km runs inside DuckDB (millions of restaurants never
   // enter JavaScript); only points needed for nearest distances are loaded.
   log("build", "counting Overture places within 5 km of every city (DuckDB)...");
-  const counted = [POI.eating, POI.cultural, POI.family, POI.park, POI.school, POI.university, POI.train, POI.bus, POI.nursery, POI.careHome];
+  const counted = [POI.eating, POI.cultural, POI.family, POI.park, POI.school, POI.university, POI.nursery, POI.careHome];
   const counts = await countNearCities(`SELECT cat, lat, lng FROM read_parquet('${placesGlob}') WHERE cat IN (${counted.join(",")})`, points, LOCAL_RADIUS_KM);
   const ovCount = (i: number, cat: number) => counts.get(i)?.get(cat) ?? 0;
-  const ovTrain = await loadOvertureCategory(placesGlob, POI.train, true);
   const tramTrack = mergePoints(await loadOvertureCategory(railGlob, "tram"), await loadOvertureCategory(railGlob, "light_rail"));
   const metroTrack = mergePoints(await loadOvertureCategory(railGlob, "subway"), await loadOvertureCategory(railGlob, "monorail"));
   log("build", `rail points: tram/light rail ${tramTrack.lng.length}, metro ${metroTrack.lng.length}`);
 
   log("build", "indexing...");
-  const trainPoints = mergePoints(gn.rail, ovTrain);
   const large = shortlist.filter((c) => c.population >= LARGE_CITY_POPULATION);
   // Beaches: GeoNames' and OpenStreetMap's (Overture), sorted by the water
   // they're on. A sea beach is near the sea coast, a lake beach near a lake
@@ -263,10 +272,8 @@ async function main() {
   const ovAll = {
     school: buildIndex(await loadOvertureCategory(placesGlob, POI.school, true)),
     university: buildIndex(keepNamed(await loadOvertureCategory(placesGlob, POI.university, true), (n) => UNIVERSITY_NAME.test(n))),
-    bus: buildIndex(await loadOvertureCategory(placesGlob, POI.bus, true)),
     nursery: buildIndex(await loadOvertureCategory(placesGlob, POI.nursery, true)),
     careHome: buildIndex(await loadOvertureCategory(placesGlob, POI.careHome, true)),
-    metro: buildIndex(await loadOvertureCategory(placesGlob, POI.metro, true)),
   };
   log("build", `in-the-city sources: ${Object.entries(ovAll).map(([k, v]) => `${k} ${v.size}`).join(", ")}`);
   const allBeaches = mergePoints(gn.beach, ovBeaches) as PointSet;
@@ -286,12 +293,14 @@ async function main() {
   const idx = {
     school: buildIndex(gn.school),
     university: buildIndex(gn.university),
-    train: buildIndex(trainPoints),
-    metro: buildIndex(mergePoints(gn.metro, metroTrack)),
-    // Stations only, for the map's flags (the track is lines).
-    metroStation: buildIndex(gn.metro),
+    train: buildIndex(osm.train),
+    metro: buildIndex(mergePoints(osm.metro, metroTrack)),
+    // Stations and stops only, for the lists and the map's flags (the
+    // track is lines).
+    metroStation: buildIndex(osm.metro),
     tram: buildIndex(tramTrack),
-    bus: buildIndex(gn.bus),
+    tramStop: buildIndex(osm.tram),
+    bus: buildIndex(mergePoints(gn.bus, osm.bus)),
     airport: buildIndex(gn.airport),
     peak: buildIndex(gn.peak1000),
     forest: buildIndex(gn.forest),
@@ -311,16 +320,15 @@ async function main() {
   };
   const peakElev = gn.peak1000.elev ?? [];
   const metroTrackIdx = buildIndex(metroTrack);
-  // The listed stations and hospitals: by name (see STATION_NAME).
-  const trainListed = buildIndex(mergePoints(gn.rail, keepNamed(ovTrain, (n) => STATION_NAME.test(n) && !NOT_STATION_NAME.test(n))));
+  const trainListed = idx.train;
   const hospitalListed = idx.hospital;
   /** Where each kind's places in a city come from (the same sources as its
    *  figures), and a line that alone makes it a Yes (tram and metro track). */
   const INSIDE_SOURCES: Record<InsideKind, { sources: PlaceIndex[]; track?: PlaceIndex }> = {
     train: { sources: [trainListed] },
-    metro: { sources: [idx.metroStation, ovAll.metro], track: metroTrackIdx },
-    tram: { sources: [], track: idx.tram },
-    bus: { sources: [idx.bus, ovAll.bus] },
+    metro: { sources: [idx.metroStation], track: metroTrackIdx },
+    tram: { sources: [idx.tramStop], track: idx.tram },
+    bus: { sources: [idx.bus] },
     port: { sources: [idx.port] },
     nursery: { sources: [ovAll.nursery] },
     school: { sources: [idx.school, ovAll.school] },
@@ -373,10 +381,10 @@ async function main() {
     // The same places as the "in the city" lists (INSIDE_SOURCES).
     const found: Record<NearbyKind, Found> = {
       train: geo(trainListed),
-      metro: geo(idx.metro),
-      tram: geo(idx.tram),
+      metro: geo(idx.metroStation) ?? geo(idx.metro),
+      tram: geo(idx.tramStop) ?? geo(idx.tram),
       airport: geo(idx.airport),
-      bus: closer(geo(idx.bus), geo(ovAll.bus)),
+      bus: geo(idx.bus),
       port: geo(idx.port),
       nursery: geo(ovAll.nursery),
       school: closer(geo(idx.school), geo(ovAll.school)),
@@ -474,11 +482,11 @@ async function main() {
         parksWithin5km: ovCount(i, POI.park),
         culturalVenuesWithin5km: ovCount(i, POI.cultural),
         familyActivitiesWithin5km: ovCount(i, POI.family),
-        hasTrainStation: has(idx.train, POI.train),
+        hasTrainStation: has(idx.train),
         hasSubway: has(idx.metro),
         hasTramway: has(idx.tram),
         hasAirport: has(idx.airport, undefined, AIRPORT_RADIUS_KM),
-        hasBusStation: has(idx.bus, POI.bus),
+        hasBusStation: has(idx.bus),
         hasSchool: has(idx.school, POI.school),
         hasUniversity: has(idx.university, POI.university),
         hasNursery: ovCount(i, POI.nursery) > 0,
@@ -578,9 +586,8 @@ async function main() {
     inside: insideById,
     poi: {
       airport: gn.airport,
-      // GeoNames stations only, since pin mode shows the NAME: Overture's
-      // train_station category includes kiosks and ticket machines.
-      train: gn.rail,
+      // OpenStreetMap's train stations (pin mode shows the name).
+      train: osm.train,
       beach: beaches,
       coast: { ...coast, names: [] } as PointSet,
       mountain: highestPerCell(gn.peak1000, 0.02),
@@ -606,6 +613,7 @@ async function main() {
         : {}),
       elevation: "GeoNames SRTM elevation",
       places: `Overture Maps places and transportation ${release} (CDLA-Permissive-2.0 / ODbL) + GeoNames features`,
+      transit: `OpenStreetMap stations and stops - train, metro and tram stations and stops, bus stations, by their OpenStreetMap tags - via Overture Maps base theme ${release} (ODbL)`,
       mountains: `GeoNames peaks of ${MOUNTAIN_MIN_ELEVATION_M} m+ that rise ${MOUNTAIN_MIN_RISE_M} m+ above the city`,
       coast: "Natural Earth 1:10m coastline, lakes and rivers (public domain); beaches from GeoNames and OpenStreetMap (Overture Maps base theme, ODbL) - within 1 km of the sea coast a sea beach, of a lake shore a lake beach, and within 1 km of a major river neither",
       earthquakes: "USGS earthquake catalogue, magnitude 5+ since 1970 (public domain)",

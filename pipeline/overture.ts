@@ -263,6 +263,47 @@ export async function extractOvertureBeaches(): Promise<{ glob: string; release:
   return { glob, release };
 }
 
+/** Stations and stops from OpenStreetMap, as Overture's base theme carries
+ *  them with their raw OSM tags (2026-11-08, owner: Olivet's "train
+ *  station" was a tram stop in Orléans, its own tram stops missing).
+ *  Overture's places categories come from business listings: a tram stop
+ *  named "Station Royale-Châtelet" was a train station there, and tram
+ *  stops weren't places at all. OpenStreetMap tags say what each is:
+ *    train - railway=station, or a halt marked train=yes; not a metro,
+ *            light-rail, monorail, funicular, miniature or tourist line
+ *    metro - subway stations (station=subway or monorail)
+ *    tram  - railway=tram_stop, tram stops and platforms, light-rail
+ *            stations
+ *    bus   - bus stations (amenity=bus_station), not stops
+ *  One row per OSM element; build.ts keeps one per site. Load with
+ *  loadOvertureCategory(glob, "train" | "metro" | "tram" | "bus", true). */
+export async function extractOvertureTransit(): Promise<{ glob: string; release: string }> {
+  const release = await resolveOvertureRelease();
+  const tag = (k: string) => `coalesce(source_tags['${k}'], '')`;
+  const glob = await extractParts(release, {
+    name: "transit-v1",
+    source: "theme=base/type=infrastructure",
+    select: `
+      CASE
+        WHEN class = 'subway_station' OR (class = 'railway_station' AND ${tag("station")} IN ('subway', 'monorail')) THEN 'metro'
+        WHEN ${tag("railway")} = 'tram_stop' OR ${tag("station")} = 'light_rail'
+          OR (class IN ('stop_position', 'platform') AND ${tag("tram")} = 'yes' AND ${tag("train")} <> 'yes') THEN 'tram'
+        WHEN class IN ('railway_station', 'railway_halt')
+          AND ${tag("station")} NOT IN ('subway', 'monorail', 'light_rail', 'funicular', 'miniature')
+          AND ${tag("usage")} <> 'tourism' AND ${tag("railway:miniature")} = '' AND ${tag("tourism")} = ''
+          AND (class = 'railway_station' OR ${tag("train")} = 'yes') THEN 'train'
+        WHEN class = 'bus_station' THEN 'bus'
+      END AS class,
+      round((bbox.xmin + bbox.xmax) / 2, 5) AS lng,
+      round((bbox.ymin + bbox.ymax) / 2, 5) AS lat,
+      names."primary" AS name`,
+    where: `class IN ('railway_station', 'railway_halt', 'subway_station', 'bus_station')
+      OR source_tags['railway'] = 'tram_stop'
+      OR (class IN ('stop_position', 'platform') AND source_tags['tram'] = 'yes')`,
+  });
+  return { glob, release };
+}
+
 /** Loads one category's points from a local extract - a place category
  *  code, or a rail class name ("tram", "subway"...). Names only kept when
  *  asked for (pin-mode categories), since they're most of the size. */

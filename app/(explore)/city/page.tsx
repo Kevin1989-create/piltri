@@ -27,7 +27,7 @@ import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/cn";
 import { getCityBoundary, getCityExploreData, getCityInside, getCityNearby, getCountries, hasNearbyData, type CityOutline } from "@/lib/dataset/cities";
 import { cityIdFor, type InsideKind } from "@/lib/dataset/schema";
-import { cityUrl, compareUrl, readCityRef, reportUrl, settingsUrl } from "@/lib/urls";
+import { cityUrl, compareUrl, readCityRef, reportUrl, savedUrl, settingsUrl } from "@/lib/urls";
 import { manifest } from "@/lib/dataset/files";
 import { parseSpotParam } from "@/lib/spots";
 import { usePageMeta } from "@/lib/pageMeta";
@@ -606,7 +606,7 @@ function CityContent() {
               key={data?.cityId ?? "loading"}
               variant="compact"
               initialValue={data ? placeLabel(data) : ""}
-              placeholder="Search for a place you will call home"
+              placeholder="Search for a place you will call home…"
               className="flex-1 min-w-0 md:w-[300px] md:flex-none land:w-[300px] land:flex-none"
             />
           </div>
@@ -623,9 +623,15 @@ function CityContent() {
               <span className="text-[11px] text-ink-300 whitespace-nowrap">
                 Updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })}
               </span>
-              <Link href={settingsHref} className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap" title="Score weighting, units and language">
-                Settings
-              </Link>
+              <span className="flex items-center gap-2">
+                {/* Your saved places and spots (2026-11-08, owner). */}
+                <Link href={savedUrl(cityId)} className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap" title="Your saved places and spots">
+                  Saved
+                </Link>
+                <Link href={settingsHref} className="text-[11px] text-ink-300 hover:text-ink-500 whitespace-nowrap" title="Score weighting, units and language">
+                  Settings
+                </Link>
+              </span>
             </div>
           )
         }
@@ -742,6 +748,7 @@ function CityContent() {
                   weights={weights}
                   rank={data.ranks ? { position: data.ranks.piltri, outOf: data.ranks.outOf } : undefined}
                   hideCountry={sectionView}
+                  savePlace={{ id: data.cityId, name: data.cityName, country: data.country }}
                 />
                 <SectionColumn data={data} externalDetail={isDesktop} fill onOpenSectionChange={setOpenSectionKey} />
               </>
