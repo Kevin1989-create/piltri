@@ -97,6 +97,9 @@ export default function SavedPage() {
 
   // Every saved thing, as one list for the filters and the globe.
   const items = useMemo(() => {
+    // Every row's second line alike (2026-11-09, owner: "clean and
+    // consistent"): what it is, the country, the city.
+    const line = (...parts: string[]) => parts.filter(Boolean).join(" · ");
     const out: (GlobePoint & { country: string; savedAt: string; remove: () => void; lat: number; lng: number; hasPosition: boolean })[] = [];
     for (const p of places) {
       const lat = p.lat ?? cities[p.id]?.lat;
@@ -108,7 +111,7 @@ export default function SavedPage() {
         lng: lng ?? 0,
         hasPosition: lat != null && lng != null,
         title: p.name,
-        subtitle: p.country,
+        subtitle: line("City", p.country, p.name),
         country: p.country,
         href: cityUrl(p.id),
         savedAt: p.savedAt,
@@ -123,8 +126,9 @@ export default function SavedPage() {
         lat: s.lat,
         lng: s.lng,
         hasPosition: true,
-        title: s.name ?? `A spot in ${city.name}`,
-        subtitle: `${s.name ? `${city.name} · ` : ""}${city.country}`.replace(/ · $/, ""),
+        // Its name where the map gave one, else where it is.
+        title: s.name ?? `${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`,
+        subtitle: line("Spot", city.country, city.name),
         country: city.country,
         href: `${cityUrl(s.placeId)}&spot=${formatSpotParam(s)}`,
         savedAt: s.savedAt,
@@ -150,7 +154,7 @@ export default function SavedPage() {
         <div className="max-w-5xl mx-auto">
           <BackLink />
           <h1 className="font-serif text-3xl sm:text-4xl text-ink-900 mt-2">Saved</h1>
-          <p className="text-sm text-ink-500 mt-1">The places and spots you keep an eye on.</p>
+          <p className="text-sm text-ink-500 mt-1">The cities and spots you keep an eye on.</p>
 
           <AccountCard />
 
@@ -182,7 +186,7 @@ export default function SavedPage() {
                   {(
                     [
                       ["all", "All"],
-                      ["place", "Places"],
+                      ["place", "Cities"],
                       ["spot", "Spots"],
                     ] as [Kind, string][]
                   ).map(([k, label]) => (
@@ -243,7 +247,7 @@ export default function SavedPage() {
                         >
                           <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", i.kind === "place" ? "bg-piltri-amber" : "bg-piltri-amber-dark")} />
                           <span className="min-w-0">
-                            <span className="block truncate text-sm text-ink-900">{i.title}</span>
+                            <span className="block truncate font-serif text-base leading-tight text-ink-900 tabular-nums lining-nums">{i.title}</span>
                             <span className="block truncate text-[11px] text-ink-500">{i.subtitle}</span>
                           </span>
                         </button>
@@ -256,13 +260,10 @@ export default function SavedPage() {
                   {shown.map((i) => (
                     <li key={i.key} className="flex items-stretch rounded-card border border-surface-border bg-surface hover:border-piltri-amber-light transition-colors">
                       <Link href={i.href} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
-                        <HeartIcon className={cn("shrink-0 text-piltri-amber", i.kind === "place" ? "h-4 w-4" : "h-3.5 w-3.5")} fill="currentColor" />
+                        <HeartIcon className="h-4 w-4 shrink-0 text-piltri-amber" fill="currentColor" />
                         <span className="min-w-0">
-                          <span className={cn("block truncate leading-tight text-ink-900", i.kind === "place" ? "font-serif text-lg" : "text-sm")}>{i.title}</span>
-                          <span className="block truncate text-[11px] text-ink-500">
-                            {i.kind === "spot" ? "Spot · " : ""}
-                            {i.subtitle}
-                          </span>
+                          <span className="block truncate font-serif text-lg leading-tight text-ink-900 tabular-nums lining-nums">{i.title}</span>
+                          <span className="block truncate text-[11px] text-ink-500">{i.subtitle}</span>
                         </span>
                       </Link>
                       <button

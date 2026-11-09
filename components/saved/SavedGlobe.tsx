@@ -362,7 +362,7 @@ export function SavedGlobe({ points, focusKey }: { points: GlobePoint[]; focusKe
           <div className="flex items-start gap-2">
             <HeartIcon className="mt-0.5 h-4 w-4 shrink-0 text-piltri-amber" fill="currentColor" />
             <div className="min-w-0 flex-1">
-              <p className="truncate font-serif text-base leading-tight text-ink-900">{selected.title}</p>
+              <p className="truncate font-serif text-base leading-tight text-ink-900 lining-nums">{selected.title}</p>
               <p className="truncate text-[11px] text-ink-500">{selected.subtitle}</p>
             </div>
             <button type="button" onClick={() => setSelected(null)} aria-label="Close" className="rounded-full p-0.5 text-ink-300 hover:text-ink-900">
