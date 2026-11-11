@@ -12,7 +12,7 @@ import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
 import { CloseButton } from "@/components/ui/CloseButton";
 import { AddressSearch } from "@/components/explore/AddressSearch";
 import { searchBoxFor } from "@/lib/geocode";
-import { addMapIcons, mapIconColor, mapIconId, mapIconUrl } from "@/components/explore/mapIcons";
+import { addMapIcons, mapIconColor, mapIconId, mapIconUrl, mapLabelColor } from "@/components/explore/mapIcons";
 import { emphasizeStreets, muteBasemap, muteColor } from "@/lib/mapColors";
 import { INSIDE_KINDS, INSIDE_TRACK_ONLY, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
 import { MapCredit } from "@/components/explore/MapCredit";
@@ -84,7 +84,7 @@ function drawFocusPoints(map: maplibregl.Map, focus: MapFocus | null, points: Fo
     features: focus
       ? points.map((p, rank) => ({
           type: "Feature",
-          properties: { name: p.name, rank, kind: focus.kind, icon: mapIconId(focus.kind), few: points.length <= FEW_NAMED },
+          properties: { name: p.name, rank, kind: focus.kind, icon: mapIconId(focus.kind), labelColor: mapLabelColor(focus.kind) },
           geometry: { type: "Point", coordinates: [p.lng, p.lat] },
         }))
       : [],
@@ -97,7 +97,9 @@ function yesCount(focus: MapFocus, tilePlaces: { places: MapPlace[]; done: boole
   // Counted beyond its list (bus stops: the list holds the stations).
   if (cityCount != null && cityCount > focus.points.length) return `${cityCount.toLocaleString("en-US")} in the city`;
   if (focus.complete) return `${focus.points.length.toLocaleString("en-US")} ${airportsByReach(focus.kind) ? `within ${AIRPORT_REACH_KM} km` : "in the city"}`;
-  if (tilePlaces && !tilePlaces.done) return "finding them all…";
+  // Still reading the tiles: nothing rather than "finding them all…"
+  // (2026-11-11, owner: it flashed for half a second).
+  if (tilePlaces && !tilePlaces.done) return "";
   if (tilePlaces?.places.length) {
     const n = mergePlaces(center, focus.points, tilePlaces.places).length;
     return `${n.toLocaleString("en-US")} within ${yesRadiusKm(focus.kind as Exclude<MapKind, "capital">)} km`;
@@ -170,25 +172,64 @@ const BUTTON_STEP_PX = 37;
  *  at the map's pace (lib/motion.ts). */
 const BUTTON_GLIDE = "transition-[top,right] duration-[700ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none";
 
-/** The map list's "Clear": a cross and the word in a pill big enough to
- *  tap (2026-11-10, owner: the crosses were too small). */
+/** The map list's Select all / Clear all: an icon and the words in a pill
+ *  big enough to tap (2026-11-10, owner: the crosses were too small). */
 const CLEAR_CLASS =
   "inline-flex shrink-0 items-center gap-1 rounded-pill px-2.5 py-1.5 text-[13px] font-medium text-piltri-amber-dark transition-colors hover:bg-piltri-amber/10 disabled:bg-transparent disabled:text-ink-300";
 
-/** A line of the box saying what's on the map: the kind's icon, its name,
- *  how many (or how far), and its own close. */
-function ShownLine({ kind, label, detail, onClose }: { kind: MapKind; label: string; detail: string; onClose: () => void }) {
-  // A size up on 2026-11-11 (owner: "the small pop-up train station at the
-  // top is quite small, so the cross"): 14 px text, an 18 px icon.
+/** The cursor while a tap places or moves a spot: the spot's pin itself,
+ *  its tip on the point (2026-11-11, owner: "I don't like the black cross
+ *  to select a spot"); the second spot's in its blue. */
+function pinCursor(color: string): string {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">` +
+    `<ellipse cx="14" cy="34" rx="4.5" ry="1.6" fill="#1E1A16" opacity="0.25"/>` +
+    `<path d="M14 33.5s-10.5-10-10.5-18.2a10.5 10.5 0 0 1 21 0C24.5 23.5 14 33.5 14 33.5z" fill="${color}" stroke="#FFFFFF" stroke-width="2"/>` +
+    `<circle cx="14" cy="15.3" r="3.8" fill="#FFFFFF"/></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 14 34, pointer`;
+}
+const PIN_CURSOR = pinCursor("#BA7517");
+const SECOND_PIN_CURSOR = pinCursor("#3B6E8F");
+
+/** What's on the map, as a chip along its top (2026-11-11, owner: the
+ *  lines "overshadow the filter box" as kinds are added - "maybe on the
+ *  top, horizontally?"): the kind's icon, its name, how many (or how far),
+ *  a link where there's one, and its own close. */
+function ShownChip({
+  kind,
+  label,
+  detail,
+  link,
+  onClose,
+}: {
+  kind: MapKind;
+  label: string;
+  detail: string;
+  link?: { href: string; label: string } | null;
+  onClose: () => void;
+}) {
   return (
-    <div className="flex items-center gap-2 py-0.5">
+    <div className="flex h-10 min-w-0 max-w-full shrink-0 items-center gap-2 rounded-pill bg-surface pl-3 pr-1 shadow-card motion-safe:animate-fade-in">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={mapIconUrl(kind)} alt="" width={18} height={18} className="shrink-0" />
-      <span className="text-sm leading-snug font-medium text-ink-900">
+      <span className="min-w-0 truncate text-[13px] font-medium text-ink-900">
         {label}
         {detail && <span className="font-normal text-ink-500"> · {detail}</span>}
       </span>
-      <CloseButton label={`Hide ${label}`} onClick={onClose} className="-my-1.5 ml-auto" />
+      {link && (
+        <a
+          href={link.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={link.label}
+          aria-label={link.label}
+          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-pill px-2 text-xs font-medium text-piltri-amber-dark hover:bg-piltri-amber/10"
+        >
+          Maps
+          <ExternalLinkIcon className="h-3.5 w-3.5" />
+        </a>
+      )}
+      <CloseButton label={`Hide ${label}`} onClick={onClose} className="!h-8 !w-8 [&>svg]:!h-[18px] [&>svg]:!w-[18px]" />
     </div>
   );
 }
@@ -298,6 +339,9 @@ const SPOT_LINE_MAX_KM = 25;
 /** From this zoom a tap's label names the spot (a street, a station, a
  *  neighbourhood); below it, labels are towns. */
 const SPOT_NAME_MIN_ZOOM = 13;
+/** An address picked in the search lands at this zoom: its streets and
+ *  quarter around it (2026-11-11, owner: 16 was "too close"). */
+const ADDRESS_ZOOM = 14.5;
 const SPOT_COLOR = "#BA7517";
 const SECOND_SPOT_COLOR = "#3B6E8F";
 
@@ -352,25 +396,33 @@ const LAYER_LABELS: Record<InsideKind, string> = {
 /** Every place gets its icon - smaller zoomed out, never hidden (2026-10-29,
  *  on request: icons only, no dots) - and its name where there's room,
  *  from zoom 12 (thousands of names placed at once slowed the map). */
-/** A kind with this many places or fewer on the map has their names shown
- *  at every zoom (2026-11-11, owner: "display the name before clicking?") -
- *  a town's train station, hospital, beach; more (schools, bus stops) get
- *  them from zoom 12, where there's room. Overlapping names drop out. */
-const FEW_NAMED = 10;
+/** Every place's name beside its icon, at every zoom, without a tap
+ *  (2026-11-11, owner: the names "still don't appear unless I click" - they
+ *  waited for zoom 12 when a kind had more than 10 places - "written
+ *  below, in the colour of the flag?"): under the icon in its kind's
+ *  colour (mapLabelColor), or above, right or left where under is taken;
+ *  where no side is free the icon stands alone - the nearest places keep
+ *  theirs (symbol-sort-key: rank). */
 const PLACE_ICON_LAYOUT = {
   "icon-allow-overlap": true,
   "icon-ignore-placement": true,
   "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 0.5, 13, 0.7, 16, 0.9],
-  // (A zoom step must be the expression's top level - MapLibre's rule.)
-  "text-field": ["step", ["zoom"], ["case", ["to-boolean", ["get", "few"]], ["get", "name"], ""], 12, ["get", "name"]],
-  "text-font": ["Noto Sans Regular"],
-  "text-size": 11.5,
-  "text-anchor": "left",
-  "text-offset": ["interpolate", ["linear"], ["zoom"], 10, ["literal", [0.9, 0]], 16, ["literal", [1.4, 0]]],
-  "text-max-width": 12,
+  "text-field": ["get", "name"],
+  "text-font": ["Noto Sans Bold"],
+  "text-size": ["interpolate", ["linear"], ["zoom"], 10, 11, 15, 12.5],
+  "text-variable-anchor": ["top", "bottom", "right", "left"],
+  "text-radial-offset": ["interpolate", ["linear"], ["zoom"], 10, 0.85, 13, 1.1, 16, 1.4],
+  "text-justify": "auto",
+  "text-max-width": 9,
+  "text-padding": 2,
   "text-optional": true,
 } as const;
-const PLACE_ICON_PAINT = { "text-color": muteColor("#1E1A16"), "text-halo-color": muteColor("#FFFFFF"), "text-halo-width": 1.6, "text-halo-blur": 0.4 };
+const PLACE_ICON_PAINT = {
+  "text-color": ["coalesce", ["get", "labelColor"], "#3D362E"],
+  "text-halo-color": "#FFFFFF",
+  "text-halo-width": 1.8,
+  "text-halo-blur": 0.3,
+};
 /** A distance figure's journey along the roads (lib/routing.ts), once it
  *  has come back - the straight line stands in until then. */
 const FOCUS_ROUTE_ID = "piltri-focus-route";
@@ -701,10 +753,10 @@ export function MapView({
   const linkSpotsRef = useRef(false);
   const [detailed, setDetailed] = useState(false);
   const [mapReady, setMapReady] = useState(false);
-  /** The map's cursor off the icons: a crosshair while a tap places or
-   *  moves a spot. */
+  /** The map's cursor off the icons: the spot's own pin while a tap places
+   *  or moves a spot (2026-11-11, owner: not the black crosshair). */
   const restingCursorRef = useRef<() => string>(() => "");
-  restingCursorRef.current = () => (spotMode || spotA ? "crosshair" : onMapClick ? "pointer" : "");
+  restingCursorRef.current = () => (spotMode === "b" ? SECOND_PIN_CURSOR : spotMode || spotA ? PIN_CURSOR : onMapClick ? "pointer" : "");
   // A Yes being shown counts as ticked in the layer list (2026-10-29, on
   // request: tap a Yes, expand the map - it's already ticked).
   const focusKind = focus?.style === "pin" && focus.kind !== "capital" ? focus.kind : null;
@@ -730,10 +782,14 @@ export function MapView({
   const shownLayers = layerKinds.filter((kind) => kind !== focusKind);
   const layerCountText = (kind: NearbyKind): string => {
     const drawn = layerCounts[kind];
-    if (!drawn) return "finding them…";
     const figure = insideFigures?.[kind as InsideKind];
-    // Counted beyond its list (bus stops: the list holds the stations).
-    if (figure && figure.count > drawn.n) return `${figure.count.toLocaleString("en-US")} in the city`;
+    // Not drawn yet: the city's own count straight away when there is one,
+    // else nothing - no "finding them…" flashing for half a second
+    // (2026-11-11, owner).
+    if (!drawn) return figure && figure.count > 0 ? `${figure.count.toLocaleString("en-US")} ${airportsByReach(kind) ? `within ${AIRPORT_REACH_KM} km` : "in the city"}` : "";
+    // Counted beyond its list (bus stops: the list holds the stations, the
+    // tiles the stops within 5 km) - the city's own count.
+    if (figure && figure.count > 0 && (figure.count > drawn.n || drawsTilesAlways(kind))) return `${figure.count.toLocaleString("en-US")} in the city`;
     if (drawn.from === "tiles") return `${drawn.n.toLocaleString("en-US")} within ${yesRadiusKm(kind)} km`;
     if (figure?.count === 0) return figure.nearestKm != null ? `nearest ${formatDistanceKm(figure.nearestKm, prefs)}` : "none near";
     return `${drawn.n.toLocaleString("en-US")} ${airportsByReach(kind) ? `within ${AIRPORT_REACH_KM} km` : "in the city"}`;
@@ -1144,8 +1200,13 @@ export function MapView({
         type: "symbol",
         source: LAYERS_SOURCE_ID,
         maxzoom: DETAIL_ZOOM,
-        layout: { ...PLACE_ICON_LAYOUT, "icon-image": ["get", "icon"], "symbol-sort-key": ["get", "rank"] } as any,
-        paint: PLACE_ICON_PAINT,
+        layout: {
+          ...PLACE_ICON_LAYOUT,
+          "icon-image": ["get", "icon"],
+          "symbol-sort-key": ["get", "rank"],
+          "text-field": ["case", ["to-boolean", ["get", "quiet"]], "", ["get", "name"]],
+        } as any,
+        paint: PLACE_ICON_PAINT as any,
       });
       for (const kind of MAP_LAYER_KINDS) {
         const filter = osmPoiFilter(kind) as any;
@@ -1156,8 +1217,11 @@ export function MapView({
           "source-layer": "poi",
           minzoom: DETAIL_ZOOM,
           filter,
-          layout: { ...PLACE_ICON_LAYOUT, visibility: "none", "icon-image": mapIconId(kind) } as any,
-          paint: PLACE_ICON_PAINT,
+          // The tiles' own places (bus stops above all - hundreds in a
+          // town): named from street level only, so the city's own places
+          // (stations, schools, hospitals) keep their names around them.
+          layout: { ...PLACE_ICON_LAYOUT, visibility: "none", "icon-image": mapIconId(kind), "text-field": ["step", ["zoom"], "", 15, ["get", "name"]] } as any,
+          paint: { ...PLACE_ICON_PAINT, "text-color": mapLabelColor(kind) } as any,
         });
       }
       map.addSource(FOCUS_POINTS_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
@@ -1166,7 +1230,7 @@ export function MapView({
         type: "symbol",
         source: FOCUS_POINTS_ID,
         layout: { ...PLACE_ICON_LAYOUT, "icon-image": ["get", "icon"], "symbol-sort-key": ["get", "rank"] } as any,
-        paint: PLACE_ICON_PAINT,
+        paint: PLACE_ICON_PAINT as any,
       });
       // The spot's nearest places, on top: each one's icon, and what it is
       // and how far, as on the card (names where there's room).
@@ -1495,9 +1559,14 @@ export function MapView({
     if (!map || !mapReady || !source) return;
     const controller = new AbortController();
     const byKind = new Map<NearbyKind, { lng: number; lat: number; name: string }[]>();
+    // Kinds read from the tiles that the map also draws itself (bus stops):
+    // drawn without their names - hundreds of stops would take the room
+    // of the city's stations, schools and hospitals; a tap still names one.
+    const quietKinds = new Set<NearbyKind>();
     const counts = new Map<NearbyKind, { n: number; from: "list" | "tiles" }>();
     const found = (kind: NearbyKind, places: { lng: number; lat: number; name: string }[], from: "list" | "tiles") => {
       byKind.set(kind, places);
+      if (from === "tiles" && drawsTilesAlways(kind)) quietKinds.add(kind);
       counts.set(kind, { n: places.length, from });
       drawSoon();
     };
@@ -1510,7 +1579,7 @@ export function MapView({
         features: [...byKind].flatMap(([kind, places]) =>
           places.map((p) => ({
             type: "Feature",
-            properties: { name: p.name, kind, icon: mapIconId(kind), few: places.length <= FEW_NAMED },
+            properties: { name: p.name, kind, icon: mapIconId(kind), labelColor: mapLabelColor(kind), quiet: quietKinds.has(kind) },
             geometry: { type: "Point", coordinates: [p.lng, p.lat] },
           }))
         ),
@@ -1620,6 +1689,28 @@ export function MapView({
     setLayerKinds([]);
     if (focusKind) onCloseFocus?.();
   };
+  /** One button for all and none (2026-11-11, owner: "an option to select
+   *  all, and to remove all, ideally the same button"): with nothing shown,
+   *  "Select all" ticks every kind the city has; with anything shown,
+   *  "Clear all". */
+  const anyShown = layerKinds.length > 0 || !!focusKind;
+  const allToggle = () => (
+    <button
+      type="button"
+      disabled={!anyShown && !offeredKinds.length}
+      onClick={() => (anyShown ? clearList() : setLayerKinds([...offeredKinds]))}
+      className={CLEAR_CLASS}
+    >
+      {anyShown ? (
+        <CloseIcon className="h-4 w-4" strokeWidth={2.25} />
+      ) : (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M4.5 12.5l4.5 4.5L19.5 7" />
+        </svg>
+      )}
+      {anyShown ? "Clear all" : "Select all"}
+    </button>
+  );
 
   // The country locator (2026-11-07, owner): bottom right, smaller on a
   // phone's map in the page; out of the way while a spot is being placed,
@@ -1736,11 +1827,12 @@ export function MapView({
     if (spotsRef.current.a) setSpotMode(null);
     else turnSpotOff();
   };
-  /** An address picked: the spot, named after it, at street level. */
+  /** An address picked: the spot, named after it, with its streets around
+   *  it (ADDRESS_ZOOM). */
   const pickAddress = (found: { lat: number; lng: number; title: string }) => {
     setAddressOpen(false);
     setSpotMode(null);
-    openSpot({ lat: found.lat, lng: found.lng, name: found.title }, 16);
+    openSpot({ lat: found.lat, lng: found.lng, name: found.title }, ADDRESS_ZOOM);
   };
 
   // Spots from a shared link, once the map is up: framed now, and in place
@@ -2188,43 +2280,51 @@ export function MapView({
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
-      {(focus || shownLayers.length > 0) && (
-        // What's on the map, a line per kind with its count and its close -
-        // the same for a tapped figure and a kind ticked in the layer list,
-        // always beside the buttons (2026-10-30, owner: "more consistent").
-        // A journey adds the same one in Google Maps in a new tab.
-        <div style={{ top: shownTop, right: shownRight, maxWidth: `min(24rem, calc(100% - ${shownRight + 10}px))` }} className={cn("absolute z-10 rounded-2xl bg-surface py-1 pl-3 pr-1 shadow-card", BUTTON_GLIDE)}>
+      {(focus || shownLayers.length > 0) && !listOnTop && (
+        // (Not under a phone's open list: its own chips already say what's
+        // shown, and the map needs the room.)
+        // What's on the map, a chip per kind with its count and its close -
+        // the same for a tapped figure and a kind ticked in the layer list
+        // (2026-10-30, owner: "more consistent"), in a row along the top,
+        // right-aligned beside the buttons and wrapping onto the next row
+        // (2026-11-11, owner: as a column they covered the filter list) -
+        // three rows at most on a computer, two on a phone, the rest a
+        // scroll away. Kept clear of the floating city card and panel on a
+        // computer. The tapped figure's chip first; a journey's links to
+        // the same one in Google Maps.
+        <div
+          style={{
+            top: shownTop,
+            right: shownRight,
+            maxWidth: `min(46rem, calc(100% - ${shownRight + 10 + (compact ? 0 : sidePanelOpen ? 784 : 384)}px))`,
+          }}
+          className={cn(
+            "absolute z-10 flex max-h-[96px] flex-wrap items-start justify-end gap-1.5 overflow-y-auto p-0.5 [scrollbar-width:thin] sm:max-h-[142px]",
+            BUTTON_GLIDE
+          )}
+        >
           {focus && (
-            <>
-              <ShownLine
-                kind={focus.kind}
-                label={focus.style === "pin" ? LAYER_LABELS[focus.kind as InsideKind] ?? focus.title : focus.title}
-                detail={[
-                  focus.style === "pin" ? yesCount(focus, tilePlaces, { lat, lng }, insideFigures?.[focus.kind as InsideKind]?.count) : "",
-                  !focus.points.length && !tilePlaces?.places.length ? "none found nearby" : "",
-                  routeInfo ?? "",
-                ].filter(Boolean).join(" · ")}
-                onClose={() => onCloseFocus?.()}
-              />
-              {focus.style === "journey" && focus.points[0] && (
-                <a
-                  href={googleMapsDirectionsUrl(
-                    { lat, lng },
-                    focus.points[0],
-                    straightLineKm({ lat, lng }, focus.points[0]) <= WALK_MAX_KM ? "foot" : "car"
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-[26px] inline-flex items-center gap-1 pb-1.5 pr-2 text-xs font-medium text-piltri-amber-dark hover:underline underline-offset-2"
-                >
-                  Open in Google Maps
-                  <ExternalLinkIcon className="w-3.5 h-3.5" />
-                </a>
-              )}
-            </>
+            <ShownChip
+              kind={focus.kind}
+              label={focus.style === "pin" ? LAYER_LABELS[focus.kind as InsideKind] ?? focus.title : focus.title}
+              detail={[
+                focus.style === "pin" ? yesCount(focus, tilePlaces, { lat, lng }, insideFigures?.[focus.kind as InsideKind]?.count) : "",
+                !focus.points.length && !tilePlaces?.places.length ? "none found nearby" : "",
+                routeInfo ?? "",
+              ].filter(Boolean).join(" · ")}
+              link={
+                focus.style === "journey" && focus.points[0]
+                  ? {
+                      href: googleMapsDirectionsUrl({ lat, lng }, focus.points[0], straightLineKm({ lat, lng }, focus.points[0]) <= WALK_MAX_KM ? "foot" : "car"),
+                      label: "Open this journey in Google Maps",
+                    }
+                  : null
+              }
+              onClose={() => onCloseFocus?.()}
+            />
           )}
           {shownLayers.map((kind) => (
-            <ShownLine key={kind} kind={kind} label={LAYER_LABELS[kind as InsideKind] ?? kind} detail={layerCountText(kind)} onClose={() => toggleLayer(kind)} />
+            <ShownChip key={kind} kind={kind} label={LAYER_LABELS[kind as InsideKind] ?? kind} detail={layerCountText(kind)} onClose={() => toggleLayer(kind)} />
           ))}
         </div>
       )}
@@ -2401,17 +2501,7 @@ export function MapView({
                   ))}
                 </>
               );
-              const clear = (
-                <button
-                  type="button"
-                  disabled={!layerKinds.length && !focusKind}
-                  onClick={clearList}
-                  className={CLEAR_CLASS}
-                >
-                  <CloseIcon className="h-4 w-4" strokeWidth={2.25} />
-                  Clear
-                </button>
-              );
+              const clear = allToggle();
               return (
                 // On a phone, along the top of the map, left of the buttons
                 // (2026-11-08, owner: not over the middle of the city):
@@ -2428,16 +2518,12 @@ export function MapView({
                 >
                   {landscapeShort ? (
                     <>
-                      <p className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show</p>
-                      <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto py-0.5 [scrollbar-width:none]">{chips}</div>
                       {clear}
+                      <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto py-0.5 [scrollbar-width:none]">{chips}</div>
                     </>
                   ) : (
                     <>
-                      <div className="flex items-center pb-1.5 pl-0.5">
-                        <p className="flex-1 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show on the map</p>
-                        {clear}
-                      </div>
+                      <div className="-ml-1 flex items-center pb-1">{clear}</div>
                       <div className="flex flex-wrap gap-1">{chips}</div>
                       <p className="pl-0.5 pt-1.5 text-[10px] leading-snug text-ink-500">{listNote}</p>
                     </>
@@ -2454,19 +2540,10 @@ export function MapView({
               style={{ top: listTop, maxHeight: `calc(100% - ${listTop + 12 + (locatorShown ? locatorSize + 34 : 0)}px)` }}
               className="absolute right-[10px] z-20 w-[180px] overflow-y-auto rounded-xl bg-surface px-1 pb-1 shadow-card motion-safe:animate-fade-in"
             >
-              {/* Its title, and Clear at the top (2026-11-06, owner). */}
-              <div className="sticky top-0 z-10 flex items-center bg-surface px-1.5 pb-1 pt-1.5">
-                <p className="flex-1 text-[10px] font-medium uppercase tracking-wide text-ink-500">Show on the map</p>
-                <button
-                  type="button"
-                  disabled={!layerKinds.length && !focusKind}
-                  onClick={clearList}
-                  className={cn(CLEAR_CLASS, "-mr-1")}
-                >
-                  <CloseIcon className="h-4 w-4" strokeWidth={2.25} />
-                  Clear
-                </button>
-              </div>
+              {/* Select all / Clear all at the top, no title (2026-11-11,
+                  owner: "Show on the map" said nothing; one button for
+                  all and none). */}
+              <div className="sticky top-0 z-10 flex items-center bg-surface px-0.5 pb-0.5 pt-1">{allToggle()}</div>
               {offeredKinds.map((kind) => {
                 const on = layerKinds.includes(kind) || kind === focusKind;
                 return (

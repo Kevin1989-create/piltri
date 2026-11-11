@@ -80,6 +80,17 @@ export const mapIconId = (kind: MapKind) => `piltri-${kind}`;
 /** The kind's badge colour (the place card writes its kind in it). */
 export const mapIconColor = (kind: MapKind) => KIND_ICON[kind].color;
 
+/** The colour a place's name is written in under its icon on the map
+ *  (2026-11-11, owner: "written below, in the colour of the flag"): the
+ *  badge's, a third of the way to ink, so sand and coral read on the map's
+ *  pale ground. */
+export function mapLabelColor(kind: MapKind): string {
+  const hex = KIND_ICON[kind].color;
+  const ink = [0x1e, 0x1a, 0x16];
+  const mix = [1, 3, 5].map((at, k) => Math.round(parseInt(hex.slice(at, at + 2), 16) * 0.67 + ink[k] * 0.33));
+  return `#${mix.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
 /** Badge: 30 px across (drawn at twice that for sharp screens), a white rim
  *  and a soft shadow so it stands off any part of the map. */
 const BADGE_PX = 30;
