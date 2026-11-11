@@ -82,7 +82,7 @@ function drawFocusPoints(map: maplibregl.Map, focus: MapFocus | null, points: Fo
     features: focus
       ? points.map((p, rank) => ({
           type: "Feature",
-          properties: { name: p.name, rank, kind: focus.kind, icon: mapIconId(focus.kind) },
+          properties: { name: p.name, rank, kind: focus.kind, icon: mapIconId(focus.kind), few: points.length <= FEW_NAMED },
           geometry: { type: "Point", coordinates: [p.lng, p.lat] },
         }))
       : [],
@@ -350,11 +350,17 @@ const LAYER_LABELS: Record<InsideKind, string> = {
 /** Every place gets its icon - smaller zoomed out, never hidden (2026-10-29,
  *  on request: icons only, no dots) - and its name where there's room,
  *  from zoom 12 (thousands of names placed at once slowed the map). */
+/** A kind with this many places or fewer on the map has their names shown
+ *  at every zoom (2026-11-11, owner: "display the name before clicking?") -
+ *  a town's train station, hospital, beach; more (schools, bus stops) get
+ *  them from zoom 12, where there's room. Overlapping names drop out. */
+const FEW_NAMED = 10;
 const PLACE_ICON_LAYOUT = {
   "icon-allow-overlap": true,
   "icon-ignore-placement": true,
   "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 0.5, 13, 0.7, 16, 0.9],
-  "text-field": ["step", ["zoom"], "", 12, ["get", "name"]],
+  // (A zoom step must be the expression's top level - MapLibre's rule.)
+  "text-field": ["step", ["zoom"], ["case", ["to-boolean", ["get", "few"]], ["get", "name"], ""], 12, ["get", "name"]],
   "text-font": ["Noto Sans Regular"],
   "text-size": 11.5,
   "text-anchor": "left",
@@ -1499,7 +1505,7 @@ export function MapView({
         features: [...byKind].flatMap(([kind, places]) =>
           places.map((p) => ({
             type: "Feature",
-            properties: { name: p.name, kind, icon: mapIconId(kind) },
+            properties: { name: p.name, kind, icon: mapIconId(kind), few: places.length <= FEW_NAMED },
             geometry: { type: "Point", coordinates: [p.lng, p.lat] },
           }))
         ),
