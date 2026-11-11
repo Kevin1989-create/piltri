@@ -122,7 +122,11 @@ its icon's colour, a drawn close cross).
    Malaysia's small "Klinik"s, animal, dental and cosmetic hospitals in
    Asia, vets in Brazil and France, booking desks, imaging units,
    fundraising foundations), listings placed in the wrong country left
-   out ("... In Hyderabad" in London), funiculars and museum lines no
+   out ("... In Hyderabad" in London), "Bus station" became "Bus stops"
+   (2026-11-11, owner: London's 61 "way below reality" - it counts every
+   OpenStreetMap bus stop now, ~24,000 in London, ~200 in Olivet, which had
+   no bus station; only 22% of places had a bus station in the city, and
+   how bus stations get tagged varies by country), funiculars and museum lines no
    longer train stations. Still open:
    - Hospitals misplaced within their own country ("Hospital Geral de
      Benguela" listed in Luanda; Saskatoon's "Royal University Hospital"

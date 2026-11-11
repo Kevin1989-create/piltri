@@ -16,13 +16,13 @@ import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M,
 import { loadAllLakeShorePoints, loadCoastlinePoints, loadEarthquakes, loadRiverPoints } from "./hazards";
 import { countNearCities } from "./nearCities";
 import { writeDataset } from "./output";
-import { extractOvertureBeaches, extractOvertureMedical, extractOverturePlaces, extractOvertureRail, extractOvertureTransit, loadOsmHospitalAreas, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
+import { extractOvertureBeaches, extractOvertureMedical, extractOverturePlaces, extractOvertureRail, extractOvertureTransit, loadOsmHospitalAreas, loadOvertureCategory, loadOverturePointsLean, POI, resolveOvertureRelease } from "./overture";
 import { onePerSite } from "./transit";
 import { POPULATION_GROWTH_SOURCE, POPULATION_SOURCE, sampleDensity, samplePopulationGrowth } from "./population";
 import { sampleWater, WATER_SOURCE } from "./water";
 import { keepHospitals, placedRightTest } from "./hospitals";
 import { REGIONAL_GDP_SOURCE, sampleRegionalGdp } from "./regionalGdp";
-import { anyInside, circleArea, cityArea, placesInside, type PlaceIndex } from "./insidePlaces";
+import { anyInside, circleArea, cityArea, countInside, placesInside, type PlaceIndex } from "./insidePlaces";
 import { KOPPEN_SOURCE, sampleKoppen } from "./koppenMap";
 import { loadShortlist } from "./shortlist";
 import { sampleUvIndex } from "./uv";
@@ -244,8 +244,13 @@ async function main() {
     metro: onePerSite(await loadOvertureCategory(transitGlob, "metro", true)),
     tram: onePerSite(await loadOvertureCategory(transitGlob, "tram", true)),
     bus: onePerSite(await loadOvertureCategory(transitGlob, "bus", true)),
+    // Every bus stop (2026-11-11, owner: London's 61 bus stations were "way
+    // below reality" - it has ~24,000 stops; Olivet none of the first, 200
+    // of the second): what "Bus stops" counts. Not listed - too many - the
+    // map draws them from its own tiles.
+    busStop: await loadOverturePointsLean(transitGlob, "busStop"),
   };
-  log("build", `stations and stops (OpenStreetMap): train ${osm.train.lng.length}, metro ${osm.metro.lng.length}, tram ${osm.tram.lng.length}, bus ${osm.bus.lng.length}`);
+  log("build", `stations and stops (OpenStreetMap): train ${osm.train.lng.length}, metro ${osm.metro.lng.length}, tram ${osm.tram.lng.length}, bus stations ${osm.bus.lng.length}, bus stops ${osm.busStop.lng.length}`);
   // Counting within 5 km runs inside DuckDB (millions of restaurants never
   // enter JavaScript); only points needed for nearest distances are loaded.
   log("build", "counting Overture places within 5 km of every city (DuckDB)...");
@@ -312,6 +317,7 @@ async function main() {
     tram: buildIndex(tramTrack),
     tramStop: buildIndex(osm.tram),
     bus: buildIndex(mergePoints(gn.bus, osm.bus)),
+    busStop: buildIndex(osm.busStop),
     airport: buildIndex(gn.airport),
     peak: buildIndex(gn.peak1000),
     forest: buildIndex(gn.forest),
@@ -395,7 +401,8 @@ async function main() {
       metro: geo(idx.metroStation) ?? geo(idx.metro),
       tram: geo(idx.tramStop) ?? geo(idx.tram),
       airport: geo(idx.airport),
-      bus: geo(idx.bus),
+      // The nearest stop or station, for a No ("nearest 1.2 km").
+      bus: closer(geo(idx.bus), geo(idx.busStop)),
       port: geo(idx.port),
       nursery: geo(ovAll.nursery),
       school: closer(geo(idx.school), geo(ovAll.school)),
@@ -426,6 +433,8 @@ async function main() {
     });
     const insideCounts = INSIDE_KINDS.map((kind, k) => {
       const { track } = INSIDE_SOURCES[kind];
+      // Bus: how many stops (the stations listed are a few of them).
+      if (kind === "bus") return Math.max(insideLists[k].length, countInside(area, idx.busStop));
       return insideLists[k].length || (track && anyInside(area, track) ? INSIDE_TRACK_ONLY : 0);
     });
     const insideNearestKm = INSIDE_KINDS.map((kind) => {
@@ -497,7 +506,8 @@ async function main() {
         hasSubway: has(idx.metro),
         hasTramway: has(idx.tram),
         hasAirport: has(idx.airport, undefined, AIRPORT_RADIUS_KM),
-        hasBusStation: has(idx.bus),
+        // A bus stop or station within 5 km (the field keeps its old name).
+        hasBusStation: has(idx.bus) || has(idx.busStop),
         hasSchool: has(idx.school, POI.school),
         hasUniversity: has(idx.university, POI.university),
         hasNursery: ovCount(i, POI.nursery) > 0,
@@ -624,7 +634,7 @@ async function main() {
         : {}),
       elevation: "GeoNames SRTM elevation",
       places: `Overture Maps places and transportation ${release} (CDLA-Permissive-2.0 / ODbL) + GeoNames features`,
-      transit: `OpenStreetMap stations and stops - train, metro and tram stations and stops, bus stations, by their OpenStreetMap tags - via Overture Maps base theme ${release} (ODbL)`,
+      transit: `OpenStreetMap stations and stops - train, metro and tram stations and stops, bus stations and stops, by their OpenStreetMap tags - via Overture Maps base theme ${release} (ODbL)`,
       mountains: `GeoNames peaks of ${MOUNTAIN_MIN_ELEVATION_M} m+ that rise ${MOUNTAIN_MIN_RISE_M} m+ above the city`,
       coast: "Natural Earth 1:10m coastline, lakes and rivers (public domain); beaches from GeoNames and OpenStreetMap (Overture Maps base theme, ODbL) - within 1 km of the sea coast a sea beach, of a lake shore a lake beach, and within 1 km of a major river neither",
       earthquakes: "USGS earthquake catalogue, magnitude 5+ since 1970 (public domain)",

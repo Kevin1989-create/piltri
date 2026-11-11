@@ -41,7 +41,7 @@ also picks up the latest published dataset.
 | Broadband / mobile speed | Ookla Speedtest open data, latest quarter (AWS Open Data) | CC BY-NC-SA 4.0* |
 | Coastline, major lakes (which beaches count) | Natural Earth 1:10m | public domain |
 | Restaurants/bars/cafés, cultural venues, family activities, parks, nurseries, care homes, schools, universities | Overture Maps places | CDLA-Permissive-2.0 |
-| Train, metro and tram stations and stops, bus stations - one per site | OpenStreetMap by its tags (railway=station, tram_stop, station=subway...), via Overture Maps base theme infrastructure (`extractOvertureTransit`, `pipeline/transit.ts`; 2026-11-08 - Overture's places listed tram stops as train stations, and no tram stops) | ODbL |
+| Train, metro and tram stations and stops, bus stations - one per site; bus stops (counted, not listed) | OpenStreetMap by its tags (railway=station, tram_stop, station=subway, highway=bus_stop...), via Overture Maps base theme infrastructure (`extractOvertureTransit`, `pipeline/transit.ts`; 2026-11-08 - Overture's places listed tram stops as train stations, and no tram stops; 2026-11-11 - "Bus stops" counts every stop: London ~24,000, where it had 61 bus stations) | ODbL |
 | Tram / light rail / metro lines | Overture Maps transportation (OpenStreetMap rail) | ODbL |
 | City outlines on the map | Overture Maps divisions (OpenStreetMap boundaries) | ODbL |
 | Built-up area outlines (towns with no boundary) | GHS-POP R2023A (EC JRC), the density grid above | CC BY 4.0 |

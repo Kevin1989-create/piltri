@@ -315,7 +315,10 @@ export async function extractOvertureTransit(): Promise<{ glob: string; release:
   const release = await resolveOvertureRelease();
   const tag = (k: string) => `coalesce(source_tags['${k}'], '')`;
   const glob = await extractParts(release, {
-    name: "transit-v1",
+    // v2 (2026-11-11, owner: "London says only 61 bus stations, way below
+    // reality"): bus stops too (highway=bus_stop) - counted for "Bus
+    // stops", not listed (London has ~24,000), so no names.
+    name: "transit-v2",
     source: "theme=base/type=infrastructure",
     select: `
       CASE
@@ -327,15 +330,27 @@ export async function extractOvertureTransit(): Promise<{ glob: string; release:
           AND ${tag("usage")} <> 'tourism' AND ${tag("railway:miniature")} = '' AND ${tag("tourism")} = ''
           AND (class = 'railway_station' OR ${tag("train")} = 'yes') THEN 'train'
         WHEN class = 'bus_station' THEN 'bus'
+        WHEN class = 'bus_stop' THEN 'busStop'
       END AS class,
       round((bbox.xmin + bbox.xmax) / 2, 5) AS lng,
       round((bbox.ymin + bbox.ymax) / 2, 5) AS lat,
-      names."primary" AS name`,
-    where: `class IN ('railway_station', 'railway_halt', 'subway_station', 'bus_station')
+      CASE WHEN class = 'bus_stop' THEN NULL ELSE names."primary" END AS name`,
+    where: `class IN ('railway_station', 'railway_halt', 'subway_station', 'bus_station', 'bus_stop')
       OR source_tags['railway'] = 'tram_stop'
       OR (class IN ('stop_position', 'platform') AND source_tags['tram'] = 'yes')`,
   });
   return { glob, release };
+}
+
+/** A rail/transit class's points only, read column by column - for the
+ *  millions of bus stops, which only get counted (no names, no per-row
+ *  arrays). */
+export async function loadOverturePointsLean(file: string, cls: string): Promise<OverturePoints> {
+  const instance = await DuckDBInstance.create(":memory:");
+  const con = await instance.connect();
+  const reader = await con.runAndReadAll(`SELECT lng, lat FROM read_parquet('${file}') WHERE class = '${cls}' AND lng IS NOT NULL AND lat IS NOT NULL`);
+  const [lngCol, latCol] = reader.getColumns();
+  return { lng: Float64Array.from(lngCol as number[]), lat: Float64Array.from(latCol as number[]), names: null };
 }
 
 /** Loads one category's points from a local extract - a place category

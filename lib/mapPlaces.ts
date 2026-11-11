@@ -19,12 +19,15 @@ const ZOOM = 14;
 const PARALLEL = 6;
 
 /** OpenMapTiles' poi class (and subclasses) for each kind a Yes shows.
- *  Care homes aren't in the tiles: they keep the dataset's nearest 6. */
-const OSM_POI: Partial<Record<NearbyKind, { cls: string; subclasses?: string[] }>> = {
+ *  Care homes aren't in the tiles: they keep the dataset's nearest 6.
+ *  `drawn`: what the map draws itself from the tiles when it differs - bus
+ *  stops only, the stations being in the city's own list (2026-11-11,
+ *  owner: "Bus" counts stops now, London has ~24,000). */
+const OSM_POI: Partial<Record<NearbyKind, { cls: string; subclasses?: string[]; drawn?: string[]; always?: boolean }>> = {
   train: { cls: "railway", subclasses: ["station", "halt"] },
   metro: { cls: "railway", subclasses: ["subway"] },
   tram: { cls: "railway", subclasses: ["tram_stop"] },
-  bus: { cls: "bus", subclasses: ["bus_station"] },
+  bus: { cls: "bus", subclasses: ["bus_station", "bus_stop"], drawn: ["bus_stop"], always: true },
   port: { cls: "ferry_terminal" },
   nursery: { cls: "school", subclasses: ["kindergarten"] },
   school: { cls: "school", subclasses: ["school"] },
@@ -41,11 +44,18 @@ export const MAP_LAYER_KINDS = Object.keys(OSM_POI) as NearbyKind[];
  *  map draws them itself once it shows the detailed tiles (zoom 14+). */
 export function osmPoiFilter(kind: NearbyKind): unknown[] {
   const want = OSM_POI[kind]!;
+  const subclasses = want.drawn ?? want.subclasses;
   return [
     "all",
     ["==", ["get", "class"], want.cls],
-    ...(want.subclasses ? [["in", ["get", "subclass"], ["literal", want.subclasses]]] : []),
+    ...(subclasses ? [["in", ["get", "subclass"], ["literal", subclasses]]] : []),
   ];
+}
+
+/** Kinds whose tile places the map draws even when the city has its own
+ *  list - bus stops, which the list (stations) leaves out. */
+export function drawsTilesAlways(kind: NearbyKind): boolean {
+  return !!OSM_POI[kind]?.always;
 }
 
 /** A Yes is "within 5 km of the centre" (10 km for a port) - the same

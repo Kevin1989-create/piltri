@@ -6,7 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { AIRPORT_REACH_KM, driveMinutes, formatDriveTime, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
 import { fetchRoute, googleMapsDirectionsUrl, ROUTE_ATTRIBUTION, WALK_MAX_KM } from "@/lib/routing";
 import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
-import { hasMapPlaces, loadMapPlaces, MAP_LAYER_KINDS, osmPoiFilter, yesRadiusKm, type MapPlace } from "@/lib/mapPlaces";
+import { drawsTilesAlways, hasMapPlaces, loadMapPlaces, MAP_LAYER_KINDS, osmPoiFilter, yesRadiusKm, type MapPlace } from "@/lib/mapPlaces";
 import { cn } from "@/lib/cn";
 import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
 import { CloseButton } from "@/components/ui/CloseButton";
@@ -91,7 +91,9 @@ function drawFocusPoints(map: maplibregl.Map, focus: MapFocus | null, points: Fo
 
 /** The chip's count for a Yes: every place within its radius once the
  *  map's tiles have been read, or the dataset's own nearest few. */
-function yesCount(focus: MapFocus, tilePlaces: { places: MapPlace[]; done: boolean } | null, center: { lat: number; lng: number }): string {
+function yesCount(focus: MapFocus, tilePlaces: { places: MapPlace[]; done: boolean } | null, center: { lat: number; lng: number }, cityCount?: number | null): string {
+  // Counted beyond its list (bus stops: the list holds the stations).
+  if (cityCount != null && cityCount > focus.points.length) return `${cityCount.toLocaleString("en-US")} in the city`;
   if (focus.complete) return `${focus.points.length.toLocaleString("en-US")} ${airportsByReach(focus.kind) ? `within ${AIRPORT_REACH_KM} km` : "in the city"}`;
   if (tilePlaces && !tilePlaces.done) return "finding them all…";
   if (tilePlaces?.places.length) {
@@ -330,7 +332,7 @@ const LAYER_LABELS: Record<InsideKind, string> = {
   train: "Train stations",
   metro: "Metro stations",
   tram: "Tram stops",
-  bus: "Bus stations",
+  bus: "Bus stops",
   port: "Ports & ferries",
   nursery: "Nurseries",
   school: "Schools",
@@ -452,7 +454,7 @@ const KIND_NAMES: Record<MapKind, string> = {
   train: "Train station",
   metro: "Metro station",
   tram: "Tram stop",
-  bus: "Bus station",
+  bus: "Bus stop",
   port: "Port or ferry",
   airport: "Airport",
   intlAirport: "International airport",
@@ -719,6 +721,8 @@ export function MapView({
     const drawn = layerCounts[kind];
     if (!drawn) return "finding them…";
     const figure = insideFigures?.[kind as InsideKind];
+    // Counted beyond its list (bus stops: the list holds the stations).
+    if (figure && figure.count > drawn.n) return `${figure.count.toLocaleString("en-US")} in the city`;
     if (drawn.from === "tiles") return `${drawn.n.toLocaleString("en-US")} within ${yesRadiusKm(kind)} km`;
     if (figure?.count === 0) return figure.nearestKm != null ? `nearest ${formatDistanceKm(figure.nearestKm, prefs)}` : "none near";
     return `${drawn.n.toLocaleString("en-US")} ${airportsByReach(kind) ? `within ${AIRPORT_REACH_KM} km` : "in the city"}`;
@@ -1465,8 +1469,8 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const shown = new Set<NearbyKind>(loadInside ? [] : layerKinds);
-    if (focus?.style === "pin" && !focus.complete && focus.kind !== "capital") shown.add(focus.kind);
+    const shown = new Set<NearbyKind>(loadInside ? layerKinds.filter(drawsTilesAlways) : layerKinds);
+    if (focus?.style === "pin" && (!focus.complete || drawsTilesAlways(focus.kind as NearbyKind)) && focus.kind !== "capital") shown.add(focus.kind);
     for (const kind of MAP_LAYER_KINDS) map.setLayoutProperty(osmLayerId(kind), "visibility", shown.has(kind) ? "visible" : "none");
     map.setLayerZoomRange(`${LAYERS_SOURCE_ID}-icons`, 0, loadInside ? 24 : DETAIL_ZOOM);
   }, [mapReady, layerKinds, focus, loadInside]);
@@ -2153,7 +2157,7 @@ export function MapView({
                 kind={focus.kind}
                 label={focus.style === "pin" ? LAYER_LABELS[focus.kind as InsideKind] ?? focus.title : focus.title}
                 detail={[
-                  focus.style === "pin" ? yesCount(focus, tilePlaces, { lat, lng }) : "",
+                  focus.style === "pin" ? yesCount(focus, tilePlaces, { lat, lng }, insideFigures?.[focus.kind as InsideKind]?.count) : "",
                   !focus.points.length && !tilePlaces?.places.length ? "none found nearby" : "",
                   routeInfo ?? "",
                 ].filter(Boolean).join(" · ")}

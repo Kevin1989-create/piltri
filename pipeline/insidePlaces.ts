@@ -158,3 +158,14 @@ export function anyInside(area: CityArea, index: PlaceIndex): boolean {
   }
   return false;
 }
+
+/** How many of `index`'s points lie in the area - for kinds counted but
+ *  not listed (bus stops: London has ~24,000). */
+export function countInside(area: CityArea, index: PlaceIndex): number {
+  if (index.size === 0) return 0;
+  let n = 0;
+  for (const id of around(index.kd, area.lng, area.lat, Infinity, area.reachKm, (i: number) => i < index.size) as number[]) {
+    if (isInside(area, (index.points.lng[id] - area.lng) * area.kx, (index.points.lat[id] - area.lat) * KM_PER_DEG)) n++;
+  }
+  return n;
+}
