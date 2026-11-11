@@ -330,6 +330,11 @@ interface MapViewProps {
 type SpotPoint = { lat: number; lng: number; name: string | null };
 /** A spot's card lists the nearest of these (and the centre). */
 const SPOT_KINDS: InsideKind[] = ["train", "metro", "bus", "nursery", "school", "hospital", "intlAirport", "beach"];
+/** Beyond this, an everyday place isn't the spot's - its line is left off
+ *  the card (2026-11-11, owner: Olivet's "nearest metro" was Orly
+ *  airport's station, 102 km away). Train stations, hospitals, airports
+ *  and beaches are worth knowing however far. */
+const SPOT_NEAR_MAX_KM: Partial<Record<InsideKind, number>> = { metro: 30, bus: 30, nursery: 30, school: 30 };
 /** A spot's journeys by road, drawn like a distance figure's. */
 const SPOT_ROUTE_ID = "piltri-spot-route";
 /** What the spot's card lists, on the map too (2026-11-07, owner): each
@@ -1970,6 +1975,8 @@ export function MapView({
           const km = straightLineKm(spotA, place);
           if (km < bestKm) [best, bestKm] = [place, km];
         }
+        // Everyday places too far to be this spot's: left off its card.
+        if (bestKm > (SPOT_NEAR_MAX_KM[kind] ?? Infinity)) return null;
         return best && { key: kind, kind: kind as MapKind, label: KIND_NAMES[kind], name: best.name || KIND_NAMES[kind], lat: best.lat, lng: best.lng };
       })
     ).then((found) => {
