@@ -16,11 +16,11 @@ import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M,
 import { loadAllLakeShorePoints, loadCoastlinePoints, loadEarthquakes, loadRiverPoints } from "./hazards";
 import { countNearCities } from "./nearCities";
 import { writeDataset } from "./output";
-import { extractOvertureBeaches, extractOverturePlaces, extractOvertureRail, extractOvertureTransit, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
+import { extractOvertureBeaches, extractOvertureMedical, extractOverturePlaces, extractOvertureRail, extractOvertureTransit, loadOsmHospitalAreas, loadOvertureCategory, POI, resolveOvertureRelease } from "./overture";
 import { onePerSite } from "./transit";
 import { POPULATION_GROWTH_SOURCE, POPULATION_SOURCE, sampleDensity, samplePopulationGrowth } from "./population";
 import { sampleWater, WATER_SOURCE } from "./water";
-import { keepHospitals } from "./hospitals";
+import { keepHospitals, placedRightTest } from "./hospitals";
 import { REGIONAL_GDP_SOURCE, sampleRegionalGdp } from "./regionalGdp";
 import { anyInside, circleArea, cityArea, placesInside, type PlaceIndex } from "./insidePlaces";
 import { KOPPEN_SOURCE, sampleKoppen } from "./koppenMap";
@@ -234,8 +234,13 @@ async function main() {
   // tram stop was Olivet's "train station", its own tram stops missing),
   // one per site.
   const { glob: transitGlob } = await extractOvertureTransit();
+  // Not a train station, whatever the tags say (2026-11-10, the worldwide
+  // audit: a funicular's stops in Barcelona, museum lines in Sydney, the
+  // Las Vegas Strip's resort trams, Guayaquil's bus stations); unnamed
+  // stations stay.
+  const NOT_A_TRAIN_STATION = /funicul|museum|museo|mus[eé]e|museu|tram station|bus urbano|\bbrt\b|cable car|tel[eé]f[eé]rico/i;
   const osm = {
-    train: onePerSite(await loadOvertureCategory(transitGlob, "train", true)),
+    train: onePerSite(keepNamed(await loadOvertureCategory(transitGlob, "train", true), (n) => !NOT_A_TRAIN_STATION.test(n), true)),
     metro: onePerSite(await loadOvertureCategory(transitGlob, "metro", true)),
     tram: onePerSite(await loadOvertureCategory(transitGlob, "tram", true)),
     bus: onePerSite(await loadOvertureCategory(transitGlob, "bus", true)),
@@ -264,9 +269,15 @@ async function main() {
   const airports = await loadAirports();
   // Only those named as hospitals, one per site (pipeline/hospitals.ts,
   // 2026-11-08): for the nearest-hospital distance and the city's list.
+  // Since 2026-11-10 (the worldwide audit) with OpenStreetMap's hospitals
+  // too, and without listings placed far from the hospital they are.
   const overtureHospitals = await loadOvertureCategory(placesGlob, POI.hospital, true);
-  const hospitals = keepHospitals(overtureHospitals);
-  log("build", `hospitals: ${hospitals.lng.length} named as hospitals, of ${overtureHospitals.lng.length} in Overture's category`);
+  const osmHospitals = await loadOsmHospitalAreas((await extractOvertureMedical()).glob);
+  const hospitals = keepHospitals(overtureHospitals, osmHospitals, placedRightTest(overtureHospitals, shortlist));
+  log(
+    "build",
+    `hospitals: ${hospitals.lng.length} - ${hospitals.fromOsm} from OpenStreetMap (of ${osmHospitals.lng.length} named grounds), the rest named as hospitals of ${overtureHospitals.lng.length} in Overture's category; ${hospitals.misplaced} listings far from their hospital left out`
+  );
   // Every Overture place of the kinds a city page counts "in the city"
   // (2026-10-29) - their places in each city, and the nearest anywhere.
   const ovAll = {
@@ -623,7 +634,7 @@ async function main() {
       // The site shows a local figure's rows only when its source is here.
       ...(populationGrowth ? { populationGrowth: POPULATION_GROWTH_SOURCE } : {}),
       ...(medianAge ? { age: AGE_SOURCE } : {}),
-      hospitals: `Overture Maps places ${release} - hospitals and emergency departments named as such, one per site (CDLA-Permissive-2.0)`,
+      hospitals: `Overture Maps places ${release} - hospitals and emergency departments named as such (CDLA-Permissive-2.0), and OpenStreetMap hospitals (amenity=hospital grounds) via Overture Maps base theme (ODbL); one per site, listings placed far from their hospital left out`,
       inside: `In the city or within 1 km of its outline (5 km of the centre without one), airports within ${AIRPORT_REACH_KM} km: GeoNames, Overture Maps places ${release}, OurAirports, mapped beaches and peaks`,
       ...(conflict ? { conflict: CONFLICT_SOURCE } : {}),
       ...(water ? { water: WATER_SOURCE } : {}),

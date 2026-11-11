@@ -2,6 +2,7 @@ import { closeSync, existsSync, mkdirSync, openSync, renameSync, writeFileSync }
 import path from "path";
 import { DuckDBInstance } from "@duckdb/node-api";
 import { log, WORK_DIR } from "./util";
+import type { OsmHospitalAreas } from "./hospitals";
 
 const FALLBACK_OVERTURE_RELEASE = "2026-08-19.0";
 
@@ -120,6 +121,39 @@ export async function extractOverturePlaces(): Promise<{ glob: string; release: 
       AND coalesce(operating_status, 'open') <> 'permanently_closed'`,
   });
   return { glob, release };
+}
+
+/** OpenStreetMap's hospitals (amenity=hospital grounds), as Overture's
+ *  base theme carries them: land use "medical", class "hospital"
+ *  (2026-11-10, the worldwide audit: Overture's places come from business
+ *  listings, thin in China, Iran, Central Asia and much of Africa, where
+ *  OpenStreetMap maps hospitals - 46 around Weifang, 145 in Tehran, 80 in
+ *  Tashkent, against a handful of listings). The centre of each one's box,
+ *  and the box. */
+export async function extractOvertureMedical(): Promise<{ glob: string; release: string }> {
+  const release = await resolveOvertureRelease();
+  const glob = await extractParts(release, {
+    name: "medical-v1",
+    source: "theme=base/type=land_use",
+    select: `
+      round((bbox.xmin + bbox.xmax) / 2, 5) AS lng,
+      round((bbox.ymin + bbox.ymax) / 2, 5) AS lat,
+      round(bbox.xmin, 5) AS xmin,
+      round(bbox.ymin, 5) AS ymin,
+      round(bbox.xmax, 5) AS xmax,
+      round(bbox.ymax, 5) AS ymax,
+      names."primary" AS name`,
+    where: `subtype = 'medical' AND class = 'hospital'`,
+  });
+  return { glob, release };
+}
+
+export async function loadOsmHospitalAreas(glob: string): Promise<OsmHospitalAreas> {
+  const instance = await DuckDBInstance.create(":memory:");
+  const con = await instance.connect();
+  const rows = (await con.runAndReadAll(`SELECT lng, lat, name, xmin, ymin, xmax, ymax FROM read_parquet('${glob}') WHERE name IS NOT NULL`)).getRows();
+  const col = (k: number) => Float64Array.from(rows, (r) => Number(r[k]));
+  return { lng: col(0), lat: col(1), names: rows.map((r) => String(r[2])), xmin: col(3), ymin: col(4), xmax: col(5), ymax: col(6) };
 }
 
 /** Urban rail track from Overture's transportation theme (OpenStreetMap
@@ -327,9 +361,9 @@ export async function loadOvertureCategory(file: string, cat: number | string, w
   return { lng, lat, names };
 }
 
-// `tsx pipeline/overture.ts [places|rail|beaches]` pre-extracts ahead of a build.
+// `tsx pipeline/overture.ts [places|rail|beaches|medical]` pre-extracts ahead of a build.
 if (process.argv[1]?.endsWith("overture.ts")) {
-  (process.argv[2] === "rail" ? extractOvertureRail() : process.argv[2] === "beaches" ? extractOvertureBeaches() : extractOverturePlaces()).catch((err) => {
+  (process.argv[2] === "rail" ? extractOvertureRail() : process.argv[2] === "beaches" ? extractOvertureBeaches() : process.argv[2] === "medical" ? extractOvertureMedical() : extractOverturePlaces()).catch((err) => {
     console.error(err);
     process.exit(1);
   });

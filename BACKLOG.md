@@ -108,6 +108,32 @@ its icon's colour, a drawn close cross).
      (would find "Greater London" and the like), worldwide - ~1 session.
    - Say on the map when an outline is the built-up area, not a legal
      border.
+   - Seen in the worldwide audit of 2026-11-10: some big places' outlines
+     are far too small, so their station or hospital counts as "nearest
+     2 km" rather than in the city - Bangkok (station 2.2 km from the
+     centre), Kinshasa (2.6 km), Tokyo's Shinagawa (21 km?), Hamburg-Nord.
+     Same fix: match by Wikidata id, and never keep an outline much
+     smaller than the built-up area around the centre.
+7b. **Data checks after the 2026-11-10 audit** (owner: "the same rigorous
+   approach on all cities in the world"). Done in the pipeline, live after
+   the next refresh: OpenStreetMap hospitals added (China 14% -> ~59% of
+   50k+ places with a hospital in the city, Iran 26% -> ~88%, Uzbekistan
+   16% -> ~86%), ~7,700 non-hospitals left out (Indonesia's and
+   Malaysia's small "Klinik"s, animal, dental and cosmetic hospitals in
+   Asia, vets in Brazil and France, booking desks, imaging units,
+   fundraising foundations), listings placed in the wrong country left
+   out ("... In Hyderabad" in London), funiculars and museum lines no
+   longer train stations. Still open:
+   - Hospitals misplaced within their own country ("Hospital Geral de
+     Benguela" listed in Luanda; Saskatoon's "Royal University Hospital"
+     in Ottawa): names can't tell a town from a saint or a province
+     ("Hospital de São José"), so these stay until a second source
+     (official hospital registers) can confirm them.
+   - North Korea, Mali, DR Congo, Ethiopia: still under half of big places
+     with a hospital in the city - few hospitals are mapped at all.
+   - Re-run the audit after each refresh (station and hospital shares per
+     country, odd names, big places with none):
+     `npx tsx scripts/audit-places.ts public/data/<version> <out dir>`.
 
 ## Accounts (owner, 2026-10-28)
 

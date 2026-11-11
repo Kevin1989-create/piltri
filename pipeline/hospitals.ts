@@ -11,6 +11,12 @@
  * or eye-laser "hospital" doesn't, nor a ward or a hospital's office; and
  * of several within HOSPITAL_SAME_SITE_KM, one is kept (the shortest
  * name, usually the hospital itself rather than one of its departments).
+ *
+ * Since the worldwide audit of 2026-11-10 (owner: "apply the same rigorous
+ * approach on all cities in the world"): names are matched without their
+ * accents; OpenStreetMap's hospitals are added where Overture's listings
+ * are thin (keepHospitals); listings placed far from the hospital they are
+ * are left out (placedRightTest).
  */
 
 const HOSPITAL_WORDS = [
@@ -37,7 +43,8 @@ const HOSPITAL_WORDS = [
   String.raw`\bmaternit[eé](?![a-z])`,
   String.raw`krankenhaus`,
   String.raw`klinikum`,
-  String.raw`klinik\b`, // Klinik, Privatklinik, Kinderklinik, Augenklinik
+  // (A plain "Klinik" counts only where German is spoken - GERMAN_BOXES:
+  // in Indonesia, Malaysia, Turkey and the Nordics it's a clinic.)
   String.raw`\bcharit[eé](?![a-z])`,
   String.raw`\bspital\b`,
   String.raw`notaufnahme`,
@@ -170,7 +177,25 @@ const NOT_A_HOSPITAL = new RegExp(
     // réadaptation).
     String.raw`\bssr\b|soins de suite|r[eé]adaptation|r[eé][ée]ducation|rehabilita|\brehab\b|reha-?klinik|kurklinik|convalescen`,
     // Practices named "clinique" (an osteopath's, a beauty clinic).
-    String.raw`ost[eé]opath|chiropract|physioth|kin[eé]sith|podolog|psycholog|psychoth[eé]rap|orthophon|est?h[eé]ti|aesthetic|cosmetic|\blaser\b|massage|\bspa\b`,
+    String.raw`ost[eé]opath|chiropract|physioth|kin[eé]sith|podolog|psycholog|psychoth[eé]rap|orthophon|est?h[eé]ti|aesthetic|cosmetic|laser|massage|\bspa\b`,
+    // The worldwide audit of 2026-11-10 (owner: "the same rigorous
+    // approach on all cities in the world"). Names are matched without
+    // their accents (plain()), so "Clinique Vétérinaire" and "Hospital
+    // Veterinário" no longer slip past "veterinar".
+    // Dental and animal hospitals in other languages and scripts.
+    String.raw`dentaire|dentale|dentario|stomatolog|tandarts|tandlaeg|tandlak|\bgigi\b|nha khoa|口腔|牙科|齿科|齒科|歯科|치과|ทันต`,
+    String.raw`veterin|dierenarts|dierenkliniek|\bhewan\b|haiwan|thu y\b|动物|動物|宠物|寵物|兽医|獸醫|동물|สัตว์|ветерин|ветклиник|بيطري|دامپزشک|\bpets\b`,
+    // Beauty and cosmetic surgery (IVF centres: IVF_ONLY below).
+    String.raw`beauty|plastic surg|美容|整形|医美|醫美|성형|피부과`,
+    // Offices and booking desks named after a hospital: a Thai hospital's
+    // "Dhaka Office", Italy's CUP (fundraising foundations: CHARITY below).
+    String.raw`\boffice\b|\bcup\b|appointment|booking|human resource|medical camp`,
+    // More of a hospital's parts: imaging, outpatient clinics, its
+    // pharmacy, a hospice (not Lyon's "Hospices Civils", its university
+    // hospitals, nor a French "Hôpital-Hospice", a small local hospital),
+    // its eye or university clinic; a "Barrio Hospital" (a
+    // neighbourhood); spa-cure and rehab clinics.
+    String.raw`radiolog|imaging|\bx-?ray\b|\bmri\b|\birm\b|scanner|ambulator|apothek|\bpharmacie\b|\bfarmacia\b|parafarmacia|(?<!(hopital|hospital)[- ])\bhospice\b|(eye|university|dental|outpatient) clinic\b|\bbarrio\b|\bkur\b|klimakur|\breha\b`,
     // Suppliers, care homes, and places named by a hospital they're near.
     String.raw`equipment|supplies|supplier|einrichtungen|technolog|installation|pflegeheim|pflegezentrum|nursing home|care home|ehpad|maison de retraite|retirement`,
     String.raw`\bnear\b|\bopp(osite)?\.?\s|bus stop|\bstop\b|\barr[eê]t\b|\bparada\b|バス停|停留所|入口`,
@@ -183,20 +208,164 @@ const NOT_A_HOSPITAL = new RegExp(
 
 export const HOSPITAL_SAME_SITE_KM = 0.3;
 
-export function isHospitalName(name: string | null | undefined, lng?: number, lat?: number): boolean {
-  if (!name || NOT_A_HOSPITAL.test(name)) return false;
-  if (lng != null && lat != null && inJapan(lng, lat)) return /病院/.test(name) || (!/医院/.test(name) && (HOSPITAL_NAME.test(name) || ER.test(name)));
-  return HOSPITAL_NAME.test(name) || ER.test(name);
+/** Germany, Austria and Switzerland (with a little of their neighbours),
+ *  where a "Klinik" is a hospital - elsewhere (Indonesia, Malaysia,
+ *  Turkey, the Nordics) it's a clinic (2026-11-10 audit: "Klinik Shine
+ *  Beauty Care Surabaya"). */
+const GERMAN_BOXES: [number, number, number, number][] = [
+  [5.8, 47.2, 15.1, 54.95],
+  [9.5, 46.35, 17.2, 49.05],
+  [5.9, 45.8, 10.5, 47.85],
+];
+const inGermanArea = (lng: number, lat: number) => GERMAN_BOXES.some(([x0, y0, x1, y1]) => lng >= x0 && lng <= x1 && lat >= y0 && lat <= y1);
+const KLINIK = /klinik\b/i;
+
+/** The name without accents ("Vétérinaire" -> "Veterinaire", "Bệnh viện"
+ *  -> "Benh vien"); other scripts are left as they are (recomposed after
+ *  the Latin marks go, so Korean, Japanese and the rest read as before). */
+export function plain(name: string): string {
+  return name.normalize("NFD").replace(/[̀-ͯ]/g, "").normalize("NFC");
 }
 
-/** The hospitals among Overture's: named as one, one per site. */
+const namedAsHospital = (name: string, p: string) => HOSPITAL_NAME.test(name) || HOSPITAL_NAME.test(p) || ER.test(name);
+
+/** An IVF or fertility centre - unless the name says it's a hospital that
+ *  also does IVF ("Kilkari Hospital and IVF Centre", "MAA Women's Hospital
+ *  and IVF Center"). */
+const IVF = /\bivf\b|fertility/i;
+const ALSO_A_HOSPITAL = /hospitals?\s*(&|and)\s|multi ?speciality|multispecialty|\bgeneral\b/i;
+/** A hospital's fundraising charity ("St. Michael's Hospital Foundation",
+ *  "Jersey City Medical Center Foundation") - in North America only: in
+ *  the Philippines "... Hospital Foundation Inc." is the hospital. */
+const CHARITY = /(hospital|medical cent(er|re)|health(care)?) foundation$/i;
+const inNorthAmerica = (lng: number, lat: number) => lng >= -170 && lng <= -50 && lat >= 14 && lat <= 75;
+
+export function isHospitalName(name: string | null | undefined, lng?: number, lat?: number): boolean {
+  if (!name) return false;
+  const p = plain(name);
+  if (NOT_A_HOSPITAL.test(p)) return false;
+  if (IVF.test(p) && !ALSO_A_HOSPITAL.test(p)) return false;
+  const located = lng != null && lat != null;
+  if (located && inNorthAmerica(lng, lat) && CHARITY.test(p.trim())) return false;
+  if (located && inJapan(lng, lat)) return /病院/.test(name) || (!/医院/.test(name) && namedAsHospital(name, p));
+  return namedAsHospital(name, p) || (KLINIK.test(p) && (!located || inGermanArea(lng, lat)));
+}
+
+/** An OpenStreetMap hospital (amenity=hospital, via Overture's land use):
+ *  the map's mappers already said it's a hospital, so its name needn't -
+ *  "Charité", "人民医院" and "Pitié-Salpêtrière" alike - but it must have
+ *  one, and not be a dental, animal or rehab "hospital" or a department -
+ *  nor a health post, polyclinic or GP practice tagged as a hospital
+ *  (HEALTH_CENTRE: "Poste de santé", "Поликлиника", "Hosana Health
+ *  Center"), unless its name also says hospital. */
+export function isOsmHospitalName(name: string | null | undefined): boolean {
+  if (!name) return false;
+  const p = plain(name);
+  if (NOT_A_HOSPITAL.test(p)) return false;
+  return !HEALTH_CENTRE.test(p) || namedAsHospital(name, p);
+}
+
+/** Health centres, posts, dispensaries, polyclinics and doctors' offices -
+ *  in OpenStreetMap sometimes tagged as hospitals (the 2026-11-10 audit:
+ *  Africa's "centres de santé", Central Asia's polyclinics). A Malian
+ *  "centre de santé de référence" is a district hospital (HOSPITAL_WORDS
+ *  has csref), and counts. */
+const HEALTH_CENTRE = new RegExp(
+  [
+    String.raw`cent(re|ro|er) de sant[eé]|centro de salud|centro de saude|health (centre|center|post|unit|clinic|station)|poste de sant[eé]|post de sant[eé]`,
+    String.raw`\bcds\b|\bcs\b|\bcsps\b|\bcsi\b|\bcms\b|\bcsb\b|\bcsc\b|\bphc\b|\bpuskesmas\b|\bcesfam\b|\bubs\b|\bfap\b`,
+    // Family-planning clinics (Burundi's ABUBEF, Togo's ATBEF...).
+    String.raw`abubef|atbef|a t b e f|acabef|bien[- ]etre familial|planning familial|family planning`,
+    String.raw`dispensa|polyclini|policlini|poliklini|cabinet m[eé]dical|family (medicine|health|doctor)|mjekesise familjare|primary health|maternity home`,
+    "поликлини|амбулатор|фельдшер|фап|физиотерап|клиника|медпункт|здравпункт|диспансер",
+  ].join("|"),
+  "i"
+);
+
+/** OpenStreetMap's hospital grounds (Overture land use, medical /
+ *  hospital): the centre of each one's box, and the box. */
+export interface OsmHospitalAreas {
+  lng: ArrayLike<number>;
+  lat: ArrayLike<number>;
+  names: ArrayLike<string | null>;
+  xmin: ArrayLike<number>;
+  ymin: ArrayLike<number>;
+  xmax: ArrayLike<number>;
+  ymax: ArrayLike<number>;
+}
+
+/** A hospital's grounds count as its site up to this size (half the box's
+ *  diagonal); a bigger box is a whole medical district, with several
+ *  hospitals in it, and falls back to HOSPITAL_SAME_SITE_KM. */
+const OSM_SITE_MAX_KM = 1;
+/** A listing this close outside the grounds' box is still that hospital
+ *  (its entrance, its car park across the road). */
+const OSM_SITE_MARGIN_DEG = 0.1 / 111.32;
+
+/** The hospitals: Overture's places named as one, and (2026-11-10, the
+ *  worldwide audit - Overture's places are thin in China, Iran, Central
+ *  Asia and much of Africa) OpenStreetMap's hospital grounds; one per
+ *  site. A place `placedRight` rejects - its address in another country,
+ *  or another town far away - is left out. */
 export function keepHospitals<T extends { lng: ArrayLike<number>; lat: ArrayLike<number>; names?: ArrayLike<string | null> | null }>(
-  points: T
-): { lng: number[]; lat: number[]; names: string[] } {
+  points: T,
+  osm?: OsmHospitalAreas | null,
+  placedRight?: (i: number) => boolean
+): { lng: number[]; lat: number[]; names: string[]; fromOsm: number; misplaced: number } {
+  const out = { lng: [] as number[], lat: [] as number[], names: [] as string[], fromOsm: 0, misplaced: 0 };
+  // OpenStreetMap's first, the biggest grounds first (a campus before the
+  // buildings mapped inside it); a smaller one inside a kept box is the
+  // same hospital.
+  const sites: { x0: number; y0: number; x1: number; y1: number }[] = [];
+  const siteGrid = new Map<string, number[]>();
+  const GRID = 0.05; // degrees, ~5 km: every box under OSM_SITE_MAX_KM fits in its cell and the next
+  const siteAt = (lng: number, lat: number) => {
+    const cx = Math.floor(lng / GRID);
+    const cy = Math.floor(lat / GRID);
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++)
+        for (const k of siteGrid.get(`${cx + dx},${cy + dy}`) ?? []) {
+          const s = sites[k];
+          if (lng >= s.x0 - OSM_SITE_MARGIN_DEG && lng <= s.x1 + OSM_SITE_MARGIN_DEG && lat >= s.y0 - OSM_SITE_MARGIN_DEG && lat <= s.y1 + OSM_SITE_MARGIN_DEG) return true;
+        }
+    return false;
+  };
+  if (osm) {
+    const order: number[] = [];
+    for (let i = 0; i < osm.lng.length; i++) if (isOsmHospitalName(osm.names[i])) order.push(i);
+    const halfKm = (i: number) => {
+      const kx = Math.cos((osm.lat[i] * Math.PI) / 180);
+      return (Math.hypot((osm.xmax[i] - osm.xmin[i]) * kx, osm.ymax[i] - osm.ymin[i]) * 111.32) / 2;
+    };
+    order.sort((a, b) => halfKm(b) - halfKm(a));
+    for (const i of order) {
+      if (siteAt(osm.lng[i], osm.lat[i])) continue;
+      const small = halfKm(i) <= OSM_SITE_MAX_KM;
+      const r = (HOSPITAL_SAME_SITE_KM / 2) / 111.32;
+      sites.push(
+        small
+          ? { x0: osm.xmin[i], y0: osm.ymin[i], x1: osm.xmax[i], y1: osm.ymax[i] }
+          : { x0: osm.lng[i] - r, y0: osm.lat[i] - r, x1: osm.lng[i] + r, y1: osm.lat[i] + r }
+      );
+      const key = `${Math.floor(osm.lng[i] / GRID)},${Math.floor(osm.lat[i] / GRID)}`;
+      if (!siteGrid.has(key)) siteGrid.set(key, []);
+      siteGrid.get(key)!.push(sites.length - 1);
+      out.lng.push(osm.lng[i]);
+      out.lat.push(osm.lat[i]);
+      out.names.push(osm.names[i]!);
+      out.fromOsm++;
+    }
+  }
   const named: { lng: number; lat: number; name: string }[] = [];
   for (let i = 0; i < points.lng.length; i++) {
     const name = points.names?.[i] ?? null;
-    if (isHospitalName(name, points.lng[i], points.lat[i])) named.push({ lng: points.lng[i], lat: points.lat[i], name: name! });
+    if (!isHospitalName(name, points.lng[i], points.lat[i])) continue;
+    if (placedRight && !placedRight(i)) {
+      out.misplaced++;
+      continue;
+    }
+    if (siteAt(points.lng[i], points.lat[i])) continue; // OpenStreetMap has it
+    named.push({ lng: points.lng[i], lat: points.lat[i], name: name! });
   }
   // Shortest names first: "The Mount Sinai Hospital" before "Pulmonology
   // Services at Mount Sinai Hospital"; then one per site, on a grid of
@@ -204,7 +373,6 @@ export function keepHospitals<T extends { lng: ArrayLike<number>; lat: ArrayLike
   named.sort((a, b) => a.name.length - b.name.length);
   const cellDeg = HOSPITAL_SAME_SITE_KM / 111.32;
   const taken = new Map<string, { lng: number; lat: number }[]>();
-  const out = { lng: [] as number[], lat: [] as number[], names: [] as string[] };
   for (const p of named) {
     const cx = Math.floor(p.lng / cellDeg);
     const cy = Math.floor(p.lat / cellDeg);
@@ -227,4 +395,122 @@ export function keepHospitals<T extends { lng: ArrayLike<number>; lat: ArrayLike
     out.names.push(p.name);
   }
   return out;
+}
+
+/* ------------------------------------------------------------------ */
+/* Listings placed far from their hospital                              */
+/* ------------------------------------------------------------------ */
+
+/** "Hospital Geral de Benguela" -> "hospital geral de benguela". */
+export const nameKey = (name: string) => plain(name).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+const kmBetween = (lng1: number, lat1: number, lng2: number, lat2: number) => {
+  const r = Math.PI / 180;
+  const a = Math.sin(((lat2 - lat1) * r) / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(((lng2 - lng1) * r) / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(a));
+};
+
+/** Words of a hospital's name that are also towns somewhere ("Central",
+ *  "Hospital" in Ireland and Chile, "Victoria") - never taken as the town
+ *  it names. */
+const NOT_A_TOWN = /^(hospital|hospitals|general|central|regional|district|provincial|municipal|national|university|universitario|universitaire|medical|center|centre|santa|santo|san|saint|st|mercy|victoria|union|memorial|clinic|clinica|new|north|south|east|west|city|county|mission|christian|baptist|royal|hope|grace|good|liberty|independence|progreso|esperanza|libertad|paz|la|el|de|del|do|da|des|du|the|and|of|in)$/;
+
+/** Where a name says, in so many words, which town the hospital is in:
+ *  "... in Hyderabad", "Renmin Hospital of Wuhan University", a town alone
+ *  before or after a comma ("Patna, Kurji Hospital", "Lucena Doctor's
+ *  Hospital, Lucena City"). The words must be the town's whole name -
+ *  "Hospital de São José", "Hospital Provincial de Gaza" (Mozambique's) and
+ *  "St George's Hospital" name a saint, a province, a person. */
+const IN_TOWN = /\bin ((?:[a-z]+ ?){1,3})$/;
+const OF_TOWN_UNIVERSITY = /\bof ((?:[a-z]+ ?){1,2}) university\b/;
+const LEADING_TOWN = /^([^,]{3,30}),/;
+const TRAILING_TOWN = /,\s*([^,]{3,30})$/;
+
+/** The town named is in another country, this far away at least, with no
+ *  town of that name in the listing's own country... */
+const TOWN_FAR_KM = 500;
+/** ...and one of that name is big enough to be the one meant... */
+const TOWN_FAR_MIN_POPULATION = 50_000;
+/** ...and no town within this of the listing has a name the words start
+ *  (a branch: "Peking University Shenzhen Hospital" in Shenzhen). */
+const TOWN_NEAR_KM = 50;
+
+/** Overture listings placed in another country than the hospital they are
+ *  (2026-11-10, the worldwide audit: "Patna, Kurji Hospital" and
+ *  "Multispeciality Hospitals In Hyderabad" in London, Wuhan's "Renmin
+ *  Hospital of Wuhan University" in Tokyo). Their address doesn't help:
+ *  it's geocoded from the same wrong point (Saskatoon's "Royal University
+ *  Hospital", listed in Ottawa, has an Ottawa address). Their name does,
+ *  when it says which town the hospital is in (IN_TOWN, OF_TOWN_UNIVERSITY,
+ *  a town alone by a comma) and that town is abroad - TOWN_FAR_KM+ away, none of that name
+ *  at home. A hospital merely named after a faraway city ("Berlin
+ *  Hospital" in Dubai, "King's College Hospital London" there too) says
+ *  nothing of where it is, and stays. Misplaced within a country ("Hospital
+ *  Geral de Benguela" in Luanda) is left as it is: "Hospital de X" names
+ *  saints, provinces and counties as often as towns ("Hospital de
+ *  Caridade São José", "Norfolk General Hospital") - tried and dropped the
+ *  same day.
+ *  Returns a test per listing: true when it's where it should be. */
+export function placedRightTest(
+  hosp: { lng: ArrayLike<number>; lat: ArrayLike<number>; names?: ArrayLike<string | null> | null },
+  places: { lng: number; lat: number; cityName: string; population: number; countryCode: string }[]
+): (i: number) => boolean {
+  type Town = { lng: number; lat: number; population: number; countryCode: string; key: string };
+  const townsByName = new Map<string, Town[]>();
+  const grid = new Map<string, Town[]>();
+  const cell = (lng: number, lat: number) => `${Math.floor(lng * 2)},${Math.floor(lat * 2)}`;
+  for (const p of places) {
+    const key = nameKey(p.cityName);
+    const t: Town = { lng: p.lng, lat: p.lat, population: p.population, countryCode: p.countryCode, key };
+    const c = cell(p.lng, p.lat);
+    if (!grid.has(c)) grid.set(c, []);
+    grid.get(c)!.push(t);
+    if (key.length < 4 || NOT_A_TOWN.test(key)) continue;
+    if (!townsByName.has(key)) townsByName.set(key, []);
+    townsByName.get(key)!.push(t);
+  }
+  /** Towns within ~50-100 km, nearest first. */
+  const around = (lng: number, lat: number) => {
+    const out: (Town & { km: number })[] = [];
+    const cx = Math.floor(lng * 2);
+    const cy = Math.floor(lat * 2);
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++)
+        for (const t of grid.get(`${cx + dx},${cy + dy}`) ?? []) out.push({ ...t, km: kmBetween(lng, lat, t.lng, t.lat) });
+    return out.sort((a, b) => a.km - b.km);
+  };
+  return (i: number) => {
+    const name = hosp.names?.[i];
+    if (!name) return true;
+    const lng = hosp.lng[i];
+    const lat = hosp.lat[i];
+    const near = around(lng, lat);
+    const home = near[0]?.countryCode;
+    if (!home) return true;
+    const k = nameKey(name);
+    const lower = plain(name).toLowerCase().trim();
+    const said = [IN_TOWN.exec(k)?.[1], OF_TOWN_UNIVERSITY.exec(k)?.[1], LEADING_TOWN.exec(lower)?.[1], TRAILING_TOWN.exec(lower)?.[1]]
+      .map((w) => (w ? nameKey(w).replace(/ city$/, "") : ""))
+      .filter((w) => w.length >= 4 && !NOT_A_TOWN.test(w) && townsByName.has(w));
+    const abroad = said.filter((t) => {
+      const towns = townsByName.get(t)!;
+      return (
+        !towns.some((x) => x.countryCode === home) &&
+        towns.some((x) => x.population >= TOWN_FAR_MIN_POPULATION) &&
+        Math.min(...towns.map((x) => kmBetween(lng, lat, x.lng, x.lat))) >= TOWN_FAR_KM
+      );
+    });
+    if (!abroad.length) return true;
+    // A town nearby in the name - its own, or one starting with its words
+    // ("Norfolk" for Norfolk County): a branch.
+    const close = near.filter((t) => t.km <= TOWN_NEAR_KM);
+    const words = k.split(" ");
+    for (let a = 0; a < words.length; a++)
+      for (let b = a + 1; b <= Math.min(words.length, a + 3); b++) {
+        const run = words.slice(a, b).join(" ");
+        if (run.length < 4 || NOT_A_TOWN.test(run)) continue;
+        if (close.some((t) => t.key === run || t.key.startsWith(run + " "))) return true;
+      }
+    return false;
+  };
 }

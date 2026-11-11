@@ -50,7 +50,7 @@ also picks up the latest published dataset.
 | Earthquakes (M5+ since 1970) | USGS catalogue | public domain |
 | Population growth 2020-2025 (5 km) | GHS-POP R2023A, 2020 and 2025 epochs, 1 km (EC JRC) | CC BY 4.0 |
 | Average (median) age (5 km) | WorldPop age structures R2025A, 2025, 1 km, constrained | CC BY 4.0 |
-| Nearest hospital, hospitals in the city | Overture Maps places (hospital, emergency department) - only those named as hospitals, in ~40 languages, one per site (`pipeline/hospitals.ts`, 2026-11-08: the category is two-thirds practices, clinics and wards) | CDLA-Permissive-2.0 |
+| Nearest hospital, hospitals in the city | Overture Maps places (hospital, emergency department) - only those named as hospitals, in ~40 languages, one per site (`pipeline/hospitals.ts`, 2026-11-08: the category is two-thirds practices, clinics and wards); since 2026-11-10 also OpenStreetMap's hospital grounds (amenity=hospital, via Overture's base theme, land use medical/hospital - ~62,600 after leaving out health posts and polyclinics), which fill China, Iran, Central Asia and much of Africa, where Overture's listings are thin; names matched without accents; listings placed in another country than the town their name gives left out | CDLA-Permissive-2.0; OpenStreetMap ODbL |
 | Armed conflict within 50 km, last 5 years | UCDP Georeferenced Event Dataset 26.1 | CC BY 4.0 |
 | Regional GDP per head - switched off 2026-10-30 (too old, whole regions, counted where people work; `pipeline/regionalGdp.ts` kept) | Kummu et al. GDP per capita v4 (Zenodo) - reported regional figures only, 2018+ | CC BY 4.0 |
 
