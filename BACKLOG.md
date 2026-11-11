@@ -95,15 +95,19 @@ its icon's colour, a drawn close cross).
    and metro lines in the city's data (simplified, from Overture rail)
    and draw them when the kind is ticked. ~1 session; adds to the dataset
    size.
-6. **Search an address inside a city** (owner's question; recommended).
-   - Free and offline: search the street and place names in the map tiles
-     already loaded for the city - streets, stations, shops, but no house
-     numbers. No new service.
-   - Full addresses with house numbers need a geocoding service while
-     people browse (Photon by Komoot or Nominatim, free with fair-use
-     limits): a second exception to the "no runtime data APIs" rule, like
-     the road journeys on 2026-10-16 - the owner's call.
-   Suggested: the offline search first.
+Done 2026-11-11: an address search on a city's map (owner chose full
+addresses through Photon, Komoot's free search over OpenStreetMap - the
+second live service after the road journeys; `lib/geocode.ts`,
+`components/explore/AddressSearch.tsx`). A magnifier under the spot
+button, or the spot button itself on a phone; the address picked becomes
+the spot. Results from the city's box, the city's own first.
+
+6. **Address search - follow-ups.** House numbers exist only where
+   OpenStreetMap has them (a missing one returns the street or a nearby
+   place); Photon throttles bursts (one question per pause in typing
+   today) - if it gets busy, host Photon's data ourselves or fall back to
+   the street names in the map's tiles. A link from the top search bar
+   ("an address in Olivet?") could make it easier to find.
 7. **City outlines: fewer estimated ones** (owner, 2026-10-28: "not only a
    London issue"). Of 146,800 places, 63% get an official border
    (OpenStreetMap, via Overture), 34% the built-up area estimated from the

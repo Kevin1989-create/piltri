@@ -224,7 +224,7 @@ const KLINIK = /klinik\b/i;
  *  -> "Benh vien"); other scripts are left as they are (recomposed after
  *  the Latin marks go, so Korean, Japanese and the rest read as before). */
 export function plain(name: string): string {
-  return name.normalize("NFD").replace(/[̀-ͯ]/g, "").normalize("NFC");
+  return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFC");
 }
 
 const namedAsHospital = (name: string, p: string) => HOSPITAL_NAME.test(name) || HOSPITAL_NAME.test(p) || ER.test(name);

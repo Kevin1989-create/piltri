@@ -10,6 +10,8 @@ import { drawsTilesAlways, hasMapPlaces, loadMapPlaces, MAP_LAYER_KINDS, osmPoiF
 import { cn } from "@/lib/cn";
 import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
 import { CloseButton } from "@/components/ui/CloseButton";
+import { AddressSearch } from "@/components/explore/AddressSearch";
+import { searchBoxFor } from "@/lib/geocode";
 import { addMapIcons, mapIconColor, mapIconId, mapIconUrl } from "@/components/explore/mapIcons";
 import { emphasizeStreets, muteBasemap, muteColor } from "@/lib/mapColors";
 import { INSIDE_KINDS, INSIDE_TRACK_ONLY, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
@@ -683,6 +685,9 @@ export function MapView({
   const [spotMode, setSpotMode] = useState<"a" | "b" | null>(null);
   const spotModeRef = useRef(spotMode);
   spotModeRef.current = spotMode;
+  // The address box, opened with its own button (components/explore/
+  // AddressSearch.tsx, 2026-11-11): an address picked becomes the spot.
+  const [addressOpen, setAddressOpen] = useState(false);
   const [spotA, setSpotA] = useState<SpotPoint | null>(null);
   const [spotB, setSpotB] = useState<SpotPoint | null>(null);
   const [spotNearest, setSpotNearest] = useState<{ key: string; kind: MapKind; label: string; name: string; lat: number; lng: number }[] | null>(null);
@@ -1585,11 +1590,20 @@ export function MapView({
   const expandTop = buttonsSmall ? 10 : 76;
   const layersTop = onToggleExpanded ? expandTop + BUTTON_STEP_PX : 76;
   const spotTop = layersTop + BUTTON_STEP_PX;
-  const listTop = (placeId ? spotTop : layersTop) + 35;
+  // The address search's button (2026-11-11), under the spot's - not on a
+  // phone's small map, which has no room for a fourth: there the spot
+  // button brings the address box along with "tap the map".
+  const addressButton = !!placeId && !buttonsSmall;
+  const addressTop = spotTop + BUTTON_STEP_PX;
+  const listTop = (placeId ? addressTop : layersTop) + 35;
+  /** The address box: opened with its button, or along with the wait for
+   *  a tap - on the expanded map, where there's room. */
+  const addressShown = !!placeId && listHere && (addressOpen || spotMode === "a");
   /** The shown box sits left of the buttons (under the strip, when it's
-   *  open). */
+   *  open, and under the address box). */
   const shownRight = buttonsRight + 36;
-  const shownTop = listOnTop ? 18 + topListHeight : 10;
+  const addressBoxTop = listOnTop ? 18 + topListHeight : 10;
+  const shownTop = addressBoxTop + (addressShown ? 54 : 0);
   /** The kinds the list offers: only those the city has places of
    *  (2026-11-06, owner) - not a No (its row still shows the nearest one),
    *  nor a line with no stop mapped (a tram's track). */
@@ -1644,6 +1658,7 @@ export function MapView({
     setSpotB(null);
     setSpotTarget(null);
     setSpotMode(null);
+    setAddressOpen(false);
   };
   /** The spot button on: waiting for a tap, or a spot on the map. Off: the
    *  spot goes, and the map back into the page if this button expanded it. */
@@ -1668,10 +1683,10 @@ export function MapView({
     // bottom) - not what it measures now, as it grows once its list is in.
     return { top: 70, right: 50, bottom: Math.round(box.clientHeight * 0.45) + 24 + 16, left: 40 };
   };
-  const frameSpots = (map: maplibregl.Map, points: { lat: number; lng: number }[], ms?: number) => {
+  const frameSpots = (map: maplibregl.Map, points: { lat: number; lng: number }[], ms?: number, maxZoom = 15) => {
     const bounds = new maplibregl.LngLatBounds();
     for (const p of points) bounds.extend([p.lng, p.lat]);
-    map.fitBounds(bounds, { padding: spotPadding(map), maxZoom: 15, ...cameraMotion(ms) });
+    map.fitBounds(bounds, { padding: spotPadding(map), maxZoom, ...cameraMotion(ms) });
   };
   /** Points brought into the room the spot's card leaves - only if one of
    *  them is outside it, and zooming out at most. */
@@ -1696,14 +1711,36 @@ export function MapView({
     frameSpots(map, b ? [a, b] : [a], ms);
     return true;
   };
-  const openSpot = (spot: SpotPoint) => {
+  const openSpot = (spot: SpotPoint, maxZoom?: number) => {
     linkSpotsRef.current = false;
     if (!spotsRef.current.a) spotFramedRef.current = true;
     setSpotA(spot);
     setSpotB(null);
     setSpotTarget(null);
     setLayersOpen(false);
-    if (mapRef.current) frameSpots(mapRef.current, [spot]);
+    if (mapRef.current) frameSpots(mapRef.current, [spot], undefined, maxZoom);
+  };
+  /** The address box's button: on, the map expands from the page like the
+   *  spot's (an address found is a spot); off with no spot, it goes back. */
+  const toggleAddress = () => {
+    if (addressOpen) {
+      closeAddress();
+    } else {
+      expandFor("spot");
+      setAddressOpen(true);
+    }
+  };
+  const closeAddress = () => {
+    setAddressOpen(false);
+    // The wait for a tap goes with it; a spot on the map stays.
+    if (spotsRef.current.a) setSpotMode(null);
+    else turnSpotOff();
+  };
+  /** An address picked: the spot, named after it, at street level. */
+  const pickAddress = (found: { lat: number; lng: number; title: string }) => {
+    setAddressOpen(false);
+    setSpotMode(null);
+    openSpot({ lat: found.lat, lng: found.lng, name: found.title }, 16);
   };
 
   // Spots from a shared link, once the map is up: framed now, and in place
@@ -2191,6 +2228,27 @@ export function MapView({
           ))}
         </div>
       )}
+      {addressShown && (
+        // The address box: left of the buttons, above what's shown.
+        <div style={{ top: addressBoxTop, right: shownRight, width: `min(22rem, calc(100% - ${shownRight + 10}px))` }} className={cn("absolute z-20", BUTTON_GLIDE)}>
+          <AddressSearch
+            placeName={areaName?.split(",")[0]}
+            box={searchBoxFor(
+              { lat, lng },
+              areaBoundsRef.current && {
+                west: areaBoundsRef.current.getWest(),
+                south: areaBoundsRef.current.getSouth(),
+                east: areaBoundsRef.current.getEast(),
+                north: areaBoundsRef.current.getNorth(),
+              }
+            )}
+            near={{ lat, lng }}
+            autoFocus={addressOpen}
+            onPick={pickAddress}
+            onClose={closeAddress}
+          />
+        </div>
+      )}
       {pickingDestination && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 rounded-pill bg-ink-900/80 text-white text-xs px-4 py-2">
           Click the map to place your second pin
@@ -2279,6 +2337,28 @@ export function MapView({
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z" />
                 <circle cx="12" cy="9.8" r="2.3" />
+              </svg>
+            </button>
+          )}
+          {addressButton && (
+            // Search an address (2026-11-11, owner): under the spot button -
+            // the address found becomes the spot.
+            <button
+              type="button"
+              onClick={toggleAddress}
+              aria-label="Search an address"
+              aria-pressed={addressOpen}
+              title={areaName ? `Search an address in ${areaName.split(",")[0]}` : "Search an address"}
+              style={{ top: addressTop, right: buttonsRight }}
+              className={cn(
+                "absolute z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
+                BUTTON_GLIDE,
+                addressOpen ? "bg-piltri-amber text-white" : "bg-white text-ink-900 hover:bg-surface-muted"
+              )}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="11" cy="11" r="6.5" />
+                <path d="M16 16l4.5 4.5" />
               </svg>
             </button>
           )}
@@ -2434,7 +2514,7 @@ export function MapView({
       )}
       {spotMode === "a" && (
         <div className="absolute bottom-8 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-pill bg-ink-900/80 py-1.5 pl-4 pr-1.5 text-xs text-white">
-          Tap the map to drop your spot
+          {addressShown ? "Tap the map, or search an address above" : "Tap the map to drop your spot"}
           <button type="button" onClick={cancelPlacing} className="rounded-pill bg-white/15 px-2.5 py-0.5 hover:bg-white/25">
             Cancel
           </button>

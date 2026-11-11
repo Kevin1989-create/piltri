@@ -98,9 +98,12 @@ Real Estate section** - no free, reliable global price source exists.
 
 - **Zero running cost, no live third-party data calls.** New data goes
   through the offline pipeline from free bulk sources; never a runtime API
-  or a paid tier. One approved exception (2026-10-16): road journeys on the
-  map ask the OpenStreetMap community's routing server (FOSSGIS OSRM,
-  `lib/routing.ts`), falling back to a straight line.
+  or a paid tier. Two approved exceptions: road journeys on the map ask
+  the OpenStreetMap community's routing server (2026-10-16; FOSSGIS OSRM,
+  `lib/routing.ts`), falling back to a straight line; and the map's
+  address search asks Photon, Komoot's free search over OpenStreetMap
+  (2026-11-11; `lib/geocode.ts`), only after a pause in typing - when it
+  doesn't answer, the box says so.
 - **Local figures are never estimated** (2026-10-24): a city version of a
   country figure only where a source reports or counts it for the place
   or its region; otherwise "No data" in the city block, the country figure
