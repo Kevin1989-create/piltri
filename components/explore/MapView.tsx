@@ -172,10 +172,10 @@ const BUTTON_STEP_PX = 37;
  *  at the map's pace (lib/motion.ts). */
 const BUTTON_GLIDE = "transition-[top,right] duration-[700ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none";
 
-/** The map list's Select all / Clear all: an icon and the words in a pill
- *  big enough to tap (2026-11-10, owner: the crosses were too small). */
+/** The filter bar's Select all / Clear all: an icon and the words, in a
+ *  pill like the bar's buttons. */
 const CLEAR_CLASS =
-  "inline-flex shrink-0 items-center gap-1 rounded-pill px-2.5 py-1.5 text-[13px] font-medium text-piltri-amber-dark transition-colors hover:bg-piltri-amber/10 disabled:bg-transparent disabled:text-ink-300";
+  "inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-pill border border-white bg-white pl-2 pr-2.5 text-[12px] font-medium text-piltri-amber-dark shadow-[0_1px_3px_rgba(30,26,22,0.18)] transition-colors hover:bg-piltri-amber/10 disabled:text-ink-300";
 
 /** The cursor while a tap places or moves a spot: the spot's pin itself,
  *  its tip on the point (2026-11-11, owner: "I don't like the black cross
@@ -397,22 +397,46 @@ const LAYER_LABELS: Record<InsideKind, string> = {
   mountain: "Mountains",
   forest: "Forests",
 };
+/** The filter bar's buttons: a word each, beside the icon (2026-11-11,
+ *  owner: "smaller"); the full name is the button's tooltip. */
+const BAR_LABELS: Record<InsideKind, string> = {
+  train: "Train",
+  metro: "Metro",
+  tram: "Tram",
+  bus: "Bus",
+  port: "Ferry",
+  nursery: "Nursery",
+  school: "School",
+  university: "University",
+  careHome: "Care home",
+  hospital: "Hospital",
+  intlAirport: "Airport",
+  localAirport: "Airfield",
+  beach: "Beach",
+  lakeBeach: "Lake beach",
+  mountain: "Mountain",
+  forest: "Forest",
+};
+/** "209", "1.2K", "23K" - a selected button's count. */
+const COMPACT_COUNT = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 
-/** Every place gets its icon - smaller zoomed out, never hidden (2026-10-29,
- *  on request: icons only, no dots) - and its name where there's room,
- *  from zoom 12 (thousands of names placed at once slowed the map). */
-/** Every place's name beside its icon, at every zoom, without a tap
- *  (2026-11-11, owner: the names "still don't appear unless I click" - they
- *  waited for zoom 12 when a kind had more than 10 places - "written
- *  below, in the colour of the flag?"): under the icon in its kind's
- *  colour (mapLabelColor), or above, right or left where under is taken;
- *  where no side is free the icon stands alone - the nearest places keep
- *  theirs (symbol-sort-key: rank). */
+/** Names beside the icons on the map: off for now (2026-11-11, owner,
+ *  after a day of them: "the name next to the flag is too much, let's
+ *  remove it at the moment") - a tap on an icon still names it. Set true to
+ *  bring them back as they were: under the icon in its kind's colour
+ *  (mapLabelColor), or above, right or left where under is taken; bus
+ *  stops from the tiles only from street level. */
+const PLACE_NAMES_SHOWN = false;
+/** Every place's icon - smaller zoomed out, never hidden (2026-10-29, on
+ *  request: icons only, no dots) - and, with PLACE_NAMES_SHOWN, its name
+ *  wherever there's room (2026-11-11, owner: names "written below, in the
+ *  colour of the flag"); where no side is free the icon stands alone - the
+ *  nearest places keep theirs (symbol-sort-key: rank). */
 const PLACE_ICON_LAYOUT = {
   "icon-allow-overlap": true,
   "icon-ignore-placement": true,
   "icon-size": ["interpolate", ["linear"], ["zoom"], 10, 0.5, 13, 0.7, 16, 0.9],
-  "text-field": ["get", "name"],
+  "text-field": PLACE_NAMES_SHOWN ? ["get", "name"] : "",
   "text-font": ["Noto Sans Bold"],
   "text-size": ["interpolate", ["linear"], ["zoom"], 10, 11, 15, 12.5],
   "text-variable-anchor": ["top", "bottom", "right", "left"],
@@ -674,7 +698,6 @@ export function MapView({
   // lists that fade as it closes.
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const locatorWrapRef = useRef<HTMLDivElement | null>(null);
-  const listColumnRef = useRef<HTMLDivElement | null>(null);
   const curtainRef = useRef<Animation[]>([]);
   // The expanded layout effect framed the map in this commit: the focus
   // effect, running after it, doesn't start the same move again (two moves
@@ -1054,16 +1077,16 @@ export function MapView({
     map.on("movestart", (e) => {
       if ((e as { originalEvent?: Event }).originalEvent) linkSpotsRef.current = false;
     });
-    // Touching the map closes the layer list - and means the expanded map is
-    // being looked at, so it stays expanded (expandedByRef). A tap placing
-    // a spot is the spot button's.
-    const closeList = () => {
+    // Touching the map means the expanded map is being looked at: it stays
+    // expanded when the filter bar's button is turned off (expandedByRef).
+    // The bar itself stays - it's a row of buttons, not a window over the
+    // map (2026-11-11, owner).
+    const lookedAt = () => {
       if (!listShownRef.current || spotModeRef.current) return;
-      setLayersOpen(false);
-      releaseForRef.current("list", false);
+      expandedByRef.current = null;
     };
-    map.on("mousedown", closeList);
-    map.on("touchstart", closeList);
+    map.on("mousedown", lookedAt);
+    map.on("touchstart", lookedAt);
 
     map.on("load", () => {
       mapLoadedRef.current = true;
@@ -1209,7 +1232,7 @@ export function MapView({
           ...PLACE_ICON_LAYOUT,
           "icon-image": ["get", "icon"],
           "symbol-sort-key": ["get", "rank"],
-          "text-field": ["case", ["to-boolean", ["get", "quiet"]], "", ["get", "name"]],
+          "text-field": PLACE_NAMES_SHOWN ? ["case", ["to-boolean", ["get", "quiet"]], "", ["get", "name"]] : "",
         } as any,
         paint: PLACE_ICON_PAINT as any,
       });
@@ -1225,7 +1248,7 @@ export function MapView({
           // The tiles' own places (bus stops above all - hundreds in a
           // town): named from street level only, so the city's own places
           // (stations, schools, hospitals) keep their names around them.
-          layout: { ...PLACE_ICON_LAYOUT, visibility: "none", "icon-image": mapIconId(kind), "text-field": ["step", ["zoom"], "", 15, ["get", "name"]] } as any,
+          layout: { ...PLACE_ICON_LAYOUT, visibility: "none", "icon-image": mapIconId(kind), "text-field": PLACE_NAMES_SHOWN ? ["step", ["zoom"], "", 15, ["get", "name"]] : "" } as any,
           paint: { ...PLACE_ICON_PAINT, "text-color": mapLabelColor(kind) } as any,
         });
       }
@@ -1623,10 +1646,13 @@ export function MapView({
     };
   }, [mapReady, layerKinds, lat, lng, focusKind, loadInside]);
 
-  // The list closes with the expanded map, and a spot waiting to be placed
+  // The filter bar comes with the expanded map (2026-11-11, owner: "only
+  // the buttons at the top") and goes with it; a spot waiting to be placed
   // is let go.
   useEffect(() => {
-    if (!listHere) {
+    if (listHere) {
+      setLayersOpen(true);
+    } else {
       setLayersOpen(false);
       setSpotMode(null);
       expandedByRef.current = null;
@@ -1640,7 +1666,9 @@ export function MapView({
   // in the middle of the map"): along the top, over a few lines.
   const landscapeShort = useMediaQuery("(orientation: landscape) and (max-height: 520px)");
   const wideScreen = useMediaQuery("(min-width: 640px)");
-  const listOnTop = listShown && (landscapeShort || !wideScreen);
+  // The filter bar runs along the top on every screen (2026-11-11, owner:
+  // "the window is actually not needed ... only the buttons at the top").
+  const listOnTop = listShown;
   const topListRef = useRef<HTMLDivElement | null>(null);
   const [topListHeight, setTopListHeight] = useState(0);
   useEffect(() => {
@@ -1694,6 +1722,9 @@ export function MapView({
     setLayerKinds([]);
     if (focusKind) onCloseFocus?.();
   };
+  /** The tapped figure's chip: always without the filter bar; with it, only
+   *  for a journey or a kind the bar doesn't offer. */
+  const focusChip = !!focus && (!listOnTop || focus.style !== "pin" || !offeredKinds.includes(focus.kind as NearbyKind));
   /** One button for all and none (2026-11-11, owner: "an option to select
    *  all, and to remove all, ideally the same button"): with nothing shown,
    *  "Select all" ticks every kind the city has; with anything shown,
@@ -2189,7 +2220,7 @@ export function MapView({
     headingBackRef.current = true;
     map.easeTo({ ...back, padding: { ...NO_PADDING, bottom: Math.max(0, height - collapseTo) }, ...cameraMotion() });
     runCurtain(height, collapseTo);
-    for (const el of [topListRef.current, listColumnRef.current]) el?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-out", fill: "forwards" });
+    for (const el of [topListRef.current]) el?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-out", fill: "forwards" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collapseTo]);
 
@@ -2287,9 +2318,10 @@ export function MapView({
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
-      {(focus || shownLayers.length > 0) && !listOnTop && (
-        // (Not under a phone's open list: its own chips already say what's
-        // shown, and the map needs the room.)
+      {(focusChip || (shownLayers.length > 0 && !listOnTop)) && (
+        // (With the filter bar showing, only what its buttons can't: a
+        // journey, or a figure of a kind the bar doesn't offer - the bar's
+        // own buttons say which kinds are on, and how many.)
         // What's on the map, a chip per kind with its count and its close -
         // the same for a tapped figure and a kind ticked in the layer list
         // (2026-10-30, owner: "more consistent"), in a row along the top,
@@ -2310,7 +2342,7 @@ export function MapView({
             BUTTON_GLIDE
           )}
         >
-          {focus && (
+          {focus && focusChip && (
             <ShownChip
               kind={focus.kind}
               label={focus.style === "pin" ? LAYER_LABELS[focus.kind as InsideKind] ?? focus.title : focus.title}
@@ -2330,9 +2362,10 @@ export function MapView({
               onClose={() => onCloseFocus?.()}
             />
           )}
-          {shownLayers.map((kind) => (
-            <ShownChip key={kind} kind={kind} label={LAYER_LABELS[kind as InsideKind] ?? kind} detail={layerCountText(kind)} onClose={() => toggleLayer(kind)} />
-          ))}
+          {!listOnTop &&
+            shownLayers.map((kind) => (
+              <ShownChip key={kind} kind={kind} label={LAYER_LABELS[kind as InsideKind] ?? kind} detail={layerCountText(kind)} onClose={() => toggleLayer(kind)} />
+            ))}
         </div>
       )}
       {addressShown && (
@@ -2469,129 +2502,66 @@ export function MapView({
               </svg>
             </button>
           )}
-          {listOnTop &&
-            (() => {
-              const chips = (
-                <>
-                  {offeredKinds.map((kind) => {
-                    const on = layerKinds.includes(kind) || kind === focusKind;
-                    return (
-                      <button
-                        key={kind}
-                        type="button"
-                        role="menuitemcheckbox"
-                        aria-checked={on}
-                        onClick={() => toggleLayer(kind)}
-                        className={cn(
-                          "flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border py-[3px] pl-1 pr-2 text-[11px] transition-colors",
-                          on ? "border-piltri-amber bg-piltri-amber/10 font-medium text-ink-900" : "border-surface-border text-ink-700 hover:bg-surface-muted"
-                        )}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={mapIconUrl(kind)} alt="" width={16} height={16} />
-                        {LAYER_LABELS[kind as InsideKind]}
-                      </button>
-                    );
-                  })}
-                  {savedSpots.map((saved) => (
-                    <button
-                      key={`${saved.lat},${saved.lng}`}
-                      type="button"
-                      onClick={() => openSpot({ lat: saved.lat, lng: saved.lng, name: saved.name })}
-                      className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-surface-border py-[3px] pl-1.5 pr-2 text-[11px] text-ink-700 hover:bg-surface-muted"
-                    >
-                      <svg viewBox="0 0 24 24" width="11" height="11" fill={SPOT_COLOR} aria-hidden className="shrink-0">
-                        <path d="M12 20.3s-7.6-4.6-9.2-9.4C1.6 7.3 3.7 4.2 7 4.2c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.3 0 5.4 3.1 4.2 6.7-1.6 4.8-9.2 9.4-9.2 9.4z" />
-                      </svg>
-                      {saved.name ?? "Your spot"}
-                    </button>
-                  ))}
-                </>
-              );
-              const clear = allToggle();
-              return (
-                // On a phone, along the top of the map, left of the buttons
-                // (2026-11-08, owner: not over the middle of the city):
-                // upright, the kinds as chips over a few lines; on its side,
-                // in one row that scrolls sideways.
-                <div
-                  ref={topListRef}
-                  style={{ right: buttonsRight + 38 }}
-                  title={landscapeShort ? listNote : undefined}
-                  className={cn(
-                    "absolute left-[10px] top-[10px] z-20 rounded-xl bg-surface shadow-card motion-safe:animate-fade-in",
-                    landscapeShort ? "flex items-center gap-1.5 py-1 pl-2.5 pr-1" : "max-h-[46%] overflow-y-auto px-2 pb-2 pt-1.5"
-                  )}
-                >
-                  {landscapeShort ? (
-                    <>
-                      {clear}
-                      <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto py-0.5 [scrollbar-width:none]">{chips}</div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="-ml-1 flex items-center pb-1">{clear}</div>
-                      <div className="flex flex-wrap gap-1">{chips}</div>
-                      <p className="pl-0.5 pt-1.5 text-[10px] leading-snug text-ink-500">{listNote}</p>
-                    </>
-                  )}
-                </div>
-              );
-            })()}
-          {listShown && !listOnTop && (
-            // Right under the buttons, against the map's edge, narrow
-            // (2026-10-30, owner: "take less space from the map"); never
-            // taller than the map - it scrolls inside, under its title.
+          {listShown && (
+            // The filter bar (2026-11-11, owner: "the window is actually not
+            // needed ... only the buttons at the top, smaller, on all the
+            // screen horizontally ... click on the one you want, it changes
+            // colour and appears clicked"): a row of small buttons along the
+            // top of the map, left of the map's own buttons, scrolling
+            // sideways when they don't all fit (a mouse wheel scrolls it
+            // too). A kind on fills with its icon's colour and says how
+            // many. Select all / Clear all first; the spots saved here last.
             <div
-              ref={listColumnRef}
-              style={{ top: listTop, maxHeight: `calc(100% - ${listTop + 12 + (locatorShown ? locatorSize + 34 : 0)}px)` }}
-              className="absolute right-[10px] z-20 w-[180px] overflow-y-auto rounded-xl bg-surface px-1 pb-1 shadow-card motion-safe:animate-fade-in"
+              ref={topListRef}
+              role="toolbar"
+              aria-label="Places to show on the map"
+              title={listNote}
+              style={{ right: buttonsRight + 38 }}
+              onWheel={(e) => {
+                const el = e.currentTarget;
+                if (el.scrollWidth > el.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) el.scrollLeft += e.deltaY;
+              }}
+              className="absolute left-[10px] top-[10px] z-20 flex items-center gap-1.5 overflow-x-auto px-0.5 py-1 [scrollbar-width:none] motion-safe:animate-fade-in"
             >
-              {/* Select all / Clear all at the top, no title (2026-11-11,
-                  owner: "Show on the map" said nothing; one button for
-                  all and none). */}
-              <div className="sticky top-0 z-10 flex items-center bg-surface px-0.5 pb-0.5 pt-1">{allToggle()}</div>
+              {allToggle()}
               {offeredKinds.map((kind) => {
                 const on = layerKinds.includes(kind) || kind === focusKind;
+                const n = insideFigures?.[kind as InsideKind]?.count ?? layerCounts[kind]?.n ?? 0;
+                const color = mapIconColor(kind as MapKind);
                 return (
                   <button
                     key={kind}
                     type="button"
-                    role="menuitemcheckbox"
-                    aria-checked={on}
+                    aria-pressed={on}
+                    title={LAYER_LABELS[kind as InsideKind]}
                     onClick={() => toggleLayer(kind)}
-                    className={cn("flex w-full items-center gap-1.5 rounded-lg px-1.5 py-[3px] text-left text-[11px] text-ink-900 hover:bg-surface-muted", on && "font-medium")}
+                    style={on ? { backgroundColor: color, borderColor: color } : undefined}
+                    className={cn(
+                      "flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border pl-1 pr-2.5 text-[12px] font-medium shadow-[0_1px_3px_rgba(30,26,22,0.18)] transition-colors",
+                      on ? "text-white shadow-[inset_0_1px_2px_rgba(0,0,0,0.25)]" : "border-white bg-white text-ink-700 hover:bg-surface-muted"
+                    )}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={mapIconUrl(kind)} alt="" width={16} height={16} />
-                    <span className="min-w-0 flex-1 truncate">{LAYER_LABELS[kind as InsideKind]}</span>
-                    <span className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border text-[9px]", on ? "border-piltri-amber bg-piltri-amber text-white" : "border-ink-300")}>
-                      {on && "✓"}
-                    </span>
+                    <img src={mapIconUrl(kind)} alt="" width={22} height={22} className="shrink-0" />
+                    {BAR_LABELS[kind as InsideKind]}
+                    {on && n > 0 && <span className="font-normal text-white/85 tabular-nums">{COMPACT_COUNT.format(n)}</span>}
                   </button>
                 );
               })}
-              <p className="px-1.5 pb-0.5 pt-1 text-[10px] leading-snug text-ink-500">{listNote}</p>
-              {savedSpots.length > 0 && (
-                // The spots saved here, to go back to one.
-                <>
-                  <p className="px-1.5 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wide text-ink-500">Your spots</p>
-                  {savedSpots.map((saved) => (
-                    <button
-                      key={`${saved.lat},${saved.lng}`}
-                      type="button"
-                      onClick={() => openSpot({ lat: saved.lat, lng: saved.lng, name: saved.name })}
-                      className="flex w-full items-center gap-1.5 rounded-lg px-1.5 py-[3px] text-left text-[11px] text-ink-900 hover:bg-surface-muted"
-                    >
-                      <svg viewBox="0 0 24 24" width="12" height="12" fill={SPOT_COLOR} aria-hidden className="mx-0.5 shrink-0">
-                        <path d="M12 20.3s-7.6-4.6-9.2-9.4C1.6 7.3 3.7 4.2 7 4.2c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.3 0 5.4 3.1 4.2 6.7-1.6 4.8-9.2 9.4-9.2 9.4z" />
-                      </svg>
-                      <span className="min-w-0 flex-1 truncate">{saved.name ?? "Your spot"}</span>
-                      <span className="shrink-0 text-[10px] text-ink-500">{formatDistanceKm(straightLineKm({ lat, lng }, saved), prefs)}</span>
-                    </button>
-                  ))}
-                </>
-              )}
+              {savedSpots.map((saved) => (
+                <button
+                  key={`${saved.lat},${saved.lng}`}
+                  type="button"
+                  title={`Your spot, ${formatDistanceKm(straightLineKm({ lat, lng }, saved), prefs)} from the centre`}
+                  onClick={() => openSpot({ lat: saved.lat, lng: saved.lng, name: saved.name })}
+                  className="flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-white bg-white pl-2 pr-2.5 text-[12px] font-medium text-ink-700 shadow-[0_1px_3px_rgba(30,26,22,0.18)] hover:bg-surface-muted"
+                >
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill={SPOT_COLOR} aria-hidden className="shrink-0">
+                    <path d="M12 20.3s-7.6-4.6-9.2-9.4C1.6 7.3 3.7 4.2 7 4.2c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.3 0 5.4 3.1 4.2 6.7-1.6 4.8-9.2 9.4-9.2 9.4z" />
+                  </svg>
+                  {saved.name ?? "Your spot"}
+                </button>
+              ))}
             </div>
           )}
         </>
