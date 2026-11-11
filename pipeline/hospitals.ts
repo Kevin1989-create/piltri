@@ -219,6 +219,10 @@ const GERMAN_BOXES: [number, number, number, number][] = [
 ];
 const inGermanArea = (lng: number, lat: number) => GERMAN_BOXES.some(([x0, y0, x1, y1]) => lng >= x0 && lng <= x1 && lat >= y0 && lat <= y1);
 const KLINIK = /klinik\b/i;
+/** Named "Klinik ..." outside those countries: a clinic, even one inside a
+ *  hospital or called a medical centre ("Klinik Laktasi RSIA KMC", "Klinik
+ *  Arda Medical Center" - 31 were left in Indonesia on 2026-11-11). */
+const KLINIK_FIRST = /^\s*(poli)?klinik\b/i;
 
 /** The name without accents ("Vétérinaire" -> "Veterinaire", "Bệnh viện"
  *  -> "Benh vien"); other scripts are left as they are (recomposed after
@@ -247,6 +251,7 @@ export function isHospitalName(name: string | null | undefined, lng?: number, la
   if (IVF.test(p) && !ALSO_A_HOSPITAL.test(p)) return false;
   const located = lng != null && lat != null;
   if (located && inNorthAmerica(lng, lat) && CHARITY.test(p.trim())) return false;
+  if (located && KLINIK_FIRST.test(p) && !inGermanArea(lng, lat)) return false;
   if (located && inJapan(lng, lat)) return /病院/.test(name) || (!/医院/.test(name) && namedAsHospital(name, p));
   return namedAsHospital(name, p) || (KLINIK.test(p) && (!located || inGermanArea(lng, lat)));
 }
@@ -264,7 +269,9 @@ export function isOsmHospitalName(name: string | null | undefined, lng?: number,
   if (!name) return false;
   const p = plain(name);
   if (NOT_A_HOSPITAL.test(p)) return false;
-  const clinic = HEALTH_CENTRE.test(p) || (KLINIK.test(p) && lng != null && lat != null && !inGermanArea(lng, lat));
+  const elsewhere = lng != null && lat != null && !inGermanArea(lng, lat);
+  if (elsewhere && KLINIK_FIRST.test(p)) return false;
+  const clinic = HEALTH_CENTRE.test(p) || (KLINIK.test(p) && elsewhere);
   return !clinic || namedAsHospital(name, p);
 }
 
