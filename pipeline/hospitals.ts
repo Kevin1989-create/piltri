@@ -257,12 +257,15 @@ export function isHospitalName(name: string | null | undefined, lng?: number, la
  *  one, and not be a dental, animal or rehab "hospital" or a department -
  *  nor a health post, polyclinic or GP practice tagged as a hospital
  *  (HEALTH_CENTRE: "Poste de santé", "Поликлиника", "Hosana Health
- *  Center"), unless its name also says hospital. */
-export function isOsmHospitalName(name: string | null | undefined): boolean {
+ *  Center"; a "Klinik" outside the German-speaking countries - 52 were
+ *  left in Indonesia after the 2026-11-11 refresh), unless its name also
+ *  says hospital. */
+export function isOsmHospitalName(name: string | null | undefined, lng?: number, lat?: number): boolean {
   if (!name) return false;
   const p = plain(name);
   if (NOT_A_HOSPITAL.test(p)) return false;
-  return !HEALTH_CENTRE.test(p) || namedAsHospital(name, p);
+  const clinic = HEALTH_CENTRE.test(p) || (KLINIK.test(p) && lng != null && lat != null && !inGermanArea(lng, lat));
+  return !clinic || namedAsHospital(name, p);
 }
 
 /** Health centres, posts, dispensaries, polyclinics and doctors' offices -
@@ -292,6 +295,42 @@ export interface OsmHospitalAreas {
   ymin: ArrayLike<number>;
   xmax: ArrayLike<number>;
   ymax: ArrayLike<number>;
+  /** OpenStreetMap's emergency=* ("yes", "no"...), healthcare:speciality=*
+   *  and, in France, type:FR:FINESS=* (the official category) - null where
+   *  not tagged. */
+  emergency?: ArrayLike<string | null>;
+  speciality?: ArrayLike<string | null>;
+  finess?: ArrayLike<string | null>;
+}
+
+/** France's official categories (FINESS) that aren't acute-care hospitals:
+ *  109 rehabilitation (soins de suite et de réadaptation - Olivet's
+ *  Clinique de l'Archette), 292 and 161 psychiatric, 362 long-stay care,
+ *  141 and 146 dialysis, 127 hospital-at-home, 156, 366, 412, 415, 425,
+ *  430 and 444 psychiatric day care and aftercare. (101 regional and
+ *  university hospitals, 355 hospitals, 365 multi-discipline private
+ *  clinics and the rest stay.) */
+const FINESS_NOT_ACUTE = new Set(["109", "292", "161", "362", "141", "146", "127", "156", "366", "412", "415", "425", "430", "444"]);
+/** Specialities that, alone, make a place not the hospital you'd go to. */
+const SPECIALITY_NOT_ACUTE = /^(psychiatry|rehabilitation|physiatry|geriatrics|palliative|palliative_medicine|dialysis|addiction_medicine|child_psychiatry|psychotherapist|dermatology|plastic_surgery|ophthalmology|dentistry|fertility|vaccination)$/;
+
+/** An OpenStreetMap "hospital" that isn't an acute-care one, by its tags
+ *  (2026-11-11, owner's Olivet again: the rehab clinic he had flagged came
+ *  back through OpenStreetMap, where its tags say what it is): no
+ *  emergency department (emergency=no), a French category that isn't
+ *  acute care, or only non-acute specialities with no emergency
+ *  department. Untagged ones stay - most of the world's. */
+export function osmNotAcute(osm: OsmHospitalAreas, i: number): boolean {
+  const emergency = osm.emergency?.[i] ?? null;
+  if (emergency === "no") return true;
+  const finess = osm.finess?.[i] ?? null;
+  if (finess && FINESS_NOT_ACUTE.has(finess.trim())) return true;
+  const speciality = osm.speciality?.[i] ?? null;
+  if (speciality && emergency !== "yes") {
+    const parts = speciality.split(/[;,]/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+    if (parts.length && parts.every((s) => SPECIALITY_NOT_ACUTE.test(s))) return true;
+  }
+  return false;
 }
 
 /** A hospital's grounds count as its site up to this size (half the box's
@@ -311,8 +350,8 @@ export function keepHospitals<T extends { lng: ArrayLike<number>; lat: ArrayLike
   points: T,
   osm?: OsmHospitalAreas | null,
   placedRight?: (i: number) => boolean
-): { lng: number[]; lat: number[]; names: string[]; fromOsm: number; misplaced: number } {
-  const out = { lng: [] as number[], lat: [] as number[], names: [] as string[], fromOsm: 0, misplaced: 0 };
+): { lng: number[]; lat: number[]; names: string[]; fromOsm: number; misplaced: number; notAcute: number } {
+  const out = { lng: [] as number[], lat: [] as number[], names: [] as string[], fromOsm: 0, misplaced: 0, notAcute: 0 };
   // OpenStreetMap's first, the biggest grounds first (a campus before the
   // buildings mapped inside it); a smaller one inside a kept box is the
   // same hospital.
@@ -332,14 +371,16 @@ export function keepHospitals<T extends { lng: ArrayLike<number>; lat: ArrayLike
   };
   if (osm) {
     const order: number[] = [];
-    for (let i = 0; i < osm.lng.length; i++) if (isOsmHospitalName(osm.names[i])) order.push(i);
+    const notAcute: number[] = [];
+    for (let i = 0; i < osm.lng.length; i++) {
+      if (osmNotAcute(osm, i)) notAcute.push(i);
+      else if (isOsmHospitalName(osm.names[i], osm.lng[i], osm.lat[i])) order.push(i);
+    }
     const halfKm = (i: number) => {
       const kx = Math.cos((osm.lat[i] * Math.PI) / 180);
       return (Math.hypot((osm.xmax[i] - osm.xmin[i]) * kx, osm.ymax[i] - osm.ymin[i]) * 111.32) / 2;
     };
-    order.sort((a, b) => halfKm(b) - halfKm(a));
-    for (const i of order) {
-      if (siteAt(osm.lng[i], osm.lat[i])) continue;
+    const addSite = (i: number) => {
       const small = halfKm(i) <= OSM_SITE_MAX_KM;
       const r = (HOSPITAL_SAME_SITE_KM / 2) / 111.32;
       sites.push(
@@ -350,10 +391,23 @@ export function keepHospitals<T extends { lng: ArrayLike<number>; lat: ArrayLike
       const key = `${Math.floor(osm.lng[i] / GRID)},${Math.floor(osm.lat[i] / GRID)}`;
       if (!siteGrid.has(key)) siteGrid.set(key, []);
       siteGrid.get(key)!.push(sites.length - 1);
+    };
+    order.sort((a, b) => halfKm(b) - halfKm(a));
+    for (const i of order) {
+      if (siteAt(osm.lng[i], osm.lat[i])) continue;
+      addSite(i);
       out.lng.push(osm.lng[i]);
       out.lat.push(osm.lat[i]);
       out.names.push(osm.names[i]!);
       out.fromOsm++;
+    }
+    // Grounds OpenStreetMap says aren't acute care: not listed, and an
+    // Overture listing inside them isn't either (the same clinic under its
+    // business name). Inside a kept hospital's grounds they change nothing.
+    for (const i of notAcute) {
+      if (siteAt(osm.lng[i], osm.lat[i])) continue;
+      addSite(i);
+      out.notAcute++;
     }
   }
   const named: { lng: number; lat: number; name: string }[] = [];
@@ -494,10 +548,18 @@ export function placedRightTest(
       .filter((w) => w.length >= 4 && !NOT_A_TOWN.test(w) && townsByName.has(w));
     const abroad = said.filter((t) => {
       const towns = townsByName.get(t)!;
+      // A namesake at home counts unless it's a village far away next to
+      // the city abroad (2026-11-11: "Patna, Kurji Hospital" stayed in
+      // London because Scotland has a Patna of 2,000 people, 500 km off -
+      // India's has 1.7 million).
+      const biggestAbroad = Math.max(0, ...towns.filter((x) => x.countryCode !== home).map((x) => x.population));
+      const atHome = towns.some(
+        (x) => x.countryCode === home && (x.population * 20 >= biggestAbroad || kmBetween(lng, lat, x.lng, x.lat) <= 100)
+      );
       return (
-        !towns.some((x) => x.countryCode === home) &&
-        towns.some((x) => x.population >= TOWN_FAR_MIN_POPULATION) &&
-        Math.min(...towns.map((x) => kmBetween(lng, lat, x.lng, x.lat))) >= TOWN_FAR_KM
+        !atHome &&
+        towns.some((x) => x.countryCode !== home && x.population >= TOWN_FAR_MIN_POPULATION) &&
+        Math.min(...towns.filter((x) => x.countryCode !== home).map((x) => kmBetween(lng, lat, x.lng, x.lat))) >= TOWN_FAR_KM
       );
     });
     if (!abroad.length) return true;

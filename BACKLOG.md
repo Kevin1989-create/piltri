@@ -1,15 +1,22 @@
 # Piltri - backlog
 
 The owner's requests and planned work, roughly in order. Updated
-2026-10-30. When an item is done it leaves this list (the details live in
+2026-11-11. When an item is done it leaves this list (the details live in
 `HANDOFF.md` and the git history).
 
 ## Now
 
-- **Next refresh** (owner to run): brings Advanced search's "in the city"
-  filters and the local score into the world ranks, leaderboards and
-  search results (the city pages already show the new scores), and every
-  airport within 80 km (London: Heathrow, Gatwick, Stansted, Luton...).
+- **Next refresh** (owner to run; the one of 2026-11-11 ran before these):
+  "Bus stops" counted from every OpenStreetMap stop (London ~24,000, where
+  it showed 61 bus stations); OpenStreetMap hospitals kept only when
+  acute care (no rehab, psychiatric, long-stay or no-emergency grounds -
+  Olivet's rehab clinic came back through OpenStreetMap); "Patna, Kurji
+  Hospital" out of London; the last "Klinik"s out of Indonesia.
+- **Vercel's 10 GB of deployments is full again** (2026-11-11; ~530 MB a
+  deployment). Deployments still went through. Until item 13: delete old
+  deployments in Vercel, push in batches. Quicker than moving the site:
+  serve `public/data` from Cloudflare R2 (free to 10 GB, no download
+  fees), so a deployment is a few MB.
 - **WHO's data service is down** (since 2026-10-28): the national PM2.5
   estimate for small island countries outside the satellite map is left
   out (their towns show "No data" for air quality). The World Bank's copy

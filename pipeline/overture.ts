@@ -129,11 +129,14 @@ export async function extractOverturePlaces(): Promise<{ glob: string; release: 
  *  listings, thin in China, Iran, Central Asia and much of Africa, where
  *  OpenStreetMap maps hospitals - 46 around Weifang, 145 in Tehran, 80 in
  *  Tashkent, against a handful of listings). The centre of each one's box,
- *  and the box. */
+ *  and the box; and (v2, 2026-11-11: Olivet's rehab clinic came back
+ *  through OpenStreetMap) what its tags say of the care it gives - whether
+ *  it has an emergency department, its speciality, and France's official
+ *  category (FINESS) - for pipeline/hospitals.ts osmNotAcute. */
 export async function extractOvertureMedical(): Promise<{ glob: string; release: string }> {
   const release = await resolveOvertureRelease();
   const glob = await extractParts(release, {
-    name: "medical-v1",
+    name: "medical-v2",
     source: "theme=base/type=land_use",
     select: `
       round((bbox.xmin + bbox.xmax) / 2, 5) AS lng,
@@ -142,7 +145,10 @@ export async function extractOvertureMedical(): Promise<{ glob: string; release:
       round(bbox.ymin, 5) AS ymin,
       round(bbox.xmax, 5) AS xmax,
       round(bbox.ymax, 5) AS ymax,
-      names."primary" AS name`,
+      names."primary" AS name,
+      source_tags['emergency'] AS emergency,
+      source_tags['healthcare:speciality'] AS speciality,
+      source_tags['type:FR:FINESS'] AS finess`,
     where: `subtype = 'medical' AND class = 'hospital'`,
   });
   return { glob, release };
@@ -151,9 +157,23 @@ export async function extractOvertureMedical(): Promise<{ glob: string; release:
 export async function loadOsmHospitalAreas(glob: string): Promise<OsmHospitalAreas> {
   const instance = await DuckDBInstance.create(":memory:");
   const con = await instance.connect();
-  const rows = (await con.runAndReadAll(`SELECT lng, lat, name, xmin, ymin, xmax, ymax FROM read_parquet('${glob}') WHERE name IS NOT NULL`)).getRows();
+  const rows = (
+    await con.runAndReadAll(`SELECT lng, lat, name, xmin, ymin, xmax, ymax, emergency, speciality, finess FROM read_parquet('${glob}') WHERE name IS NOT NULL`)
+  ).getRows();
   const col = (k: number) => Float64Array.from(rows, (r) => Number(r[k]));
-  return { lng: col(0), lat: col(1), names: rows.map((r) => String(r[2])), xmin: col(3), ymin: col(4), xmax: col(5), ymax: col(6) };
+  const text = (k: number) => rows.map((r) => (r[k] == null ? null : String(r[k])));
+  return {
+    lng: col(0),
+    lat: col(1),
+    names: rows.map((r) => String(r[2])),
+    xmin: col(3),
+    ymin: col(4),
+    xmax: col(5),
+    ymax: col(6),
+    emergency: text(7),
+    speciality: text(8),
+    finess: text(9),
+  };
 }
 
 /** Urban rail track from Overture's transportation theme (OpenStreetMap

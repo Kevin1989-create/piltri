@@ -281,7 +281,7 @@ async function main() {
   const hospitals = keepHospitals(overtureHospitals, osmHospitals, placedRightTest(overtureHospitals, shortlist));
   log(
     "build",
-    `hospitals: ${hospitals.lng.length} - ${hospitals.fromOsm} from OpenStreetMap (of ${osmHospitals.lng.length} named grounds), the rest named as hospitals of ${overtureHospitals.lng.length} in Overture's category; ${hospitals.misplaced} listings far from their hospital left out`
+    `hospitals: ${hospitals.lng.length} - ${hospitals.fromOsm} from OpenStreetMap (of ${osmHospitals.lng.length} named grounds), the rest named as hospitals of ${overtureHospitals.lng.length} in Overture's category; ${hospitals.misplaced} listings far from their hospital and ${hospitals.notAcute} rehab, psychiatric and no-emergency grounds left out`
   );
   // Every Overture place of the kinds a city page counts "in the city"
   // (2026-10-29) - their places in each city, and the nearest anywhere.
