@@ -85,7 +85,7 @@ export function SpotCard(props: SpotCardProps) {
             </span>
           </button>
           {clear && (
-            <CloseButton label="Remove the second spot" onClick={clear} className="mr-0.5" />
+            <CloseButton label="Remove the second spot" onClick={clear} className="-my-1.5 mr-0.5" />
           )}
         </div>
         {selected && journey && (
@@ -118,7 +118,7 @@ export function SpotCard(props: SpotCardProps) {
           {/* 2026-11-07, owner: move it without closing the card. */}
           <p className="pt-0.5 text-[10px] leading-tight text-piltri-amber-dark">Tap anywhere on the map to move it</p>
         </div>
-        <CloseButton label="Remove the spot" onClick={props.onClose} className="-mr-1.5 -mt-1" />
+        <CloseButton label="Remove the spot" onClick={props.onClose} className="-mb-1.5 -mr-2 -mt-1.5" />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-1.5 py-1">

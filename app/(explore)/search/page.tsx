@@ -136,7 +136,7 @@ function Filters({ state, set }: { state: FinderState; set: (patch: Partial<Find
           </Chip>
         ))}
         {state.countries.map((cc) => (
-          <Chip key={cc} active onClick={() => set({ countries: toggle(state.countries, cc) })} icon={<CloseIcon className="h-3.5 w-3.5" strokeWidth={2.25} />}>
+          <Chip key={cc} active onClick={() => set({ countries: toggle(state.countries, cc) })} icon={<CloseIcon className="h-4 w-4" strokeWidth={2.25} />}>
             {countryName(cc)}
           </Chip>
         ))}
@@ -524,7 +524,7 @@ function SearchContent() {
             {chosen.length > 0 && (
               <div className="md:hidden mt-3 flex gap-1.5 overflow-x-auto no-scrollbar -mx-4 px-4">
                 {chosen.map((c) => (
-                  <Chip key={c.label} active onClick={c.remove} icon={<CloseIcon className="h-3.5 w-3.5" strokeWidth={2.25} />}>
+                  <Chip key={c.label} active onClick={c.remove} icon={<CloseIcon className="h-4 w-4" strokeWidth={2.25} />}>
                     {c.label}
                   </Chip>
                 ))}
@@ -555,7 +555,7 @@ function SearchContent() {
                   <p className="text-xs text-ink-500 mt-1">Remove one to widen the search:</p>
                   <div className="mt-3 flex flex-wrap justify-center gap-1.5">
                     {chosen.map((c) => (
-                      <Chip key={c.label} active onClick={c.remove} icon={<CloseIcon className="h-3.5 w-3.5" strokeWidth={2.25} />}>
+                      <Chip key={c.label} active onClick={c.remove} icon={<CloseIcon className="h-4 w-4" strokeWidth={2.25} />}>
                         {c.label}
                       </Chip>
                     ))}

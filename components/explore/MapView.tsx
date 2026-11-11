@@ -169,20 +169,22 @@ const BUTTON_GLIDE = "transition-[top,right] duration-[700ms] ease-[cubic-bezier
 /** The map list's "Clear": a cross and the word in a pill big enough to
  *  tap (2026-11-10, owner: the crosses were too small). */
 const CLEAR_CLASS =
-  "inline-flex shrink-0 items-center gap-1 rounded-pill px-2 py-1 text-xs font-medium text-piltri-amber-dark transition-colors hover:bg-piltri-amber/10 disabled:bg-transparent disabled:text-ink-300";
+  "inline-flex shrink-0 items-center gap-1 rounded-pill px-2.5 py-1.5 text-[13px] font-medium text-piltri-amber-dark transition-colors hover:bg-piltri-amber/10 disabled:bg-transparent disabled:text-ink-300";
 
 /** A line of the box saying what's on the map: the kind's icon, its name,
  *  how many (or how far), and its own close. */
 function ShownLine({ kind, label, detail, onClose }: { kind: MapKind; label: string; detail: string; onClose: () => void }) {
+  // A size up on 2026-11-11 (owner: "the small pop-up train station at the
+  // top is quite small, so the cross"): 14 px text, an 18 px icon.
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2 py-0.5">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={mapIconUrl(kind)} alt="" width={14} height={14} className="shrink-0" />
-      <span className="text-xs font-medium text-ink-900">
+      <img src={mapIconUrl(kind)} alt="" width={18} height={18} className="shrink-0" />
+      <span className="text-sm leading-snug font-medium text-ink-900">
         {label}
         {detail && <span className="font-normal text-ink-500"> · {detail}</span>}
       </span>
-      <CloseButton label={`Hide ${label}`} onClick={onClose} className="-my-1.5 -mr-1.5 ml-auto" />
+      <CloseButton label={`Hide ${label}`} onClick={onClose} className="-my-1.5 ml-auto" />
     </div>
   );
 }
@@ -2144,7 +2146,7 @@ export function MapView({
         // the same for a tapped figure and a kind ticked in the layer list,
         // always beside the buttons (2026-10-30, owner: "more consistent").
         // A journey adds the same one in Google Maps in a new tab.
-        <div style={{ top: shownTop, right: shownRight, maxWidth: `min(20rem, calc(100% - ${shownRight + 10}px))` }} className={cn("absolute z-10 rounded-2xl bg-surface py-0.5 pl-2.5 pr-0.5 shadow-card", BUTTON_GLIDE)}>
+        <div style={{ top: shownTop, right: shownRight, maxWidth: `min(24rem, calc(100% - ${shownRight + 10}px))` }} className={cn("absolute z-10 rounded-2xl bg-surface py-1 pl-3 pr-1 shadow-card", BUTTON_GLIDE)}>
           {focus && (
             <>
               <ShownLine
@@ -2166,10 +2168,10 @@ export function MapView({
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="ml-5 inline-flex items-center gap-1 pb-1 pr-2 text-[11px] font-medium text-piltri-amber-dark hover:underline underline-offset-2"
+                  className="ml-[26px] inline-flex items-center gap-1 pb-1.5 pr-2 text-xs font-medium text-piltri-amber-dark hover:underline underline-offset-2"
                 >
                   Open in Google Maps
-                  <ExternalLinkIcon className="w-3 h-3" />
+                  <ExternalLinkIcon className="w-3.5 h-3.5" />
                 </a>
               )}
             </>
@@ -2316,7 +2318,7 @@ export function MapView({
                   onClick={clearList}
                   className={CLEAR_CLASS}
                 >
-                  <CloseIcon className="h-3.5 w-3.5" strokeWidth={2.25} />
+                  <CloseIcon className="h-4 w-4" strokeWidth={2.25} />
                   Clear
                 </button>
               );
@@ -2371,7 +2373,7 @@ export function MapView({
                   onClick={clearList}
                   className={cn(CLEAR_CLASS, "-mr-1")}
                 >
-                  <CloseIcon className="h-3.5 w-3.5" strokeWidth={2.25} />
+                  <CloseIcon className="h-4 w-4" strokeWidth={2.25} />
                   Clear
                 </button>
               </div>

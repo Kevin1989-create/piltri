@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { BACK_LINK_CLASS } from "@/components/ui/BackLink";
+import { BACK_LINK_CLASS, BackArrow } from "@/components/ui/BackLink";
 import { ClimateChart } from "@/components/explore/ClimateChart";
 import { KpiInfoButton } from "@/components/explore/KpiInfo";
 import { ResourcesDetail } from "@/components/explore/ResourcesDetail";
@@ -84,7 +84,7 @@ function ReportContent() {
         {/* Opened in a new tab (from a city, or an Advanced search result):
          *  the way back is to the city itself. */}
         <Link href={data ? cityUrl(data.cityId) : HOME_URL} className={BACK_LINK_CLASS}>
-          <span aria-hidden className="text-base leading-none">←</span>
+          <BackArrow />
           {data ? `Back to ${data.cityName}` : "Back to home"}
         </Link>
         <button

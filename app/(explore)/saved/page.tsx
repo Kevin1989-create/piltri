@@ -273,7 +273,7 @@ export default function SavedPage() {
                         title="Remove"
                         className="flex w-12 shrink-0 items-center justify-center border-l border-surface-border text-ink-500 transition-colors hover:bg-ink-100/60 hover:text-ink-900"
                       >
-                        <CloseIcon className="h-4 w-4" strokeWidth={2} />
+                        <CloseIcon className="h-5 w-5" strokeWidth={2} />
                       </button>
                     </li>
                   ))}

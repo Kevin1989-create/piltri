@@ -131,7 +131,7 @@ export const KpiInfoButton = forwardRef<KpiInfoHandle, { row: KpiRow; className?
                   e.stopPropagation();
                   close();
                 }}
-                className="-mt-2 -mr-2"
+                className="-mb-3 -mr-2.5 -mt-2.5"
               />
             </div>
             <p className={cn("mt-0.5 text-sm font-semibold", row.colorClass ?? "text-ink-900")}>

@@ -50,17 +50,18 @@
     box-shadow: 0 4px 16px rgba(30, 26, 22, 0.16);
   }
   .piltri-place-popup .maplibregl-popup-close-button {
-    top: 4px;
-    right: 4px;
-    /* The site's one cross size (components/ui/CloseButton.tsx, 2026-11-10,
-     *  owner: "all crosses are too small"): 32 px to tap, a 16 px cross. */
-    width: 32px;
-    height: 32px;
+    top: 2px;
+    right: 2px;
+    /* The site's one cross size (components/ui/CloseButton.tsx, 2026-11-10
+     *  and 11, owner: "all crosses are too small", "can still be bigger"):
+     *  40 px to tap, a 20 px cross. */
+    width: 40px;
+    height: 40px;
     border-radius: 9999px;
     /* A drawn cross instead of the "×" character, which sits off-centre in
      *  most fonts. */
     font-size: 0;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 6l12 12M18 6L6 18' fill='none' stroke='%236b6155' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center / 16px no-repeat;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 6l12 12M18 6L6 18' fill='none' stroke='%236b6155' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center / 20px no-repeat;
   }
   .piltri-place-popup .maplibregl-popup-close-button:hover {
     background-color: #f1ece4;
@@ -73,7 +74,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding-right: 28px;
+    padding-right: 34px;
   }
   .piltri-place-card-head img {
     flex-shrink: 0;

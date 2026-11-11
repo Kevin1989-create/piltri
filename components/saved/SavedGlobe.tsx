@@ -366,7 +366,7 @@ export function SavedGlobe({ points, focusKey }: { points: GlobePoint[]; focusKe
               <p className="truncate font-serif text-base leading-tight text-ink-900 lining-nums">{selected.title}</p>
               <p className="truncate text-[11px] text-ink-500">{selected.subtitle}</p>
             </div>
-            <CloseButton label="Close" onClick={() => setSelected(null)} className="-mr-1.5 -mt-1.5" />
+            <CloseButton label="Close" onClick={() => setSelected(null)} className="-mb-2 -mr-2 -mt-2" />
           </div>
           <Link href={selected.href} className="mt-2 block rounded-pill bg-piltri-amber py-1.5 text-center text-xs font-medium text-white hover:bg-piltri-amber-dark">
             {selected.kind === "place" ? "Open the place" : "Open on the map"}
