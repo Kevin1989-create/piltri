@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { geoArea, geoDistance, geoGraticule10, geoInterpolate, geoOrthographic, geoPath, type GeoPermissibleObjects } from "d3-geo";
-import { CloseIcon, HeartIcon } from "@/components/ui/icons";
+import { HeartIcon } from "@/components/ui/icons";
+import { CloseButton } from "@/components/ui/CloseButton";
 import { prefersReducedMotion } from "@/lib/motion";
 
 export interface GlobePoint {
@@ -365,9 +366,7 @@ export function SavedGlobe({ points, focusKey }: { points: GlobePoint[]; focusKe
               <p className="truncate font-serif text-base leading-tight text-ink-900 lining-nums">{selected.title}</p>
               <p className="truncate text-[11px] text-ink-500">{selected.subtitle}</p>
             </div>
-            <button type="button" onClick={() => setSelected(null)} aria-label="Close" className="rounded-full p-0.5 text-ink-300 hover:text-ink-900">
-              <CloseIcon className="h-3.5 w-3.5" />
-            </button>
+            <CloseButton label="Close" onClick={() => setSelected(null)} className="-mr-1.5 -mt-1.5" />
           </div>
           <Link href={selected.href} className="mt-2 block rounded-pill bg-piltri-amber py-1.5 text-center text-xs font-medium text-white hover:bg-piltri-amber-dark">
             {selected.kind === "place" ? "Open the place" : "Open on the map"}

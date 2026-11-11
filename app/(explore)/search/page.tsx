@@ -9,6 +9,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { Chip } from "@/components/ui/Chip";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
 import { CloseIcon, FilterIcon, PlusIcon, SECTION_ICONS } from "@/components/ui/icons";
+import { CloseButton } from "@/components/ui/CloseButton";
 import type { MapPoint } from "@/components/explore/DiscoverResultsMap";
 import { getPlaceTable, type PlaceTable } from "@/lib/advancedSearch/engine";
 import {
@@ -135,7 +136,7 @@ function Filters({ state, set }: { state: FinderState; set: (patch: Partial<Find
           </Chip>
         ))}
         {state.countries.map((cc) => (
-          <Chip key={cc} active onClick={() => set({ countries: toggle(state.countries, cc) })} icon={<CloseIcon className="w-3 h-3" />}>
+          <Chip key={cc} active onClick={() => set({ countries: toggle(state.countries, cc) })} icon={<CloseIcon className="h-3.5 w-3.5" strokeWidth={2.25} />}>
             {countryName(cc)}
           </Chip>
         ))}
@@ -459,9 +460,7 @@ function SearchContent() {
                       Clear all
                     </button>
                   )}
-                  <button type="button" onClick={() => setSheetOpen(false)} aria-label="Close filters" className="text-ink-500">
-                    <CloseIcon className="w-5 h-5" />
-                  </button>
+                  <CloseButton large label="Close filters" onClick={() => setSheetOpen(false)} className="-mr-2" />
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto px-4">
@@ -525,7 +524,7 @@ function SearchContent() {
             {chosen.length > 0 && (
               <div className="md:hidden mt-3 flex gap-1.5 overflow-x-auto no-scrollbar -mx-4 px-4">
                 {chosen.map((c) => (
-                  <Chip key={c.label} active onClick={c.remove} icon={<CloseIcon className="w-3 h-3" />}>
+                  <Chip key={c.label} active onClick={c.remove} icon={<CloseIcon className="h-3.5 w-3.5" strokeWidth={2.25} />}>
                     {c.label}
                   </Chip>
                 ))}
@@ -556,7 +555,7 @@ function SearchContent() {
                   <p className="text-xs text-ink-500 mt-1">Remove one to widen the search:</p>
                   <div className="mt-3 flex flex-wrap justify-center gap-1.5">
                     {chosen.map((c) => (
-                      <Chip key={c.label} active onClick={c.remove} icon={<CloseIcon className="w-3 h-3" />}>
+                      <Chip key={c.label} active onClick={c.remove} icon={<CloseIcon className="h-3.5 w-3.5" strokeWidth={2.25} />}>
                         {c.label}
                       </Chip>
                     ))}

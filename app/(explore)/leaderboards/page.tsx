@@ -164,11 +164,16 @@ function Board({
 
 /** How many places one country may have on a board (PER_COUNTRY_CHOICES). */
 const PER_COUNTRY_LABEL = (value: number | null) => (value == null ? "No limit per country" : `At most ${value} ${value === 1 ? "city" : "cities"} per country`);
+/** "No limit" first, the widest choice on the left like World and All
+ *  sizes (2026-11-10, owner). */
+const PER_COUNTRY_SHOWN = [null, ...PER_COUNTRY_CHOICES.filter((v) => v != null)];
 
 export default function LeaderboardsPage() {
   const { weights } = useScoreWeights();
   const { prefs } = useUnitPreferences();
-  const [filters, setFilters] = useState<Filters>({ region: "world", size: "big", perCountry: 1 });
+  // Opens on the whole world, every size, one city per country (2026-11-10,
+  // owner; it was big cities only).
+  const [filters, setFilters] = useState<Filters>({ region: "world", size: "all", perCountry: 1 });
   const [failed, setFailed] = useState(false);
   // At the default score settings, the boards worked out ahead of time: one
   // small file per region (2026-11-07, owner: the page took 2-3 s).
@@ -252,18 +257,20 @@ export default function LeaderboardsPage() {
               ))}
             </div>
             <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap items-center">
-              {/* Advanced search's size groups (2026-11-06, owner: "align"). */}
+              {/* The widest choice first on every row (2026-11-10, owner):
+               *  World, All sizes, No limit - then Advanced search's size
+               *  groups (2026-11-06, owner: "align"). */}
+              <Chip active={filters.size === "all"} onClick={() => setFilters((f) => ({ ...f, size: "all" }))}>
+                All sizes
+              </Chip>
               {SIZE_BANDS.map((b) => (
                 <Chip key={b.key} active={filters.size === b.key} onClick={() => setFilters((f) => ({ ...f, size: b.key }))} hint={b.hint}>
                   {b.label}
                 </Chip>
               ))}
-              <Chip active={filters.size === "all"} onClick={() => setFilters((f) => ({ ...f, size: "all" }))}>
-                All sizes
-              </Chip>
             </div>
             <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
-              {PER_COUNTRY_CHOICES.map((value) => (
+              {PER_COUNTRY_SHOWN.map((value) => (
                 <Chip key={String(value)} active={filters.perCountry === value} onClick={() => setFilters((f) => ({ ...f, perCountry: value }))}>
                   {PER_COUNTRY_LABEL(value)}
                 </Chip>

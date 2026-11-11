@@ -6,11 +6,12 @@ import { useSearchParams } from "next/navigation";
 import { cityUrl, HOME_URL, readFrom } from "@/lib/urls";
 
 /** Every page's "Back" link: a comfortable size and tap area (2026-10-16,
- *  on request - it was too small), and since 2026-11-09 (owner: "can be
- *  bigger") a proper button - a light pill with a border, larger text and
- *  arrow. */
+ *  on request - it was too small), since 2026-11-09 (owner: "can be
+ *  bigger") a proper button - a light pill with a border - and on
+ *  2026-11-10 (owner: "a bit too big now") a step down: the text size of
+ *  the page's other buttons, a little less padding. */
 export const BACK_LINK_CLASS =
-  "inline-flex items-center gap-2 rounded-pill border border-surface-border bg-surface px-4 py-2 text-[15px] font-medium text-ink-900 shadow-sm hover:border-piltri-amber-light transition-colors [&>span:first-child]:text-lg";
+  "inline-flex items-center gap-1.5 rounded-pill border border-surface-border bg-surface px-3.5 py-1.5 text-sm font-medium text-ink-900 shadow-sm hover:border-piltri-amber-light transition-colors [&>span:first-child]:text-base";
 const CLASS = BACK_LINK_CLASS;
 
 function FromLink() {

@@ -2,7 +2,7 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CloseIcon } from "@/components/ui/icons";
+import { CloseButton } from "@/components/ui/CloseButton";
 import { TIER_LABEL, type Tier } from "@/lib/colorScales";
 import { cn } from "@/lib/cn";
 import type { KpiRow } from "@/lib/kpiRows";
@@ -125,18 +125,14 @@ export const KpiInfoButton = forwardRef<KpiInfoHandle, { row: KpiRow; className?
           >
             <div className="flex items-start justify-between gap-2">
               <p className="text-[10px] uppercase tracking-wide text-ink-500">{row.label}</p>
-              {/* Generous tap area around a small cross. */}
-              <button
-                type="button"
-                aria-label="Close"
+              <CloseButton
+                label="Close"
                 onClick={(e) => {
                   e.stopPropagation();
                   close();
                 }}
-                className="-mt-1.5 -mr-1.5 p-1.5 flex-shrink-0 rounded text-ink-500 hover:text-ink-900 focus:outline-none focus-visible:ring-1 focus-visible:ring-piltri-amber"
-              >
-                <CloseIcon className="w-3.5 h-3.5" />
-              </button>
+                className="-mt-2 -mr-2"
+              />
             </div>
             <p className={cn("mt-0.5 text-sm font-semibold", row.colorClass ?? "text-ink-900")}>
               {row.value}

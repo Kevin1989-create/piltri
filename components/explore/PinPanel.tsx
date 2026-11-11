@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getPinnedLocationData } from "@/lib/dataset/pin";
 import { Button } from "@/components/ui/Button";
-import { CloseIcon } from "@/components/ui/icons";
+import { CloseButton } from "@/components/ui/CloseButton";
 import { isPinSaved, savePin } from "@/lib/savedPins";
 import type { NearbyPlace, PinnedLocationData, TravelTimes } from "@/lib/types";
 
@@ -128,9 +128,7 @@ export function PinPanel({
         </div>
 
         <div className="w-full md:w-[150px] flex-shrink-0 px-4 py-3 md:py-2 flex flex-col items-center gap-1.5">
-          <button onClick={onClose} aria-label="Close pin details" className="text-ink-500 hover:text-ink-900">
-            <CloseIcon className="w-4 h-4" />
-          </button>
+          <CloseButton label="Close pin details" onClick={onClose} />
           <Button size="sm" onClick={handleSave} disabled={saved}>
             {saved ? "Saved" : "Save"}
           </Button>

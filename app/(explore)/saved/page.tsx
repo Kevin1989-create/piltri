@@ -271,9 +271,9 @@ export default function SavedPage() {
                         onClick={i.remove}
                         aria-label={`Remove ${i.title}`}
                         title="Remove"
-                        className="flex w-10 shrink-0 items-center justify-center border-l border-surface-border text-ink-300 hover:text-ink-900"
+                        className="flex w-12 shrink-0 items-center justify-center border-l border-surface-border text-ink-500 transition-colors hover:bg-ink-100/60 hover:text-ink-900"
                       >
-                        <CloseIcon className="h-3.5 w-3.5" />
+                        <CloseIcon className="h-4 w-4" strokeWidth={2} />
                       </button>
                     </li>
                   ))}

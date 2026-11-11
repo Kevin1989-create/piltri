@@ -1,6 +1,7 @@
 "use client";
 
-import { CloseIcon, ExternalLinkIcon, HeartIcon } from "@/components/ui/icons";
+import { ExternalLinkIcon, HeartIcon } from "@/components/ui/icons";
+import { CloseButton } from "@/components/ui/CloseButton";
 import { mapIconUrl } from "@/components/explore/mapIcons";
 import { cn } from "@/lib/cn";
 import type { MapKind } from "@/lib/kpiRows";
@@ -84,9 +85,7 @@ export function SpotCard(props: SpotCardProps) {
             </span>
           </button>
           {clear && (
-            <button type="button" aria-label="Remove the second spot" onClick={clear} className="mr-1 shrink-0 rounded-full p-1 text-ink-500 hover:text-ink-900">
-              <CloseIcon className="h-3 w-3" />
-            </button>
+            <CloseButton label="Remove the second spot" onClick={clear} className="mr-0.5" />
           )}
         </div>
         {selected && journey && (
@@ -119,9 +118,7 @@ export function SpotCard(props: SpotCardProps) {
           {/* 2026-11-07, owner: move it without closing the card. */}
           <p className="pt-0.5 text-[10px] leading-tight text-piltri-amber-dark">Tap anywhere on the map to move it</p>
         </div>
-        <button type="button" aria-label="Remove the spot" onClick={props.onClose} className="shrink-0 rounded-full p-1 text-ink-500 hover:text-ink-900">
-          <CloseIcon className="h-3.5 w-3.5" />
-        </button>
+        <CloseButton label="Remove the spot" onClick={props.onClose} className="-mr-1.5 -mt-1" />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-1.5 py-1">

@@ -9,6 +9,7 @@ import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
 import { hasMapPlaces, loadMapPlaces, MAP_LAYER_KINDS, osmPoiFilter, yesRadiusKm, type MapPlace } from "@/lib/mapPlaces";
 import { cn } from "@/lib/cn";
 import { CloseIcon, ExternalLinkIcon } from "@/components/ui/icons";
+import { CloseButton } from "@/components/ui/CloseButton";
 import { addMapIcons, mapIconColor, mapIconId, mapIconUrl } from "@/components/explore/mapIcons";
 import { emphasizeStreets, muteBasemap, muteColor } from "@/lib/mapColors";
 import { INSIDE_KINDS, INSIDE_TRACK_ONLY, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
@@ -165,6 +166,11 @@ const BUTTON_STEP_PX = 37;
  *  at the map's pace (lib/motion.ts). */
 const BUTTON_GLIDE = "transition-[top,right] duration-[700ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none";
 
+/** The map list's "Clear": a cross and the word in a pill big enough to
+ *  tap (2026-11-10, owner: the crosses were too small). */
+const CLEAR_CLASS =
+  "inline-flex shrink-0 items-center gap-1 rounded-pill px-2 py-1 text-xs font-medium text-piltri-amber-dark transition-colors hover:bg-piltri-amber/10 disabled:bg-transparent disabled:text-ink-300";
+
 /** A line of the box saying what's on the map: the kind's icon, its name,
  *  how many (or how far), and its own close. */
 function ShownLine({ kind, label, detail, onClose }: { kind: MapKind; label: string; detail: string; onClose: () => void }) {
@@ -176,9 +182,7 @@ function ShownLine({ kind, label, detail, onClose }: { kind: MapKind; label: str
         {label}
         {detail && <span className="font-normal text-ink-500"> · {detail}</span>}
       </span>
-      <button type="button" aria-label={`Hide ${label}`} onClick={onClose} className="ml-auto flex-shrink-0 rounded-full p-1 text-ink-500 hover:text-ink-900">
-        <CloseIcon className="h-3.5 w-3.5" />
-      </button>
+      <CloseButton label={`Hide ${label}`} onClick={onClose} className="-my-1.5 -mr-1.5 ml-auto" />
     </div>
   );
 }
@@ -2310,8 +2314,9 @@ export function MapView({
                   type="button"
                   disabled={!layerKinds.length && !focusKind}
                   onClick={clearList}
-                  className="shrink-0 px-1.5 text-[11px] font-medium text-piltri-amber-dark underline-offset-2 hover:underline disabled:text-ink-300 disabled:no-underline"
+                  className={CLEAR_CLASS}
                 >
+                  <CloseIcon className="h-3.5 w-3.5" strokeWidth={2.25} />
                   Clear
                 </button>
               );
@@ -2364,8 +2369,9 @@ export function MapView({
                   type="button"
                   disabled={!layerKinds.length && !focusKind}
                   onClick={clearList}
-                  className="text-[11px] font-medium text-piltri-amber-dark underline-offset-2 hover:underline disabled:text-ink-300 disabled:no-underline"
+                  className={cn(CLEAR_CLASS, "-mr-1")}
                 >
+                  <CloseIcon className="h-3.5 w-3.5" strokeWidth={2.25} />
                   Clear
                 </button>
               </div>

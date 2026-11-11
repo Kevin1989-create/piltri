@@ -8,7 +8,8 @@ import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
 import { KpiInfoButton } from "@/components/explore/KpiInfo";
-import { ChevronDown, CloseIcon, IconDemographics, SECTION_ICONS } from "@/components/ui/icons";
+import { ChevronDown, IconDemographics, SECTION_ICONS } from "@/components/ui/icons";
+import { CloseButton } from "@/components/ui/CloseButton";
 import { computePiltriScore, normaliseWeights } from "@/lib/aggregation/scoring";
 import { biggestDifferences, type Difference } from "@/lib/compareFacts";
 import { cn } from "@/lib/cn";
@@ -391,9 +392,7 @@ function CompareContent() {
                                 <p className={cn("text-xs pt-1", slot.error ? "text-score-weak" : "text-ink-500")}>{slot.error ?? "Loading…"}</p>
                               )}
                             </div>
-                            <button type="button" onClick={() => removeColumn(i)} aria-label="Remove from comparison" className="text-ink-300 hover:text-ink-900 mt-0.5">
-                              <CloseIcon className="w-3.5 h-3.5" />
-                            </button>
+                            <CloseButton label="Remove from comparison" onClick={() => removeColumn(i)} className="-mr-2 -mt-1.5" />
                           </div>
                         </th>
                       ))}
