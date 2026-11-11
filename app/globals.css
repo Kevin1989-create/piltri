@@ -279,6 +279,34 @@ html[data-splash="out"] .piltri-splash-mark {
     opacity: 0;
   }
 }
+/* On the web (2026-11-11, LaunchSplash.tsx): no icon to come from, so no
+ * disc - the P is the first letter rising with the others, in ink - and
+ * everything a little sooner, the whole lasting about a second and a half. */
+html[data-splash-kind="web"] .piltri-splash-disc {
+  display: none;
+}
+html[data-splash-kind="web"] .piltri-splash-p {
+  color: #1e1a16;
+  transform: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-splash-kind="web"] .piltri-splash-p {
+    opacity: 0;
+    animation: piltri-splash-letter 700ms cubic-bezier(0.2, 0.7, 0.2, 1) 100ms forwards;
+  }
+  html[data-splash-kind="web"] .piltri-splash-letter {
+    animation-duration: 700ms;
+    animation-delay: calc(100ms + var(--i) * 60ms);
+  }
+  html[data-splash-kind="web"] .piltri-splash-rule {
+    animation-duration: 700ms;
+    animation-delay: 380ms;
+  }
+  html[data-splash-kind="web"] .piltri-splash-tag {
+    animation-duration: 760ms;
+    animation-delay: 560ms;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .piltri-splash-mark span,
   .piltri-splash-rule,

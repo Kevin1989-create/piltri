@@ -44,15 +44,13 @@ function Tracked({ text, className }: { text: string; className?: string }) {
  * showed its numbers were correct, but it still didn't line up in
  * practice).
  *
- * NUDGE_DOWN_PX: the anchor's clickable box is already generously sized and
- * fully clickable everywhere within it — this transform only moves where
- * the *visible glyph* sits within that box, closer to where users actually
- * click. Adjust this one number up/down if it still doesn't line up
- * perfectly; it doesn't affect the click area itself, only the text's
- * paint position inside it. Only applied to the clickable (nav) version —
- * Home's wordmark (no href) never had this issue and shouldn't shift.
+ * NUDGE_DOWN_PX: moves where the *visible glyph* sits within that box
+ * (not the click area). It was 10 until 2026-11-11 (owner: "not fully
+ * aligned with the search bar - a bit higher on every page?"): measured,
+ * the letters' middle sat 9.5 px below the search bar's and the nav bar's
+ * middle. At 0 they share it to half a pixel.
  */
-const NUDGE_DOWN_PX = 10;
+const NUDGE_DOWN_PX = 0;
 
 export function Logo({ size = "nav", withTagline = false, href = "/", className }: LogoProps) {
   const textSizeClass = size === "wordmark" ? "text-wordmark" : "text-wordmark-nav";

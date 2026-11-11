@@ -8,20 +8,41 @@
  *
  * Plain markup and CSS (app/globals.css, "Launch splash"), switched on by
  * SPLASH_SCRIPT before the page has even loaded - so there's no flash of
- * the page first. Only when Piltri is opened as an installed app (home
- * screen), once per launch; `?splash=1` shows it in a browser, to look at.
+ * the page first. Once per launch of the installed app (home screen);
+ * `?splash=1` shows it in a browser, to look at.
+ *
+ * On the web too since 2026-11-11 (owner: "a little animation, kind of
+ * similar to the app's"), a lighter one (data-splash-kind="web": no icon
+ * disc - there's no app icon to come from - and about a second and a
+ * half): when someone arrives from elsewhere - a typed address, a link, a
+ * search - not while moving around Piltri or in a tab opened from it (the
+ * referrer is Piltri), not on a reload (once per tab), not on the way back
+ * from a sign-in email, and at most once every half hour. `?splash=web`
+ * shows it, to look at.
  */
 export const SPLASH_SCRIPT = `(function(){try{
 var d=document.documentElement;
-var asked=location.search.indexOf("splash=1")>=0;
+var q=location.search;
+var asked=q.indexOf("splash=1")>=0?"app":q.indexOf("splash=web")>=0?"web":"";
 var app=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true;
-if(!asked&&(!app||sessionStorage.getItem("piltri:splash")))return;
+var web=asked?asked==="web":!app;
+if(!asked){
+if(sessionStorage.getItem("piltri:splash"))return;
 sessionStorage.setItem("piltri:splash","1");
+if(web){
+if(document.referrer&&document.referrer.indexOf(location.origin)===0)return;
+if(location.hash.indexOf("access_token")>=0)return;
+var last=+localStorage.getItem("piltri:splash-at")||0;
+if(Date.now()-last<18e5)return;
+localStorage.setItem("piltri:splash-at",String(Date.now()));
+}
+}
 d.setAttribute("data-splash","in");
+if(web)d.setAttribute("data-splash-kind","web");
 var still=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
 var done=false;
-var end=function(){if(done)return;done=true;d.setAttribute("data-splash","out");setTimeout(function(){d.removeAttribute("data-splash")},560)};
-setTimeout(end,still?900:1900);
+var end=function(){if(done)return;done=true;d.setAttribute("data-splash","out");setTimeout(function(){d.removeAttribute("data-splash");d.removeAttribute("data-splash-kind")},560)};
+setTimeout(end,still?(web?600:900):(web?1500:1900));
 d.addEventListener("pointerdown",end,{once:true,capture:true});
 }catch(e){}})();`;
 
