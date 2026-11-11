@@ -19,6 +19,17 @@
  * referrer is Piltri), not on a reload (once per tab), not on the way back
  * from a sign-in email, and at most once every half hour. `?splash=web`
  * shows it, to look at.
+ *
+ * The way out (2026-11-11, owner: "a bit longer, and a lot smoother with
+ * the transition to the Home page"): no dissolve any more - the wordmark
+ * lands on the page's own. The script measures the page's logo
+ * (.wordmark-split: the nav bar's "Piltri"), hides it, and glides the
+ * splash's wordmark onto it - shrinking as it goes, for about a second -
+ * while the cream clears and the rule and tagline let go; then the real
+ * logo takes over where it stands (data-splash "land", then "landed").
+ * With no logo to land on, reduced motion, or a tap before the letters
+ * are all in (1.3 s), the old dissolve ("out").
+ * The web one holds a little longer too (2.1 s, was 1.5).
  */
 export const SPLASH_SCRIPT = `(function(){try{
 var d=document.documentElement;
@@ -41,8 +52,26 @@ d.setAttribute("data-splash","in");
 if(web)d.setAttribute("data-splash-kind","web");
 var still=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
 var done=false;
-var end=function(){if(done)return;done=true;d.setAttribute("data-splash","out");setTimeout(function(){d.removeAttribute("data-splash");d.removeAttribute("data-splash-kind")},560)};
-setTimeout(end,still?(web?600:900):(web?1500:1900));
+var t0=Date.now();
+var clear=function(){d.removeAttribute("data-splash");d.removeAttribute("data-splash-kind")};
+var fade=function(){d.setAttribute("data-splash","out");setTimeout(clear,560)};
+var end=function(){if(done)return;done=true;
+try{
+if(Date.now()-t0<1300){fade();return}
+var m=document.querySelector(".piltri-splash-mark");
+var t=document.querySelector("header .wordmark-split")||document.querySelector("main .wordmark-split");
+var a=m&&m.getBoundingClientRect(),b=t&&t.getBoundingClientRect();
+if(still||!a||!b||!a.width||!b.width||b.bottom<0||b.top>innerHeight){fade();return}
+var s=b.width/a.width;
+var x=b.left+b.width/2-(a.left+a.width/2),y=b.top+b.height/2-(a.top+a.height/2);
+t.style.visibility="hidden";
+d.setAttribute("data-splash","land");
+void m.offsetWidth;
+m.style.transform="translate("+x+"px,"+y+"px) scale("+s+")";
+setTimeout(function(){t.style.visibility="";d.setAttribute("data-splash","landed");setTimeout(function(){clear();m.style.transform=""},260)},1000);
+}catch(e){fade()}
+};
+setTimeout(end,still?(web?700:900):(web?2100:1900));
 d.addEventListener("pointerdown",end,{once:true,capture:true});
 }catch(e){}})();`;
 
