@@ -732,13 +732,16 @@ export function MapView({
   const listShownRef = useRef(listShown);
   listShownRef.current = listShown;
   // Which buttons expanded the map from the page (2026-10-30 and 11-06,
-  // owner): the list's and the spot's. Turning the last of them off takes
-  // it back into the page. Null: it stays - expanded with its own button,
-  // or the list closed by touching the map (it's being looked at).
-  const expandedByRef = useRef<Set<"list" | "spot"> | null>(null);
+  // owner): the filters', the spot's and the address search's - each on
+  // its own (2026-11-12, owner: "each button working independently, and if
+  // all ticked together it should still work"). Turning the last of them
+  // off takes it back into the page. Null: it stays - expanded with its
+  // own button, or touched (it's being looked at).
+  type ExpandButton = "list" | "spot" | "address";
+  const expandedByRef = useRef<Set<ExpandButton> | null>(null);
   /** A button turned on: it expands the map from the page, or joins the
    *  ones that did. */
-  const expandFor = (button: "list" | "spot") => {
+  const expandFor = (button: ExpandButton) => {
     if (!listHere) {
       expandedByRef.current = new Set([button]);
       onToggleExpanded?.();
@@ -747,7 +750,7 @@ export function MapView({
     }
   };
   /** A button turned off: back into the page if it was the last one. */
-  const releaseFor = (button: "list" | "spot", shrink = true) => {
+  const releaseFor = (button: ExpandButton, shrink = true) => {
     const by = expandedByRef.current;
     if (!by) return;
     by.delete(button);
@@ -1646,14 +1649,14 @@ export function MapView({
     };
   }, [mapReady, layerKinds, lat, lng, focusKind, loadInside]);
 
-  // The filter bar comes with the expanded map (2026-11-11, owner: "only
-  // the buttons at the top") and goes with it; a spot waiting to be placed
-  // is let go.
+  // The filter bar, the address box and a spot waiting to be placed go
+  // with the expanded map. None comes with it: each has its own button
+  // (2026-11-12, owner: the filters appeared with the address search and
+  // the spot).
   useEffect(() => {
-    if (listHere) {
-      setLayersOpen(true);
-    } else {
+    if (!listHere) {
       setLayersOpen(false);
+      setAddressOpen(false);
       setSpotMode(null);
       expandedByRef.current = null;
     }
@@ -1693,14 +1696,14 @@ export function MapView({
   const layersTop = onToggleExpanded ? expandTop + BUTTON_STEP_PX : 76;
   const spotTop = layersTop + BUTTON_STEP_PX;
   // The address search's button (2026-11-11), under the spot's - not on a
-  // phone's small map, which has no room for a fourth: there the spot
-  // button brings the address box along with "tap the map".
+  // phone's small map, which has no room for a fourth: it's there once the
+  // map is expanded.
   const addressButton = !!placeId && !buttonsSmall;
   const addressTop = spotTop + BUTTON_STEP_PX;
   const listTop = (placeId ? addressTop : layersTop) + 35;
-  /** The address box: opened with its button, or along with the wait for
-   *  a tap - on the expanded map, where there's room. */
-  const addressShown = !!placeId && listHere && (addressOpen || spotMode === "a");
+  /** The address box: opened with its own button only (2026-11-12, owner:
+   *  each button on its own), on the expanded map. */
+  const addressShown = !!placeId && listHere && addressOpen;
   /** The shown box sits left of the buttons (under the strip, when it's
    *  open, and under the address box). */
   const shownRight = buttonsRight + 36;
@@ -1785,7 +1788,7 @@ export function MapView({
     setSpotB(null);
     setSpotTarget(null);
     setSpotMode(null);
-    setAddressOpen(false);
+    // (The address box is its own button's - 2026-11-12, owner.)
   };
   /** The spot button on: waiting for a tap, or a spot on the map. Off: the
    *  spot goes, and the map back into the page if this button expanded it. */
@@ -1844,30 +1847,36 @@ export function MapView({
     setSpotA(spot);
     setSpotB(null);
     setSpotTarget(null);
-    setLayersOpen(false);
+    // (The filter bar stays: it's along the top, clear of the spot's card.)
     if (mapRef.current) frameSpots(mapRef.current, [spot], undefined, maxZoom);
   };
-  /** The address box's button: on, the map expands from the page like the
-   *  spot's (an address found is a spot); off with no spot, it goes back. */
+  /** The address box's button, on its own (2026-11-12, owner): on, the map
+   *  expands from the page if it must, and only the box opens - no filters,
+   *  no waiting for a tap; off, the box goes, and the map back into the
+   *  page if this button alone expanded it. */
   const toggleAddress = () => {
     if (addressOpen) {
       closeAddress();
     } else {
-      expandFor("spot");
+      expandFor("address");
       setAddressOpen(true);
     }
   };
   const closeAddress = () => {
     setAddressOpen(false);
-    // The wait for a tap goes with it; a spot on the map stays.
-    if (spotsRef.current.a) setSpotMode(null);
-    else turnSpotOff();
+    releaseFor("address");
   };
   /** An address picked: the spot, named after it, with its streets around
-   *  it (ADDRESS_ZOOM). */
+   *  it (ADDRESS_ZOOM). The box closes; the spot keeps the map expanded
+   *  (it's the spot button's now). */
   const pickAddress = (found: { lat: number; lng: number; title: string }) => {
+    const by = expandedByRef.current;
+    if (by?.has("address")) {
+      by.delete("address");
+      by.add("spot");
+    }
     setAddressOpen(false);
-    setSpotMode(null);
+    if (spotMode === "a") setSpotMode(null);
     openSpot({ lat: found.lat, lng: found.lng, name: found.title }, ADDRESS_ZOOM);
   };
 
@@ -2442,7 +2451,7 @@ export function MapView({
             className={cn(
               "absolute z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
               BUTTON_GLIDE,
-              layerKinds.length || focusKind ? "bg-piltri-amber text-white" : "bg-white text-ink-900 hover:bg-surface-muted"
+              listShown || layerKinds.length || focusKind ? "bg-piltri-amber text-white" : "bg-white text-ink-900 hover:bg-surface-muted"
             )}
           >
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -2568,7 +2577,7 @@ export function MapView({
       )}
       {spotMode === "a" && (
         <div className="absolute bottom-8 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-pill bg-ink-900/80 py-1.5 pl-4 pr-1.5 text-xs text-white">
-          {addressShown ? "Tap the map, or search an address above" : "Tap the map to drop your spot"}
+          Tap the map to drop your spot
           <button type="button" onClick={cancelPlacing} className="rounded-pill bg-white/15 px-2.5 py-0.5 hover:bg-white/25">
             Cancel
           </button>
