@@ -14,7 +14,9 @@
  */
 
 const BASE = "https://photon.komoot.io/api/";
-const TIMEOUT_MS = 6000;
+/** Photon not answering by then: the map's own names instead
+ *  (components/explore/AddressSearch.tsx). */
+const TIMEOUT_MS = 4000;
 export const ADDRESS_MIN_LETTERS = 3;
 export const ADDRESS_PAUSE_MS = 450;
 /** Shown; more are asked for (ASKED), so the city's own aren't crowded out

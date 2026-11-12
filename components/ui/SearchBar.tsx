@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { prefetchSearch, searchCities } from "@/lib/dataset/search";
 import { cityUrl } from "@/lib/urls";
+import { cityIdFor } from "@/lib/dataset/schema";
 import type { CitySearchResult } from "@/lib/types";
 
 interface SearchBarProps {
@@ -107,7 +108,12 @@ export function SearchBar({
       onSelectCity(city);
       return;
     }
-    setValue(`${city.cityName}, ${city.country}`);
+    // The page's own label for it, from the first moment (2026-11-12, owner:
+    // the box and the page's name sometimes differed): "Lyon, France", with
+    // the region for a town sharing its name with a bigger one ("Springfield,
+    // Illinois, United States") - as the city page writes it once loaded.
+    const namesake = city.cityId !== cityIdFor(city.cityName, city.countryCode) && city.region;
+    setValue([city.cityName, namesake ? city.region : null, city.country].filter(Boolean).join(", "));
     router.push(cityUrl(city.cityId));
   }
 

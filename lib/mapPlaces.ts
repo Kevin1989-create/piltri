@@ -202,3 +202,104 @@ export async function loadMapPlaces(
   await Promise.all(Array.from({ length: PARALLEL }, worker));
   if (!signal.aborted) onUpdate(found.slice(), true);
 }
+
+/* ------------------------------------------------------------------ */
+/* Names in the tiles: the address search's fallback                   */
+/* ------------------------------------------------------------------ */
+
+/** A named street, place or place of interest read from a detailed tile. */
+interface TileName {
+  name: string;
+  /** "street", or the place's class ("school", "bus", "suburb"...). */
+  kind: string;
+  lng: number;
+  lat: number;
+}
+
+/** The named streets, places and places of interest in one tile, kept for
+ *  the most recent tiles. */
+const nameTiles = new Map<string, Promise<TileName[]>>();
+
+function tileNames(x: number, y: number, signal: AbortSignal): Promise<TileName[]> {
+  const key = `${x}/${y}`;
+  const hit = nameTiles.get(key);
+  if (hit) return hit;
+  const promise = tileTemplate()
+    .then((template) => fetch(template.replace("{z}", String(ZOOM)).replace("{x}", String(x)).replace("{y}", String(y)), { signal }))
+    .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`tile ${key}: ${r.status}`))))
+    .then((buffer) => {
+      const tile = new VectorTile(new Pbf(buffer));
+      const out: TileName[] = [];
+      for (const [layerName, kindOf] of [
+        ["transportation_name", () => "street"],
+        ["poi", (p: Record<string, unknown>) => String(p.class ?? "place")],
+        ["place", (p: Record<string, unknown>) => String(p.class ?? "place")],
+      ] as const) {
+        const layer = tile.layers[layerName];
+        for (let i = 0; layer && i < layer.length; i++) {
+          const feature = layer.feature(i);
+          const name = String(feature.properties["name:latin"] ?? feature.properties.name ?? "");
+          if (!name) continue;
+          const geometry = feature.toGeoJSON(x, y, ZOOM).geometry;
+          // A street: the middle of its line; a place: its point.
+          const line = geometry.type === "LineString" ? geometry.coordinates : geometry.type === "MultiLineString" ? geometry.coordinates[0] : null;
+          const at = line ? line[Math.floor(line.length / 2)] : geometry.type === "Point" ? geometry.coordinates : null;
+          if (!at) continue;
+          out.push({ name, kind: kindOf(feature.properties as Record<string, unknown>), lng: at[0], lat: at[1] });
+        }
+      }
+      return out;
+    });
+  nameTiles.set(key, promise);
+  promise.catch(() => nameTiles.delete(key));
+  if (nameTiles.size > KEEP_TILES) nameTiles.delete(nameTiles.keys().next().value!);
+  return promise;
+}
+
+const plainText = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/** Streets, places and places of interest whose name holds every word of
+ *  `text` (house numbers left out), within `radiusKm` of the centre - the
+ *  map's own tiles, when the address service doesn't answer (2026-11-12:
+ *  Photon went quiet for minutes). Exact starts first, then the nearest;
+ *  one per name. No house numbers: the tiles don't carry them. */
+export async function searchMapNames(
+  text: string,
+  center: { lat: number; lng: number },
+  radiusKm: number,
+  signal: AbortSignal,
+  limit = 6
+): Promise<{ name: string; kind: string; lng: number; lat: number; km: number }[]> {
+  const words = plainText(text)
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w && !/^\d+[a-z]?$/.test(w));
+  if (!words.length) return [];
+  const dLat = radiusKm / 111.2;
+  const dLng = radiusKm / (111.32 * Math.max(Math.cos((center.lat * Math.PI) / 180), 0.05));
+  const queue: { x: number; y: number }[] = [];
+  for (let x = tileX(center.lng - dLng); x <= tileX(center.lng + dLng); x++)
+    for (let y = tileY(center.lat + dLat); y <= tileY(center.lat - dLat); y++) queue.push({ x, y });
+  const found = new Map<string, { name: string; kind: string; lng: number; lat: number; km: number; starts: boolean }>();
+  let next = 0;
+  const worker = async () => {
+    while (next < queue.length && !signal.aborted) {
+      const { x, y } = queue[next++];
+      const names = await tileNames(x, y, signal).catch(() => []);
+      for (const n of names) {
+        const plain = plainText(n.name);
+        if (!words.every((w) => plain.includes(w))) continue;
+        const km = haversineKm(center.lat, center.lng, n.lat, n.lng);
+        if (km > radiusKm) continue;
+        const key = `${plain}|${n.kind === "street" ? "street" : n.kind}`;
+        const had = found.get(key);
+        if (!had || km < had.km) found.set(key, { ...n, km, starts: plain.startsWith(words[0]) });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: PARALLEL }, worker));
+  if (signal.aborted) throw new DOMException("aborted", "AbortError");
+  return [...found.values()]
+    .sort((a, b) => Number(b.starts) - Number(a.starts) || a.km - b.km)
+    .slice(0, limit)
+    .map(({ starts: _starts, ...rest }) => rest);
+}

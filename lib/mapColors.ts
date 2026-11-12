@@ -90,16 +90,19 @@ function widen(value: unknown, factor: number): unknown {
  *  peach, as Google Maps marks its "areas of interest" (OpenStreetMap's
  *  retail and commercial land, in the tiles already). */
 export function emphasizeStreets(map: MaplibreMap): void {
+  // Darker and firmer on 2026-11-12 (owner: "the streets are too pale -
+  // a bit darker, to see them better and from further"): every edge a
+  // shade deeper, the main and secondary roads a little more coloured.
   const style: [string[], string, number][] = [
     // [layers, colour, width factor]
-    [["road_motorway", "bridge_motorway", "road_motorway_link", "bridge_motorway_link"], "#F3C164", 1.15],
-    [["road_motorway_casing", "bridge_motorway_casing", "road_motorway_link_casing", "bridge_motorway_link_casing"], "#CF9640", 1.15],
-    [["road_trunk_primary", "bridge_trunk_primary"], "#F9DC90", 1.3],
-    [["road_trunk_primary_casing", "bridge_trunk_primary_casing"], "#D3A65A", 1.3],
-    [["road_secondary_tertiary", "bridge_secondary_tertiary", "road_link", "bridge_link"], "#FFF0C7", 1.2],
-    [["road_secondary_tertiary_casing", "bridge_secondary_tertiary_casing", "road_link_casing", "bridge_link_casing"], "#DABF86", 1.2],
+    [["road_motorway", "bridge_motorway", "road_motorway_link", "bridge_motorway_link"], "#F0B952", 1.15],
+    [["road_motorway_casing", "bridge_motorway_casing", "road_motorway_link_casing", "bridge_motorway_link_casing"], "#C1862F", 1.15],
+    [["road_trunk_primary", "bridge_trunk_primary"], "#F6D27A", 1.3],
+    [["road_trunk_primary_casing", "bridge_trunk_primary_casing"], "#BF8F45", 1.3],
+    [["road_secondary_tertiary", "bridge_secondary_tertiary", "road_link", "bridge_link"], "#FBE6AE", 1.25],
+    [["road_secondary_tertiary_casing", "bridge_secondary_tertiary_casing", "road_link_casing", "bridge_link_casing"], "#C4A56B", 1.25],
     [["road_minor", "bridge_street"], "#FFFFFF", 1.1],
-    [["road_minor_casing", "bridge_street_casing"], "#D5CCBF", 1.1],
+    [["road_minor_casing", "bridge_street_casing"], "#ADA08D", 1.1],
   ];
   for (const [ids, color, factor] of style) {
     for (const id of ids) {
@@ -107,6 +110,16 @@ export function emphasizeStreets(map: MaplibreMap): void {
       map.setPaintProperty(id, "line-color", color);
       map.setPaintProperty(id, "line-width", widen(map.getPaintProperty(id, "line-width"), factor) as any);
     }
+  }
+  // Side streets have no white middle before zoom 13.5 - only their edge,
+  // half a pixel to one wide, which vanished on the cream: drawn as a
+  // clear warm-grey line from zoom 11 instead, widening into the edge of
+  // the white street as you zoom in.
+  const sideStreetEdge = ["interpolate", ["exponential", 1.2], ["zoom"], 11, 0.5, 12, 1, 13, 1.6, 14, 4.6, 20, 22];
+  for (const id of ["road_minor_casing", "bridge_street_casing"]) {
+    if (!map.getLayer(id)) continue;
+    map.setPaintProperty(id, "line-width", sideStreetEdge as any);
+    map.setLayerZoomRange(id, 11, 24);
   }
   // Buildings a touch firmer, so blocks and streets stand apart.
   if (map.getLayer("building")) map.setPaintProperty("building", "fill-color", "#E3DBD0");

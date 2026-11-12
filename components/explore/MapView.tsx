@@ -1728,13 +1728,20 @@ export function MapView({
   /** One button for all and none (2026-11-11, owner: "an option to select
    *  all, and to remove all, ideally the same button"): with nothing shown,
    *  "Select all" ticks every kind the city has; with anything shown,
-   *  "Clear all". */
+   *  "Clear all" - which also closes the bar, so the filters button is off
+   *  too (2026-11-12, owner), and takes the map back into the page if the
+   *  filters button alone expanded it. */
   const anyShown = layerKinds.length > 0 || !!focusKind;
+  const clearAndClose = () => {
+    clearList();
+    setLayersOpen(false);
+    releaseFor("list");
+  };
   const allToggle = () => (
     <button
       type="button"
       disabled={!anyShown && !offeredKinds.length}
-      onClick={() => (anyShown ? clearList() : setLayerKinds([...offeredKinds]))}
+      onClick={() => (anyShown ? clearAndClose() : setLayerKinds([...offeredKinds]))}
       className={CLEAR_CLASS}
     >
       {anyShown ? (
