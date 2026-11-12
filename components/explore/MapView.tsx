@@ -807,24 +807,6 @@ export function MapView({
   const routeTokenRef = useRef(0);
   const [routeInfo, setRouteInfo] = useState<string | null>(null);
   const { prefs } = useUnitPreferences();
-  // The ticked kinds, a line each in the shown box (a Yes's kind is on the
-  // Yes's line), and what that line says: how many are drawn, or for a kind
-  // the city has none of, how far the nearest is.
-  const shownLayers = layerKinds.filter((kind) => kind !== focusKind);
-  const layerCountText = (kind: NearbyKind): string => {
-    const drawn = layerCounts[kind];
-    const figure = insideFigures?.[kind as InsideKind];
-    // Not drawn yet: the city's own count straight away when there is one,
-    // else nothing - no "finding them…" flashing for half a second
-    // (2026-11-11, owner).
-    if (!drawn) return figure && figure.count > 0 ? `${figure.count.toLocaleString("en-US")} ${airportsByReach(kind) ? `within ${AIRPORT_REACH_KM} km` : "in the city"}` : "";
-    // Counted beyond its list (bus stops: the list holds the stations, the
-    // tiles the stops within 5 km) - the city's own count.
-    if (figure && figure.count > 0 && (figure.count > drawn.n || drawsTilesAlways(kind))) return `${figure.count.toLocaleString("en-US")} in the city`;
-    if (drawn.from === "tiles") return `${drawn.n.toLocaleString("en-US")} within ${yesRadiusKm(kind)} km`;
-    if (figure?.count === 0) return figure.nearestKm != null ? `nearest ${formatDistanceKm(figure.nearestKm, prefs)}` : "none near";
-    return `${drawn.n.toLocaleString("en-US")} ${airportsByReach(kind) ? `within ${AIRPORT_REACH_KM} km` : "in the city"}`;
-  };
   // What a tapped icon's card reads (its listener is set up once).
   const cardContextRef = useRef({ lat, lng, prefs, areaName });
   cardContextRef.current = { lat, lng, prefs, areaName };
@@ -1725,9 +1707,10 @@ export function MapView({
     setLayerKinds([]);
     if (focusKind) onCloseFocus?.();
   };
-  /** The tapped figure's chip: always without the filter bar; with it, only
-   *  for a journey or a kind the bar doesn't offer. */
-  const focusChip = !!focus && (!listOnTop || focus.style !== "pin" || !offeredKinds.includes(focus.kind as NearbyKind));
+  /** The tapped figure's chip: only for a journey or a kind the filter bar
+   *  doesn't offer - a Yes's kind is one of the bar's, shown as on there
+   *  and by the filters button's colour. */
+  const focusChip = !!focus && (focus.style !== "pin" || !offeredKinds.includes(focus.kind as NearbyKind));
   /** One button for all and none (2026-11-11, owner: "an option to select
    *  all, and to remove all, ideally the same button"): with nothing shown,
    *  "Select all" ticks every kind the city has; with anything shown,
@@ -2327,19 +2310,14 @@ export function MapView({
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
-      {(focusChip || (shownLayers.length > 0 && !listOnTop)) && (
-        // (With the filter bar showing, only what its buttons can't: a
-        // journey, or a figure of a kind the bar doesn't offer - the bar's
-        // own buttons say which kinds are on, and how many.)
-        // What's on the map, a chip per kind with its count and its close -
-        // the same for a tapped figure and a kind ticked in the layer list
-        // (2026-10-30, owner: "more consistent"), in a row along the top,
-        // right-aligned beside the buttons and wrapping onto the next row
-        // (2026-11-11, owner: as a column they covered the filter list) -
-        // three rows at most on a computer, two on a phone, the rest a
-        // scroll away. Kept clear of the floating city card and panel on a
-        // computer. The tapped figure's chip first; a journey's links to
-        // the same one in Google Maps.
+      {focusChip && (
+        // Only what the filter bar can't say (2026-11-12, owner: a "Forest"
+        // chip stayed in the corner once the bar was closed - "not useful";
+        // the filters button stays coloured while any kind is on instead): a
+        // journey - how far, how long, and the same one in Google Maps - or
+        // a figure of a kind the bar doesn't offer. Top right, beside the
+        // buttons, under the bar and the address box; kept clear of the
+        // floating city card and panel on a computer.
         <div
           style={{
             top: shownTop,
@@ -2371,10 +2349,6 @@ export function MapView({
               onClose={() => onCloseFocus?.()}
             />
           )}
-          {!listOnTop &&
-            shownLayers.map((kind) => (
-              <ShownChip key={kind} kind={kind} label={LAYER_LABELS[kind as InsideKind] ?? kind} detail={layerCountText(kind)} onClose={() => toggleLayer(kind)} />
-            ))}
         </div>
       )}
       {addressShown && (
