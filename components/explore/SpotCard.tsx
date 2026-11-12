@@ -62,11 +62,11 @@ export function SpotCard(props: SpotCardProps) {
     const selected = r.key === target;
     return (
       <div key={r.key}>
-        <div className={cn("flex items-center rounded-lg hover:bg-surface-muted", selected && "bg-surface-muted")}>
+        <div className={cn("group flex items-center rounded-lg hover:bg-surface-muted", selected && "bg-surface-muted")}>
           <button
             type="button"
             onClick={() => props.onPick(r.key)}
-            title={`Show the journey to ${r.name} on the map`}
+            aria-label={`${r.label}: ${r.name}, ${r.distance} - show the journey on the map`}
             className="flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left"
           >
             {r.kind === "spot" ? (
@@ -77,7 +77,18 @@ export function SpotCard(props: SpotCardProps) {
             )}
             <span className="min-w-0 flex-1">
               <span className="block text-[10px] leading-tight text-ink-500">{r.label}</span>
-              <span className="block truncate text-xs font-medium leading-tight text-ink-900">{r.name}</span>
+              {/* A long name ends in "…" - and unfolds in full under the
+                  pointer, or once tapped on a phone (2026-11-12, owner:
+                  "when we hover over, it should give the full name
+                  directly" - not the browser's slow tooltip). */}
+              <span
+                className={cn(
+                  "block text-xs font-medium leading-tight text-ink-900 [overflow-wrap:anywhere]",
+                  selected ? "whitespace-normal" : "truncate group-hover:overflow-visible group-hover:whitespace-normal"
+                )}
+              >
+                {r.name}
+              </span>
             </span>
             <span className="shrink-0 text-right tabular-nums">
               <span className="block text-xs leading-tight text-ink-900">{r.distance}</span>
@@ -110,7 +121,9 @@ export function SpotCard(props: SpotCardProps) {
           <SpotPin color="#BA7517" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-semibold leading-tight text-ink-900">{name ?? "Your spot"}</p>
+          {/* The spot's name over two lines, then "…" - in full under the
+              pointer. */}
+          <p className="line-clamp-2 text-[13px] font-semibold leading-tight text-ink-900 [overflow-wrap:anywhere] hover:line-clamp-none">{name ?? "Your spot"}</p>
           <p className="text-[11px] leading-tight text-ink-500 tabular-nums">
             {name && "Your spot · "}
             {coords}

@@ -344,9 +344,10 @@ const SPOT_LINE_MAX_KM = 25;
 /** From this zoom a tap's label names the spot (a street, a station, a
  *  neighbourhood); below it, labels are towns. */
 const SPOT_NAME_MIN_ZOOM = 13;
-/** An address picked in the search lands at this zoom: its streets and
- *  quarter around it (2026-11-11, owner: 16 was "too close"). */
-const ADDRESS_ZOOM = 14.5;
+/** An address picked in the search is framed with the city's centre, and
+ *  never closer than this: where it is in the city, its quarter around it
+ *  (2026-11-11 and 12, owner: 16, then 14.5, were "too close"). */
+const ADDRESS_ZOOM = 13.5;
 const SPOT_COLOR = "#BA7517";
 const SECOND_SPOT_COLOR = "#3B6E8F";
 
@@ -366,15 +367,24 @@ const FOCUS_CIRCLE_ID = "piltri-focus-circle";
 const LAYERS_SOURCE_ID = "piltri-layers";
 /** The basemap's label layers ("liberty" style) shown from a lower zoom
  *  than the style's own: main roads (12.2), streets (15), paths (15.5),
- *  the most notable places of interest (15) and the others (16, 17). */
+ *  the most notable places of interest (15) and the others (16, 17). A
+ *  step earlier again on 2026-11-12 (owner: "we need to zoom in too much
+ *  ... to have elements about the city"): the town hall, stations,
+ *  museums, big parks from 12.5 - a city opens around 12-13 - the next
+ *  ones from 14. The tiles carry only the most notable places below 14,
+ *  and names that don't fit are still left out, so it doesn't crowd. */
 const EARLIER_LABELS: [string, number][] = [
-  ["highway-name-major", 11],
-  ["highway-name-minor", 13.5],
+  ["highway-name-major", 10.5],
+  ["highway-name-minor", 13],
   ["highway-name-path", 15],
-  ["poi_r1", 13.5],
-  ["poi_r7", 15],
-  ["poi_r20", 16],
+  ["poi_r1", 12.5],
+  ["poi_r7", 14],
+  ["poi_r20", 15.5],
 ];
+/** Neighbourhood and quarter names (the style's label_other): a size up,
+ *  and a little darker - at 9-10 px in pale italics they were easy to miss
+ *  at a city's own zoom (2026-11-12, owner). */
+const QUARTER_LABEL_SIZE = ["interpolate", ["linear"], ["zoom"], 8, 10, 12, 12, 15, 13.5];
 /** The tiles' own detail starts here. */
 const DETAIL_ZOOM = 14;
 const osmLayerId = (kind: NearbyKind) => `piltri-osm-${kind}`;
@@ -1087,6 +1097,10 @@ export function MapView({
       // from 12.2, streets' and places' of interest from 15 - a city page
       // opens around 12-13. Labels that don't fit are still left out.
       for (const [id, minzoom] of EARLIER_LABELS) if (map.getLayer(id)) map.setLayerZoomRange(id, minzoom, 24);
+      if (map.getLayer("label_other")) {
+        map.setLayoutProperty("label_other", "text-size", QUARTER_LABEL_SIZE as any);
+        map.setPaintProperty("label_other", "text-color", "#4A4238");
+      }
       // Start with an empty source rather than the fallback circle — the
       // boundary effect below fills it in as soon as it knows the real
       // shape (or, failing that, the circle). Pre-drawing the circle here
@@ -1824,14 +1838,14 @@ export function MapView({
     frameSpots(map, b ? [a, b] : [a], ms);
     return true;
   };
-  const openSpot = (spot: SpotPoint, maxZoom?: number) => {
+  const openSpot = (spot: SpotPoint, maxZoom?: number, withCentre = false) => {
     linkSpotsRef.current = false;
     if (!spotsRef.current.a) spotFramedRef.current = true;
     setSpotA(spot);
     setSpotB(null);
     setSpotTarget(null);
     // (The filter bar stays: it's along the top, clear of the spot's card.)
-    if (mapRef.current) frameSpots(mapRef.current, [spot], undefined, maxZoom);
+    if (mapRef.current) frameSpots(mapRef.current, withCentre ? [spot, { lat, lng }] : [spot], undefined, maxZoom);
   };
   /** The address box's button, on its own (2026-11-12, owner): on, the map
    *  expands from the page if it must, and only the box opens - no filters,
@@ -1849,8 +1863,8 @@ export function MapView({
     setAddressOpen(false);
     releaseFor("address");
   };
-  /** An address picked: the spot, named after it, with its streets around
-   *  it (ADDRESS_ZOOM). The box closes; the spot keeps the map expanded
+  /** An address picked: the spot, named after it, framed with the city's
+   *  centre (ADDRESS_ZOOM at the closest). The box closes; the spot keeps the map expanded
    *  (it's the spot button's now). */
   const pickAddress = (found: { lat: number; lng: number; title: string }) => {
     const by = expandedByRef.current;
@@ -1860,7 +1874,7 @@ export function MapView({
     }
     setAddressOpen(false);
     if (spotMode === "a") setSpotMode(null);
-    openSpot({ lat: found.lat, lng: found.lng, name: found.title }, ADDRESS_ZOOM);
+    openSpot({ lat: found.lat, lng: found.lng, name: found.title }, ADDRESS_ZOOM, true);
   };
 
   // Spots from a shared link, once the map is up: framed now, and in place
