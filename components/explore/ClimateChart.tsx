@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useUnitPreferences } from "@/lib/unitPreferences";
+import { CLIMATE_YEARS } from "@/lib/climateSource";
 
 const MONTHS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -21,7 +22,8 @@ const RAIN_TEXT = "#5E7F94";
 const INK = "#6B6155";
 const GRID = "#E7E0D6";
 
-/** Month-by-month normals (WorldClim 1970-2000): average daily high and low
+/** Month-by-month normals (TerraClimate 1991-2020, WorldClim 1970-2000
+ *  before - the caption reads the years from the dataset): average daily high and low
  *  as lines on a labelled temperature scale, rainfall as bars with each
  *  month's amount written underneath - what an annual average hides (a
  *  17 °C year can be mild all year or 5 °C winters and 30 °C summers).
@@ -60,7 +62,7 @@ export function ClimateChart({ monthly }: { monthly: { highC: number[]; lowC: nu
       <div className="mb-1.5 text-center">
         <p className="font-serif text-[13px] font-semibold leading-tight text-ink-900">A typical year, month by month</p>
         <p className="mt-0.5 text-[10px] leading-snug text-ink-500">
-          The usual daytime high and night-time low in each month, and how much rain falls in it - averages over 1970-2000.
+          The usual daytime high and night-time low in each month, and how much rain falls in it - averages over {CLIMATE_YEARS}.
         </p>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="A typical year: each month's average daytime high and night-time low temperature, and its rainfall">

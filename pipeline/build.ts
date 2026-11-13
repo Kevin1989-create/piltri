@@ -193,7 +193,7 @@ async function main() {
     loadRiverPoints(),
     loadEarthquakes(),
   ]);
-  const climate = await sampleClimate(points);
+  const climate = await sampleClimate(shortlist.map((c) => ({ lat: c.lat, lng: c.lng, geonameId: c.geonameId })));
   const koppen = await sampleKoppen(points);
   const uv = await sampleUvIndex(points);
   const pm25 = await samplePm25(points);
@@ -624,7 +624,7 @@ async function main() {
       shortlist: "GeoNames cities1000 (CC BY 4.0) - every place with 1,000+ people; time zones, capitals, currencies",
       country: "World Bank Open Data (CC BY 4.0); WHO UHC service coverage index (via World Bank WDI, CC BY 4.0); ND-GAIN country index; UN World Population Prospects 2024 median age",
       languages: LANGUAGES_SOURCE,
-      climate: "WorldClim 2.1 monthly normals 1970-2000 (CC BY 4.0); sunshine estimated from solar radiation (FAO-56), snowfall from sub-zero monthly precipitation",
+      climate: "TerraClimate monthly averages 1991-2020 (University of Idaho; public domain, CC0); sunshine estimated from solar radiation (FAO-56), snowfall from sub-zero monthly precipitation",
       climateType: KOPPEN_SOURCE,
       uv: "NASA POWER all-sky UV index climatology 2001-2020 (CERES SYN1deg), converted to noon peak",
       airQuality: PM25_SOURCE,

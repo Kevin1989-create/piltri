@@ -103,8 +103,9 @@ export interface SafetyStabilityFields {
   conflictDeaths5yr?: number | null;
 }
 
-/** Climate normals are WorldClim 2.1 (1970-2000) at the city's coordinates
- *  (null for a few remote islands off its land grid); hazards and air
+/** Climate normals are TerraClimate's 1991-2020 averages (WorldClim 2.1
+ *  1970-2000 until 2026-11-13) at the city's coordinates (null for a few
+ *  remote islands off its land grid); hazards and air
  *  quality are also per city. */
 export interface ClimateFields {
   avgAnnualTemperatureC: number | null;

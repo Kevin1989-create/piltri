@@ -4,6 +4,7 @@ import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferenc
 import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
 import { SECTION_LABELS, type CityExploreData, type SectionKey } from "@/lib/types";
 import { manifest } from "@/lib/dataset/files";
+import { CLIMATE_SOURCE } from "@/lib/climateSource";
 import { INSIDE_TRACK_ONLY, WATER_STRESS_ARID, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
 
 /** Which tier a value describes: "country" (national statistics),
@@ -166,7 +167,7 @@ const MAX_DRIVE_KM = 500;
 
 const WB = (code: string) => `World Bank, World Development Indicators (${code}), latest year available`;
 const WGI = "World Bank, Worldwide Governance Indicators";
-const WORLDCLIM = "WorldClim 2.1 climate normals, 1970-2000 averages";
+const WORLDCLIM = CLIMATE_SOURCE;
 const OVERTURE = "Overture Maps places (OpenStreetMap and other open sources)";
 // The years match pipeline/conflict.ts (GED 26.1: 2021-2025).
 const UCDP = "Uppsala Conflict Data Program, Georeferenced Event Dataset 26.1 (CC BY 4.0)";

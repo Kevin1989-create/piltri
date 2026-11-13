@@ -201,8 +201,12 @@ See `pipeline/README.md` for the full table. Highlights and decisions:
   `lib/dataset/assemble.ts`); inflation joined it on 2026-11-06 (owner:
   closest to 2% a year is best, RANGES.inflation). World ranks are
   computed by the refresh.
-- **Climate**: WorldClim normals incl. monthly highs/lows/rain (climate
-  chart), summer high / winter low; climate type from Beck et al.'s
+- **Climate**: TerraClimate 1991-2020 averages (since 2026-11-13;
+  WorldClim 1970-2000 before) incl. monthly highs/lows/rain (climate
+  chart), summer high / winter low - from a committed table
+  (`pipeline/static/terraclimate-1991-2020.bin.gz`, rebuilt only by
+  `scripts/build-climate-normals.mts`); the site's "1991-2020" wording
+  follows the dataset's source line (`lib/climateSource.ts`); climate type from Beck et al.'s
   published Köppen maps (today + projected 2071-2099, SSP2-4.5); sunshine, snowfall and **UV** (NASA
   POWER, converted to noon peak, includes cloud) are disclosed estimates.
 - **Air pollution**: ACAG satellite PM2.5 (2024) - **counts in the

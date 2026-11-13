@@ -39,7 +39,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # Inputs that never change between runs (WorldClim climate normals,
+      # Inputs that never change between runs (WorldClim's grid - since
+      # 2026-11-13 only for telling sea beaches from river banks, the
+      # 1991-2020 climate figures come from a committed table -
       # NASA POWER UV climatology, WorldPop and GHS-POP 2020 grids) are
       # cached instead of re-downloaded.
       # Everything else (World Bank, WHO, GeoNames, USGS, Overture, Ookla,

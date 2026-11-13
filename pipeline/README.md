@@ -32,7 +32,7 @@ also picks up the latest published dataset.
 | Healthcare quality | WHO UHC service coverage index, via World Bank WDI (`SH_UHC_SCI`; WHO's own API failed the 2026-10-28 refresh) | CC BY 4.0 |
 | PM2.5 fallback for small island nations | WHO (data.who.int, SDG 11.6.2 PM2.5); left out for the month when WHO's API is down | CC BY 4.0 |
 | Climate readiness | ND-GAIN (`generateClimateReadiness.mjs`) | free |
-| Temperature (mean, monthly highs/lows), rainfall, humidity, sunshine, snow | WorldClim 2.1 normals (1970-2000), 2.5′ grid | CC BY 4.0 |
+| Temperature (mean, monthly highs/lows), rainfall, humidity, sunshine, snow | TerraClimate 1991-2020 monthly averages, 1/24° (~4 km) grid - computed once from the 150 yearly files by `scripts/build-climate-normals.mts` for every GeoNames cities1000 place and committed as `pipeline/static/terraclimate-1991-2020.bin.gz` (`pipeline/climateNormals.ts`; 2026-11-13, WorldClim 2.1 1970-2000 before - its grid is still read for the open-water test of beaches) | public domain (CC0) |
 | Climate type today (1991-2020) and by 2085 (SSP2-4.5) | Beck et al. (2023) 1 km Köppen-Geiger maps | CC BY 4.0 |
 | UV index | NASA POWER all-sky UV climatology (CERES SYN1deg, 2001-2020) | public domain |
 | Air pollution (PM2.5) | ACAG satellite-derived PM2.5 V6.GL.03, 2024, 0.01° (AWS Open Data) | CC BY 4.0 |
@@ -59,8 +59,9 @@ also picks up the latest published dataset.
 credited on the site at /sources (built from the manifest).
 
 ### Disclosed estimates
-- **Sunshine hours**: WorldClim solar radiation via FAO-56 Angström-Prescott,
-  calibrated ×1.1 against 11 reference cities (~9% mean error).
+- **Sunshine hours**: solar radiation (TerraClimate since 2026-11-13,
+  WorldClim before) via FAO-56 Angström-Prescott, calibrated ×1.1 against 11
+  reference cities (~9% mean error).
 - **Snowfall**: precipitation in sub-zero months.
 - **UV index**: POWER publishes a 24-hour mean; the noon peak is recovered
   from the sun's path (UV ∝ cos(zenith)^2.42), averaged over 12 months.
@@ -168,6 +169,9 @@ credited on the site at /sources (built from the manifest).
 - `builtup.ts` - the built-up area outline of towns with none, from GHS-POP
 - `nearCities.ts` - "within 5 km of each city" counts and averages, run
   **inside DuckDB** (millions of points never enter JavaScript)
+- `climateNormals.ts` - the 1991-2020 climate table (committed in
+  `static/`, built by `scripts/build-climate-normals.mts`;
+  `scripts/compare-climate-normals.mts` sets it against WorldClim)
 - `worldclim.ts`, `koppenMap.ts`, `uv.ts`, `airQuality.ts`, `population.ts`,
   `broadband.ts`, `hazards.ts` - one module per raster/dataset
 - `build.ts` - joins everything, computes scores and world ranks

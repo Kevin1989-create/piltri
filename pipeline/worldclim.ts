@@ -1,12 +1,15 @@
 import path from "path";
 import { fromFile } from "geotiff";
+import { climateNormalsFor } from "./climateNormals";
 import { cached, downloadOnce, log, pointsKey, round, unzipOnce, WORK_DIR } from "./util";
 
-/** WorldClim 2.1 monthly climate normals (1970-2000), 2.5 arc-minute
- *  (~4.5 km) grid - free, CC BY 4.0, read with geotiff.js (pure JS, no
- *  GDAL). Normals don't change year to year; the rasters are cached across
- *  runs. (Köppen types come from Beck et al.'s published map instead -
- *  see koppenMap.ts.) */
+/** The climate figures: since 2026-11-13 from TerraClimate's 1991-2020
+ *  averages (climateNormals.ts - owner: the chart "stops in 2000"), with
+ *  the sunshine, humidity and snow estimates below unchanged. WorldClim
+ *  2.1 (1970-2000, 2.5 arc-minute ~4.5 km grid, CC BY 4.0, read with
+ *  geotiff.js) is still read for openWaterNear's land/sea mask, and for
+ *  comparing the two. (Köppen types come from Beck et al.'s published map
+ *  instead - see koppenMap.ts.) */
 const VARIABLES = ["tavg", "tmax", "tmin", "prec", "srad", "vapr"] as const;
 type Variable = (typeof VARIABLES)[number];
 
@@ -157,9 +160,14 @@ const EMPTY: ClimateResult = {
   monthlyRainMm: null,
 };
 
-export async function sampleClimate(points: { lat: number; lng: number }[]): Promise<ClimateResult[]> {
-  // Raw monthly samples are the slow part (72 rasters) - cached on their
-  // own so tweaking the derivations below never re-reads the rasters.
+/** The 12 monthly values of each variable at one place. */
+export type MonthlySample = Record<Variable, (number | null)[]>;
+
+/** WorldClim 1970-2000 at every point, straight from the rasters - kept
+ *  for comparing against the 1991-2020 averages
+ *  (scripts/compare-climate-normals.mts); the build no longer uses it. */
+export async function sampleWorldClimMonthly(points: { lat: number; lng: number }[]): Promise<MonthlySample[]> {
+  // Raw monthly samples are the slow part (72 rasters) - cached on their own.
   const monthly = await cached(`worldclim-monthly-${pointsKey(points)}`, async () => {
     const out = {} as Record<Variable, (number | null)[][]>;
     for (const variable of VARIABLES) {
@@ -173,30 +181,57 @@ export async function sampleClimate(points: { lat: number; lng: number }[]): Pro
     }
     return out;
   });
-
-  const column = (variable: Variable, i: number) => monthly[variable].map((m) => m[i]);
-  const complete = (values: (number | null)[]): values is number[] => values.every((v) => v != null);
-  return points.map(({ lat }, i) => {
-    const t = column("tavg", i);
-    const p = column("prec", i);
-    if (!complete(t) || !complete(p)) return EMPTY;
-    const hi = column("tmax", i);
-    const lo = column("tmin", i);
-    const s = column("srad", i);
-    const v = column("vapr", i);
-    const sunshine = complete(s) ? s.reduce((sum, x, m) => sum + sunshineHoursPerDay(lat, m, x) * DAYS_IN_MONTH[m], 0) : null;
-    const humidity = complete(v) ? v.reduce((sum, x, m) => sum + relativeHumidity(x, t[m]), 0) / 12 : null;
-    return {
-      avgAnnualTemperatureC: round(t.reduce((a, b) => a + b, 0) / 12, 1),
-      avgAnnualRainfallMm: Math.round(p.reduce((a, b) => a + b, 0)),
-      avgAnnualSunshineHrs: sunshine != null ? Math.round(sunshine) : null,
-      avgAnnualSnowfallCm: Math.round(p.reduce((sum, x, m) => sum + x * snowFraction(t[m]), 0)),
-      avgAnnualHumidityPct: humidity != null ? Math.round(humidity) : null,
-      hottestMonthHighC: complete(hi) ? round(Math.max(...hi), 1) : null,
-      coldestMonthLowC: complete(lo) ? round(Math.min(...lo), 1) : null,
-      monthlyHighC: complete(hi) ? hi.map((x) => Math.round(x)) : null,
-      monthlyLowC: complete(lo) ? lo.map((x) => Math.round(x)) : null,
-      monthlyRainMm: p.map((x) => Math.round(x)),
-    };
+  return points.map((_, i) => {
+    const one = {} as MonthlySample;
+    for (const variable of VARIABLES) one[variable] = monthly[variable].map((m) => m[i]);
+    return one;
   });
+}
+
+/** TerraClimate 1991-2020 at every point (climateNormals.ts), in
+ *  WorldClim's variables and units: the mean temperature is the middle of
+ *  the daily high and low, as WorldClim's own is. */
+export function sampleNormalsMonthly(points: { lat: number; lng: number; geonameId?: number | null }[]): (MonthlySample | null)[] {
+  return climateNormalsFor(points).map((n) =>
+    n
+      ? {
+          tavg: n.tmax.map((hi, m) => (hi + n.tmin[m]) / 2),
+          tmax: n.tmax,
+          tmin: n.tmin,
+          prec: n.ppt,
+          srad: n.srad,
+          vapr: n.vap,
+        }
+      : null
+  );
+}
+
+/** The climate figures from 12 monthly values (either source). */
+export function climateFromMonthly(lat: number, sample: MonthlySample | null): ClimateResult {
+  if (!sample) return EMPTY;
+  const complete = (values: (number | null)[]): values is number[] => values.every((v) => v != null);
+  const { tavg: t, prec: p, tmax: hi, tmin: lo, srad: s, vapr: v } = sample;
+  if (!complete(t) || !complete(p)) return EMPTY;
+  const sunshine = complete(s) ? s.reduce((sum, x, m) => sum + sunshineHoursPerDay(lat, m, x) * DAYS_IN_MONTH[m], 0) : null;
+  const humidity = complete(v) ? v.reduce((sum, x, m) => sum + relativeHumidity(x, t[m]), 0) / 12 : null;
+  return {
+    avgAnnualTemperatureC: round(t.reduce((a, b) => a + b, 0) / 12, 1),
+    avgAnnualRainfallMm: Math.round(p.reduce((a, b) => a + b, 0)),
+    avgAnnualSunshineHrs: sunshine != null ? Math.round(sunshine) : null,
+    avgAnnualSnowfallCm: Math.round(p.reduce((sum, x, m) => sum + x * snowFraction(t[m]), 0)),
+    avgAnnualHumidityPct: humidity != null ? Math.round(humidity) : null,
+    hottestMonthHighC: complete(hi) ? round(Math.max(...hi), 1) : null,
+    coldestMonthLowC: complete(lo) ? round(Math.min(...lo), 1) : null,
+    monthlyHighC: complete(hi) ? hi.map((x) => Math.round(x)) : null,
+    monthlyLowC: complete(lo) ? lo.map((x) => Math.round(x)) : null,
+    monthlyRainMm: p.map((x) => Math.round(x)),
+  };
+}
+
+/** The climate figures at every point, from the 1991-2020 averages
+ *  (2026-11-13; WorldClim's 1970-2000 before). */
+export async function sampleClimate(points: { lat: number; lng: number; geonameId?: number | null }[]): Promise<ClimateResult[]> {
+  const monthly = sampleNormalsMonthly(points);
+  log("climate", `1991-2020 averages for ${monthly.filter(Boolean).length} of ${points.length} places`);
+  return points.map(({ lat }, i) => climateFromMonthly(lat, monthly[i]));
 }
