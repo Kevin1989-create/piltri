@@ -4,6 +4,9 @@ import type { DatasetManifest } from "./schema";
 /** The dataset manifest, bundled at build time by scripts/sync-dataset.mjs. */
 export const manifest = manifestJson as unknown as DatasetManifest;
 
+/** A country's name from its code (the code itself if unknown). */
+export const countryName = (cc: string): string => manifest.countryNames[cc] ?? cc;
+
 const BASE = `/data/${manifest.version}`;
 const cache = new Map<string, Promise<unknown>>();
 

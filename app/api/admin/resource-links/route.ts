@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/adminAuth";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
-import { RESOURCE_LINK_CATEGORIES, type ResourceLinkCategory } from "@/lib/types";
+import { RESOURCE_LINK_CATEGORIES } from "@/lib/types";
+import { isValidCategory, isValidUrl } from "@/lib/resourceLinkRules";
 
 /**
  * Admin CRUD for country_resource_links (see schema.sql) - backs the
@@ -11,19 +12,6 @@ import { RESOURCE_LINK_CATEGORIES, type ResourceLinkCategory } from "@/lib/types
  * enough.
  */
 
-function isValidCategory(value: unknown): value is ResourceLinkCategory {
-  return typeof value === "string" && (RESOURCE_LINK_CATEGORIES as string[]).includes(value);
-}
-
-function isValidUrl(value: unknown): value is string {
-  if (typeof value !== "string") return false;
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
 
 /** GET /api/admin/resource-links?countryCode=GB — every link for a country, unfiltered by category. */
 export async function GET(req: NextRequest) {

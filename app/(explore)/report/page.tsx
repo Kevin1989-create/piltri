@@ -16,9 +16,8 @@ import { getCityExploreData } from "@/lib/dataset/cities";
 import { cityUrl, HOME_URL, readCityRef, reportUrl } from "@/lib/urls";
 import { formatUtcOffset } from "@/lib/timezone";
 import { formatAreaKm2, formatDensityPerKm2, useUnitPreferences } from "@/lib/unitPreferences";
-import { SECTION_LABELS, type CityExploreData, type SectionKey } from "@/lib/types";
+import { SECTION_ORDER, SECTION_LABELS, type CityExploreData } from "@/lib/types";
 
-const ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveability"];
 
 /** Printable, single-page-per-city data report — CityHeader's "View all
  *  data" eye icon opens this in a new tab. It's a plain view first: the
@@ -121,7 +120,7 @@ function ReportContent() {
               <span>Generated {new Date().toLocaleDateString(undefined, { dateStyle: "medium" })}</span>
               <span>Data updated {new Date(data.lastUpdated).toLocaleDateString(undefined, { dateStyle: "medium" })}</span>
               <span>
-                Weighting: {ORDER.map((key) => `${SECTION_LABELS[key]} ${weights[key]}%`).join(" · ")}
+                Weighting: {SECTION_ORDER.map((key) => `${SECTION_LABELS[key]} ${weights[key]}%`).join(" · ")}
               </span>
             </div>
 
@@ -202,7 +201,7 @@ function ReportContent() {
               </div>
             </section>
 
-            {ORDER.map((section) => {
+            {SECTION_ORDER.map((section) => {
               // Same rows, in the same order, as the results page.
               const { countryRows, cityRows } = splitKpiRowsByTier(buildKpiRows(section, data, prefs));
               const cityTierHasContent = cityRows.length > 0;

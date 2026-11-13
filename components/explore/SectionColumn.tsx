@@ -9,9 +9,7 @@ import { ScrollArea } from "@/components/ui/ScrollArea";
 import { Collapse } from "@/components/ui/Collapse";
 import { cn } from "@/lib/cn";
 import { prefetchResourceLinks } from "@/lib/resourceLinksCache";
-import type { CityExploreData, SectionKey } from "@/lib/types";
-
-const ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveability"];
+import { SECTION_ORDER, type CityExploreData, type SectionKey } from "@/lib/types";
 
 /** The 4 scored sections plus Resources (see lib/types.ts's
  *  ResourceLinkCategory doc comment for why Resources isn't part of
@@ -81,7 +79,7 @@ export function SectionColumn({ data, externalDetail = false, onOpenSectionChang
 
   return (
     <div className={cn(filling && "flex-1 flex flex-col")}>
-      {ORDER.map((key) => {
+      {SECTION_ORDER.map((key) => {
         const isOpen = openKey === key;
         const isOtherRow = openKey !== null && !isOpen;
         return (

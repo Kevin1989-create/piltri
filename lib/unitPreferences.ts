@@ -85,10 +85,6 @@ function readStored(): UnitPreferences {
   }
 }
 
-export function getUnitPreferences(): UnitPreferences {
-  return readStored();
-}
-
 export function saveUnitPreferences(prefs: UnitPreferences): void {
   if (typeof window === "undefined") return;
   try {

@@ -277,6 +277,9 @@ export const SECTION_LABELS: Record<SectionKey, string> = {
   liveability: "Quality of Life",
 };
 
+/** The order sections are shown in, everywhere. */
+export const SECTION_ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveability"];
+
 export interface SectionScores {
   economy: number;
   safetyStability: number;
@@ -369,37 +372,7 @@ export interface CitySearchResult {
 
 export type AdvancedSearchScope = "city" | "country";
 
-/** One active filter (see lib/advancedSearch/criteria.ts for the keys).
- *  Only the field matching the criterion's kind is set. */
-export interface AdvancedSearchCriterionFilter {
-  key: string;
-  min?: number;
-  max?: number;
-  bool?: boolean;
-  select?: string;
-}
-
-export interface AdvancedSearchRequest {
-  scope: AdvancedSearchScope;
-  filters: AdvancedSearchCriterionFilter[];
-  weights?: Partial<SectionScores>;
-}
-
 export type CriterionValue = number | boolean | string | null;
-
-export interface AdvancedSearchCityResult {
-  cityId: string;
-  cityName: string;
-  region: string | null;
-  country: string;
-  countryCode: string;
-  lat: number;
-  lng: number;
-  sectionScores: SectionScores;
-  piltriScore: number;
-  /** Values of the criteria the search filtered on. */
-  matchedValues: Record<string, CriterionValue>;
-}
 
 export interface AdvancedSearchCountryResult {
   country: string;
@@ -411,16 +384,6 @@ export interface AdvancedSearchCountryResult {
   lng: number;
   sectionScores: SectionScores;
   piltriScore: number;
-  matchedValues: Record<string, CriterionValue>;
   /** Every criterion's rolled-up value, for the country report page. */
   allValues: Record<string, CriterionValue>;
-}
-
-export interface AdvancedSearchResponse {
-  scope: AdvancedSearchScope;
-  /** Cities or countries checked (all of them - nothing is skipped). */
-  checked: number;
-  matchCount: number;
-  cityResults?: AdvancedSearchCityResult[];
-  countryResults?: AdvancedSearchCountryResult[];
 }

@@ -14,9 +14,7 @@ import { gunzipSync } from "zlib";
  * as the nearest place in the file within NEAREST_KM.
  */
 
-export const CLIMATE_NORMALS_FILE = path.join(__dirname, "static", "terraclimate-1991-2020.bin.gz");
-export const CLIMATE_NORMALS_SOURCE =
-  "TerraClimate monthly climate 1991-2020 averages (Abatzoglou et al., University of Idaho; public domain, CC0), ~4 km grid";
+const CLIMATE_NORMALS_FILE = path.join(__dirname, "static", "terraclimate-1991-2020.bin.gz");
 
 const VARIABLES = ["tmax", "tmin", "ppt", "srad", "vap"] as const;
 const STORE_SCALE = { tmax: 10, tmin: 10, ppt: 1, srad: 10, vap: 1000 } as const;

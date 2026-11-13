@@ -1,6 +1,7 @@
 import { VectorTile } from "@mapbox/vector-tile";
 import Pbf from "pbf";
 import type { NearbyKind } from "@/lib/dataset/schema";
+import { haversineKm } from "@/lib/geo";
 
 /**
  * Every place of a kind around a city - all its schools, stations... - for
@@ -126,12 +127,6 @@ function tilePois(x: number, y: number, signal: AbortSignal): Promise<TilePoi[]>
   return promise;
 }
 
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371 * Math.asin(Math.sqrt(a));
-}
 
 const tileX = (lng: number) => Math.floor(((lng + 180) / 360) * 2 ** ZOOM);
 const tileY = (lat: number) => {

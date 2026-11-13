@@ -51,14 +51,6 @@ function readStoredWeights(): Record<SectionKey, number> {
   }
 }
 
-/** Non-reactive read — used server-side-request-time in Discover mode's
- *  search call (it doesn't need to re-render when weights change, just
- *  needs the current value at the moment the user hits "Find matching
- *  cities"). */
-export function getScoreWeights(): Record<SectionKey, number> {
-  return readStoredWeights();
-}
-
 export function saveScoreWeights(weights: Record<SectionKey, number>): void {
   if (typeof window === "undefined") return;
   try {

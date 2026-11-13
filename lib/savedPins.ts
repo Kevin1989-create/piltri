@@ -1,3 +1,5 @@
+import { sameSpot } from "@/lib/spots";
+
 /**
  * Local-only "saved pins" — persisted in the browser's localStorage, no
  * account or server-side storage involved. Deliberately simple for launch:
@@ -37,9 +39,6 @@ function writeAll(pins: SavedPin[]) {
 
 // Coordinates are floating point — treat anything within ~1m as the same pin
 // rather than requiring an exact match.
-function sameSpot(a: { lat: number; lng: number }, b: { lat: number; lng: number }): boolean {
-  return Math.abs(a.lat - b.lat) < 1e-5 && Math.abs(a.lng - b.lng) < 1e-5;
-}
 
 export function getSavedPins(): SavedPin[] {
   return readAll();

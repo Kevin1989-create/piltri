@@ -592,7 +592,6 @@ function CityContent() {
     <ShowOnMapContext.Provider value={hasNearbyData ? showOnMap : null}>
     <main className={cn("flex flex-col md:h-screen", sectionView && "h-dvh")}>
       <NavBar
-        logoSide="left"
         center={
           // Truly centred across the whole header now (see NavBar's 3-column
           // grid), at the same vertical level as the logo, rather than

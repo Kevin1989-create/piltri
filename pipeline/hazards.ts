@@ -45,13 +45,6 @@ async function loadNaturalEarthLines(layer: string, variant = "", keep: (propert
 
 export const loadCoastlinePoints = () => loadNaturalEarthLines("coastline");
 
-/** Shores of the larger lakes Natural Earth maps at 1:10m - scalerank 0-7
- *  (the Great Lakes, Geneva, Constance, Garda, Balaton, Tahoe...), not
- *  minor mountain reservoirs, and not salt lakes. A mapped "beach" only
- *  counts if it's on the sea or one of these. */
-export const loadLakeShorePoints = () =>
-  loadNaturalEarthLines("lakes", "-major", (p) => (p.scalerank ?? 99) <= 7 && p.featurecla !== "Alkaline Lake");
-
 /** Every lake and reservoir Natural Earth maps at 1:10m - with its more
  *  detailed European and North American layers (Annecy, Bourget, the
  *  Italian lakes...) - but not salt lakes: a beach within reach of one is

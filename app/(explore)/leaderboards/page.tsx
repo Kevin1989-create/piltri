@@ -10,7 +10,7 @@ import { SIZE_BANDS } from "@/lib/advancedSearch/thresholds";
 import { getPlaceTable, type PlaceTable } from "@/lib/advancedSearch/engine";
 import { normaliseWeights } from "@/lib/aggregation/scoring";
 import { cn } from "@/lib/cn";
-import { loadFile, manifest } from "@/lib/dataset/files";
+import { countryName, loadFile, manifest } from "@/lib/dataset/files";
 import {
   boardOrder,
   boardRanks,
@@ -30,7 +30,6 @@ import { useUnitPreferences } from "@/lib/unitPreferences";
 import { cityUrl } from "@/lib/urls";
 import type { CriterionValue } from "@/lib/types";
 
-const countryName = (cc: string) => manifest.countryNames[cc] ?? cc;
 
 /* ---- Board icons: the section icons where there is one, simple line
  *      drawings for the rest. ---- */
@@ -237,7 +236,7 @@ export default function LeaderboardsPage() {
 
   return (
     <main className="min-h-dvh flex flex-col bg-surface-muted">
-      <NavBar logoSide="left" />
+      <NavBar />
       <div className="px-4 sm:px-6 pt-6 sm:pt-8 pb-16">
         <div className="max-w-6xl mx-auto">
           <BackLink />

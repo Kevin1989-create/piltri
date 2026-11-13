@@ -2,6 +2,7 @@ import path from "path";
 import { readdirSync } from "fs";
 import { fromFile } from "geotiff";
 import { cached, downloadOnce, log, pointsKey, unzipOnce, WORK_DIR } from "./util";
+import { haversineKm } from "@/lib/geo";
 
 /**
  * Population density around each city centre from GHS-POP (European
@@ -27,12 +28,6 @@ const ghsUrl = (epoch: number) =>
 export const POPULATION_SOURCE = `GHS-POP R2023A, ${EPOCH} epoch, 1 km grid (European Commission JRC, CC BY 4.0)`;
 export const POPULATION_GROWTH_SOURCE = `GHS-POP R2023A, ${EARLIER_EPOCH} and ${EPOCH} epochs, 1 km grid (European Commission JRC, CC BY 4.0) - change within ${RADIUS_KM} km of the centre`;
 
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371 * Math.asin(Math.sqrt(a));
-}
 
 /** The sum of a 1 km population grid's cells within `radiusKm` of each
  *  point (null outside the grid) - GHS-POP here, WorldPop's age groups in

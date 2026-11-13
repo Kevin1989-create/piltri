@@ -28,6 +28,7 @@ import { loadShortlist } from "./shortlist";
 import { sampleUvIndex } from "./uv";
 import { cached, log, OUT_DIR, pointsKey, round } from "./util";
 import { openWaterNear, sampleClimate } from "./worldclim";
+import { haversineKm } from "@/lib/geo";
 
 const LOCAL_RADIUS_KM = 5;
 const AIRPORT_RADIUS_KM = 40; // airports sit well outside city centres
@@ -79,12 +80,6 @@ function mergePoints(...sets: Points[]): Points {
   return { lng, lat, names };
 }
 
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371 * Math.asin(Math.sqrt(a));
-}
 
 /** Nearest point (optionally passing `accept`) - id and km, or null. */
 function nearest(index: Index, lng: number, lat: number, accept?: (id: number) => boolean): { id: number; km: number } | null {

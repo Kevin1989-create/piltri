@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/adminAuth";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
-import { RESOURCE_LINK_CATEGORIES, type ResourceLinkCategory } from "@/lib/types";
+import type { ResourceLinkCategory } from "@/lib/types";
+import { isValidCategory, isValidUrl } from "@/lib/resourceLinkRules";
 
 /**
  * POST /api/admin/resource-links/bulk — body: { links: [{countryCode,
@@ -14,19 +15,6 @@ import { RESOURCE_LINK_CATEGORIES, type ResourceLinkCategory } from "@/lib/types
  * silently dropped) rather than failing the whole batch over one bad row.
  */
 
-function isValidCategory(value: unknown): value is ResourceLinkCategory {
-  return typeof value === "string" && (RESOURCE_LINK_CATEGORIES as string[]).includes(value);
-}
-
-function isValidUrl(value: unknown): value is string {
-  if (typeof value !== "string") return false;
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(req: NextRequest) {
   if (!isAdminRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

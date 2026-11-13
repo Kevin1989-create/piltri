@@ -17,9 +17,8 @@ import { countryUrl, HOME_URL } from "@/lib/urls";
 import { usePageMeta } from "@/lib/pageMeta";
 import { ReportSectionHeading } from "@/components/explore/ReportHeadings";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
-import { SECTION_LABELS, type AdvancedSearchCountryResult, type SectionKey } from "@/lib/types";
+import { SECTION_ORDER, SECTION_LABELS, type AdvancedSearchCountryResult } from "@/lib/types";
 
-const ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveability"];
 // Piltri Score (Overall) and each section's own "X score" criterion are
 // already shown at the top of the page (the big number + the 5 section
 // scores below it) - skipped here so they don't also show up a second time
@@ -127,7 +126,7 @@ function CountryReportContent() {
           <ReportSectionHeading title="Section scores" />
           {/* Colour-coded like the section rows on a city page. */}
           <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-x-4 sm:gap-x-6 gap-y-4 text-sm">
-            {ORDER.map((section) => (
+            {SECTION_ORDER.map((section) => (
               <div key={section} className="min-w-0 flex flex-col items-start gap-1">
                 <ScoreBadge score={sectionScores[section]} />
                 <p className="text-[11px] text-ink-500 leading-snug">{SECTION_LABELS[section]}</p>

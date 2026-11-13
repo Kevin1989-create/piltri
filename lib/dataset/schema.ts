@@ -177,8 +177,6 @@ export const CITY_FIELDS = [
   "groundwaterTrendCmYr",
 ] as const;
 
-export type CityFieldKey = (typeof CITY_FIELDS)[number];
-
 export interface CityRecord {
   id: string;
   name: string;

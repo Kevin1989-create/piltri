@@ -1,6 +1,6 @@
 import { writeFileSync } from "fs";
 import path from "path";
-import { DuckDBInstance } from "@duckdb/node-api";
+import { DuckDBInstance, type DuckDBConnection } from "@duckdb/node-api";
 import { WORK_DIR } from "./util";
 
 /** "What's within X km of each city" aggregations, run inside DuckDB so
@@ -11,7 +11,7 @@ import { WORK_DIR } from "./util";
 
 const CELL = 0.05;
 
-type Connection = Awaited<ReturnType<DuckDBInstance["connect"]>>;
+type Connection = DuckDBConnection;
 
 async function prepare(cities: { lat: number; lng: number }[], radiusKm: number, pointsSql: string): Promise<Connection> {
   const con = await (await DuckDBInstance.create(":memory:")).connect();
@@ -42,11 +42,7 @@ const DISTANCE = `
     cos(radians(c.lat)) * cos(radians(p.lat)) * pow(sin(radians(p.lng - c.lng) / 2), 2)
   ))`;
 
-const WITHIN = (radiusKm: number) => `
-  2 * 6371 * asin(sqrt(
-    pow(sin(radians(p.lat - c.lat) / 2), 2) +
-    cos(radians(c.lat)) * cos(radians(p.lat)) * pow(sin(radians(p.lng - c.lng) / 2), 2)
-  )) <= ${radiusKm}`;
+const WITHIN = (radiusKm: number) => `${DISTANCE} <= ${radiusKm}`;
 
 /** Per-city counts of each category within `radiusKm`. `pointsSql` must
  *  yield columns cat, lat, lng. */

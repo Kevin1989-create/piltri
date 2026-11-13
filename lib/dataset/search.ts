@@ -1,6 +1,6 @@
 import type { CitySearchResult } from "@/lib/types";
 import { getCountries } from "./cities";
-import { loadFile, manifest, memo } from "./files";
+import { countryName, loadFile, manifest, memo } from "./files";
 import { cityIdFor, normaliseSearchText, searchKey, searchKey3, type SearchEntry } from "./schema";
 
 /** Search-as-you-type over every shortlisted place, in the browser. The
@@ -46,7 +46,7 @@ export function prefetchSearch(query: string): void {
 const normalisedCountryNames = Object.entries(manifest.countryNames).map(([cc, name]) => ({ cc, name: normaliseSearchText(name) }));
 
 function toResult([name, region, cc, lat, lng, customId]: SearchEntry): CitySearchResult {
-  return { cityId: customId ?? cityIdFor(name, cc), cityName: name, region, country: manifest.countryNames[cc] ?? cc, countryCode: cc, lat, lng };
+  return { cityId: customId ?? cityIdFor(name, cc), cityName: name, region, country: countryName(cc), countryCode: cc, lat, lng };
 }
 
 /** "lisbon", "lisbon, portugal", "new york, united" or a full country name

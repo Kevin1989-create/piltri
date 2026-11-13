@@ -84,18 +84,6 @@ export function FilterIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** Magnifying glass — used for the Discover cities entry point. Both the
- *  circle and the handle are built symmetrically around the same optical
- *  centre so it sits well inside a centred square button. */
-export function DiscoverIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} {...props}>
-      <circle cx="10.5" cy="10.5" r="6.5" />
-      <path d="M15.3 15.3L20 20" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 /** Trophy - the Leaderboards link and its "Best overall" board. */
 export function TrophyIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -114,21 +102,6 @@ export function CogIcon(props: SVGProps<SVGSVGElement>) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" {...props}>
       <path d="M10.33 5.3L10.59 3.11L13.41 3.11L13.67 5.3A6.9 6.9 0 0 1 15.55 6.09L17.29 4.72L19.28 6.71L17.91 8.45A6.9 6.9 0 0 1 18.7 10.33L20.89 10.59L20.89 13.41L18.7 13.67A6.9 6.9 0 0 1 17.91 15.55L19.28 17.29L17.29 19.28L15.55 17.91A6.9 6.9 0 0 1 13.67 18.7L13.41 20.89L10.59 20.89L10.33 18.7A6.9 6.9 0 0 1 8.45 17.91L6.71 19.28L4.72 17.29L6.09 15.55A6.9 6.9 0 0 1 5.3 13.67L3.11 13.41L3.11 10.59L5.3 10.33A6.9 6.9 0 0 1 6.09 8.45L4.72 6.71L6.71 4.72L8.45 6.09A6.9 6.9 0 0 1 10.33 5.3Z" />
       <circle cx="12" cy="12" r="2.9" />
-    </svg>
-  );
-}
-
-/** Wrench/tool icon — used for the Customise score settings entry point.
- *  A proper tool glyph rather than a gear, per feedback that the gear read
- *  more like a sun burst than a mechanical icon. */
-export function SettingsIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} {...props}>
-      <path
-        d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
     </svg>
   );
 }
@@ -162,44 +135,6 @@ export function HeartIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M12 20.3s-7.6-4.6-9.2-9.4C1.6 7.3 3.7 4.2 7 4.2c2.1 0 3.6 1.2 5 3 1.4-1.8 2.9-3 5-3 3.3 0 5.4 3.1 4.2 6.7-1.6 4.8-9.2 9.4-9.2 9.4z" />
-    </svg>
-  );
-}
-
-/** Data-precision icon set — shown next to individual stats in
- *  SectionDetail / the report page to disclose whether a figure is genuine
- *  to this city, or a wider country-level figure shown as the best
- *  available proxy. Deliberately not colour-coded (colour is reserved for
- *  score tiers elsewhere in the app) — same neutral ink-300 tone for all
- *  three, distinguished by shape only. A dashed, irregular territory
- *  outline for Country (not a specific real country — just reads as "an
- *  area with a border" at the small size these render at), a small
- *  skyline for City, and a map pin for Pinned (finer than city — climate
- *  and local amenity density are already computed from an exact
- *  coordinate, not averaged across the whole city). */
-export function PrecisionCountryIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M9 2L15 3L17 6L15.5 10L17 13L14 19L12.5 22L10 18L8 12L9.5 6Z" strokeDasharray="2 2" />
-    </svg>
-  );
-}
-
-export function PrecisionCityIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M4 21V11l3.5-2 3.5 2v-4l3.5-2 3.5 2v9.5" />
-      <path d="M4 21h16" />
-      <path d="M8.2 13.5h.01M8.2 16.5h.01M14.8 11.5h.01M14.8 14.5h.01M14.8 17.5h.01" strokeWidth={2} />
-    </svg>
-  );
-}
-
-export function PrecisionPinnedIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M12 21.5S5 14.8 5 9.8a7 7 0 1114 0c0 5-7 11.7-7 11.7z" />
-      <circle cx="12" cy="9.3" r="2.4" />
     </svg>
   );
 }

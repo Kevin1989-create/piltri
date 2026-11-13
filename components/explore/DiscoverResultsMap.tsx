@@ -5,6 +5,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { scoreColor } from "@/lib/design-tokens";
 import { MapCredit } from "@/components/explore/MapCredit";
+import { escapeHtml } from "@/lib/escapeHtml";
 
 /** OpenFreeMap's minimal "positron" style (free, keyless) - plain enough
  *  for an overview of up to 50 markers. */
@@ -148,6 +149,4 @@ export function DiscoverResultsMap({ points }: DiscoverResultsMapProps) {
   );
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
-}
+

@@ -36,11 +36,11 @@ import {
 import { normaliseWeights } from "@/lib/aggregation/scoring";
 import { cn } from "@/lib/cn";
 import { getCountries } from "@/lib/dataset/cities";
-import { manifest } from "@/lib/dataset/files";
+import { countryName, manifest } from "@/lib/dataset/files";
 import { scoreColor } from "@/lib/design-tokens";
 import { REGION_LABELS, REGION_ORDER } from "@/lib/regions";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
-import { SECTION_LABELS, type CriterionValue, type SectionKey } from "@/lib/types";
+import { SECTION_ORDER, SECTION_LABELS, type CriterionValue } from "@/lib/types";
 import { formatDistanceKm, useUnitPreferences } from "@/lib/unitPreferences";
 import { cityUrl, compareUrl, readFrom } from "@/lib/urls";
 
@@ -54,8 +54,6 @@ type Column = (i: number) => CriterionValue;
 const PAGE = 30;
 const MAP_POINTS = 200;
 const MAX_COMPARE = 10;
-const SECTION_ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveability"];
-const countryName = (cc: string) => manifest.countryNames[cc] ?? cc;
 
 /** 520 (thousands) -> "520k"; 1,234 -> "1.2M". */
 function populationText(k: number | null): string {
@@ -350,31 +348,46 @@ function SearchContent() {
 
   const normalised = useMemo(() => normaliseWeights(weightPercentagesToScores(weights)), [weights]);
   const ready = table != null && needed.every((key) => columns[key]);
+  const population = columns["demographics.population"];
+  // Every place with no filter at all, at this sort: for "#77 overall", and
+  // as the results themselves when nothing is chosen - one run for both
+  // (~0.4 s on a laptop). Rerun only when its own columns change, not each
+  // time a filter's column arrives.
+  const unfilteredState = useMemo(() => ({ ...EMPTY_STATE, sort: state.sort }), [state.sort]);
+  const unfilteredKeys = columnsFor(unfilteredState).join("|");
+  const unfilteredReady = table != null && columnsFor(unfilteredState).every((key) => columns[key]);
+  const unfiltered = useMemo(
+    () => (unfilteredReady ? runFinder(table!, (key) => columns[key] ?? (() => null), languagesOf, normalised, unfilteredState) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [unfilteredReady, unfilteredKeys, table, languagesOf, normalised, unfilteredState]
+  );
   // "#77 overall": each place's position with no filter at all - same sort,
   // same one-per-neighbourhood grouping - so an unfiltered search reads 1,
   // 2, 3... (2026-10-17, on request). A place folded into a neighbour's
   // entry gets the position it would take.
-  const population = columns["demographics.population"];
   const worldRank = useMemo(() => {
-    if (!table || !population) return null;
-    const all = runFinder(table, (key) => columns[key] ?? (() => null), languagesOf, normalised, { ...EMPTY_STATE, sort: state.sort });
-    const listed = all.heads;
+    if (!table || !unfiltered) return null;
+    const listed = unfiltered.heads;
     const rank = new Int32Array(table.count);
     listed.forEach((i, k) => (rank[i] = k + 1));
     const isListed = new Uint8Array(table.count);
     for (const i of listed) isListed[i] = 1;
     let seen = 0;
-    for (const i of all.indices) {
+    for (const i of unfiltered.indices) {
       if (isListed[i]) seen++;
       else rank[i] = seen + 1;
     }
     return rank;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table, population, languagesOf, normalised, state.sort, columns]);
+  }, [table, unfiltered]);
   const fresh = useMemo(
-    () => (ready ? runFinder(table, (key) => columns[key] ?? (() => null), languagesOf, normalised, state) : null),
+    () =>
+      !ready
+        ? null
+        : activeFilterCount(state) === 0
+          ? unfiltered
+          : runFinder(table, (key) => columns[key] ?? (() => null), languagesOf, normalised, state),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ready, table, columns, languagesOf, normalised, state.regions, state.countries, state.sizes, state.climate, state.nearby, state.strong, state.languages, state.sort]
+    [ready, unfiltered, table, columns, languagesOf, normalised, state.regions, state.countries, state.sizes, state.climate, state.nearby, state.strong, state.languages, state.sort]
   );
   // While a new column downloads, keep showing the last results.
   const last = useRef<FinderResult | null>(null);
@@ -431,7 +444,7 @@ function SearchContent() {
 
   return (
     <main className={cn("min-h-dvh flex flex-col bg-surface-muted", picked.length > 0 && "pb-20")}>
-      <NavBar logoSide="left" />
+      <NavBar />
       <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 pt-5 pb-10">
         <BackLink />
         <h1 className="font-serif text-3xl text-ink-900 mt-1">Advanced search</h1>

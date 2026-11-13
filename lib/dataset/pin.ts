@@ -2,6 +2,7 @@ import type { NearbyPlace, PinnedLocationData } from "@/lib/types";
 import { driveMinutes } from "./assemble";
 import { loadFile, manifest } from "./files";
 import { POI_TILE_DEG } from "./schema";
+import { haversineKm } from "@/lib/geo";
 
 /** Pin mode, in the browser: the nearest beach/coast, mountain, train
  *  station and airport to any dropped pin, from the published 5°x5° point
@@ -21,12 +22,6 @@ const MOUNTAIN_MIN_RISE_M = 500;
 const MAX_RING = 8;
 const existing = new Set(manifest.tiles);
 
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371 * Math.asin(Math.sqrt(a));
-}
 
 function ringKeys(ty: number, tx: number, ring: number): string[] {
   const keys: string[] = [];

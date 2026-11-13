@@ -39,19 +39,25 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # Inputs that never change between runs (WorldClim's grid - since
-      # 2026-11-13 only for telling sea beaches from river banks, the
-      # 1991-2020 climate figures come from a committed table -
-      # NASA POWER UV climatology, WorldPop and GHS-POP 2020 grids) are
-      # cached instead of re-downloaded.
-      # Everything else (World Bank, WHO, GeoNames, USGS, Overture, Ookla,
-      # air quality, population) is fetched fresh.
+      # Inputs that never change between runs are cached instead of
+      # re-downloaded: WorldClim's mean temperature grid (since 2026-11-13
+      # only for telling sea beaches from river banks - the 1991-2020
+      # climate figures come from a committed table, so its other five
+      # grids are no longer needed), NASA POWER UV climatology, GHS-POP's
+      # 2025 grid, the 2024 PM2.5 map, the Köppen maps and UCDP GED 26.1
+      # (fixed releases, named by version - a new one is a new file).
+      # Everything else (World Bank, WHO, GeoNames, USGS, Overture, Ookla)
+      # is fetched fresh.
       - uses: actions/cache@v4
         with:
           path: |
-            ${{ github.workspace }}/.pipeline-cache/raw/wc2.1_*
+            ${{ github.workspace }}/.pipeline-cache/raw/wc2.1_2.5m_tavg.zip
             ${{ github.workspace }}/.pipeline-cache/raw/power-uv
-          key: static-inputs-v2
+            ${{ github.workspace }}/.pipeline-cache/raw/GHS_POP_E2025_*
+            ${{ github.workspace }}/.pipeline-cache/raw/V6GL03.CNNPM25.GL.*.nc
+            ${{ github.workspace }}/.pipeline-cache/raw/koppen_geiger_tif.zip
+            ${{ github.workspace }}/.pipeline-cache/raw/ged*-csv.zip
+          key: static-inputs-v3
       # Fixed releases too, downloaded once (2026-10-24): WorldPop's 2025 age
       # groups (~5.4 GB) and GHS-POP's 2020 epoch, for the local median age
       # and population growth. A new release gets a new file name.

@@ -1,6 +1,6 @@
 import { closeSync, existsSync, mkdirSync, openSync, renameSync, writeFileSync } from "fs";
 import path from "path";
-import { DuckDBInstance } from "@duckdb/node-api";
+import { DuckDBInstance, type DuckDBConnection } from "@duckdb/node-api";
 import { log, WORK_DIR } from "./util";
 import type { OsmHospitalAreas } from "./hospitals";
 
@@ -208,7 +208,7 @@ export interface ExtractSpec {
   select: string;
   where: string;
   /** Runs once before extracting, e.g. to load a table `where` joins on. */
-  setup?: (con: Awaited<ReturnType<DuckDBInstance["connect"]>>) => Promise<void>;
+  setup?: (con: DuckDBConnection) => Promise<void>;
 }
 
 export async function extractParts(OVERTURE_RELEASE: string, spec: ExtractSpec): Promise<string> {
@@ -271,7 +271,7 @@ export async function extractParts(OVERTURE_RELEASE: string, spec: ExtractSpec):
   writeFileSync(doneMarker, new Date().toISOString());
   return glob;
 
-  async function extractOne(con: Awaited<ReturnType<DuckDBInstance["connect"]>>, i: number, part: string) {
+  async function extractOne(con: DuckDBConnection, i: number, part: string) {
     const tmp = `${part}.tmp-${process.pid}-${i}`;
     const t0 = Date.now();
     for (let attempt = 1; ; attempt++) {

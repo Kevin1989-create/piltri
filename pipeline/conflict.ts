@@ -20,7 +20,6 @@ export const CONFLICT_YEARS = 5;
 /** The last full year GED 26.1 covers. */
 const LAST_YEAR = 2025;
 export const CONFLICT_FIRST_YEAR = LAST_YEAR - CONFLICT_YEARS + 1;
-export const CONFLICT_LAST_YEAR = LAST_YEAR;
 
 export const CONFLICT_SOURCE = `UCDP Georeferenced Event Dataset ${GED_VERSION.slice(0, 2)}.${GED_VERSION.slice(2)} (Uppsala Conflict Data Program, CC BY 4.0) - deadly events of organised violence ${CONFLICT_FIRST_YEAR}-${LAST_YEAR}, placed to within ~25 km or a district`;
 

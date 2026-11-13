@@ -1,5 +1,5 @@
 import path from "path";
-import { DuckDBInstance } from "@duckdb/node-api";
+import { DuckDBInstance, type DuckDBConnection } from "@duckdb/node-api";
 import { BOUNDARY_PRECISION, type EncodedBoundary } from "@/lib/dataset/schema";
 import { extractParts, resolveOvertureRelease } from "./overture";
 import { cached, log, pointsKey, WORK_DIR } from "./util";
@@ -41,7 +41,7 @@ const coreName = (x: string) =>
 /** A city and every name it's known by (GeoNames' name, ASCII name and
  *  alternate names). */
 type City = { cityName: string; altNames?: string[]; countryCode: string; lat: number; lng: number };
-type Con = Awaited<ReturnType<DuckDBInstance["connect"]>>;
+type Con = DuckDBConnection;
 
 /** pts: one row per city name variant; k is its core name (never empty). */
 async function loadCities(con: Con, cities: City[]) {

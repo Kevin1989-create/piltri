@@ -24,6 +24,7 @@ import { cityUrl } from "@/lib/urls";
 import { cameraMotion, MOTION_CSS, MOTION_MS, motionEase, prefersReducedMotion } from "@/lib/motion";
 import { CountryLocator } from "@/components/explore/CountryLocator";
 import { useMediaQuery } from "@/lib/useMediaQuery";
+import { escapeHtml } from "@/lib/escapeHtml";
 
 /** OpenFreeMap: free OpenStreetMap vector tiles, no API key, no usage
  *  limits (https://openfreemap.org). "liberty" is the richer style with POI
@@ -518,9 +519,6 @@ function createPinElement(color: string): HTMLDivElement {
   return el;
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
-}
 
 function googleMapsSearchUrl(query: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
@@ -1696,7 +1694,6 @@ export function MapView({
   // map is expanded.
   const addressButton = !!placeId && !buttonsSmall;
   const addressTop = spotTop + BUTTON_STEP_PX;
-  const listTop = (placeId ? addressTop : layersTop) + 35;
   /** The address box: opened with its own button only (2026-11-12, owner:
    *  each button on its own), on the expanded map. */
   const addressShown = !!placeId && listHere && addressOpen;
@@ -1836,15 +1833,6 @@ export function MapView({
     for (const p of points) bounds.extend([p.lng, p.lat]);
     map.fitBounds(bounds, { padding: pad, maxZoom: map.getZoom(), ...cameraMotion() });
   };
-  /** A shared link's spots, framed in place of the place itself until the
-   *  map is moved by hand or the spots change - the place's own framing
-   *  (its outline arriving, the map expanding) runs after them. */
-  const frameLinkSpots = (map: maplibregl.Map, ms?: number): boolean => {
-    const { a, b } = spotsRef.current;
-    if (!linkSpotsRef.current || !a) return false;
-    frameSpots(map, b ? [a, b] : [a], ms);
-    return true;
-  };
   const openSpot = (spot: SpotPoint, maxZoom?: number, withCentre = false) => {
     linkSpotsRef.current = false;
     if (!spotsRef.current.a) spotFramedRef.current = true;
@@ -1885,7 +1873,7 @@ export function MapView({
   };
 
   // Spots from a shared link, once the map is up: framed now, and in place
-  // of the place's own framing after (frameLinkSpots).
+  // of the place's own framing after (homeFrame).
   useEffect(() => {
     if (!initialSpots || !mapReady) return;
     const { a, b } = initialSpots;

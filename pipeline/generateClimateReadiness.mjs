@@ -1,11 +1,10 @@
 // Downloads Notre Dame Global Adaptation Initiative (ND-GAIN) country-level
 // climate change vulnerability/readiness data and writes
 // pipeline/static/climate-readiness.json (ISO2 country code -> latest-year
-// scores) - a one-time/periodic ingestion, same spirit as
-// generateDiscoverCities.mjs, since ND-GAIN publishes a downloadable
-// dataset (updated annually), not a live API.
+// scores) - a one-time/periodic ingestion, since ND-GAIN publishes a
+// downloadable dataset (updated annually), not a live API.
 //
-// Run with: node scripts/generateClimateReadiness.mjs
+// Run with: node pipeline/generateClimateReadiness.mjs
 //
 // ND-GAIN's own composite "gain" score is 0-100 (higher = more
 // vulnerability-resistant AND more ready to adapt); readiness/vulnerability

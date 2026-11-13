@@ -37,7 +37,7 @@ function IconLink({ href, label, Icon }: { href: string; label: string; Icon: Co
 export default function ExploreLandingPage() {
   return (
     <main className="min-h-dvh flex flex-col">
-      <NavBar logoSide="left" border={false} />
+      <NavBar border={false} />
 
       {/* -mt-12 only from sm: up (2026-09-26, on request - "the search bar
           is not fully centered right now on the phone"): this offset nudges

@@ -117,7 +117,7 @@ export default function AdminResourcesPage() {
 
   return (
     <main className="min-h-dvh flex flex-col">
-      <NavBar logoSide="left" border={false} />
+      <NavBar border={false} />
 
       <div className="flex-1 flex flex-col items-center px-6 py-10">
         <div className="w-full max-w-lg">

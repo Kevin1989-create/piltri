@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <main className="min-h-dvh flex flex-col bg-surface-muted">
-      <NavBar logoSide="left" />
+      <NavBar />
       <div className="px-4 sm:px-6 pt-6 sm:pt-8 pb-16">
         <article className="max-w-2xl mx-auto text-sm leading-relaxed text-ink-700">
           <BackLink />

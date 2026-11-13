@@ -17,6 +17,7 @@ import {
   type NearbyKind,
   type NearbyPoint,
 } from "./schema";
+import { haversineKm } from "@/lib/geo";
 
 export function getCountries(): Promise<Record<string, CountryRecord>> {
   return loadFile("countries.json");
@@ -29,12 +30,6 @@ function loadChunk(countryCode: string, n: number): Promise<CityRecord[]> {
   return memo(decoded, key, async () => (await loadFile<CityChunkFile>(`cities/${key}.json`)).rows.map((row) => decodeCity(row, countryCode)));
 }
 
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371 * Math.asin(Math.sqrt(a));
-}
 
 /** A city by id (one small chunk file), or - for old links whose id no
  *  longer matches, when they carry a point - the country's city nearest

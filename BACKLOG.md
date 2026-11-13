@@ -301,3 +301,34 @@ whole regions); Economy goes local with phase 2's household income.
     one prerendered page per place (146,800 files) would exceed
     Cloudflare's 20,000-file free limit, so keep one page per kind as
     today.
+
+## Code health (review of 2026-11-13, owner: "compact and simplify")
+
+Done that day: dead code out (~540 lines: the old search engine, unused
+criteria fields, icons, MiniBar), shared helpers instead of copies
+(distance, HTML escaping, section order, link checks, country names), the
+search page ranks once instead of on every column load, the site build
+reads the dataset bundle a file at a time (as one string it was at 96% of
+Node's limit), and the refresh caches only the inputs it still uses.
+Left for later, biggest first:
+16. **Skip deploys that change nothing on the site** - a Vercel
+    "ignored build step" when only pipeline/, scripts/ or docs changed and
+    the live dataset is current (~350 MB of the 10 GB cap per skipped
+    deploy; 15 of 75 recent pushes). Needs care: the monthly deploy hook
+    rebuilds the same commit, so it must still build when the dataset is new.
+17. **Don't ship files the site never fetches** - poi/ (25 MB, pin mode
+    is off) and ~23 Advanced Search columns nothing reads (~14 MB): ~8-10%
+    of each deploy.
+18. **A faster refresh** - the median-age step reads 20 WorldPop grids one
+    after another (~30-50 min): worker threads, and starting the Overture
+    downloads before it; the GHS 2025 grid is summed twice (density and
+    growth); nine nearest-place searches are done twice per place; DuckDB
+    instances are never closed (memory - the runner ran out twice).
+19. **One registry per place kind** - each kind (beach, train, bus...) is
+    described in ~12 tables across 8 files (labels, colours, icons,
+    distances, sources); one lib/placeKinds.ts would make a new kind a
+    one-place change (~250 lines, mechanical).
+20. **Smaller tidy-ups** - a MapButton component for the map's hand-placed
+    buttons, one journey-drawing helper (drawn twice), one localStorage
+    read/write pair (5 copies), one "one per site" grid helper (5 copies),
+    ESLint configured or removed (installed, never set up).

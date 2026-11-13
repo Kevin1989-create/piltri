@@ -111,7 +111,7 @@ export default function SourcesPage() {
 
   return (
     <main className="min-h-dvh flex flex-col">
-      <NavBar logoSide="left" border={false} />
+      <NavBar border={false} />
       <div className="px-4 sm:px-6 pt-6 sm:pt-10 pb-16">
         <div className="max-w-2xl mx-auto">
           <BackLink />

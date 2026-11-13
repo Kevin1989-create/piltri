@@ -33,10 +33,39 @@ function supabaseUrl() {
   return line ? line.slice(line.indexOf("=") + 1).trim() : null;
 }
 
+/** The bundle's files, one at a time - {"files":{"<path>":"<contents>",...}}
+ *  (pipeline/output.ts writeBundle) read straight from the decompressed
+ *  bytes, each name and file decoded on its own: as one string the bundle
+ *  had reached 96% of the longest string Node can hold (2026-11-13, 529 MB),
+ *  and parsing it held two copies on top. A quote or backslash byte can't
+ *  be part of a multi-byte UTF-8 character, so scanning bytes is safe. */
+function* bundleFiles(gz) {
+  const buf = gunzipSync(gz);
+  const head = Buffer.from('{"files":{');
+  if (!buf.subarray(0, head.length).equals(head)) throw new Error("bundle: unexpected format");
+  let i = head.length;
+  const readString = () => {
+    if (buf[i] !== 0x22) throw new Error(`bundle: expected a string at byte ${i}`);
+    const start = i++;
+    while (buf[i] !== 0x22) {
+      if (i >= buf.length) throw new Error("bundle: cut short");
+      i += buf[i] === 0x5c ? 2 : 1;
+    }
+    i++;
+    return JSON.parse(buf.toString("utf8", start, i));
+  };
+  while (buf[i] !== 0x7d) {
+    const rel = readString();
+    if (buf[i++] !== 0x3a) throw new Error(`bundle: expected ":" at byte ${i - 1}`);
+    yield [rel, readString()];
+    if (buf[i] === 0x2c) i++;
+  }
+}
+
 function install(manifest, files) {
   const dir = path.join(publicData, manifest.version);
   rmSync(dir, { recursive: true, force: true });
-  for (const [rel, content] of Object.entries(files)) {
+  for (const [rel, content] of files) {
     if (rel === "bundle.json.gz") continue;
     const file = path.join(dir, rel);
     mkdirSync(path.dirname(file), { recursive: true });
@@ -103,8 +132,7 @@ async function main() {
   if (process.env.DATASET_DIR) {
     const dir = path.resolve(process.env.DATASET_DIR);
     const manifest = JSON.parse(readFileSync(path.join(dir, "manifest.json"), "utf8"));
-    const { files } = JSON.parse(gunzipSync(readFileSync(path.join(dir, "bundle.json.gz"))).toString("utf8"));
-    install(manifest, files);
+    install(manifest, bundleFiles(readFileSync(path.join(dir, "bundle.json.gz"))));
     return finish(manifest);
   }
 
@@ -127,7 +155,7 @@ async function main() {
   }
 
   if (!existsSync(path.join(publicData, manifest.version, ".complete"))) {
-    install(manifest, JSON.parse(gunzipSync(await bundleFor(base, manifest)).toString("utf8")).files);
+    install(manifest, bundleFiles(await bundleFor(base, manifest)));
   }
   finish(manifest);
 }

@@ -17,12 +17,11 @@ import { getCityExploreData } from "@/lib/dataset/cities";
 import { buildKpiRows, type KpiRow } from "@/lib/kpiRows";
 import { useScoreWeights, weightPercentagesToScores } from "@/lib/scoreWeights";
 import { formatUtcOffset } from "@/lib/timezone";
-import { SECTION_LABELS, type CityExploreData, type CitySearchResult, type SectionKey } from "@/lib/types";
+import { SECTION_ORDER, SECTION_LABELS, type CityExploreData, type CitySearchResult, type SectionKey } from "@/lib/types";
 import { useUnitPreferences, type UnitPreferences } from "@/lib/unitPreferences";
 import { cityUrl, compareUrl, HOME_URL, readCityRef, type CityRef } from "@/lib/urls";
 
 const MAX_COLUMNS = 10;
-const SECTION_ORDER: SectionKey[] = ["safetyStability", "economy", "climate", "liveability"];
 
 /** One colour per place, so the score chart, the differences and the
  *  table's headers tie together. Chosen to stay clear of the green / amber
@@ -299,7 +298,7 @@ function CompareContent() {
 
   return (
     <main className="min-h-dvh flex flex-col bg-surface-muted">
-      <NavBar logoSide="left" />
+      <NavBar />
 
       <div className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-6 pt-5 pb-10">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
