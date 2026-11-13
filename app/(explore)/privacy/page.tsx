@@ -47,7 +47,7 @@ export default function PrivacyPage() {
             The maps are drawn from OpenFreeMap&apos;s tiles, which your browser downloads as you look around. When you ask for a journey by road,
             its two ends are sent to the OpenStreetMap community&apos;s routing service. When you search an address on a city&apos;s map, what you
             type is sent to Photon, Komoot&apos;s search over OpenStreetMap, along with the area of that city - not your account, and not where you
-            are. The site is hosted by Vercel, which keeps the usual short-lived server logs.
+            are. The site is hosted by Vercel, and the figures about each place by Cloudflare; both keep the usual short-lived server logs.
           </p>
         </article>
       </div>

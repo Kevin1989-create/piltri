@@ -1,4 +1,4 @@
-import { manifest } from "@/lib/dataset/files";
+import { DATA_BASE } from "@/lib/dataset/files";
 
 /** Every Explore page reads countries.json (city pages assemble from it; the
  *  search bar uses it for capitals) - preloading it lets it download
@@ -7,7 +7,7 @@ import { manifest } from "@/lib/dataset/files";
 export default function ExploreLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <link rel="preload" href={`/data/${manifest.version}/countries.json`} as="fetch" crossOrigin="anonymous" />
+      <link rel="preload" href={`${DATA_BASE}/countries.json`} as="fetch" crossOrigin="anonymous" />
       {children}
     </>
   );

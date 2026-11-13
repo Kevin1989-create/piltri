@@ -9,9 +9,10 @@ Environment, Quality of Life) for ~140,000 places (every one with 1,000+ people)
   (GeoNames, World Bank, WHO, WorldClim, NASA POWER, satellite PM2.5, GHS-POP,
   Ookla, Overture Maps, Natural Earth, USGS) and published as a versioned
   bundle to Supabase Storage. See `pipeline/README.md`.
-- **The site** (Next.js, Vercel) copies the current dataset into
-  `public/data/<version>/` at build time and serves it from its own CDN.
-  Everything - city pages, search, pin mode, Advanced Search - reads those
+- **The site** (Next.js, Vercel) reads the current dataset's files from
+  Cloudflare Pages (`NEXT_PUBLIC_DATA_URL`, since 2026-11-13 - Vercel stored
+  a ~350 MB copy with every deploy); locally they're copied into
+  `public/data/<version>/` at build time. Everything - city pages, search, pin mode, Advanced Search - reads those
   static files **in the browser**; there's no server-side data code and no
   third-party API call when a page loads.
 - **Maps**: MapLibre GL + OpenFreeMap tiles (free, no key).

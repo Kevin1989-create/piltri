@@ -125,10 +125,14 @@ Real Estate section** - no free, reliable global price source exists.
 ```
 pipeline/ (offline, monthly GitHub Action)
    free bulk sources -> ~/.piltri-pipeline-cache -> dataset v<schema>/<version>/bundle.json.gz.<n> (in pieces under 50 MB)
-   -> Supabase Storage bucket "piltri-data" (public) + v<schema>/manifest.json
+   -> its files on Cloudflare Pages, project piltri-data (scripts/stage-data-site.mjs;
+      the live version kept next to the new one) - since 2026-11-13
+   -> Supabase Storage bucket "piltri-data" (public) + v<schema>/manifest.json (the switch)
 site build (Vercel; scripts/sync-dataset.mjs via prebuild/predev)
-   -> public/data/<version>/...  (static, immutable-cached on Vercel's CDN)
-   -> lib/dataset/meta.generated.json (manifest bundled into the JS)
+   -> lib/dataset/meta.generated.json (manifest bundled into the JS) + sitemaps
+   -> the browser reads the files from NEXT_PUBLIC_DATA_URL (Cloudflare Pages,
+      immutable-cached), so a Vercel deploy is a few MB, not ~350 MB; unset
+      (local development), they're copied into public/data/<version>/
 browser
    lib/dataset/cities.ts   city page = countries.json + one ~250-city chunk
    lib/dataset/search.ts   search = one per-letter index file

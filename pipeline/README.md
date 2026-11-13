@@ -2,9 +2,11 @@
 
 Every number the site shows is **computed offline** by this pipeline. The
 website has **no server-side data code at all**: at build time
-(`scripts/sync-dataset.mjs`, run by `predev`/`prebuild`) it copies the
-current dataset into `public/data/<version>/`, and the browser reads small,
-immutable, CDN-cached files from there - a city page is two files of a few
+(`scripts/sync-dataset.mjs`, run by `predev`/`prebuild`) it learns the
+current dataset, and the browser reads small, immutable, CDN-cached files
+from Cloudflare Pages (`NEXT_PUBLIC_DATA_URL`, since 2026-11-13 - put there
+by `scripts/stage-data-site.mjs` in the monthly run; locally, without it,
+they're copied into `public/data/<version>/`) - a city page is two files of a few
 KB, a search keystroke reads a local index, Advanced Search filters every
 city in the browser in milliseconds.
 

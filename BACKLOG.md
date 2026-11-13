@@ -12,11 +12,16 @@ The owner's requests and planned work, roughly in order. Updated
   acute care (no rehab, psychiatric, long-stay or no-emergency grounds -
   Olivet's rehab clinic came back through OpenStreetMap); "Patna, Kurji
   Hospital" out of London; the last "Klinik"s out of Indonesia.
-- **Vercel's 10 GB of deployments is full again** (2026-11-11; ~530 MB a
-  deployment). Deployments still went through. Until item 13: delete old
-  deployments in Vercel, push in batches. Quicker than moving the site:
-  serve `public/data` from Cloudflare R2 (free to 10 GB, no download
-  fees), so a deployment is a few MB.
+- **Vercel's 10 GB of deployments - the data moves to Cloudflare Pages**
+  (owner, 2026-11-13: Pages rather than R2 - no DNS move, no card). Code
+  ready: the site reads the files from `NEXT_PUBLIC_DATA_URL`; the monthly
+  run puts each version on Pages before the switch; the "Data on
+  Cloudflare" workflow puts today's there. Owner's steps: a free
+  Cloudflare account, an API token (Cloudflare Pages: Edit) and the
+  account ID as GitHub secrets `CLOUDFLARE_API_TOKEN` and
+  `CLOUDFLARE_ACCOUNT_ID`, run "Data on Cloudflare", then
+  `NEXT_PUBLIC_DATA_URL` (the pages.dev address it prints) in Vercel and a
+  redeploy. Then a deploy is ~20 MB instead of ~350 MB.
 - **WHO's data service is down** (since 2026-10-28): the national PM2.5
   estimate for small island countries outside the satellite map is left
   out (their towns show "No data" for air quality). The World Bank's copy
@@ -311,24 +316,21 @@ search page ranks once instead of on every column load, the site build
 reads the dataset bundle a file at a time (as one string it was at 96% of
 Node's limit), and the refresh caches only the inputs it still uses.
 Left for later, biggest first:
-16. **Skip deploys that change nothing on the site** - a Vercel
-    "ignored build step" when only pipeline/, scripts/ or docs changed and
-    the live dataset is current (~350 MB of the 10 GB cap per skipped
-    deploy; 15 of 75 recent pushes). Needs care: the monthly deploy hook
-    rebuilds the same commit, so it must still build when the dataset is new.
-17. **Don't ship files the site never fetches** - poi/ (25 MB, pin mode
-    is off) and ~23 Advanced Search columns nothing reads (~14 MB): ~8-10%
-    of each deploy.
-18. **A faster refresh** - the median-age step reads 20 WorldPop grids one
+16. ~~Skip deploys that change nothing; don't ship unread files~~ - moot
+    once the data is on Cloudflare Pages (a deploy is ~20 MB). Unread
+    files there (poi/ while pin mode is off, ~23 unused columns) only
+    count towards Pages' 20,000 files per deployment (~14,800 used with
+    two versions).
+17. **A faster refresh** - the median-age step reads 20 WorldPop grids one
     after another (~30-50 min): worker threads, and starting the Overture
     downloads before it; the GHS 2025 grid is summed twice (density and
     growth); nine nearest-place searches are done twice per place; DuckDB
     instances are never closed (memory - the runner ran out twice).
-19. **One registry per place kind** - each kind (beach, train, bus...) is
+18. **One registry per place kind** - each kind (beach, train, bus...) is
     described in ~12 tables across 8 files (labels, colours, icons,
     distances, sources); one lib/placeKinds.ts would make a new kind a
     one-place change (~250 lines, mechanical).
-20. **Smaller tidy-ups** - a MapButton component for the map's hand-placed
+19. **Smaller tidy-ups** - a MapButton component for the map's hand-placed
     buttons, one journey-drawing helper (drawn twice), one localStorage
     read/write pair (5 copies), one "one per site" grid helper (5 copies),
     ESLint configured or removed (installed, never set up).

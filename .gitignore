@@ -13,6 +13,8 @@ MPF-training-update*.zip
 # The dataset the site serves - copied in by scripts/sync-dataset.mjs before
 # every dev/build run, never committed.
 public/data/
+# The folder put on Cloudflare Pages (scripts/stage-data-site.mjs).
+.data-site/
 lib/dataset/meta.generated.json
 
 # Offline data pipeline cache (downloads + intermediate files, ~2 GB) - normally

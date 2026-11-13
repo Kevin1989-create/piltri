@@ -1,11 +1,19 @@
-// Puts the current precomputed dataset where the site serves it from:
-// public/data/<version>/ (static files on the CDN, cached forever - the
-// version is in the path) plus lib/dataset/meta.generated.json (the
-// manifest, bundled into the site so the browser knows the version, chunk
-// counts and tile list without an extra request).
+// Gets the site ready for the current precomputed dataset:
+// lib/dataset/meta.generated.json (the manifest, bundled into the site so
+// the browser knows the version, chunk counts and tile list without an
+// extra request), the sitemaps, and - unless the data is hosted elsewhere -
+// the data files themselves in public/data/<version>/.
+//
+// Where the browser reads the data files from:
+//   NEXT_PUBLIC_DATA_URL set (production, since 2026-11-13): that host -
+//     Cloudflare Pages (scripts/stage-data-site.mjs puts each version
+//     there), so Vercel doesn't store a ~350 MB copy with every deploy.
+//     Nothing is installed here; the build fails if the host lacks the
+//     version, which leaves the live site as it was.
+//   not set (local development): public/data/<version>/ on this site.
 //
 // Runs automatically before `next dev` and `next build` (predev/prebuild).
-// Source, in order of preference:
+// Dataset source, in order of preference:
 //   DATASET_DIR=<pipeline output folder>   a locally built, unpublished dataset
 //   the published dataset in Supabase Storage (NEXT_PUBLIC_SUPABASE_URL)
 // A copy already in public/data is reused when it's the current version,
@@ -14,14 +22,13 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { gunzipSync } from "zlib";
+import { bundleFiles, datasetSettings, downloadBundle, fetchManifest } from "./datasetBundle.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicData = path.join(root, "public", "data");
 const metaFile = path.join(root, "lib", "dataset", "meta.generated.json");
-const schemaSource = readFileSync(path.join(root, "lib", "dataset", "schema.ts"), "utf8");
-const SCHEMA = Number(schemaSource.match(/DATASET_SCHEMA_VERSION = (\d+)/)[1]);
-const BUCKET = schemaSource.match(/DATA_BUCKET = "([^"]+)"/)[1];
+const { schema: SCHEMA, bucket: BUCKET } = datasetSettings(root);
+const DATA_URL = (process.env.NEXT_PUBLIC_DATA_URL ?? "").replace(/\/$/, "");
 
 function supabaseUrl() {
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) return process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -31,35 +38,6 @@ function supabaseUrl() {
     .split("\n")
     .find((l) => l.startsWith("NEXT_PUBLIC_SUPABASE_URL="));
   return line ? line.slice(line.indexOf("=") + 1).trim() : null;
-}
-
-/** The bundle's files, one at a time - {"files":{"<path>":"<contents>",...}}
- *  (pipeline/output.ts writeBundle) read straight from the decompressed
- *  bytes, each name and file decoded on its own: as one string the bundle
- *  had reached 96% of the longest string Node can hold (2026-11-13, 529 MB),
- *  and parsing it held two copies on top. A quote or backslash byte can't
- *  be part of a multi-byte UTF-8 character, so scanning bytes is safe. */
-function* bundleFiles(gz) {
-  const buf = gunzipSync(gz);
-  const head = Buffer.from('{"files":{');
-  if (!buf.subarray(0, head.length).equals(head)) throw new Error("bundle: unexpected format");
-  let i = head.length;
-  const readString = () => {
-    if (buf[i] !== 0x22) throw new Error(`bundle: expected a string at byte ${i}`);
-    const start = i++;
-    while (buf[i] !== 0x22) {
-      if (i >= buf.length) throw new Error("bundle: cut short");
-      i += buf[i] === 0x5c ? 2 : 1;
-    }
-    i++;
-    return JSON.parse(buf.toString("utf8", start, i));
-  };
-  while (buf[i] !== 0x7d) {
-    const rel = readString();
-    if (buf[i++] !== 0x3a) throw new Error(`bundle: expected ":" at byte ${i - 1}`);
-    yield [rel, readString()];
-    if (buf[i] === 0x2c) i++;
-  }
 }
 
 function install(manifest, files) {
@@ -74,15 +52,19 @@ function install(manifest, files) {
   writeFileSync(path.join(dir, ".complete"), new Date().toISOString());
 }
 
-function finish(manifest) {
+/** The installed copy's own files, for the sitemaps. */
+const installedFile = (manifest) => async (rel) => JSON.parse(readFileSync(path.join(publicData, manifest.version, rel), "utf8"));
+
+async function finish(manifest, readDataFile) {
   if (manifest.schemaVersion !== SCHEMA) throw new Error(`Dataset ${manifest.version} is schema ${manifest.schemaVersion}; the site expects ${SCHEMA}`);
-  // Only the current version is kept.
+  // Only the current version is kept - and none when the data is hosted
+  // elsewhere (it would only make each deploy bigger).
   for (const name of existsSync(publicData) ? readdirSync(publicData) : []) {
-    if (name !== manifest.version) rmSync(path.join(publicData, name), { recursive: true, force: true });
+    if (DATA_URL || name !== manifest.version) rmSync(path.join(publicData, name), { recursive: true, force: true });
   }
   writeFileSync(metaFile, JSON.stringify(manifest, null, 1) + "\n");
-  writeSitemaps(manifest);
-  console.log(`[dataset] ${manifest.version} (${manifest.cityCount} cities) ready in public/data`);
+  await writeSitemaps(manifest, readDataFile);
+  console.log(`[dataset] ${manifest.version} (${manifest.cityCount} cities) ready - files ${DATA_URL ? `from ${DATA_URL}` : "in public/data"}`);
 }
 
 const SITE_URL = "https://www.piltri.me";
@@ -93,13 +75,12 @@ const SITEMAP_SIZE = 45000;
 const cityIdFor = (name, countryCode) => `${name}-${countryCode}`.toLowerCase().replace(/\s+/g, "-");
 
 /** public/sitemap.xml (an index) and public/sitemaps/*.xml: the main pages,
- *  every country and every place, from the dataset just installed - one
- *  static page serves them all (/city?id=...), so search engines learn the
+ *  every country and every place, from the current dataset - one static
+ *  page serves them all (/city?id=...), so search engines learn the
  *  addresses only from here (2026-10-28). robots.txt points to the index. */
-function writeSitemaps(manifest) {
-  const dir = path.join(publicData, manifest.version, "adv");
-  const scores = JSON.parse(readFileSync(path.join(dir, "scores.json"), "utf8"));
-  const places = JSON.parse(readFileSync(path.join(dir, "places.json"), "utf8"));
+async function writeSitemaps(manifest, readDataFile) {
+  const scores = await readDataFile("adv/scores.json");
+  const places = await readDataFile("adv/places.json");
   const codes = scores.countryCodes.flatMap((code, i) => Array(scores.countryCounts[i]).fill(code));
   const cityUrls = places.name.map((name, i) => `/city?${new URLSearchParams({ id: places.customIds?.[i] ?? cityIdFor(name, codes[i]) })}`);
   const pageUrls = ["/", "/search", "/leaderboards", "/sources", ...Object.keys(manifest.countryNames).sort().map((code) => `/country?code=${code}`)];
@@ -128,12 +109,20 @@ function writeSitemaps(manifest) {
   console.log(`[dataset] sitemap: ${pageUrls.length} pages and ${cityUrls.length} places in ${names.length} files`);
 }
 
+/** A file of `manifest`'s version on the data host - which must have it. */
+const hostedFile = (manifest) => async (rel) => {
+  const url = `${DATA_URL}/data/${manifest.version}/${rel}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`the data host doesn't have ${url} (${res.status}) - put this version there first (scripts/stage-data-site.mjs)`);
+  return res.json();
+};
+
 async function main() {
   if (process.env.DATASET_DIR) {
     const dir = path.resolve(process.env.DATASET_DIR);
     const manifest = JSON.parse(readFileSync(path.join(dir, "manifest.json"), "utf8"));
     install(manifest, bundleFiles(readFileSync(path.join(dir, "bundle.json.gz"))));
-    return finish(manifest);
+    return finish(manifest, installedFile(manifest));
   }
 
   const url = supabaseUrl();
@@ -141,23 +130,26 @@ async function main() {
   let manifest = null;
   try {
     if (!base) throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set");
-    const res = await fetch(`${base}/manifest.json`, { cache: "no-store" });
-    if (!res.ok) throw new Error(`manifest ${res.status}`);
-    manifest = await res.json();
+    manifest = await fetchManifest(base);
   } catch (err) {
     // Offline: keep whatever copy is already installed.
     const installed = existsSync(metaFile) ? JSON.parse(readFileSync(metaFile, "utf8")) : null;
-    if (installed && existsSync(path.join(publicData, installed.version, ".complete"))) {
+    if (installed && !DATA_URL && existsSync(path.join(publicData, installed.version, ".complete"))) {
       console.warn(`[dataset] couldn't check for a newer dataset (${err.message}); using ${installed.version}`);
-      return finish(installed);
+      return finish(installed, installedFile(installed));
     }
     throw new Error(`No dataset available: ${err.message}`);
   }
 
+  if (DATA_URL) {
+    // The host must already serve this version: checked through its manifest.
+    await hostedFile(manifest)("manifest.json");
+    return finish(manifest, hostedFile(manifest));
+  }
   if (!existsSync(path.join(publicData, manifest.version, ".complete"))) {
     install(manifest, bundleFiles(await bundleFor(base, manifest)));
   }
-  finish(manifest);
+  await finish(manifest, installedFile(manifest));
 }
 
 // Vercel keeps .next/cache from one build to the next (public/ it doesn't),
@@ -174,16 +166,7 @@ async function bundleFor(base, manifest) {
     return readFileSync(cached);
   }
   console.log(`[dataset] downloading ${version}...`);
-  // Published in pieces (Supabase's free plan takes files up to 50 MB),
-  // or as one file for datasets before 2026-10-01.
-  const names = manifest.bundleParts ? Array.from({ length: manifest.bundleParts }, (_, i) => `bundle.json.gz.${i}`) : ["bundle.json.gz"];
-  const pieces = [];
-  for (const name of names) {
-    const res = await fetch(`${base}/${version}/${name}`);
-    if (!res.ok) throw new Error(`${name} ${res.status}`);
-    pieces.push(Buffer.from(await res.arrayBuffer()));
-  }
-  const bundle = Buffer.concat(pieces);
+  const bundle = await downloadBundle(base, manifest);
   try {
     rmSync(BUNDLE_CACHE, { recursive: true, force: true });
     mkdirSync(BUNDLE_CACHE, { recursive: true });
