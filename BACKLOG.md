@@ -230,6 +230,68 @@ whole regions); Economy goes local with phase 2's household income.
    2023) - Sydney only, ~80 inputs (Australian census, sales reports,
    business registers, Airbnb) that don't exist openly worldwide; its
    approach (train on real past change) is the one above.
+   5. **Our own price model, measured first** (owner, 2026-11-12: "if we
+      can find a model we work out ourselves based on a lot of data, this
+      would be great"; a range is fine, real data mixed in as control).
+      After the climate update. Step one is a test, not a feature: load
+      the open real prices of France (DVF), the US (ACS), England & Wales
+      (Land Registry) and the Netherlands (CBS WOZ); model price per m²
+      from what the dataset knows (size, density, centrality, income
+      proxies, amenities, coast, growth...); measure it by hiding towns
+      (within a country) and whole countries (train US + England, predict
+      France). Expected (not yet measured): ~25-35% error where a region
+      has a real price level to pin the model to, 35-50% with only a
+      national one, 60-100%+ with none. Design if it holds: real figures
+      where they exist; elsewhere the model, pinned to the nearest real
+      anchor (region averages from national statistics offices - Turkey,
+      Russia, China, Brazil, Mexico, Hungary to check), shown as an
+      estimate with its measured range, never mixed with real figures -
+      the owner to relax the no-estimates rule for it. Local property
+      sites: a few manual spot checks per country at most (asking prices
+      run 5-15% over sales); no systematic collection (their terms, EU
+      database rights).
+      **Measured 2026-11-13** (`scripts/price-model-test.mts`: France DVF
+      €/m² 8,446 towns, US ACS value per room 13,231, Netherlands CBS WOZ
+      1,140; England & Wales left out - its small-area coordinates file
+      wasn't reachable). Typical error (median), FR / US / NL:
+      - just the national average: 36% / 44% / 17%; just the region's: 18% / 31% / 15%
+      - a town missing in a country with open prices, its neighbours'
+        known: **7% / 14% / 8%** (80% of towns within about ±15% / -25..+33%
+        / ±17%) - the neighbours' prices do most of the work
+      - regional averages only, model learned in the same country: 12% / 22% / 12%
+      - learned abroad + regional averages (halfway between the two): 17% / 29% / 14%
+      - learned abroad + national average only: 24% / 34% / 25% (80% range
+        about ±43% / -51..+98% / -21..+70%) - better than the national
+        average in diverse countries, worse in the Netherlands
+      - no anchor at all: not measurable with three countries.
+      So: filling gaps where open prices exist works well; where only
+      regional averages are published, the model barely beats them; with a
+      national figure only, the ranges are too wide to be useful. Next if
+      wanted: more open-data countries (each one is real figures plus
+      7-14% gap-filling), the owner deciding on labelled estimates.
+
+## Ideas (owner, 2026-11-12) - to explore together
+
+14. **Hidden gems** - a leaderboard of places that score well but few
+    people know. "Not sure how we will find it." Ideas to try: a high
+    Piltri score among small and mid-size towns (5,000-100,000 people)
+    that are not famous - fame measured offline by Wikipedia page views
+    (Wikimedia's monthly dumps, CC0) or how many tourist places (Overture)
+    they have against their size; ideally rising too (the momentum score,
+    item 11.2); one per country, like the other boards. Needs a look at
+    the first results by hand before it goes live - a "gem" list that
+    looks wrong loses trust fast.
+15. **"Find your Piltri" - a question game** (Akinator-style: a few
+    questions, then your place). "Not sure if it's a good idea, something
+    to explore together." The engine exists - Advanced search's criteria
+    and the score settings. Each question would be the one that best
+    splits the places still in the running (warm or mild winters? sea,
+    mountains or city? big city or small town? budget?), 6-10 questions,
+    then the top 3 with why they fit, and "not quite - ask me more".
+    Good for first-time visitors and sharing ("my Piltri is..."). To
+    decide together: tone (playful or serious), whether it replaces or
+    sits beside Advanced search, and whether answers become score
+    settings the visitor can keep.
 
 ## Hosting
 
