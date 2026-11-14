@@ -6,12 +6,13 @@ import { PiltriScoreDisplay } from "@/components/ui/ScoreBadge";
 import { EyeIcon, PlusIcon } from "@/components/ui/icons";
 import { Collapse } from "@/components/ui/Collapse";
 import { SaveHeart } from "@/components/explore/SaveHeart";
+import { PlaceSummaryLine } from "@/components/explore/PlaceSummaryLine";
 import { hasSource } from "@/lib/kpiRows";
 import { isCustomWeights } from "@/lib/scoreWeights";
 import { formatUtcOffset } from "@/lib/timezone";
 import { SETTINGS_URL } from "@/lib/urls";
 import { formatAreaKm2Compact, formatDensityPerKm2, useUnitPreferences } from "@/lib/unitPreferences";
-import type { DemographicsFields, SectionKey } from "@/lib/types";
+import type { CityExploreData, DemographicsFields, SectionKey } from "@/lib/types";
 
 interface CityHeaderProps {
   cityName: string;
@@ -52,6 +53,9 @@ interface CityHeaderProps {
   /** Shows the heart that saves this place (2026-11-08, owner), before
    *  the eye and the "+". */
   savePlace?: { id: string; name: string; country: string; lat: number; lng: number };
+  /** The place in a few plain words under its name - strengths, things to
+   *  watch, who it suits (2026-11-14, BACKLOG P1). */
+  summaryOf?: CityExploreData;
 }
 
 /** Abbreviates large counts (population, density) to a short, glanceable
@@ -114,6 +118,7 @@ export function CityHeader({
   rank,
   hideCountry = false,
   savePlace,
+  summaryOf,
 }: CityHeaderProps) {
   const isCustomised = weights != null && isCustomWeights(weights);
   const { prefs } = useUnitPreferences();
@@ -294,6 +299,8 @@ export function CityHeader({
           </div>
         )}
       </div>
+
+      {summaryOf && <PlaceSummaryLine data={summaryOf} />}
 
       {/* Demographics - reference info, not scored. City first, then its
        *  country; each block's header says which tier it is. */}
