@@ -229,6 +229,20 @@ whole regions); Economy goes local with phase 2's household income.
       2015-2020 predict 2020-2025 price growth in France, England & Wales
       and the US? Set its weights from what did; call it a forecast only
       if it does, else "momentum".
+      **Tested 2026-11-14 on France (`scripts/momentum-test.mts`): no
+      signal.** Measured inputs only (GHS-POP and GHSL 2025 are projections,
+      found the same day). Night-light change 2014/15-2020/21 (VIIRS annual,
+      500 m, Zenodo 17294744, CC BY 4.0) against DVF price growth 2022-2025
+      in 3,877 communes: rank correlation 0.02 (within département 0.03);
+      even the same-period change: 0.05. The brightest-gaining fifth grew
+      +0.7% vs the département, the most-dimmed 0.0%. Static density did
+      more (-0.32: denser places grew less after 2022). Likely why: in
+      Europe light changes mostly follow street-lighting policy (LED
+      conversions, lights off after midnight, 2022's energy savings), not
+      growth. DVF online only keeps 2021 on, so 2015-2019 prices (and a
+      past-price benchmark) would need Cerema's DVF+ archive. Not shown on
+      the site; "Rising places" parked unless a measured signal passes this
+      test.
    4. Later: more price countries; a 1 km neighbourhood layer on big
       cities' maps (gentrification happens street by street).
    Considered and set aside: UNSW's Sydney gentrification model (Cities,
