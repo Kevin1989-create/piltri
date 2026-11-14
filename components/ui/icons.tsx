@@ -84,6 +84,16 @@ export function FilterIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** A question in a speech bubble - "Find your Piltri", the quiz (2026-11-14). */
+export function QuizIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M20.5 11.5a8.5 8.5 0 01-12.3 7.6L3.5 20.5l1.4-4.4A8.5 8.5 0 1120.5 11.5z" />
+      <path d="M9.8 9.3a2.3 2.3 0 014.4.9c0 1.5-2.2 1.9-2.2 3.3M12 16.4h.01" />
+    </svg>
+  );
+}
+
 /** Trophy - the Leaderboards link and its "Best overall" board. */
 export function TrophyIcon(props: SVGProps<SVGSVGElement>) {
   return (

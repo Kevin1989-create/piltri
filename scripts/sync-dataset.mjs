@@ -83,7 +83,7 @@ async function writeSitemaps(manifest, readDataFile) {
   const places = await readDataFile("adv/places.json");
   const codes = scores.countryCodes.flatMap((code, i) => Array(scores.countryCounts[i]).fill(code));
   const cityUrls = places.name.map((name, i) => `/city?${new URLSearchParams({ id: places.customIds?.[i] ?? cityIdFor(name, codes[i]) })}`);
-  const pageUrls = ["/", "/search", "/leaderboards", "/sources", ...Object.keys(manifest.countryNames).sort().map((code) => `/country?code=${code}`)];
+  const pageUrls = ["/", "/quiz", "/search", "/leaderboards", "/sources", ...Object.keys(manifest.countryNames).sort().map((code) => `/country?code=${code}`)];
 
   const lastmod = manifest.generatedAt.slice(0, 10);
   const urlset = (urls) =>

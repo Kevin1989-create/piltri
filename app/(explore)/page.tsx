@@ -2,7 +2,7 @@ import Link from "next/link";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
 import type { ComponentType, SVGProps } from "react";
-import { CogIcon, FilterIcon, HeartIcon, TrophyIcon } from "@/components/ui/icons";
+import { CogIcon, FilterIcon, HeartIcon, QuizIcon, TrophyIcon } from "@/components/ui/icons";
 import { leaderboardsUrl, savedUrl, searchUrl, SETTINGS_URL, sourcesUrl } from "@/lib/urls";
 
 /** An icon-only bordered amber button under the search bar; hovering (or
@@ -66,6 +66,7 @@ export default function ExploreLandingPage() {
            *  heading, the row hangs outside the flow on phones so the search
            *  bar stays in the middle. */}
           <div className="absolute inset-x-0 top-full mt-3 flex justify-center gap-2.5 sm:static">
+            <IconLink href="/quiz" label="Find your Piltri" Icon={QuizIcon} />
             <IconLink href={searchUrl()} label="Advanced search" Icon={FilterIcon} />
             <IconLink href={leaderboardsUrl()} label="Leaderboards" Icon={TrophyIcon} />
             <IconLink href={savedUrl()} label="Saved" Icon={HeartIcon} />

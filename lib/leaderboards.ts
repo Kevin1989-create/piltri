@@ -32,7 +32,9 @@ export type BoardKey =
   | "fastInternet"
   | "beachLife"
   | "mountainLife"
-  | "familyFriendly";
+  | "familyFriendly"
+  | "hiddenGems"
+  | "lakeLife";
 
 /** Advanced search's size groups (SIZE_BANDS), or every size. */
 export type SizeKey = SizeBand | "all";
@@ -81,6 +83,30 @@ const ECONOMY_INPUTS = [
 ];
 const SAFETY_INPUTS = ["safetyStability.politicalStabilityScore", "safetyStability.ruleOfLawScore", "safetyStability.homicideRatePer100k"];
 const enough = (col: BoardContext["col"], i: number, keys: string[]) => hasEnoughFigures(keys.map((key) => num(col(key)(i))));
+
+/** Hidden gems (2026-11-14, owner - BACKLOG 14): towns of 5,000-100,000
+ *  people with a high Piltri score that few people know - not within
+ *  minBigCityKm of a 500k+ city (a suburb isn't hidden), and with fewer
+ *  restaurants and bars per resident than tourist towns have: the stand-in
+ *  for "not famous" until a measure of fame (Wikipedia page views) joins
+ *  the data. The median place has ~1.5 per 1,000 residents, tourist towns
+ *  6+. */
+export const HIDDEN_GEM = { minPopulationK: 5, maxPopulationK: 100, minBigCityKm: 25, maxRestaurantsPer1k: 3 };
+/** Lake life (the same day, Hidden gems' pair - the boards go in pairs):
+ *  Advanced search's Lake beach, by Piltri score. A "Rising towns" board was
+ *  tried and left out: GHS-POP's 2025 grid is a projection, and a ranking of
+ *  growth put its errors first (Brčko +22%). */
+export const LAKE_KM = 10;
+
+const gemScore = ({ table, weights, col }: BoardContext, i: number): number | null => {
+  const k = num(col(POPULATION)(i));
+  if (k == null || k < HIDDEN_GEM.minPopulationK || k >= HIDDEN_GEM.maxPopulationK) return null;
+  const bigCity = num(col("liveability.nearestLargeCityKm")(i));
+  if (bigCity != null && bigCity < HIDDEN_GEM.minBigCityKm) return null;
+  const eating = num(col("liveability.restaurantsBarsPer1k")(i));
+  if (eating == null || eating > HIDDEN_GEM.maxRestaurantsPer1k) return null;
+  return table.piltri(i, weights);
+};
 
 const familyScore = ({ table, col }: BoardContext, i: number): number | null => {
   if (col("liveability.hasSchool")(i) !== true || col("liveability.hasNursery")(i) !== true) return null;
@@ -219,6 +245,27 @@ export const BOARDS: BoardDef[] = [
     needs: ["liveability.hasSchool", "liveability.hasNursery", "liveability.parksPer10k", "liveability.familyActivitiesPer10k"],
     score: familyScore,
     figure: (ctx, i) => [Math.round(familyScore(ctx, i) ?? 0)],
+    format: whole,
+  },
+  {
+    key: "hiddenGems",
+    title: "Hidden gems",
+    blurb: "Towns of 5,000-100,000 with a high Piltri score, away from big cities and not overrun with visitors",
+    needs: ["liveability.nearestLargeCityKm", "liveability.restaurantsBarsPer1k"],
+    score: gemScore,
+    figure: ({ table, weights }, i) => [Math.round(table.piltri(i, weights))],
+    format: whole,
+  },
+  {
+    key: "lakeLife",
+    title: "Lake life",
+    blurb: `Advanced search's Lake beach - a lake beach within ${LAKE_KM} km - by Piltri score`,
+    needs: ["liveability.distanceToLakeBeachKm"],
+    score: ({ table, weights, col }, i) => {
+      const lake = num(col("liveability.distanceToLakeBeachKm")(i));
+      return lake != null && lake <= LAKE_KM ? table.piltri(i, weights) : null;
+    },
+    figure: ({ table, weights }, i) => [Math.round(table.piltri(i, weights))],
     format: whole,
   },
 ];

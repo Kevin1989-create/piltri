@@ -313,6 +313,21 @@ the Ookla data dropped first).
 
 ## Ideas (owner, 2026-11-12) - to explore together
 
+**Both launched 2026-11-14 (owner: "launch the quiz game and hidden
+gems")** - first versions, notes kept below for what's next:
+- Hidden gems: a leaderboard (lib/leaderboards.ts HIDDEN_GEM) - towns of
+  5,000-100,000, 25 km+ from a 500k+ city, under 3 restaurants and bars
+  per 1,000 residents, by Piltri score; paired with "Lake life". In the
+  precomputed boards from the next refresh (until then, only with custom
+  score settings). Next: Wikipedia page views as the measure of fame; a
+  few gems are still suburbs of 100k-500k cities.
+- The quiz: /quiz (lib/quiz.ts), 8 questions, a live count, top 3 from
+  different countries, "See all" opens Advanced search with the answers.
+  An answer that leaves no place is set aside. Next: keep the parts of a
+  set-aside multi answer that work alone; "% match for you" (P2); share.
+- "Rising towns" was tried and left out: GHS-POP 2025 is a projection, and
+  ranking growth put its errors first (Brčko +22%).
+
 14. **Hidden gems** - a leaderboard of places that score well but few
     people know. "Not sure how we will find it." Ideas to try: a high
     Piltri score among small and mid-size towns (5,000-100,000 people)
