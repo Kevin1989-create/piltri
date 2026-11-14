@@ -100,6 +100,9 @@ function StatCell({ stat }: { stat: Stat }) {
  *  step) between "5" and "yr" — makes "(5 yr)" wrap as one whole unit onto
  *  its own line instead of splitting mid-bracket. */
 const TREND_LABEL = "Population growth (5\u00A0yrs)";
+/** The town's own (2026-11-14, owner): GHS-POP's 2025 grid is a projection
+ *  from census trends, not a count - said so. */
+const CITY_TREND_LABEL = "Projected growth (2020-25)";
 
 /** City name + Piltri score. Sits at the top of the floating left column on
  *  the results page, so it's sized for a narrow column rather than a full
@@ -233,13 +236,13 @@ export function CityHeader({
         ...(hasSource("populationGrowth")
           ? [
               {
-                label: TREND_LABEL,
+                label: CITY_TREND_LABEL,
                 value:
                   demographics.cityPopulationGrowth5yrPct != null
                     ? `${demographics.cityPopulationGrowth5yrPct > 0 ? "+" : ""}${demographics.cityPopulationGrowth5yrPct}%`
                     : NOT_AVAILABLE,
                 colorClass: demographics.cityPopulationGrowth5yrPct != null ? "text-ink-900" : "text-ink-500",
-                title: "Change in the number of people living within 5 km of the centre, 2020 to 2025 (GHS-POP)",
+                title: "Projected change in the number of people living within 5 km of the centre, 2020 to 2025 - GHS-POP's 2025 figure is projected from census trends, not counted",
                 span: 2 as const,
               },
             ]

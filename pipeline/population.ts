@@ -26,7 +26,7 @@ const ghsUrl = (epoch: number) =>
   `https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_POP_GLOBE_R2023A/GHS_POP_E${epoch}_GLOBE_R2023A_4326_30ss/V1-0/${ghsName(epoch)}.zip`;
 
 export const POPULATION_SOURCE = `GHS-POP R2023A, ${EPOCH} epoch, 1 km grid (European Commission JRC, CC BY 4.0)`;
-export const POPULATION_GROWTH_SOURCE = `GHS-POP R2023A, ${EARLIER_EPOCH} and ${EPOCH} epochs, 1 km grid (European Commission JRC, CC BY 4.0) - change within ${RADIUS_KM} km of the centre`;
+export const POPULATION_GROWTH_SOURCE = `GHS-POP R2023A, ${EARLIER_EPOCH} and ${EPOCH} epochs, 1 km grid (European Commission JRC, CC BY 4.0) - projected change within ${RADIUS_KM} km of the centre (the ${EPOCH} grid is projected from census trends, not counted)`;
 
 
 /** The sum of a 1 km population grid's cells within `radiusKm` of each

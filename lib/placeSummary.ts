@@ -94,10 +94,8 @@ const STRENGTHS: Rule[] = [
     const mbps = d.liveability.broadbandDownloadMbps;
     return n(mbps) && mbps >= 150 ? { text: "Fast internet", why: `Home broadband averages ${Math.round(mbps)} Mbps` } : null;
   },
-  (d) => {
-    const g = d.demographics.cityPopulationGrowth5yrPct;
-    return n(g) && g >= 5 ? { text: "Growing", why: `${g}% more people within 5 km than in 2020` } : null;
-  },
+  // No "Growing" / "Shrinking": the town's growth figure is GHS-POP's 2025
+  // projection, not a count (owner, 2026-11-14) - see the momentum test.
 ];
 
 // Things to watch, most serious first: the first two that apply are shown.
@@ -157,10 +155,6 @@ const WATCH_OUTS: Rule[] = [
   (d) => {
     const mbps = d.liveability.broadbandDownloadMbps;
     return n(mbps) && mbps < 20 ? { text: "Slow internet", why: `Home broadband averages ${Math.round(mbps)} Mbps` } : null;
-  },
-  (d) => {
-    const g = d.demographics.cityPopulationGrowth5yrPct;
-    return n(g) && g <= -5 ? { text: "Shrinking", why: `${Math.abs(g)}% fewer people within 5 km than in 2020` } : null;
   },
 ];
 

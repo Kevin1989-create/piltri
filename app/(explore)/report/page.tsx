@@ -151,7 +151,7 @@ function ReportContent() {
                 {hasSource("populationGrowth") && (
                   <>
                     <DemographicStat
-                      label="Population growth 2020-25 (5 km)"
+                      label="Projected population growth 2020-25 (5 km)"
                       value={
                         data.demographics.cityPopulationGrowth5yrPct != null
                           ? `${data.demographics.cityPopulationGrowth5yrPct > 0 ? "+" : ""}${data.demographics.cityPopulationGrowth5yrPct}%`

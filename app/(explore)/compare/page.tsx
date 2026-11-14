@@ -87,7 +87,7 @@ function demographicsRows(places: (CityExploreData | null)[]): Row[] {
     row("Density (within 5 km)", (d) => (d.demographics.cityDensityPerKm2 != null ? `${compact(d.demographics.cityDensityPerKm2)}/km²` : null)),
     row("Time zone", (d) => (d.demographics.timezone ? formatUtcOffset(d.demographics.timezone) : null)),
     row("Average age (within 5 km)", (d) => (d.demographics.cityMedianAge != null ? String(Math.round(d.demographics.cityMedianAge)) : null)),
-    row("Population growth 2020-25 (5 km)", (d) =>
+    row("Projected growth 2020-25 (5 km)", (d) =>
       d.demographics.cityPopulationGrowth5yrPct != null ? `${d.demographics.cityPopulationGrowth5yrPct > 0 ? "+" : ""}${d.demographics.cityPopulationGrowth5yrPct}%` : null
     ),
     row("Country", (d) => d.country),

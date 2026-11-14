@@ -604,7 +604,7 @@ export const CRITERIA: CriterionDef[] = [
   {
     key: "demographics.cityPopulationGrowth5yrPct",
     category: "demographics",
-    label: "Population growth 2020-25 (within 5 km)",
+    label: "Projected population growth 2020-25 (within 5 km)",
     unit: "%",
     kind: "range",
     getCityValue: (d) => d.demographics.cityPopulationGrowth5yrPct ?? null,
