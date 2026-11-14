@@ -1689,11 +1689,14 @@ export function MapView({
   const expandTop = buttonsSmall ? 10 : 76;
   const layersTop = onToggleExpanded ? expandTop + BUTTON_STEP_PX : 76;
   const spotTop = layersTop + BUTTON_STEP_PX;
-  // The address search's button (2026-11-11), under the spot's - not on a
-  // phone's small map, which has no room for a fourth: it's there once the
-  // map is expanded.
-  const addressButton = !!placeId && !buttonsSmall;
-  const addressTop = spotTop + BUTTON_STEP_PX;
+  // The address search's button (2026-11-11), under the spot's. On a
+  // phone's small map it's there too (2026-11-14, owner: "not available at
+  // first, we have to expand the map"): under the zoom buttons, level with
+  // the spot's - a fourth in that column wouldn't fit the map's height -
+  // and tapping it expands the map with the box open.
+  const addressButton = !!placeId;
+  const addressTop = buttonsSmall ? spotTop : spotTop + BUTTON_STEP_PX;
+  const addressRight = buttonsSmall ? 10 : buttonsRight;
   /** The address box: opened with its own button only (2026-11-12, owner:
    *  each button on its own), on the expanded map. */
   const addressShown = !!placeId && listHere && addressOpen;
@@ -2481,7 +2484,7 @@ export function MapView({
               aria-label="Search an address"
               aria-pressed={addressOpen}
               title={areaName ? `Search an address in ${areaName.split(",")[0]}` : "Search an address"}
-              style={{ top: addressTop, right: buttonsRight }}
+              style={{ top: addressTop, right: addressRight }}
               className={cn(
                 "absolute z-10 flex h-[29px] w-[29px] items-center justify-center rounded shadow-[0_0_0_2px_rgba(0,0,0,0.1)]",
                 BUTTON_GLIDE,

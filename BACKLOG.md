@@ -235,7 +235,11 @@ whole regions); Economy goes local with phase 2's household income.
    2023) - Sydney only, ~80 inputs (Australian census, sales reports,
    business registers, Airbnb) that don't exist openly worldwide; its
    approach (train on real past change) is the one above.
-   5. **Our own price model, measured first** (owner, 2026-11-12: "if we
+   5. **DROPPED 2026-11-14 (owner): property prices.** No free source
+      covers the world; open data would leave ~55-60% of places (Germany,
+      China, India...) on "No data", and the model can't fill countries
+      without real prices. Kept below for the record.
+      **Our own price model, measured first** (owner, 2026-11-12: "if we
       can find a model we work out ourselves based on a lot of data, this
       would be great"; a range is fine, real data mixed in as control).
       After the climate update. Step one is a test, not a feature: load
@@ -274,6 +278,38 @@ whole regions); Economy goes local with phase 2's household income.
       national figure only, the ranges are too wide to be useful. Next if
       wanted: more open-data countries (each one is real figures plus
       7-14% gap-filling), the owner deciding on labelled estimates.
+
+## Product plan (2026-11-14, owner: "addictive - every time people speak
+## about a city they go to Piltri: holidays, investments, new life")
+
+From a data sheet to answers. In this order:
+P1. **The city page speaks first** - a plain-words summary line (3
+    strengths, 2 watch-outs), "best for" tags (families, retirees, remote
+    workers, students, sun-seekers), and figures as comparisons ("sunnier
+    than 82% of places in France" - needs per-country percentile tables
+    from the pipeline). Then a typical-year strip (12 month tiles, best
+    months), day trips (beach, mountains, lake, big city, airport with
+    drive times), and "places like this one".
+P2. **Personal layer** - the "Find your Piltri" quiz (item 15) builds a
+    profile; every place shows "84% match for you", lists sort by it;
+    deal-breakers shown as ✓/✗; a home town (distance, time difference,
+    climate difference); the saved list as a shortlist board with notes.
+P3. **Discovery** - twin finder ("where in Spain feels like my home
+    town"), a world map with a month slider ("20-26 °C and dry in March"),
+    "where to go in <month>", living boards (hidden gems - item 14 -,
+    rising towns, eternal spring), climate future (2071-2099 type).
+P4. **Three journeys** - one switch on the city page reorders it for
+    Holidays / New life / Invest (growth signals, not prices).
+P5. **Daily habit** - a daily guessing game from a place's climate chart
+    and clues, a place of the day, an explorer passport of places seen.
+P6. **Places that feel alive** - a photo (Wikimedia Commons) and two lines
+    from Wikipedia per place, picked offline, credited - needs the owner's
+    OK (new outside sources).
+Growth notes the same day (for later): real indexable page per place,
+"weather in <place> in <month>" pages, share-preview images, Cloudflare
+Web Analytics; money only via clearly marked mode-matched affiliate links
+and a Pro tier, never touching scores (needs commercial-use hosting and
+the Ookla data dropped first).
 
 ## Ideas (owner, 2026-11-12) - to explore together
 
