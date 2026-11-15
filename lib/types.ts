@@ -34,6 +34,10 @@ export interface DemographicsFields {
    *  pipeline/sources/languages.ts for the rules). Absent in datasets
    *  built before 2026-09-28. */
   countryOfficialLanguages?: string[] | null;
+  /** The largest religious group - "No religion" where that is the largest
+   *  (CIA World Factbook, pipeline/sources/mainReligion.ts). Absent in
+   *  datasets built before 2026-11-14. */
+  countryMainReligion?: { name: string; pct: number | null; year: string | null } | null;
 
   /** GeoNames population of the place itself (city proper, or a district
    *  of a larger city). */

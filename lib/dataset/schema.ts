@@ -70,6 +70,9 @@ export interface CountryRecord {
     countryAverageAge: number | null;
     countryPopulationTrend5yrPct: number | null;
     countryOfficialLanguages: string[] | null;
+    /** Largest religious group (CIA World Factbook; 2026-11-14) - absent in
+     *  datasets built before. */
+    countryMainReligion?: { name: string; pct: number | null; year: string | null } | null;
   };
   economy: EconomyFields;
   safetyStability: SafetyStabilityFields;

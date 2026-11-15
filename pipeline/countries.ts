@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { loadOfficialLanguages } from "./sources/languages";
 import { getCountryMedianAge } from "./sources/medianAge";
 import { getClimateReadiness } from "./sources/climateReadiness";
+import { getMainReligion } from "./sources/mainReligion";
 import { normalise } from "@/lib/aggregation/scoring";
 import { RANGES } from "@/lib/dataset/assemble";
 import type { CountryRecord } from "@/lib/dataset/schema";
@@ -163,6 +164,7 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
         countryAverageAge: getCountryMedianAge(cc),
         countryPopulationTrend5yrPct: pctChange(get("population")),
         countryOfficialLanguages: officialLanguages[cc] ?? null,
+        countryMainReligion: getMainReligion(cc),
       },
       economy: {
         economicGrowth5yrGdpPct: pctChange(get("gdpLevel")),

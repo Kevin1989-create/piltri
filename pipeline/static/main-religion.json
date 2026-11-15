@@ -1,0 +1,1167 @@
+{
+ "AD": {
+  "name": "No religion",
+  "pct": 2,
+  "year": "2020"
+ },
+ "AE": {
+  "name": "Muslim",
+  "pct": 75,
+  "year": "2020"
+ },
+ "AF": {
+  "name": "Muslim",
+  "pct": 100,
+  "year": "2009"
+ },
+ "AG": {
+  "name": "Protestant",
+  "pct": 68,
+  "year": "2011"
+ },
+ "AI": {
+  "name": "Protestant",
+  "pct": 73,
+  "year": "2011"
+ },
+ "AL": {
+  "name": "Muslim",
+  "pct": 57,
+  "year": "2011"
+ },
+ "AM": {
+  "name": "Armenian Apostolic",
+  "pct": 95,
+  "year": "2022"
+ },
+ "AO": {
+  "name": "Roman Catholic",
+  "pct": 41,
+  "year": "2014"
+ },
+ "AR": {
+  "name": "Roman Catholic",
+  "pct": 63,
+  "year": "2019"
+ },
+ "AS": {
+  "name": "Christian",
+  "pct": 98,
+  "year": "2020"
+ },
+ "AT": {
+  "name": "Roman Catholic",
+  "pct": 55,
+  "year": "2021"
+ },
+ "AU": {
+  "name": "No religion",
+  "pct": 38,
+  "year": "2021"
+ },
+ "AW": {
+  "name": "Roman Catholic",
+  "pct": 75,
+  "year": "2010"
+ },
+ "AZ": {
+  "name": "Muslim",
+  "pct": 97,
+  "year": "2020"
+ },
+ "BA": {
+  "name": "Muslim",
+  "pct": 51,
+  "year": "2013"
+ },
+ "BB": {
+  "name": "Protestant",
+  "pct": 66,
+  "year": "2010"
+ },
+ "BD": {
+  "name": "Muslim",
+  "pct": 91,
+  "year": "2022"
+ },
+ "BE": {
+  "name": "Roman Catholic",
+  "pct": 57,
+  "year": "2018"
+ },
+ "BF": {
+  "name": "Muslim",
+  "pct": 64,
+  "year": "2019"
+ },
+ "BG": {
+  "name": "Christian",
+  "pct": 65,
+  "year": "2021"
+ },
+ "BH": {
+  "name": "Muslim",
+  "pct": 74,
+  "year": "2020"
+ },
+ "BI": {
+  "name": "Christian",
+  "pct": 94,
+  "year": "2016"
+ },
+ "BJ": {
+  "name": "Muslim",
+  "pct": 28,
+  "year": "2013"
+ },
+ "BM": {
+  "name": "Protestant",
+  "pct": 46,
+  "year": "2010"
+ },
+ "BN": {
+  "name": "Muslim",
+  "pct": 82,
+  "year": "2021"
+ },
+ "BO": {
+  "name": "Roman Catholic",
+  "pct": 65,
+  "year": "2023"
+ },
+ "BR": {
+  "name": "Roman Catholic",
+  "pct": 57,
+  "year": "2022"
+ },
+ "BS": {
+  "name": "Protestant",
+  "pct": 70,
+  "year": "2010"
+ },
+ "BT": {
+  "name": "Lamaistic Buddhist",
+  "pct": 75,
+  "year": "2005"
+ },
+ "BW": {
+  "name": "Christian",
+  "pct": 79,
+  "year": "2011"
+ },
+ "BY": {
+  "name": "Orthodox",
+  "pct": 48,
+  "year": "2011"
+ },
+ "BZ": {
+  "name": "Roman Catholic",
+  "pct": 40,
+  "year": "2010"
+ },
+ "CA": {
+  "name": "Christian",
+  "pct": 53,
+  "year": "2021"
+ },
+ "CC": {
+  "name": "Muslim",
+  "pct": 75,
+  "year": "2016"
+ },
+ "CD": {
+  "name": "Kimbanguist",
+  "pct": 3,
+  "year": "2014"
+ },
+ "CF": {
+  "name": "Roman Catholic",
+  "pct": 35,
+  "year": "2020"
+ },
+ "CG": {
+  "name": "Roman Catholic",
+  "pct": 33,
+  "year": "2007"
+ },
+ "CH": {
+  "name": "Roman Catholic",
+  "pct": 34,
+  "year": "2020"
+ },
+ "CI": {
+  "name": "Muslim",
+  "pct": 43,
+  "year": "2014"
+ },
+ "CK": {
+  "name": "Protestant",
+  "pct": 55,
+  "year": "2021"
+ },
+ "CL": {
+  "name": "Catholic",
+  "pct": 57,
+  "year": "2024"
+ },
+ "CM": {
+  "name": "Roman Catholic",
+  "pct": 33,
+  "year": "2022"
+ },
+ "CN": {
+  "name": "No religion",
+  "pct": 52,
+  "year": "2021"
+ },
+ "CO": {
+  "name": "Roman Catholic",
+  "pct": 64,
+  "year": "2023"
+ },
+ "CR": {
+  "name": "Roman Catholic",
+  "pct": 48,
+  "year": "2021"
+ },
+ "CU": {
+  "name": "Christian",
+  "pct": 59,
+  "year": "2020"
+ },
+ "CV": {
+  "name": "Roman Catholic",
+  "pct": 73,
+  "year": "2021"
+ },
+ "CW": {
+  "name": "Roman Catholic",
+  "pct": 73,
+  "year": "2011"
+ },
+ "CX": {
+  "name": "Muslim",
+  "pct": 19,
+  "year": "2016"
+ },
+ "CY": {
+  "name": "Eastern Orthodox Christian",
+  "pct": 89,
+  "year": "2011"
+ },
+ "CZ": {
+  "name": "No religion",
+  "pct": 48,
+  "year": "2021"
+ },
+ "DE": {
+  "name": "No religion",
+  "pct": 44,
+  "year": "2022"
+ },
+ "DJ": {
+  "name": "Sunni Muslim",
+  "pct": 94,
+  "year": null
+ },
+ "DK": {
+  "name": "Evangelical Lutheran",
+  "pct": 71,
+  "year": "2024"
+ },
+ "DM": {
+  "name": "Roman Catholic",
+  "pct": 53,
+  "year": "2011"
+ },
+ "DO": {
+  "name": "Evangelical",
+  "pct": 50,
+  "year": "2023"
+ },
+ "DZ": {
+  "name": "Muslim",
+  "pct": 99,
+  "year": "2012"
+ },
+ "EC": {
+  "name": "Roman Catholic",
+  "pct": 68,
+  "year": "2023"
+ },
+ "EE": {
+  "name": "No religion",
+  "pct": 58,
+  "year": "2021"
+ },
+ "EG": {
+  "name": "Muslim",
+  "pct": 90,
+  "year": null
+ },
+ "EH": {
+  "name": "Muslim",
+  "pct": null,
+  "year": null
+ },
+ "ER": {
+  "name": "Eritrean Orthodox",
+  "pct": null,
+  "year": null
+ },
+ "ES": {
+  "name": "Roman Catholic",
+  "pct": 58,
+  "year": "2021"
+ },
+ "ET": {
+  "name": "Ethiopian Orthodox",
+  "pct": 44,
+  "year": "2016"
+ },
+ "FI": {
+  "name": "Lutheran",
+  "pct": 67,
+  "year": "2022"
+ },
+ "FJ": {
+  "name": "Protestant",
+  "pct": 45,
+  "year": "2007"
+ },
+ "FK": {
+  "name": "Christian",
+  "pct": 57,
+  "year": "2016"
+ },
+ "FM": {
+  "name": "Roman Catholic",
+  "pct": 55,
+  "year": "2010"
+ },
+ "FO": {
+  "name": "Christian",
+  "pct": 87,
+  "year": "2011"
+ },
+ "FR": {
+  "name": "Roman Catholic",
+  "pct": 47,
+  "year": "2021"
+ },
+ "GA": {
+  "name": "Protestant",
+  "pct": 46,
+  "year": "2019"
+ },
+ "GB": {
+  "name": "Christian",
+  "pct": 60,
+  "year": "2011"
+ },
+ "GD": {
+  "name": "Protestant",
+  "pct": 49,
+  "year": "2011"
+ },
+ "GE": {
+  "name": "Eastern Orthodox Christian",
+  "pct": 83,
+  "year": "2014"
+ },
+ "GG": {
+  "name": "Protestant",
+  "pct": null,
+  "year": null
+ },
+ "GH": {
+  "name": "Christian",
+  "pct": 71,
+  "year": "2021"
+ },
+ "GI": {
+  "name": "Roman Catholic",
+  "pct": 72,
+  "year": "2012"
+ },
+ "GL": {
+  "name": "Evangelical Lutheran",
+  "pct": null,
+  "year": null
+ },
+ "GM": {
+  "name": "Muslim",
+  "pct": 96,
+  "year": "2019"
+ },
+ "GN": {
+  "name": "Muslim",
+  "pct": 85,
+  "year": "2018"
+ },
+ "GQ": {
+  "name": "Roman Catholic",
+  "pct": 88,
+  "year": "2015"
+ },
+ "GR": {
+  "name": "Greek Orthodox",
+  "pct": 86,
+  "year": "2015"
+ },
+ "GT": {
+  "name": "Evangelical",
+  "pct": 46,
+  "year": "2023"
+ },
+ "GU": {
+  "name": "Christian",
+  "pct": 94,
+  "year": "2020"
+ },
+ "GW": {
+  "name": "Muslim",
+  "pct": 46,
+  "year": "2020"
+ },
+ "GY": {
+  "name": "Protestant",
+  "pct": 35,
+  "year": "2012"
+ },
+ "HK": {
+  "name": "Buddhist or Taoist",
+  "pct": 28,
+  "year": "2016"
+ },
+ "HN": {
+  "name": "Evangelical",
+  "pct": 55,
+  "year": "2023"
+ },
+ "HR": {
+  "name": "Roman Catholic",
+  "pct": 79,
+  "year": "2021"
+ },
+ "HT": {
+  "name": "Catholic",
+  "pct": 55,
+  "year": "2018"
+ },
+ "HU": {
+  "name": "Catholic",
+  "pct": 30,
+  "year": "2022"
+ },
+ "ID": {
+  "name": "Muslim",
+  "pct": 87,
+  "year": "2022"
+ },
+ "IE": {
+  "name": "Roman Catholic",
+  "pct": 69,
+  "year": "2022"
+ },
+ "IL": {
+  "name": "Jewish",
+  "pct": 74,
+  "year": "2022"
+ },
+ "IM": {
+  "name": "Christian",
+  "pct": 55,
+  "year": "2021"
+ },
+ "IN": {
+  "name": "Hindu",
+  "pct": 80,
+  "year": "2011"
+ },
+ "IQ": {
+  "name": "Muslim",
+  "pct": 97,
+  "year": "2015"
+ },
+ "IR": {
+  "name": "Muslim",
+  "pct": 99,
+  "year": "2020"
+ },
+ "IS": {
+  "name": "Evangelical Lutheran Church of Iceland",
+  "pct": 59,
+  "year": "2024"
+ },
+ "IT": {
+  "name": "Christian",
+  "pct": 81,
+  "year": "2020"
+ },
+ "JE": {
+  "name": "Christian",
+  "pct": 85,
+  "year": "2020"
+ },
+ "JM": {
+  "name": "Protestant",
+  "pct": 65,
+  "year": "2011"
+ },
+ "JO": {
+  "name": "Muslim",
+  "pct": 97,
+  "year": "2020"
+ },
+ "JP": {
+  "name": "Shintoism",
+  "pct": 49,
+  "year": "2021"
+ },
+ "KE": {
+  "name": "Christian",
+  "pct": 86,
+  "year": "2019"
+ },
+ "KG": {
+  "name": "Muslim",
+  "pct": 90,
+  "year": "2017"
+ },
+ "KH": {
+  "name": "Buddhist",
+  "pct": 97,
+  "year": "2019"
+ },
+ "KI": {
+  "name": "Roman Catholic",
+  "pct": 59,
+  "year": "2020"
+ },
+ "KM": {
+  "name": "Muslim",
+  "pct": 98,
+  "year": "2020"
+ },
+ "KP": {
+  "name": "Traditionally Buddhist and Confucian",
+  "pct": null,
+  "year": null
+ },
+ "KR": {
+  "name": "No religion",
+  "pct": 60,
+  "year": "2021"
+ },
+ "KW": {
+  "name": "Muslim",
+  "pct": 75,
+  "year": "2013"
+ },
+ "KY": {
+  "name": "Protestant",
+  "pct": 61,
+  "year": "2021"
+ },
+ "KZ": {
+  "name": "Muslim",
+  "pct": 69,
+  "year": "2021"
+ },
+ "LA": {
+  "name": "Buddhist",
+  "pct": 65,
+  "year": "2015"
+ },
+ "LB": {
+  "name": "Muslim",
+  "pct": 68,
+  "year": "2020"
+ },
+ "LC": {
+  "name": "Roman Catholic",
+  "pct": 62,
+  "year": "2010"
+ },
+ "LI": {
+  "name": "Roman Catholic",
+  "pct": 73,
+  "year": "2015"
+ },
+ "LK": {
+  "name": "Buddhist",
+  "pct": 70,
+  "year": "2012"
+ },
+ "LR": {
+  "name": "Christian",
+  "pct": 85,
+  "year": "2022"
+ },
+ "LS": {
+  "name": "Protestant",
+  "pct": 48,
+  "year": "2014"
+ },
+ "LT": {
+  "name": "Roman Catholic",
+  "pct": 74,
+  "year": "2021"
+ },
+ "LU": {
+  "name": "Christian",
+  "pct": 71,
+  "year": "2020"
+ },
+ "LV": {
+  "name": "Lutheran",
+  "pct": 36,
+  "year": "2017"
+ },
+ "LY": {
+  "name": "Muslim",
+  "pct": 97,
+  "year": "2020"
+ },
+ "MA": {
+  "name": "Muslim",
+  "pct": 99,
+  "year": "2020"
+ },
+ "MC": {
+  "name": "Roman Catholic",
+  "pct": 90,
+  "year": null
+ },
+ "MD": {
+  "name": "Orthodox",
+  "pct": 90,
+  "year": "2014"
+ },
+ "ME": {
+  "name": "Orthodox",
+  "pct": 72,
+  "year": "2011"
+ },
+ "MF": {
+  "name": "Roman Catholic",
+  "pct": null,
+  "year": null
+ },
+ "MG": {
+  "name": "Protestant",
+  "pct": 34,
+  "year": "2021"
+ },
+ "MH": {
+  "name": "Protestant",
+  "pct": 79,
+  "year": "2021"
+ },
+ "MK": {
+  "name": "Orthodox",
+  "pct": 46,
+  "year": "2021"
+ },
+ "ML": {
+  "name": "Muslim",
+  "pct": 94,
+  "year": "2018"
+ },
+ "MM": {
+  "name": "Buddhist",
+  "pct": 88,
+  "year": "2014"
+ },
+ "MN": {
+  "name": "Buddhist",
+  "pct": 52,
+  "year": "2020"
+ },
+ "MO": {
+  "name": "Folk religion",
+  "pct": 59,
+  "year": "2020"
+ },
+ "MP": {
+  "name": "Christian",
+  "pct": null,
+  "year": null
+ },
+ "MR": {
+  "name": "Muslim",
+  "pct": 100,
+  "year": null
+ },
+ "MS": {
+  "name": "Protestant",
+  "pct": 71,
+  "year": "2018"
+ },
+ "MT": {
+  "name": "Roman Catholic",
+  "pct": 90,
+  "year": "2006"
+ },
+ "MU": {
+  "name": "Hindu",
+  "pct": 49,
+  "year": "2011"
+ },
+ "MV": {
+  "name": "Sunni Muslim",
+  "pct": null,
+  "year": null
+ },
+ "MW": {
+  "name": "Protestant",
+  "pct": 34,
+  "year": "2018"
+ },
+ "MX": {
+  "name": "Catholic",
+  "pct": 78,
+  "year": "2020"
+ },
+ "MY": {
+  "name": "Muslim",
+  "pct": 64,
+  "year": "2020"
+ },
+ "MZ": {
+  "name": "Catholic",
+  "pct": 27,
+  "year": "2017"
+ },
+ "NA": {
+  "name": "Christian",
+  "pct": 98,
+  "year": "2020"
+ },
+ "NC": {
+  "name": "Christian",
+  "pct": 85,
+  "year": "2020"
+ },
+ "NE": {
+  "name": "Muslim",
+  "pct": 96,
+  "year": "2020"
+ },
+ "NF": {
+  "name": "Protestant",
+  "pct": 47,
+  "year": "2016"
+ },
+ "NG": {
+  "name": "Muslim",
+  "pct": 54,
+  "year": "2018"
+ },
+ "NI": {
+  "name": "Roman Catholic",
+  "pct": 45,
+  "year": "2020"
+ },
+ "NL": {
+  "name": "No religion",
+  "pct": 54,
+  "year": "2019"
+ },
+ "NO": {
+  "name": "Church of Norway",
+  "pct": 68,
+  "year": "2021"
+ },
+ "NP": {
+  "name": "Hindu",
+  "pct": 81,
+  "year": "2021"
+ },
+ "NR": {
+  "name": "Protestant",
+  "pct": 60,
+  "year": "2021"
+ },
+ "NU": {
+  "name": "Ekalesia Niue",
+  "pct": 62,
+  "year": "2017"
+ },
+ "NZ": {
+  "name": "No religion",
+  "pct": 49,
+  "year": "2018"
+ },
+ "OM": {
+  "name": "Muslim",
+  "pct": 86,
+  "year": "2020"
+ },
+ "PA": {
+  "name": "Evangelical",
+  "pct": 55,
+  "year": "2023"
+ },
+ "PE": {
+  "name": "Catholic",
+  "pct": 76,
+  "year": "2017"
+ },
+ "PF": {
+  "name": "Protestant",
+  "pct": 54,
+  "year": null
+ },
+ "PG": {
+  "name": "Protestant",
+  "pct": 64,
+  "year": "2011"
+ },
+ "PH": {
+  "name": "Roman Catholic",
+  "pct": 79,
+  "year": "2020"
+ },
+ "PK": {
+  "name": "Muslim",
+  "pct": 96,
+  "year": "2020"
+ },
+ "PL": {
+  "name": "Roman Catholic",
+  "pct": 71,
+  "year": "2021"
+ },
+ "PM": {
+  "name": "Roman Catholic",
+  "pct": 99,
+  "year": null
+ },
+ "PN": {
+  "name": "Seventh Day Adventist",
+  "pct": 100,
+  "year": null
+ },
+ "PR": {
+  "name": "Roman Catholic",
+  "pct": 56,
+  "year": "2014"
+ },
+ "PS": {
+  "name": "Muslim",
+  "pct": 83,
+  "year": "2012"
+ },
+ "PT": {
+  "name": "Catholic",
+  "pct": 68,
+  "year": "2021"
+ },
+ "PW": {
+  "name": "Roman Catholic",
+  "pct": 47,
+  "year": "2020"
+ },
+ "PY": {
+  "name": "Roman Catholic",
+  "pct": 80,
+  "year": "2023"
+ },
+ "QA": {
+  "name": "Muslim",
+  "pct": 65,
+  "year": "2020"
+ },
+ "RO": {
+  "name": "Romanian Orthodox",
+  "pct": 85,
+  "year": "2021"
+ },
+ "RS": {
+  "name": "Serbian Orthodox",
+  "pct": 81,
+  "year": "2022"
+ },
+ "RU": {
+  "name": "Russian Orthodox",
+  "pct": 18,
+  "year": "2006"
+ },
+ "RW": {
+  "name": "Catholic",
+  "pct": 40,
+  "year": "2022"
+ },
+ "SA": {
+  "name": "Muslim",
+  "pct": null,
+  "year": "2020"
+ },
+ "SB": {
+  "name": "Protestant",
+  "pct": 73,
+  "year": "2009"
+ },
+ "SC": {
+  "name": "Roman Catholic",
+  "pct": 76,
+  "year": "2010"
+ },
+ "SD": {
+  "name": "Sunni Muslim",
+  "pct": null,
+  "year": null
+ },
+ "SE": {
+  "name": "Church of Sweden",
+  "pct": 54,
+  "year": "2021"
+ },
+ "SG": {
+  "name": "Buddhist",
+  "pct": 31,
+  "year": "2020"
+ },
+ "SH": {
+  "name": "Anglican",
+  "pct": 63,
+  "year": "2021"
+ },
+ "SI": {
+  "name": "Catholic",
+  "pct": 69,
+  "year": "2019"
+ },
+ "SK": {
+  "name": "Roman Catholic",
+  "pct": 56,
+  "year": "2021"
+ },
+ "SL": {
+  "name": "Muslim",
+  "pct": 77,
+  "year": "2019"
+ },
+ "SM": {
+  "name": "Roman Catholic",
+  "pct": null,
+  "year": null
+ },
+ "SN": {
+  "name": "Muslim",
+  "pct": 97,
+  "year": "2019"
+ },
+ "SO": {
+  "name": "Muslim",
+  "pct": 100,
+  "year": "2020"
+ },
+ "SR": {
+  "name": "Protestant",
+  "pct": 24,
+  "year": "2012"
+ },
+ "SS": {
+  "name": "Christian",
+  "pct": 61,
+  "year": "2020"
+ },
+ "ST": {
+  "name": "Catholic",
+  "pct": 56,
+  "year": "2012"
+ },
+ "SV": {
+  "name": "Roman Catholic",
+  "pct": 44,
+  "year": "2023"
+ },
+ "SX": {
+  "name": "Protestant",
+  "pct": 42,
+  "year": "2011"
+ },
+ "SY": {
+  "name": "Muslim",
+  "pct": 87,
+  "year": null
+ },
+ "SZ": {
+  "name": "Christian",
+  "pct": 90,
+  "year": "2015"
+ },
+ "TC": {
+  "name": "Protestant",
+  "pct": 73,
+  "year": "2006"
+ },
+ "TD": {
+  "name": "Muslim",
+  "pct": 52,
+  "year": "2014"
+ },
+ "TG": {
+  "name": "Christian",
+  "pct": 42,
+  "year": "2020"
+ },
+ "TH": {
+  "name": "Buddhist",
+  "pct": 93,
+  "year": "2021"
+ },
+ "TJ": {
+  "name": "Muslim",
+  "pct": 98,
+  "year": "2014"
+ },
+ "TK": {
+  "name": "Congregational Christian Church",
+  "pct": 50,
+  "year": "2016"
+ },
+ "TL": {
+  "name": "Catholic",
+  "pct": 91,
+  "year": "2022"
+ },
+ "TM": {
+  "name": "Muslim",
+  "pct": 93,
+  "year": "2020"
+ },
+ "TN": {
+  "name": "Muslim",
+  "pct": 99,
+  "year": null
+ },
+ "TO": {
+  "name": "Protestant",
+  "pct": 64,
+  "year": "2021"
+ },
+ "TR": {
+  "name": "Muslim",
+  "pct": 100,
+  "year": null
+ },
+ "TT": {
+  "name": "Protestant",
+  "pct": 32,
+  "year": "2011"
+ },
+ "TV": {
+  "name": "Protestant",
+  "pct": 93,
+  "year": "2017"
+ },
+ "TW": {
+  "name": "Buddhist",
+  "pct": 35,
+  "year": "2005"
+ },
+ "TZ": {
+  "name": "Christian",
+  "pct": 63,
+  "year": "2020"
+ },
+ "UA": {
+  "name": "Orthodox",
+  "pct": null,
+  "year": "2013"
+ },
+ "UG": {
+  "name": "Protestant",
+  "pct": 45,
+  "year": "2014"
+ },
+ "US": {
+  "name": "Protestant",
+  "pct": 47,
+  "year": "2014"
+ },
+ "UY": {
+  "name": "No religion",
+  "pct": 47,
+  "year": "2023"
+ },
+ "UZ": {
+  "name": "Muslim",
+  "pct": 88,
+  "year": null
+ },
+ "VA": {
+  "name": "Roman Catholic",
+  "pct": null,
+  "year": null
+ },
+ "VC": {
+  "name": "Protestant",
+  "pct": 75,
+  "year": "2012"
+ },
+ "VE": {
+  "name": "Roman Catholic",
+  "pct": 48,
+  "year": "2023"
+ },
+ "VG": {
+  "name": "Protestant",
+  "pct": 70,
+  "year": "2010"
+ },
+ "VI": {
+  "name": "Protestant",
+  "pct": 66,
+  "year": "2010"
+ },
+ "VN": {
+  "name": "No religion",
+  "pct": 86,
+  "year": "2019"
+ },
+ "VU": {
+  "name": "Protestant",
+  "pct": 40,
+  "year": "2020"
+ },
+ "WF": {
+  "name": "Roman Catholic",
+  "pct": 99,
+  "year": null
+ },
+ "WS": {
+  "name": "Protestant",
+  "pct": 55,
+  "year": "2016"
+ },
+ "XK": {
+  "name": "Muslim",
+  "pct": 96,
+  "year": "2011"
+ },
+ "YE": {
+  "name": "Muslim",
+  "pct": 99,
+  "year": "2020"
+ },
+ "ZA": {
+  "name": "Christian",
+  "pct": 86,
+  "year": "2015"
+ },
+ "ZM": {
+  "name": "Protestant",
+  "pct": 75,
+  "year": "2010"
+ },
+ "ZW": {
+  "name": "Apostolic Sect",
+  "pct": 40,
+  "year": "2022"
+ }
+}

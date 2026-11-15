@@ -197,6 +197,24 @@ export function CityHeader({
             span: 3 as const,
           };
         })(),
+        // The largest religious group (2026-11-14, owner) - from datasets
+        // built since then.
+        ...(hasSource("mainReligion")
+          ? [
+              (() => {
+                const religion = demographics.countryMainReligion;
+                return {
+                  label: "Main religion",
+                  value: religion ? `${religion.name}${religion.pct != null ? `, ${religion.pct}%` : ""}` : NOT_AVAILABLE,
+                  colorClass: religion ? "text-ink-900" : "text-ink-500",
+                  title: religion
+                    ? `The largest religious group${religion.pct != null ? `: ${religion.pct}% of people` : ""} - CIA World Factbook${religion.year ? `, ${religion.year} estimate` : ""}`
+                    : undefined,
+                  span: 3 as const,
+                };
+              })(),
+            ]
+          : []),
       ]
     : null;
 
@@ -326,22 +344,22 @@ export function CityHeader({
         // Folds away smoothly rather than vanishing (2026-11-07).
         <Collapse open={!hideCountry}>
           <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
-            {/* On a phone, folded to its name until tapped (2026-11-14,
-             *  owner: the five sections visible without scrolling); always
-             *  open on a computer, where they fit. */}
+            {/* On a phone or a short screen, folded to its name until tapped (2026-11-14,
+             *  owner: the five sections visible without scrolling); open
+             *  where there is room ('roomy', tailwind.config.ts). */}
             <button
               type="button"
               onClick={() => setCountryOpen((o) => !o)}
               aria-expanded={countryOpen}
-              className="w-full flex items-center justify-between gap-2 text-left md:pointer-events-none"
+              className="w-full flex items-center justify-between gap-2 text-left roomy:pointer-events-none"
             >
               <span className="font-serif text-sm text-piltri-amber-dark leading-tight">{country}</span>
-              <span className="md:hidden flex items-center gap-1 text-[11px] text-ink-500">
+              <span className="roomy:hidden flex items-center gap-1 text-[11px] text-ink-500">
                 {countryOpen ? "Less" : "Country figures"}
                 <ChevronDown className={cn("w-3 h-3 transition-transform", countryOpen && "rotate-180")} />
               </span>
             </button>
-            <div className={cn("mt-0.5 grid-cols-3 items-start gap-x-3 gap-y-0.5 md:grid", countryOpen ? "grid" : "hidden")}>
+            <div className={cn("mt-0.5 grid-cols-3 items-start gap-x-3 gap-y-0.5 roomy:grid", countryOpen ? "grid" : "hidden")}>
               {countryStats.map((stat) => (
                 <StatCell key={stat.label} stat={stat} />
               ))}
