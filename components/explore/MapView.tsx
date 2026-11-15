@@ -1755,7 +1755,7 @@ export function MapView({
     </button>
   );
 
-  // The country locator (2026-11-07, owner): bottom right, smaller on a
+  // The country locator (2026-11-07, owner): bottom left (see locatorLeft), smaller on a
   // phone's map in the page; out of the way while a spot is being placed,
   // or of a phone's spot card along the bottom. Tapping it glides out to
   // the whole country, and back.
@@ -1763,6 +1763,12 @@ export function MapView({
   useEffect(() => setShowingCountry(false), [lat, lng]);
   const locatorSize = smallMap || landscapeShort ? 64 : 112;
   const locatorShown = !!countryCode && spotMode !== "a" && !(spotA && listHere && !wideScreen) && !pickingDestination;
+  // Bottom left since 2026-11-14 (owner: swapped with the credit line) -
+  // of the map you can see: right of a computer's place column (and of a
+  // section's panel while one is open, gliding with it), and of the spot
+  // card while it's open.
+  const spotCardOpen = listHere && !!spotA && spotMode !== "a";
+  const locatorLeft = compact ? (spotCardOpen && wideScreen ? 324 : locatorSize < 96 ? 8 : 10) : sidePanelOpen ? 760 : 352;
   const showCountry = (bounds: [[number, number], [number, number]] | null) => {
     const map = mapRef.current;
     if (!map) return;
@@ -2602,8 +2608,8 @@ export function MapView({
         {locatorShown && countryCode && (
           <div
             ref={locatorWrapRef}
-            className="pointer-events-auto absolute"
-            style={{ right: locatorSize < 96 ? 8 : 10, bottom: locatorSize < 96 ? 8 : 24, transformOrigin: "100% 100%" }}
+            className="pointer-events-auto absolute transition-[left] duration-300 ease-out"
+            style={{ left: locatorLeft, bottom: locatorSize < 96 ? 8 : 24, transformOrigin: "0% 100%" }}
           >
             <CountryLocator
               countryCode={countryCode}

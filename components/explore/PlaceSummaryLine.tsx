@@ -7,14 +7,15 @@ import { useUnitPreferences } from "@/lib/unitPreferences";
 import type { CityExploreData } from "@/lib/types";
 
 /** The place in a few plain words, under its name (BACKLOG P1): strengths
- *  in green, things to watch in amber, then who it suits. Each chip's
+ *  in green, things to watch in amber (the "Best for" line went 2026-11-14,
+ *  owner: not useful, took space). Each chip's
  *  figure shows on hover, or under the chips on a tap (phones). */
 export function PlaceSummaryLine({ data }: { data: CityExploreData }) {
   const { prefs } = useUnitPreferences();
   const summary = useMemo(() => placeSummary(data, prefs), [data, prefs]);
   const [shown, setShown] = useState<SummaryChip | null>(null);
-  const { strengths, watchOuts, bestFor } = summary;
-  if (!strengths.length && !watchOuts.length && !bestFor.length) return null;
+  const { strengths, watchOuts } = summary;
+  if (!strengths.length && !watchOuts.length) return null;
 
   const chip = (c: SummaryChip, tone: "good" | "watch") => (
     <button
@@ -43,19 +44,6 @@ export function PlaceSummaryLine({ data }: { data: CityExploreData }) {
         </div>
       )}
       {shown && <p className="mt-0.5 text-[11px] leading-snug text-ink-500">{shown.why}</p>}
-      {bestFor.length > 0 && (
-        <p className="mt-0.5 text-[11px] leading-snug text-ink-500">
-          Best for{" "}
-          {bestFor.map((c, i) => (
-            <span key={c.text}>
-              {i > 0 && (i === bestFor.length - 1 ? " and " : ", ")}
-              <span className="text-ink-700" title={c.why}>
-                {c.text.toLowerCase()}
-              </span>
-            </span>
-          ))}
-        </p>
-      )}
     </div>
   );
 }

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { PiltriScoreDisplay } from "@/components/ui/ScoreBadge";
-import { EyeIcon, PlusIcon } from "@/components/ui/icons";
+import { ChevronDown, EyeIcon, PlusIcon } from "@/components/ui/icons";
+import { cn } from "@/lib/cn";
 import { Collapse } from "@/components/ui/Collapse";
 import { SaveHeart } from "@/components/explore/SaveHeart";
 import { PlaceSummaryLine } from "@/components/explore/PlaceSummaryLine";
@@ -124,6 +125,7 @@ export function CityHeader({
   summaryOf,
 }: CityHeaderProps) {
   const isCustomised = weights != null && isCustomWeights(weights);
+  const [countryOpen, setCountryOpen] = useState(false);
   const { prefs } = useUnitPreferences();
 
   const NOT_AVAILABLE = "No data";
@@ -324,8 +326,22 @@ export function CityHeader({
         // Folds away smoothly rather than vanishing (2026-11-07).
         <Collapse open={!hideCountry}>
           <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
-            <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{country}</p>
-            <div className="mt-0.5 grid grid-cols-3 items-start gap-x-3 gap-y-0.5">
+            {/* On a phone, folded to its name until tapped (2026-11-14,
+             *  owner: the five sections visible without scrolling); always
+             *  open on a computer, where they fit. */}
+            <button
+              type="button"
+              onClick={() => setCountryOpen((o) => !o)}
+              aria-expanded={countryOpen}
+              className="w-full flex items-center justify-between gap-2 text-left md:pointer-events-none"
+            >
+              <span className="font-serif text-sm text-piltri-amber-dark leading-tight">{country}</span>
+              <span className="md:hidden flex items-center gap-1 text-[11px] text-ink-500">
+                {countryOpen ? "Less" : "Country figures"}
+                <ChevronDown className={cn("w-3 h-3 transition-transform", countryOpen && "rotate-180")} />
+              </span>
+            </button>
+            <div className={cn("mt-0.5 grid-cols-3 items-start gap-x-3 gap-y-0.5 md:grid", countryOpen ? "grid" : "hidden")}>
               {countryStats.map((stat) => (
                 <StatCell key={stat.label} stat={stat} />
               ))}
