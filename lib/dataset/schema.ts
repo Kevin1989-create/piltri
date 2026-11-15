@@ -1,4 +1,5 @@
 import type { EconomyFields, SafetyStabilityFields } from "@/lib/types";
+import type { PhotoTuple } from "@/lib/placePhoto";
 
 /**
  * The precomputed dataset's on-disk shape, shared by the offline pipeline
@@ -178,6 +179,8 @@ export const CITY_FIELDS = [
   // Water, for the river basin (2026-11-07, WRI Aqueduct 4.0).
   "waterStressPct",
   "groundwaterTrendCmYr",
+  // A photo (2026-11-14, Wikimedia Commons via Wikidata - lib/placePhoto.ts).
+  "photo",
 ] as const;
 
 export interface CityRecord {
@@ -278,6 +281,9 @@ export interface CityRecord {
    *  figure. */
   waterStressPct?: number | null;
   groundwaterTrendCmYr?: number | null;
+  /** Its photo on Wikimedia Commons (lib/placePhoto.ts PhotoTuple); absent
+   *  before 2026-11-14, null where none. */
+  photo?: PhotoTuple | null;
   /** Test-weighted average download speed (Ookla) within the stored
    *  radius: 5 km, or 15/30 km where there were too few tests nearer. */
   broadbandDownloadMbps: number | null;
@@ -364,7 +370,7 @@ export const WATER_STRESS_ARID = -1;
  *  one in the city (nearest the centre first), or 0. */
 export type InsideChunkFile = Record<string, (NearbyPoint[] | 0)[]>;
 
-export type CityValue = string | number | boolean | (number | null)[] | null;
+export type CityValue = string | number | boolean | (number | null)[] | PhotoTuple | null;
 export type CityRow = CityValue[];
 
 export function encodeCity(record: CityRecord): CityRow {

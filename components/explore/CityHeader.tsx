@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { PiltriScoreDisplay } from "@/components/ui/ScoreBadge";
-import { ChevronDown, EyeIcon, PlusIcon } from "@/components/ui/icons";
+import { EyeIcon, IconResources, PlusIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/cn";
 import { Collapse } from "@/components/ui/Collapse";
 import { SaveHeart } from "@/components/explore/SaveHeart";
@@ -57,6 +56,10 @@ interface CityHeaderProps {
   /** The place in a few plain words under its name - strengths, things to
    *  watch, who it suits (2026-11-14, BACKLOG P1). */
   summaryOf?: CityExploreData;
+  /** The Resources button, between the heart and the eye (2026-11-15,
+   *  owner: Resources isn't a section) - it opens the country's links. */
+  onResources?: () => void;
+  resourcesOpen?: boolean;
 }
 
 /** Abbreviates large counts (population, density) to a short, glanceable
@@ -72,8 +75,11 @@ function formatCompactNumber(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
-/** `span`: columns of the 3-column grid it takes (default 1). */
-type Stat = { label: string; value: string; colorClass: string; title?: string; span?: 2 | 3 };
+/** `span`: columns of the 3-column grid it takes (default 1), or half the
+ *  line. The grid has 6 tracks so a line can also split in two. */
+type Stat = { label: string; value: string; colorClass: string; title?: string; span?: 2 | 3 | "half" };
+const STAT_GRID = "mt-0.5 grid grid-cols-6 items-start gap-x-3 gap-y-0.5";
+const SPAN_CLASS = { 1: "col-span-2", 2: "col-span-4", 3: "col-span-6", half: "col-span-3" } as const;
 
 /** A demographics stat: value over label. The label is always shown in
  *  full (wrapping if it must); a long value is cut short - hover shows it,
@@ -85,7 +91,7 @@ function StatCell({ stat }: { stat: Stat }) {
       type="button"
       onClick={() => setOpen((o) => !o)}
       aria-expanded={open}
-      className={`block w-full min-w-0 text-left cursor-default ${stat.span === 3 ? "col-span-3" : stat.span === 2 ? "col-span-2" : ""}`}
+      className={`block w-full min-w-0 text-left cursor-default ${SPAN_CLASS[stat.span ?? 1]}`}
     >
       <p className={`text-[11px] font-medium leading-snug ${open ? "break-words" : "truncate"} ${stat.colorClass}`} title={stat.title ?? stat.value}>
         {stat.value}
@@ -123,10 +129,15 @@ export function CityHeader({
   hideCountry = false,
   savePlace,
   summaryOf,
+  onResources,
+  resourcesOpen = false,
 }: CityHeaderProps) {
   const isCustomised = weights != null && isCustomWeights(weights);
-  const [countryOpen, setCountryOpen] = useState(false);
   const { prefs } = useUnitPreferences();
+  const score = Math.round(piltriScore);
+  // The world rank (at the default weighting) - on hover only since
+  // 2026-11-15 (owner: its line went to make room).
+  const rankTitle = rank && !isCustomised ? `Piltri score - #${rank.position.toLocaleString()} of ${rank.outOf.toLocaleString()} places in the world` : "Piltri score";
 
   const NOT_AVAILABLE = "No data";
 
@@ -194,7 +205,8 @@ export function CityHeader({
                 : `${languages.slice(0, 2).join(", ")} +${languages.length - 2} more`,
             colorClass: languages.length ? "text-ink-900" : "text-ink-500",
             title: languages.length > 3 ? `${languages.join(", ")} (alphabetical)` : undefined,
-            span: 3 as const,
+            // Half the line, beside the main religion (2026-11-15).
+            span: hasSource("mainReligion") ? ("half" as const) : (3 as const),
           };
         })(),
         // The largest religious group (2026-11-14, owner) - from datasets
@@ -210,7 +222,7 @@ export function CityHeader({
                   title: religion
                     ? `The largest religious group${religion.pct != null ? `: ${religion.pct}% of people` : ""} - CIA World Factbook${religion.year ? `, ${religion.year} estimate` : ""}`
                     : undefined,
-                  span: 3 as const,
+                  span: "half" as const,
                 };
               })(),
             ]
@@ -283,17 +295,39 @@ export function CityHeader({
     // contributing to "a lot of scrolling needed" once a section opened.
     <div className="px-4 pt-1.5 pb-1 md:sticky md:top-0 z-10 rounded-t-card bg-surface/95 backdrop-blur border-b border-surface-border">
       <div className="flex items-start justify-between gap-2">
-        <h1 className="leading-tight">
+        <h1 lang="en" className="min-w-0 break-words hyphens-auto leading-tight">
           {/* Region/country eyebrow line removed (2026-09-23, on request) -
            *  the city name is now the only thing in the title, sized up
            *  since it no longer has to share the block with a second line;
            *  "United Kingdom" is still fully available just below, in the
            *  stat group's own header. */}
-          <span className="font-serif text-3xl text-ink-900">{cityName}</span>
+          {/* A size down for long names, so most stay on one line beside
+           *  the buttons (2026-11-15); a very long word breaks with a hyphen. */}
+          <span className={cn("font-serif text-ink-900", cityName.length <= 9 ? "text-3xl" : cityName.length <= 12 ? "text-2xl" : "text-xl")}>
+            {cityName}
+          </span>
         </h1>
-        {(reportHref || compareHref || savePlace) && (
-          <div className="flex-shrink-0 mt-0.5 flex items-center gap-1.5">
+        <div className="flex-shrink-0 flex items-start gap-2.5">
+        {(reportHref || compareHref || savePlace || onResources) && (
+          <div className="mt-0.5 flex items-center gap-1.5">
             {savePlace && <SaveHeart place={savePlace} />}
+            {onResources && (
+              <button
+                type="button"
+                onClick={onResources}
+                aria-pressed={resourcesOpen}
+                title="Resources: useful links for this country"
+                aria-label="Resources: useful links for this country"
+                className={cn(
+                  "w-6 h-6 flex items-center justify-center rounded-full border transition-colors",
+                  resourcesOpen
+                    ? "border-piltri-amber text-piltri-amber bg-piltri-amber-light/40"
+                    : "border-surface-border text-ink-500 hover:text-piltri-amber hover:border-piltri-amber"
+                )}
+              >
+                <IconResources className="w-3.5 h-3.5" />
+              </button>
+            )}
             {reportHref && (
               <Link
                 href={reportHref}
@@ -321,6 +355,13 @@ export function CityHeader({
             )}
           </div>
         )}
+          {/* On a phone the score sits on the name's line (2026-11-15: room
+           *  for the country's figures); the side column keeps its own line. */}
+          <div className="md:hidden land:hidden flex flex-col items-center" title={rankTitle}>
+            <span className="font-serif text-2xl leading-none text-piltri-amber tabular-nums">{score}</span>
+            <span className="mt-0.5 text-[9px] uppercase tracking-wide leading-none text-ink-500">{isCustomised ? "Custom" : "Score"}</span>
+          </div>
+        </div>
       </div>
 
       {summaryOf && <PlaceSummaryLine data={summaryOf} />}
@@ -332,7 +373,7 @@ export function CityHeader({
           <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{cityName}</p>
           {/* Labels are kept short so each fits on one line; longer ones
            *  span more columns (Stat.span) rather than being cut. */}
-          <div className="mt-0.5 grid grid-cols-3 items-start gap-x-3 gap-y-0.5">
+          <div className={STAT_GRID}>
             {cityStats.map((stat) => (
               <StatCell key={stat.label} stat={stat} />
             ))}
@@ -342,24 +383,12 @@ export function CityHeader({
 
       {countryStats && (
         // Folds away smoothly rather than vanishing (2026-11-07).
+        // Always open (2026-11-15, owner: no tap to see the country) - the
+        // room comes from the slimmer score line below.
         <Collapse open={!hideCountry}>
           <div className="mt-1 rounded-lg bg-surface-muted px-2.5 py-0.5 border-l-2 border-piltri-amber">
-            {/* On a phone or a short screen, folded to its name until tapped (2026-11-14,
-             *  owner: the five sections visible without scrolling); open
-             *  where there is room ('roomy', tailwind.config.ts). */}
-            <button
-              type="button"
-              onClick={() => setCountryOpen((o) => !o)}
-              aria-expanded={countryOpen}
-              className="w-full flex items-center justify-between gap-2 text-left roomy:pointer-events-none"
-            >
-              <span className="font-serif text-sm text-piltri-amber-dark leading-tight">{country}</span>
-              <span className="roomy:hidden flex items-center gap-1 text-[11px] text-ink-500">
-                {countryOpen ? "Less" : "Country figures"}
-                <ChevronDown className={cn("w-3 h-3 transition-transform", countryOpen && "rotate-180")} />
-              </span>
-            </button>
-            <div className={cn("mt-0.5 grid-cols-3 items-start gap-x-3 gap-y-0.5 roomy:grid", countryOpen ? "grid" : "hidden")}>
+            <p className="font-serif text-sm text-piltri-amber-dark leading-tight">{country}</p>
+            <div className={STAT_GRID}>
               {countryStats.map((stat) => (
                 <StatCell key={stat.label} stat={stat} />
               ))}
@@ -368,22 +397,11 @@ export function CityHeader({
         </Collapse>
       )}
 
-      {/* Label and score on one line — saves the vertical space the label
-       *  used to take as its own row above the big number - and the world
-       *  rank under the label, beside the number rather than on a line of
-       *  its own (2026-10-30: so Resources fits on a phone's screen). */}
-      <div className="mt-1.5 flex items-center justify-between gap-2">
-        <div>
-          <p className="text-[11px] uppercase tracking-wide text-ink-500">
-            Piltri score{isCustomised ? " (custom)" : ""}
-          </p>
-          {rank && !isCustomised && (
-            <p className="text-[10px] text-ink-500" title="World rank among every city in Piltri's dataset">
-              #{rank.position.toLocaleString()} of {rank.outOf.toLocaleString()} cities
-            </p>
-          )}
-        </div>
-        <PiltriScoreDisplay score={piltriScore} />
+      {/* Label and score on one slim line (2026-11-15, owner: the world rank
+       *  line went to make room - it's in the score's hover text now). */}
+      <div className="mt-1 hidden md:flex land:flex items-center justify-between gap-2" title={rankTitle}>
+        <p className="text-[11px] uppercase tracking-wide text-ink-500">Piltri score{isCustomised ? " (custom)" : ""}</p>
+        <span className="font-serif text-2xl leading-none text-piltri-amber tabular-nums">{score}</span>
       </div>
 
       {isCustomised && (

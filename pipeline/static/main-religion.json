@@ -1,7 +1,7 @@
 {
  "AD": {
-  "name": "No religion",
-  "pct": 2,
+  "name": "Christian",
+  "pct": 90,
   "year": "2020"
  },
  "AE": {
@@ -170,8 +170,8 @@
   "year": "2016"
  },
  "CD": {
-  "name": "Kimbanguist",
-  "pct": 3,
+  "name": "Christian",
+  "pct": 93,
   "year": "2014"
  },
  "CF": {
@@ -245,7 +245,7 @@
   "year": "2016"
  },
  "CY": {
-  "name": "Eastern Orthodox Christian",
+  "name": "Eastern Orthodox",
   "pct": 89,
   "year": "2011"
  },
@@ -265,7 +265,7 @@
   "year": null
  },
  "DK": {
-  "name": "Evangelical Lutheran",
+  "name": "Lutheran",
   "pct": 71,
   "year": "2024"
  },
@@ -365,7 +365,7 @@
   "year": "2011"
  },
  "GE": {
-  "name": "Eastern Orthodox Christian",
+  "name": "Eastern Orthodox",
   "pct": 83,
   "year": "2014"
  },
@@ -385,7 +385,7 @@
   "year": "2012"
  },
  "GL": {
-  "name": "Evangelical Lutheran",
+  "name": "Lutheran",
   "pct": null,
   "year": null
  },
@@ -490,7 +490,7 @@
   "year": "2020"
  },
  "IS": {
-  "name": "Evangelical Lutheran Church of Iceland",
+  "name": "Lutheran",
   "pct": 59,
   "year": "2024"
  },
@@ -545,7 +545,7 @@
   "year": "2020"
  },
  "KP": {
-  "name": "Traditionally Buddhist and Confucian",
+  "name": "Buddhist/Confucian",
   "pct": null,
   "year": null
  },
@@ -1020,7 +1020,7 @@
   "year": "2014"
  },
  "TK": {
-  "name": "Congregational Christian Church",
+  "name": "Congregational",
   "pct": 50,
   "year": "2016"
  },

@@ -382,6 +382,7 @@ export function assembleCityExploreData(
     sectionsWithoutData: [],
     piltriScore: 0,
     lastUpdated: datasetGeneratedAt,
+    photo: city.photo ?? null,
   };
   const { scores, withoutData } = scoreSections(data, country.gniPerCapitaUsd);
   data.sectionScores = scores;

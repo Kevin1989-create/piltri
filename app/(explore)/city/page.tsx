@@ -484,6 +484,7 @@ function CityContent() {
     setLoading(true);
     setError(null);
     setData(null);
+    setOpenSectionKey(null);
     closePin();
     // A figure's places belong to the place before (2026-11-08, owner: the
     // map sometimes framed the old city's after a search).
@@ -692,6 +693,7 @@ function CityContent() {
                 placeId={data?.cityId}
                 initialSpots={linkSpots}
                 countryCode={data?.countryCode}
+                photo={data?.photo ?? null}
                 countryName={data?.country}
                 sidePanelOpen={isDesktop && openSectionKey !== null}
               />
@@ -749,8 +751,10 @@ function CityContent() {
                   hideCountry={sectionView}
                   savePlace={{ id: data.cityId, name: data.cityName, country: data.country, lat: data.lat, lng: data.lng }}
                   summaryOf={data}
+                  resourcesOpen={openSectionKey === "resources"}
+                  onResources={() => setOpenSectionKey((k) => (k === "resources" ? null : "resources"))}
                 />
-                <SectionColumn data={data} externalDetail={isDesktop} fill onOpenSectionChange={setOpenSectionKey} />
+                <SectionColumn data={data} externalDetail={isDesktop} fill openKey={openSectionKey} onOpenKeyChange={setOpenSectionKey} />
               </>
             )}
           </div>

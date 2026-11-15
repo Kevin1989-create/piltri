@@ -45,10 +45,14 @@ The owner's requests and planned work, roughly in order. Updated
 ## City page
 
 Done 2026-10-30: Resources shows without scrolling - on a phone the map
-takes the height left once the score card fits (never under 110 px), the
-world rank sits beside the score, and rows and the top bar are a little
-tighter on short screens. Phones under ~690 px of visible height still
-scroll a little.
+takes the height left once the score card fits (never under 125 px), and
+rows and the top bar are a little tighter on short screens.
+2026-11-15 (owner): the country's figures always open (no "Country
+figures" tap); Resources is a button between the heart and the eye, not a
+5th row (its row shows only while it's open, to close it); the world rank
+line went (hover on the score); at most 3 highlight chips; on a phone the
+score sits on the name's line; long names a size smaller. The four
+sections fit without scrolling down to 375x667 (9 px spare) and 1280x600.
 
 ## Map (owner, 2026-10-28)
 
@@ -317,8 +321,11 @@ P4. **Three journeys** - one switch on the city page reorders it for
 P5. **Daily habit** - a daily guessing game from a place's climate chart
     and clues, a place of the day, an explorer passport of places seen.
 P6. **Places that feel alive** - a photo (Wikimedia Commons) and two lines
-    from Wikipedia per place, picked offline, credited - needs the owner's
-    OK (new outside sources).
+    from Wikipedia per place, picked offline, credited. Photo done
+    2026-11-15 (owner): a thumbnail in the map's bottom-left corner above
+    the country square, a tap opens it big with its author and licence;
+    ~40% of places have one (villages ~39%, 100k+ ~69%). Next: the
+    Wikipedia lines; a second photo source for the rest (owner's OK).
 Growth notes the same day (for later): real indexable page per place,
 "weather in <place> in <month>" pages, share-preview images, Cloudflare
 Web Analytics; money only via clearly marked mode-matched affiliate links

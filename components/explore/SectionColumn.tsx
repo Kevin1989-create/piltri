@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect } from "react";
 import { SectionRow } from "./SectionRow";
 import { SectionDetail } from "./SectionDetail";
 import { ResourcesRow } from "./ResourcesRow";
@@ -28,7 +28,10 @@ interface SectionColumnProps {
    *  comparison column has no adjacent space for a second panel, so it
    *  keeps the original inline-detail-with-dimmed-siblings behaviour. */
   externalDetail?: boolean;
-  onOpenSectionChange?: (key: OpenSectionKey | null) => void;
+  /** The open section - held by the page, since Resources is opened from
+   *  a button beside the place's name (2026-11-15). */
+  openKey: OpenSectionKey | null;
+  onOpenKeyChange: (key: OpenSectionKey | null) => void;
   /** Inline detail only: while a section is open, this column fills the
    *  height its parent gives it, the other sections' rows are hidden, and
    *  the open section scrolls inside its own box (with a visible bar).
@@ -40,28 +43,22 @@ interface SectionColumnProps {
 /** Single-open accordion: only one section can be open at a time (a Set of
  *  open keys used to allow several at once, which is what made this column
  *  tall enough to need scrolling in the first place). Opening a new section
- *  closes whichever one was open. Resources (2026-09-23) is a 5th row after
- *  the 4 scored ones, sharing this same single-open state machine even
- *  though it isn't itself a SectionKey. It no longer needs a link-count
+ *  closes whichever one was open. Resources shares this same single-open
+ *  state even though it isn't a SectionKey - opened from the button beside
+ *  the place's name since 2026-11-15, its row showing only while it's open. It no longer needs a link-count
  *  fetch of its own here (see ResourcesRow's doc comment - the badge that
  *  needed this was removed), so this column stays a plain accordion with
  *  no extra data-fetching responsibility beyond opening/closing rows — it
  *  does still kick off `prefetchResourceLinks` as soon as it mounts, purely
  *  so the request is already in flight (or done) by the time a user
  *  actually opens Resources, rather than starting fresh on click. */
-export function SectionColumn({ data, externalDetail = false, onOpenSectionChange, fill = false }: SectionColumnProps) {
-  const [openKey, setOpenKey] = useState<OpenSectionKey | null>(null);
-
-  useEffect(() => {
-    onOpenSectionChange?.(openKey);
-  }, [openKey, onOpenSectionChange]);
-
+export function SectionColumn({ data, externalDetail = false, openKey, onOpenKeyChange, fill = false }: SectionColumnProps) {
   useEffect(() => {
     prefetchResourceLinks(data.countryCode);
   }, [data.countryCode]);
 
   function toggle(key: OpenSectionKey) {
-    setOpenKey((cur) => (cur === key ? null : key));
+    onOpenKeyChange(openKey === key ? null : key);
   }
 
   const filling = fill && !externalDetail && openKey !== null;
@@ -104,12 +101,14 @@ export function SectionColumn({ data, externalDetail = false, onOpenSectionChang
         );
       })}
       {(() => {
+        // Not a row of its own any more (2026-11-15, owner): opened from
+        // the button beside the place's name; its row shows only while
+        // it's open, as the header that closes it.
         const isOpen = openKey === "resources";
-        const isOtherRow = openKey !== null && !isOpen;
         return (
           <div className={cn(filling && isOpen && "flex-1 flex flex-col")}>
-            <Collapse open={!(fill && !externalDetail && isOtherRow)}>
-              <ResourcesRow isOpen={isOpen} compact={!externalDetail && isOtherRow} onToggle={() => toggle("resources")} />
+            <Collapse open={isOpen}>
+              <ResourcesRow isOpen={isOpen} onToggle={() => toggle("resources")} />
             </Collapse>
             {!externalDetail &&
               isOpen &&

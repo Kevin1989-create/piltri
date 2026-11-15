@@ -31,17 +31,3 @@ export function ScoreBadge({ score, size = "md", className }: ScoreBadgeProps) {
     </span>
   );
 }
-
-/** Amber Piltri score used at the top of the results left column (0-100).
- *  text-2xl rather than text-3xl — CityHeader as a whole was asked to be
- *  more compact, to leave more visible room for the section list below it
- *  in the same scrollable panel. */
-export function PiltriScoreDisplay({ score }: { score: number }) {
-  return (
-    <div className="flex items-baseline gap-1.5">
-      <span className="font-serif text-2xl text-piltri-amber tabular-nums">
-        {Math.round(score)}
-      </span>
-    </div>
-  );
-}

@@ -83,13 +83,23 @@ const NAME_OVERRIDE = {
   // "Church of Jesus Christ in Madagascar/Malagasy Lutheran Church/Anglican Church 34%"
   MG: "Protestant",
 };
+/** Long names, shortened to fit half a line on the place page (2026-11-15). */
+const SHORT_NAME = {
+  "Eastern Orthodox Christian": "Eastern Orthodox",
+  "Evangelical Lutheran Church of Iceland": "Lutheran",
+  "Evangelical Lutheran": "Lutheran",
+  "Congregational Christian Church": "Congregational",
+  "Traditionally Buddhist and Confucian": "Buddhist/Confucian",
+};
 
 /** Top-level "Name 12.3%" items of a Factbook religions line. */
 function topLevel(text) {
   const items = [];
   let depth = 0;
   let cur = "";
-  for (const ch of text.replace(/\(\d{4}[^)]*\)\s*$/, "")) {
+  // "&nbsp;", and DR Congo's "Christian 93/1%" (93.1%).
+  const clean = text.replace(/&nbsp;/g, " ").replace(/(\d)\/(\d)\s*%/g, "$1.$2%");
+  for (const ch of clean.replace(/\(\d{4}[^)]*\)\s*$/, "")) {
     if (ch === "(") depth++;
     if (ch === ")") depth--;
     if (ch === "," && depth === 0) {
@@ -103,8 +113,11 @@ function topLevel(text) {
     let outer = item;
     while (/\([^()]*\)/.test(outer)) outer = outer.replace(/\([^()]*\)/g, "");
     outer = outer.replace(/[()]/g, "").trim();
-    // "Muslim 80-85%" (the middle), "more than 70%", "about 5%".
-    const m = outer.match(/^(.*?)\s+(?:about|approximately|nearly|almost|over|more than|less than|<|>)?\s*(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?\s*%/i);
+    // "Muslim 80-85%" (the middle), "more than 70%", "about 5%" - or a
+    // share whose % sign the Factbook forgot (Andorra's "Christian 89.5").
+    const m =
+      outer.match(/^(.*?)\s+(?:about|approximately|nearly|almost|over|more than|less than|<|>)?\s*(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?\s*%/i) ??
+      outer.match(/^(.*?)\s+(\d+(?:\.\d+)?)()$/);
     const name = (m ? m[1] : outer).replace(/\s+(about|approximately|nearly|almost|over|more than|less than)$/i, "").replace(/\s+/g, " ").trim();
     const pct = m ? (m[3] ? (Number(m[2]) + Number(m[3])) / 2 : Number(m[2])) : null;
     return { name, pct };
@@ -118,6 +131,7 @@ function mainReligion(text) {
   if (!best) return null;
   let name = best.name.replace(/^(none|no religion|non-?religious|unaffiliated|atheist|agnostic)\b.*/i, "No religion");
   name = name.charAt(0).toUpperCase() + name.slice(1);
+  name = SHORT_NAME[name] ?? name;
   const year = (text.match(/\((\d{4})(?:[^)]*)est\.?\)/) ?? text.match(/\b(19|20)\d{2}\b/))?.[0]?.match(/\d{4}/)?.[0] ?? null;
   return { name, pct: best.pct != null ? Math.round(best.pct) : null, year };
 }

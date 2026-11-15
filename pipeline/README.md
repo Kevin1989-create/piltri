@@ -48,6 +48,8 @@ also picks up the latest published dataset.
 | City outlines on the map | Overture Maps divisions (OpenStreetMap boundaries) | ODbL |
 | Built-up area outlines (towns with no boundary) | GHS-POP R2023A (EC JRC), the density grid above | CC BY 4.0 |
 | Official languages | Unicode CLDR territory data (+ constitutional corrections in `sources/languages.ts`) | Unicode License |
+| Main religion (country, largest group and its share) | CIA World Factbook, via the factbook.json mirror - collected by hand with `scripts/build-main-religion.mjs` into `static/main-religion.json` (2026-11-14) | public domain |
+| A photo of each place (~40% have one) | Wikidata's image of the place (P18, or its Wikivoyage banner P948) and the file's size, author and licence from Wikimedia Commons - collected by hand with `scripts/build-place-photos.mjs` into `static/place-photos.json.gz` (2026-11-15); the browser loads the picture from upload.wikimedia.org | Wikidata CC0; each file its own free licence (CC BY / BY-SA / CC0 / public domain), credited with its author on the site |
 | Airports, bus stations, ports & ferry terminals, beaches, 1,000 m+ peaks, forests, volcanoes | GeoNames `allCountries` | CC BY 4.0 |
 | Earthquakes (M5+ since 1970) | USGS catalogue | public domain |
 | Population growth 2020-2025 (5 km) | GHS-POP R2023A, 2020 and 2025 epochs, 1 km (EC JRC) | CC BY 4.0 |

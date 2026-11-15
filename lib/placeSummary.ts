@@ -4,8 +4,8 @@ import type { CityExploreData } from "@/lib/types";
 
 /**
  * A place in a few plain words, before any figure (2026-11-14, owner: the
- * site should answer at a glance - BACKLOG P1): up to three strengths, up to
- * two things to watch, and who it suits best. Every chip comes from a figure
+ * site should answer at a glance - BACKLOG P1): three chips at most -
+ * strengths, and a thing to watch when there is one - and who it suits best. Every chip comes from a figure
  * the page shows (its `why` says which, on hover) - a missing figure never
  * makes one, so nothing here is an estimate.
  */
@@ -22,7 +22,8 @@ export interface PlaceSummary {
   bestFor: SummaryChip[];
 }
 
-const MAX_STRENGTHS = 3;
+/** Chips shown in all (strengths + things to watch). */
+const MAX_CHIPS = 3;
 const MAX_WATCH_OUTS = 2;
 const MAX_BEST_FOR = 3;
 
@@ -225,9 +226,13 @@ export function placeSummary(d: CityExploreData, prefs: UnitPreferences): PlaceS
     km: (km) => formatDistanceKm(km, prefs),
     drive: (km) => formatDriveTime(driveMinutes(km) ?? 1),
   };
+  // Three chips at most (2026-11-15, owner) - one of them a thing to watch
+  // when the place has one, so the line stays honest.
+  const watch = firstMatches(WATCH_OUTS, d, u, MAX_WATCH_OUTS);
+  const strengths = firstMatches(STRENGTHS, d, u, MAX_CHIPS - Math.min(watch.length, 1));
   return {
-    strengths: firstMatches(STRENGTHS, d, u, MAX_STRENGTHS),
-    watchOuts: firstMatches(WATCH_OUTS, d, u, MAX_WATCH_OUTS),
+    strengths,
+    watchOuts: watch.slice(0, MAX_CHIPS - strengths.length),
     bestFor: firstMatches(BEST_FOR, d, u, MAX_BEST_FOR),
   };
 }

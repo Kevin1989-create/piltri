@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { AIRPORT_REACH_KM, driveMinutes, formatDriveTime, ROAD_DETOUR_FACTOR } from "@/lib/dataset/assemble";
@@ -23,6 +23,8 @@ import { formatSpotParam, removeSpot, sameSpot, saveSpot, savedSpotsFor, type Sa
 import { cityUrl } from "@/lib/urls";
 import { cameraMotion, MOTION_CSS, MOTION_MS, motionEase, prefersReducedMotion } from "@/lib/motion";
 import { CountryLocator } from "@/components/explore/CountryLocator";
+import { PlacePhotoCorner } from "@/components/explore/PlacePhotoCorner";
+import { placePhoto, type PhotoTuple } from "@/lib/placePhoto";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { escapeHtml } from "@/lib/escapeHtml";
 
@@ -320,6 +322,8 @@ interface MapViewProps {
   /** The country, for the locator in the corner (CountryLocator). */
   countryCode?: string;
   countryName?: string;
+  /** The place's photo (lib/placePhoto.ts), in the bottom-left corner. */
+  photo?: PhotoTuple | null;
   /** A computer's section panel is open beside the score column: the
    *  place is framed in the room right of both (and the map glides across
    *  as it opens and closes). */
@@ -677,6 +681,7 @@ export function MapView({
   placeId,
   initialSpots,
   countryCode,
+  photo,
   countryName,
   sidePanelOpen = false,
 }: MapViewProps) {
@@ -745,7 +750,7 @@ export function MapView({
   // all ticked together it should still work"). Turning the last of them
   // off takes it back into the page. Null: it stays - expanded with its
   // own button, or touched (it's being looked at).
-  type ExpandButton = "list" | "spot" | "address";
+  type ExpandButton = "list" | "spot" | "address" | "corner";
   const expandedByRef = useRef<Set<ExpandButton> | null>(null);
   /** A button turned on: it expands the map from the page, or joins the
    *  ones that did. */
@@ -1759,8 +1764,38 @@ export function MapView({
   // phone's map in the page; out of the way while a spot is being placed,
   // or of a phone's spot card along the bottom. Tapping it glides out to
   // the whole country, and back.
-  const [showingCountry, setShowingCountry] = useState(false);
-  useEffect(() => setShowingCountry(false), [lat, lng]);
+  // The corner (2026-11-14, owner): the place's photo above the country,
+  // each opening big on a tap and back on another - one at a time; on a
+  // phone's small map a tap first expands the map.
+  const [corner, setCorner] = useState<"photo" | "country" | null>(null);
+  const cornerExpandedMapRef = useRef(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const photoInfo = useMemo(() => (photoFailed ? null : placePhoto(photo)), [photo, photoFailed]);
+  useEffect(() => {
+    setCorner(null);
+    setPhotoFailed(false);
+  }, [lat, lng]);
+  useEffect(() => {
+    if (!expanded && cornerExpandedMapRef.current) {
+      cornerExpandedMapRef.current = false;
+      setCorner(null);
+    }
+  }, [expanded]);
+  const toggleCorner = (which: "photo" | "country") => {
+    if (corner === which) {
+      setCorner(null);
+      if (cornerExpandedMapRef.current) {
+        cornerExpandedMapRef.current = false;
+        releaseFor("corner");
+      }
+      return;
+    }
+    if (!corner && smallMap) {
+      cornerExpandedMapRef.current = true;
+      expandFor("corner");
+    }
+    setCorner(which);
+  };
   const locatorSize = smallMap || landscapeShort ? 64 : 112;
   const locatorShown = !!countryCode && spotMode !== "a" && !(spotA && listHere && !wideScreen) && !pickingDestination;
   // Bottom left since 2026-11-14 (owner: swapped with the credit line) -
@@ -1769,17 +1804,6 @@ export function MapView({
   // card while it's open.
   const spotCardOpen = listHere && !!spotA && spotMode !== "a";
   const locatorLeft = compact ? (spotCardOpen && wideScreen ? 324 : locatorSize < 96 ? 8 : 10) : sidePanelOpen ? 760 : 352;
-  const showCountry = (bounds: [[number, number], [number, number]] | null) => {
-    const map = mapRef.current;
-    if (!map) return;
-    if (bounds) {
-      map.fitBounds(bounds, { padding: framePadding(map), maxZoom: Math.max(map.getZoom() - 1, 3), ...cameraMotion(1000) });
-      setShowingCountry(true);
-    } else {
-      frameHome(map, 1000);
-      setShowingCountry(false);
-    }
-  };
 
   // Spots. The ones saved in this browser for this place; another place
   // starts without any on the map.
@@ -2608,19 +2632,34 @@ export function MapView({
         {locatorShown && countryCode && (
           <div
             ref={locatorWrapRef}
-            className="pointer-events-auto absolute transition-[left] duration-300 ease-out"
-            style={{ left: locatorLeft, bottom: locatorSize < 96 ? 8 : 24, transformOrigin: "0% 100%" }}
+            className={cn(
+              "pointer-events-auto absolute flex gap-2 transition-[left] duration-300 ease-out",
+              smallMap ? "flex-row items-end" : "flex-col-reverse items-start"
+            )}
+            style={{ left: locatorLeft, bottom: locatorSize < 96 ? 8 : 24, transformOrigin: "0% 100%", maxWidth: `calc(100% - ${locatorLeft + 56}px)` }}
           >
-            <CountryLocator
-              countryCode={countryCode}
-              countryName={countryName}
-              placeName={areaName?.split(",")[0]}
-              lat={lat}
-              lng={lng}
-              size={locatorSize}
-              showingCountry={showingCountry}
-              onShowCountry={showCountry}
-            />
+            {corner !== "photo" && (
+              <CountryLocator
+                countryCode={countryCode}
+                countryName={countryName}
+                placeName={areaName?.split(",")[0]}
+                lat={lat}
+                lng={lng}
+                size={corner === "country" ? 240 : locatorSize}
+                expanded={corner === "country"}
+                onToggle={() => toggleCorner("country")}
+              />
+            )}
+            {photoInfo && corner !== "country" && (
+              <PlacePhotoCorner
+                photo={photoInfo}
+                placeName={areaName?.split(",")[0]}
+                size={locatorSize}
+                open={corner === "photo"}
+                onToggle={() => toggleCorner("photo")}
+                onFail={() => setPhotoFailed(true)}
+              />
+            )}
           </div>
         )}
         <div className="pointer-events-auto">

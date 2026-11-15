@@ -44,8 +44,9 @@ function clusterFor(shape: CountryShape, lat: number, lng: number) {
  * Where the place is in its country (2026-11-07, owner: "a small square
  * with the country where it is ... work something awesome"): the
  * country's silhouette with the place as a softly pulsing amber dot, in a
- * corner of the map. Tapping it glides the map out to the whole country
- * (`onShowCountry` with its bounds), and again back to the place.
+ * corner of the map. A tap opens it bigger, another shrinks it back
+ * (2026-11-14, owner: "when you click on it, it expands" - it used to glide
+ * the map out to the whole country).
  */
 export function CountryLocator({
   countryCode,
@@ -54,8 +55,8 @@ export function CountryLocator({
   lat,
   lng,
   size,
-  showingCountry,
-  onShowCountry,
+  expanded,
+  onToggle,
   className,
   style,
 }: {
@@ -67,9 +68,9 @@ export function CountryLocator({
   lng: number;
   /** The square's side, px. */
   size: number;
-  showingCountry: boolean;
-  /** The country's bounds to glide out to, or null to come back. */
-  onShowCountry: (bounds: [[number, number], [number, number]] | null) => void;
+  /** Opened big (size is then the big one). */
+  expanded: boolean;
+  onToggle: () => void;
   className?: string;
   style?: React.CSSProperties;
 }) {
@@ -106,26 +107,19 @@ export function CountryLocator({
         return `${s}Z`;
       })
       .join("");
-    return {
-      d,
-      dot: { x: px(found.x), y: py(lat) },
-      bounds: [
-        [minx, miny],
-        [maxx, maxy],
-      ] as [[number, number], [number, number]],
-    };
+    return { d, dot: { x: px(found.x), y: py(lat) } };
   }, [shape, lat, lng, size]);
 
   if (!shape || !drawing) return null;
   const big = size >= 96;
   const country = countryName ?? shape.name;
-  const back = placeName ? `Back to ${placeName}` : "Back to the place";
   return (
     <button
       type="button"
-      onClick={() => onShowCountry(showingCountry ? null : drawing.bounds)}
-      aria-label={showingCountry ? back : `Show all of ${country}`}
-      title={showingCountry ? back : `Where ${placeName ?? "it"} is in ${country} - tap to see the whole country`}
+      onClick={onToggle}
+      aria-label={expanded ? `Make the map of ${country} smaller` : `Where ${placeName ?? "it"} is in ${country} - open bigger`}
+      aria-expanded={expanded}
+      title={expanded ? "Tap to make it smaller" : `Where ${placeName ?? "it"} is in ${country} - tap to open it bigger`}
       style={{ width: size, height: size, ...style }}
       className={cn(
         "group relative block overflow-hidden rounded-xl bg-surface/90 shadow-card ring-1 ring-black/5 backdrop-blur-sm transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-lg motion-safe:animate-fade-in",
@@ -136,7 +130,7 @@ export function CountryLocator({
         <path
           d={drawing.d}
           fillRule="evenodd"
-          className={cn("transition-colors duration-300", showingCountry ? "fill-piltri-amber-tint" : "fill-[#EAE2D6]")}
+          className={cn("transition-colors duration-300", expanded ? "fill-piltri-amber-tint" : "fill-[#EAE2D6]")}
           stroke="#BFAE97"
           strokeWidth={0.7}
           strokeLinejoin="round"
@@ -148,7 +142,7 @@ export function CountryLocator({
       </svg>
       {big && (
         <span className="absolute inset-x-0 bottom-1.5 truncate px-2 text-center font-serif text-[11px] leading-none text-ink-700">
-          {showingCountry ? back : country}
+          {expanded && placeName ? `${placeName}, ${country}` : country}
         </span>
       )}
     </button>

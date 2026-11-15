@@ -15,7 +15,8 @@ units and language). Demographics are shown but not scored. There is **no
 Real Estate section** - no free, reliable global price source exists.
 
 - **Explore** (`/`): search a city -> `/city?id=lyon-fr`: map, score,
-  section panels (the city's own figures, then its country's), world rank,
+  section panels (the city's own figures, then its country's), Resources
+  (the button beside the heart), world rank (on the score's hover),
   a printable report (`/report?id=`), Compare (`/compare?id=…&id=…`, up
   to 10 places). Tapping a Yes or a distance shows it on the map: every
   place for a Yes, the road journey for a distance, with an "Open in
@@ -103,7 +104,10 @@ Real Estate section** - no free, reliable global price source exists.
   `lib/routing.ts`), falling back to a straight line; and the map's
   address search asks Photon, Komoot's free search over OpenStreetMap
   (2026-11-11; `lib/geocode.ts`), only after a pause in typing - when it
-  doesn't answer, the box says so.
+  doesn't answer, the box says so. And a place's photo is loaded from
+  Wikimedia Commons (2026-11-15, owner; `lib/placePhoto.ts`) - which file
+  is picked offline (`scripts/build-place-photos.mjs`); if it doesn't
+  load, the corner simply hides it.
 - **Local figures are never estimated** (2026-10-24): a city version of a
   country figure only where a source reports or counts it for the place
   or its region; otherwise "No data" in the city block, the country figure

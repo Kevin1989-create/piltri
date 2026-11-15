@@ -90,9 +90,6 @@ const config: Config = {
     // screen: a screen that isn't a plain width turns off Tailwind's
     // max-* variants (max-md:), which the city page relies on.
     plugin(({ addVariant }) => addVariant("land", "@media (orientation: landscape) and (max-height: 520px)")),
-    // A computer-width screen tall enough for the whole place panel - the
-    // country block stays open there, folds below (2026-11-14).
-    plugin(({ addVariant }) => addVariant("roomy", "@media (min-width: 768px) and (min-height: 640px)")),
   ],
 };
 

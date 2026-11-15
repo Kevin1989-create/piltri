@@ -15,6 +15,7 @@
  */
 
 import type { InsideKind } from "@/lib/dataset/schema";
+import type { PhotoTuple } from "@/lib/placePhoto";
 
 /** Direction of a metric's recent trend (Safety's political stability). */
 export type TrendDirection = "Improving" | "Stable" | "Worsening";
@@ -319,6 +320,9 @@ export interface CityExploreData {
   /** World rank among every city in the dataset (1 = best), overall at the
    *  default weighting and per section. */
   ranks?: CityRanks;
+  /** Its photo on Wikimedia Commons (lib/placePhoto.ts), null where none -
+   *  absent before 2026-11-14. */
+  photo?: PhotoTuple | null;
 }
 
 export interface CityRanks {

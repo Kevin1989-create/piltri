@@ -11,6 +11,7 @@ import { CONFLICT_SOURCE, sampleConflict } from "./conflict";
 import { buildCountries, fetchWhoNationalPm25 } from "./countries";
 import { LANGUAGES_SOURCE } from "./sources/languages";
 import { MAIN_RELIGION_SOURCE } from "./sources/mainReligion";
+import { getPlacePhoto, hasPlacePhotos, PLACE_PHOTOS_SOURCE } from "./sources/placePhotos";
 import { BOUNDARY_SOURCE, sampleBoundaries } from "./boundaries";
 import { BUILTUP_SOURCE, sampleBuiltUp } from "./builtup";
 import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M, type PointSet } from "./geonames";
@@ -492,6 +493,7 @@ async function main() {
         insideNearestKm,
         waterStressPct: water?.stressPct[i] ?? null,
         groundwaterTrendCmYr: water?.groundwaterCmYr[i] ?? null,
+        photo: getPlacePhoto(c.geonameId),
         nearestLargeCityName: nearestLarge ? large[nearestLarge.id].cityName : null,
         nearestLargeCityKm: nearestLarge ? round(nearestLarge.km, 0) : null,
         restaurantsBarsWithin5km: ovCount(i, POI.eating),
@@ -621,6 +623,7 @@ async function main() {
       country: "World Bank Open Data (CC BY 4.0); WHO UHC service coverage index (via World Bank WDI, CC BY 4.0); ND-GAIN country index; UN World Population Prospects 2024 median age",
       languages: LANGUAGES_SOURCE,
       mainReligion: MAIN_RELIGION_SOURCE,
+      ...(hasPlacePhotos() ? { photos: PLACE_PHOTOS_SOURCE } : {}),
       climate: "TerraClimate monthly averages 1991-2020 (University of Idaho; public domain, CC0); sunshine estimated from solar radiation (FAO-56), snowfall from sub-zero monthly precipitation",
       climateType: KOPPEN_SOURCE,
       uv: "NASA POWER all-sky UV index climatology 2001-2020 (CERES SYN1deg), converted to noon peak",
