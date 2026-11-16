@@ -23,6 +23,7 @@ import { formatSpotParam, removeSpot, sameSpot, saveSpot, savedSpotsFor, type Sa
 import { cityUrl } from "@/lib/urls";
 import { cameraMotion, MOTION_CSS, MOTION_MS, motionEase, prefersReducedMotion } from "@/lib/motion";
 import { CityCorner, CountryLocator, type CountryBounds } from "@/components/explore/CountryLocator";
+import { englishName, labelsInEnglish } from "@/lib/mapLabels";
 import { PlacePhotoCorner } from "@/components/explore/PlacePhotoCorner";
 import { placePhoto, type PhotoTuple } from "@/lib/placePhoto";
 import { useMediaQuery } from "@/lib/useMediaQuery";
@@ -955,6 +956,7 @@ export function MapView({
       zoom,
       attributionControl: false,
     });
+    labelsInEnglish(map);
 
     map.addControl(new CityZoomControl(() => [cardContextRef.current.lng, cardContextRef.current.lat]), "top-right");
     // The credit OpenStreetMap's licence asks for is a line in the corner
@@ -999,9 +1001,9 @@ export function MapView({
           // The basemap's labels only - not Piltri's own icons drawn on top.
           const hit = map
             .queryRenderedFeatures(hitBox)
-            .find((f) => f.layer?.type === "symbol" && !f.layer.id.startsWith("piltri-") && typeof f.properties?.name === "string" && f.properties.name.trim());
+            .find((f) => f.layer?.type === "symbol" && !f.layer.id.startsWith("piltri-") && englishName(f.properties ?? {}).trim());
           if (hit) {
-            const name = (hit.properties?.name as string | undefined) ?? null;
+            const name = englishName(hit.properties ?? {}).trim() || null;
             const point =
               hit.geometry.type === "Point" ? { lat: hit.geometry.coordinates[1], lng: hit.geometry.coordinates[0] } : clickPoint;
             return { point, name };

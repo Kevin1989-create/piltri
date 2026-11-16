@@ -111,6 +111,8 @@ export async function searchAddresses(
     zoom: "14",
     location_bias_scale: "0.1",
     bbox: box.map((v) => v.toFixed(5)).join(","),
+    // Names in English where OpenStreetMap has them (2026-11-16, owner).
+    lang: "en",
   });
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { labelsInEnglish } from "@/lib/mapLabels";
 import { scoreColor } from "@/lib/design-tokens";
 import { MapCredit } from "@/components/explore/MapCredit";
 import { escapeHtml } from "@/lib/escapeHtml";
@@ -70,6 +71,7 @@ export function DiscoverResultsMap({ points }: DiscoverResultsMapProps) {
       // The credit is a line in the corner (MapCredit), not a pop-up.
       attributionControl: false,
     });
+    labelsInEnglish(map);
     map.addControl(new maplibregl.NavigationControl(), "top-right");
     mapRef.current = map;
 

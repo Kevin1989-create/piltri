@@ -27,6 +27,13 @@ The owner's requests and planned work, roughly in order. Updated
 
 - **Next refresh** (owner to run): the place photos (63,005 places, in
   the map's corner) and the main religion fixed for Andorra and DR Congo.
+  The run of 2026-11-16 04:11 lost its runner ~90 min into the build
+  (most likely out of memory): the workflow now adds 8 GB of swap first.
+- **Names in English** (owner, 2026-11-16: "full alignment in English"):
+  the map's labels show OpenStreetMap's English name, else the name in
+  Latin letters, else the local one (lib/mapLabels.ts) - "Munich", not
+  "München"; "Moscow" without "Москва" under it. Tapped labels, the places
+  the map lists and the address search (Photon, lang=en) the same.
 - **Vercel's 10 GB of deployments - the data moves to Cloudflare Pages**
   (owner, 2026-11-13: Pages rather than R2 - no DNS move, no card). Code
   ready: the site reads the files from `NEXT_PUBLIC_DATA_URL`; the monthly

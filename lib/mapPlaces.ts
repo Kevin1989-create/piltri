@@ -2,6 +2,7 @@ import { VectorTile } from "@mapbox/vector-tile";
 import Pbf from "pbf";
 import type { NearbyKind } from "@/lib/dataset/schema";
 import { haversineKm } from "@/lib/geo";
+import { englishName } from "@/lib/mapLabels";
 
 /**
  * Every place of a kind around a city - all its schools, stations... - for
@@ -115,7 +116,7 @@ function tilePois(x: number, y: number, signal: AbortSignal): Promise<TilePoi[]>
         const geometry = feature.toGeoJSON(x, y, ZOOM).geometry;
         const coords = geometry.type === "Point" ? [geometry.coordinates] : geometry.type === "MultiPoint" ? geometry.coordinates : [];
         for (const [lng, lat] of coords) {
-          out.push({ cls, subclass: String(feature.properties.subclass ?? ""), name: String(feature.properties.name ?? ""), lng, lat });
+          out.push({ cls, subclass: String(feature.properties.subclass ?? ""), name: englishName(feature.properties), lng, lat });
         }
       }
       return out;
@@ -233,7 +234,7 @@ function tileNames(x: number, y: number, signal: AbortSignal): Promise<TileName[
         const layer = tile.layers[layerName];
         for (let i = 0; layer && i < layer.length; i++) {
           const feature = layer.feature(i);
-          const name = String(feature.properties["name:latin"] ?? feature.properties.name ?? "");
+          const name = englishName(feature.properties);
           if (!name) continue;
           const geometry = feature.toGeoJSON(x, y, ZOOM).geometry;
           // A street: the middle of its line; a place: its point.
