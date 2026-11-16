@@ -173,8 +173,8 @@ function glideMarker(marker: maplibregl.Marker, to: [number, number], ms = 380):
 const BUTTON_STEP_PX = 37;
 /** Buttons moving between the small map's layout and the expanded one's,
  *  at the map's pace (lib/motion.ts). */
-/** The buttons along the map's right side: they glide as the map changes
- *  size, and fade while the country is over the map (map-rail,
+/** The buttons along the map's right side (but + and -): they glide as the
+ *  map changes size, and fade while it shows the whole country (map-rail,
  *  globals.css). */
 const BUTTON_GLIDE = "map-rail transition-[top,right,opacity] duration-[700ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none";
 
@@ -1829,7 +1829,8 @@ export function MapView({
   const locatorBottom = locatorSize < 96 ? 8 : 24;
   // The whole country (2026-11-16, owner: the glide out "was better" than a
   // drawing over the map): the map glides out to it - framed through
-  // homeFrame, so a phone's map expanding frames it too - its buttons fade,
+  // homeFrame, so a phone's map expanding frames it too - its buttons but
+  // + and - fade,
   // and the city's map, a picture of it as it was, waits in the corner; a
   // tap there (or Escape) glides back.
   const [cityShot, setCityShot] = useState<string | null>(null);

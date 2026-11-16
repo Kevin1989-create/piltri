@@ -132,12 +132,8 @@
 }
 
 /* While the map shows the whole country (MapView's openCountry), its
- * buttons fade away (map-rail, and the zoom buttons). */
-.maplibregl-ctrl-top-right {
-  transition: opacity 0.3s ease-out;
-}
-.map-country-view .map-rail,
-.map-country-view .maplibregl-ctrl-top-right {
+ * buttons fade away - all but + and - (2026-11-16, owner). */
+.map-country-view .map-rail {
   opacity: 0;
   pointer-events: none;
 }

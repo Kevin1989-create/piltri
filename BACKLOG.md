@@ -64,7 +64,8 @@ Done 2026-11-16 (owner):
   framing - it had pushed an address to the top of a phone's map.
 - The country square glides the map itself out to the whole country (a
   drawing over the map was tried the same day - "a bit cheap"; the glide
-  shows the country in the world around it): the map's buttons fade, the
+  shows the country in the world around it): the map's buttons but + and -
+  fade, the
   city waits in the corner as a small picture of its map; a tap there (or
   Escape) glides back. On a phone the map expands onto the country, and
   goes back into the page on the way back. The map is its own layer now
