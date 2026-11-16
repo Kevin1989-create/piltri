@@ -22,7 +22,7 @@ import { SpotCard, type SpotRow } from "@/components/explore/SpotCard";
 import { formatSpotParam, removeSpot, sameSpot, saveSpot, savedSpotsFor, type SavedSpot } from "@/lib/spots";
 import { cityUrl } from "@/lib/urls";
 import { cameraMotion, MOTION_CSS, MOTION_MS, motionEase, prefersReducedMotion } from "@/lib/motion";
-import { CountryLocator, CountryTakeover, type CornerBox } from "@/components/explore/CountryLocator";
+import { CityCorner, CountryLocator, type CountryBounds } from "@/components/explore/CountryLocator";
 import { PlacePhotoCorner } from "@/components/explore/PlacePhotoCorner";
 import { placePhoto, type PhotoTuple } from "@/lib/placePhoto";
 import { useMediaQuery } from "@/lib/useMediaQuery";
@@ -862,11 +862,16 @@ export function MapView({
   /** Room on the right for the labels: less on a phone, where the map
    *  hides those that don't fit. */
   const flagLabelPx = () => (compactRef.current ? 40 : 110);
-  /** The place's own framing, whatever is on it: a Yes's places, a
-   *  distance's journey, a shared link's spots, else the place's outline.
-   *  Every button and every change of size frames through here, in one
-   *  move on the shared curve (2026-11-07, owner: "align strictly"). */
+  /** The whole country, while the map shows it (openCountry). */
+  const countryViewRef = useRef<{ bounds: CountryBounds; maxZoom: number } | null>(null);
+  /** The place's own framing, whatever is on it: the whole country while
+   *  it's shown, a Yes's places, a distance's journey, a shared link's
+   *  spots, else the place's outline. Every button and every change of
+   *  size frames through here, in one move on the shared curve
+   *  (2026-11-07, owner: "align strictly"). */
   const homeFrame = (map: maplibregl.Map): { bounds: maplibregl.LngLatBounds; padding: maplibregl.PaddingOptions; maxZoom?: number } | null => {
+    const country = countryViewRef.current;
+    if (country) return { bounds: new maplibregl.LngLatBounds(country.bounds), padding: framePadding(map), maxZoom: country.maxZoom };
     const focused = focusRef.current;
     const current = focused?.points[0];
     if (focused && current && focused.style === "pin") {
@@ -1787,6 +1792,8 @@ export function MapView({
   const [photoFailed, setPhotoFailed] = useState(false);
   const photoInfo = useMemo(() => (photoFailed ? null : placePhoto(photo)), [photo, photoFailed]);
   useEffect(() => {
+    // At once, before the new place frames itself (homeFrame).
+    countryViewRef.current = null;
     setCorner(null);
     setPhotoFailed(false);
   }, [lat, lng]);
@@ -1820,10 +1827,11 @@ export function MapView({
   const spotCardOpen = listHere && !!spotA && spotMode !== "a";
   const locatorLeft = compact ? (spotCardOpen && wideScreen ? 324 : locatorSize < 96 ? 8 : 10) : sidePanelOpen ? 760 : 352;
   const locatorBottom = locatorSize < 96 ? 8 : 24;
-  // The country over the whole map (CountryTakeover, 2026-11-16): it grows
-  // out of the square it was tapped in, and the city's map - a picture of
-  // it as it was - waits in that corner.
-  const [countryFrom, setCountryFrom] = useState<CornerBox | null>(null);
+  // The whole country (2026-11-16, owner: the glide out "was better" than a
+  // drawing over the map): the map glides out to it - framed through
+  // homeFrame, so a phone's map expanding frames it too - its buttons fade,
+  // and the city's map, a picture of it as it was, waits in the corner; a
+  // tap there (or Escape) glides back.
   const [cityShot, setCityShot] = useState<string | null>(null);
   /** The map around the place as a small picture, taken as it's drawn
    *  (the canvas keeps no copy otherwise); null if it can't be read. */
@@ -1849,12 +1857,50 @@ export function MapView({
       });
       map.triggerRepaint();
     });
-  const openCountry = () => {
-    setCountryFrom({ left: locatorLeft, bottom: locatorBottom, size: locatorSize });
+  const openCountry = (bounds: CountryBounds) => {
+    const map = mapRef.current;
+    if (!map) return;
+    // At least a level out from the place, even for a country smaller
+    // than its view (Andorra).
+    countryViewRef.current = { bounds, maxZoom: Math.max(map.getZoom() - 1, 3) };
     setCityShot(null);
     snapshotCity().then(setCityShot);
-    toggleCorner("country");
+    if (smallMap) {
+      // The map expanding frames the country (homeFrame).
+      cornerExpandedMapRef.current = true;
+      expandFor("corner");
+    } else {
+      frameHome(map, 1000);
+    }
+    setCorner("country");
   };
+  const closeCountry = () => {
+    countryViewRef.current = null;
+    setCorner(null);
+    if (cornerExpandedMapRef.current) {
+      // Back into the page, to the view from before.
+      cornerExpandedMapRef.current = false;
+      releaseFor("corner");
+    } else if (mapRef.current) {
+      frameHome(mapRef.current, 1000);
+    }
+  };
+  const closeCountryRef = useRef(closeCountry);
+  closeCountryRef.current = closeCountry;
+  useEffect(() => {
+    if (corner !== "country") {
+      countryViewRef.current = null;
+      return;
+    }
+    // Escape glides back (before the page's Escape, which shrinks the map).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      closeCountryRef.current();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [corner]);
 
   // Spots. The ones saved in this browser for this place; another place
   // starts without any on the map.
@@ -2689,20 +2735,7 @@ export function MapView({
       {/* What sits along the map's bottom edge, on a layer that follows
        *  the curtain's edge as a phone's map opens and closes (runCurtain). */}
       <div ref={overlayRef} className="pointer-events-none absolute inset-x-0 top-0 z-10 h-full">
-        {corner === "country" && countryCode && countryFrom ? (
-          <CountryTakeover
-            countryCode={countryCode}
-            countryName={countryName}
-            placeName={areaName?.split(",")[0]}
-            lat={lat}
-            lng={lng}
-            from={countryFrom}
-            corner={{ left: locatorLeft, bottom: locatorBottom, size: locatorSize }}
-            freeLeft={compact ? 0 : locatorLeft - 12}
-            cityShot={cityShot}
-            onClosed={() => toggleCorner("country")}
-          />
-        ) : locatorShown && countryCode && (
+        {locatorShown && countryCode && (
           <div
             ref={locatorWrapRef}
             className={cn(
@@ -2711,18 +2744,22 @@ export function MapView({
             )}
             style={{ left: locatorLeft, bottom: locatorBottom, transformOrigin: "0% 100%", maxWidth: `calc(100% - ${locatorLeft + 56}px)` }}
           >
-            {corner !== "photo" && (
-              <CountryLocator
-                countryCode={countryCode}
-                countryName={countryName}
-                placeName={areaName?.split(",")[0]}
-                lat={lat}
-                lng={lng}
-                size={locatorSize}
-                onOpen={openCountry}
-              />
+            {corner === "country" ? (
+              <CityCorner shot={cityShot} placeName={areaName?.split(",")[0]} size={locatorSize} onBack={closeCountry} />
+            ) : (
+              corner !== "photo" && (
+                <CountryLocator
+                  countryCode={countryCode}
+                  countryName={countryName}
+                  placeName={areaName?.split(",")[0]}
+                  lat={lat}
+                  lng={lng}
+                  size={locatorSize}
+                  onOpen={openCountry}
+                />
+              )
             )}
-            {photoInfo && (
+            {photoInfo && corner !== "country" && (
               <PlacePhotoCorner
                 photo={photoInfo}
                 placeName={areaName?.split(",")[0]}

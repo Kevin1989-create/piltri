@@ -62,10 +62,13 @@ Done 2026-11-16 (owner):
   was "a bit too close"; a tap used to show the whole city). Padding a cut-
   short glide left on the map (the phone's curtain) is let go before every
   framing - it had pushed an address to the top of a phone's map.
-- The country square opens the country over the whole map: it grows out
-  of the square on the map's curve, the map's buttons fade, the city waits
-  in the corner as a small picture of its map; a tap (or Escape) and back.
-  The map is its own layer now (isolate), under the page's panels.
+- The country square glides the map itself out to the whole country (a
+  drawing over the map was tried the same day - "a bit cheap"; the glide
+  shows the country in the world around it): the map's buttons fade, the
+  city waits in the corner as a small picture of its map; a tap there (or
+  Escape) glides back. On a phone the map expands onto the country, and
+  goes back into the page on the way back. The map is its own layer now
+  (isolate), under the page's panels.
 
 Done 2026-10-28: a Yes shows every place of its kind within its radius
 (from the map's own tiles - `lib/mapPlaces.ts`; care homes aren't in them
