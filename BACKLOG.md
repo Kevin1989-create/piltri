@@ -56,6 +56,17 @@ sections fit without scrolling down to 375x667 (9 px spare) and 1280x600.
 
 ## Map (owner, 2026-10-28)
 
+Done 2026-11-16 (owner):
+- One framing for a spot - an address picked, a tap, one of yours
+  reopened: in the middle of the room its card leaves, at zoom 13 (13.5
+  was "a bit too close"; a tap used to show the whole city). Padding a cut-
+  short glide left on the map (the phone's curtain) is let go before every
+  framing - it had pushed an address to the top of a phone's map.
+- The country square opens the country over the whole map: it grows out
+  of the square on the map's curve, the map's buttons fade, the city waits
+  in the corner as a small picture of its map; a tap (or Escape) and back.
+  The map is its own layer now (isolate), under the page's panels.
+
 Done 2026-10-28: a Yes shows every place of its kind within its radius
 (from the map's own tiles - `lib/mapPlaces.ts`; care homes aren't in them
 and keep the dataset's nearest 6), an icon per kind

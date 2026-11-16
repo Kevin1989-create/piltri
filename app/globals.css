@@ -131,6 +131,38 @@
   }
 }
 
+/* The country over the whole map (CountryTakeover): its dot's ring - a
+ * stroke, so it keeps its size in pixels - and the map's buttons fading
+ * away meanwhile (MapView's map-rail and the zoom buttons). */
+.takeover-pulse {
+  animation: takeover-pulse 2.6s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
+}
+@keyframes takeover-pulse {
+  0% {
+    stroke-width: 9px;
+    stroke-opacity: 0.45;
+  }
+  75%,
+  100% {
+    stroke-width: 34px;
+    stroke-opacity: 0;
+  }
+}
+.maplibregl-ctrl-top-right {
+  transition: opacity 0.3s ease-out;
+}
+.map-country-view .map-rail,
+.map-country-view .maplibregl-ctrl-top-right {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .takeover-pulse {
+    animation: none;
+    stroke-opacity: 0;
+  }
+}
+
 /* Launch splash (components/ui/LaunchSplash.tsx): hidden unless its script
  * switched it on. The letters rise into focus one by one, the amber rule
  * draws out from the middle, the tagline settles its spacing; then the

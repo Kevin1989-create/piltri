@@ -22,7 +22,7 @@ import { SpotCard, type SpotRow } from "@/components/explore/SpotCard";
 import { formatSpotParam, removeSpot, sameSpot, saveSpot, savedSpotsFor, type SavedSpot } from "@/lib/spots";
 import { cityUrl } from "@/lib/urls";
 import { cameraMotion, MOTION_CSS, MOTION_MS, motionEase, prefersReducedMotion } from "@/lib/motion";
-import { CountryLocator } from "@/components/explore/CountryLocator";
+import { CountryLocator, CountryTakeover, type CornerBox } from "@/components/explore/CountryLocator";
 import { PlacePhotoCorner } from "@/components/explore/PlacePhotoCorner";
 import { placePhoto, type PhotoTuple } from "@/lib/placePhoto";
 import { useMediaQuery } from "@/lib/useMediaQuery";
@@ -173,7 +173,10 @@ function glideMarker(marker: maplibregl.Marker, to: [number, number], ms = 380):
 const BUTTON_STEP_PX = 37;
 /** Buttons moving between the small map's layout and the expanded one's,
  *  at the map's pace (lib/motion.ts). */
-const BUTTON_GLIDE = "transition-[top,right] duration-[700ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none";
+/** The buttons along the map's right side: they glide as the map changes
+ *  size, and fade while the country is over the map (map-rail,
+ *  globals.css). */
+const BUTTON_GLIDE = "map-rail transition-[top,right,opacity] duration-[700ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] motion-reduce:transition-none";
 
 /** The filter bar's Select all / Clear all: an icon and the words, in a
  *  pill like the bar's buttons. */
@@ -349,10 +352,11 @@ const SPOT_LINE_MAX_KM = 25;
 /** From this zoom a tap's label names the spot (a street, a station, a
  *  neighbourhood); below it, labels are towns. */
 const SPOT_NAME_MIN_ZOOM = 13;
-/** An address picked in the search is framed with the city's centre, and
- *  never closer than this: where it is in the city, its quarter around it
- *  (2026-11-11 and 12, owner: 16, then 14.5, were "too close"). */
-const ADDRESS_ZOOM = 13.5;
+/** A spot (an address picked, a tap, one of yours) is framed in the middle
+ *  of the free room at this zoom: its quarter around it, the centre in
+ *  view within ~4 km (2026-11-11 to 16, owner: 16, 14.5, then 13.5 were
+ *  "too close"). */
+const SPOT_ZOOM = 13;
 const SPOT_COLOR = "#BA7517";
 const SECOND_SPOT_COLOR = "#3B6E8F";
 
@@ -885,9 +889,20 @@ export function MapView({
   };
   const frameHome = (map: maplibregl.Map, ms?: number) => {
     const frame = homeFrame(map);
+    settlePadding(map);
     if (frame) map.fitBounds(frame.bounds, { padding: frame.padding, ...(frame.maxZoom != null && { maxZoom: frame.maxZoom }), ...cameraMotion(ms) });
   };
   const NO_PADDING = { top: 0, right: 0, bottom: 0, left: 0 };
+  /** Lets go of padding a glide left on the map when something cut it short
+   *  (the curtain's, on a phone), without moving what's on screen - a
+   *  framing adds the map's own padding to its own (2026-11-16: an address
+   *  on a phone landed near the top). Called before every framing. */
+  const settlePadding = (map: maplibregl.Map) => {
+    const p = map.getPadding();
+    if (!p.top && !p.right && !p.bottom && !p.left) return;
+    const box = map.getContainer();
+    map.jumpTo({ center: map.unproject([box.clientWidth / 2, box.clientHeight / 2]), padding: NO_PADDING });
+  };
   /** The curtain's companions, on the map's own pace and curve: the layer
    *  that carries the locator and the credit line follows the curtain's
    *  edge from one height to the other, and the locator grows or shrinks
@@ -1804,6 +1819,42 @@ export function MapView({
   // card while it's open.
   const spotCardOpen = listHere && !!spotA && spotMode !== "a";
   const locatorLeft = compact ? (spotCardOpen && wideScreen ? 324 : locatorSize < 96 ? 8 : 10) : sidePanelOpen ? 760 : 352;
+  const locatorBottom = locatorSize < 96 ? 8 : 24;
+  // The country over the whole map (CountryTakeover, 2026-11-16): it grows
+  // out of the square it was tapped in, and the city's map - a picture of
+  // it as it was - waits in that corner.
+  const [countryFrom, setCountryFrom] = useState<CornerBox | null>(null);
+  const [cityShot, setCityShot] = useState<string | null>(null);
+  /** The map around the place as a small picture, taken as it's drawn
+   *  (the canvas keeps no copy otherwise); null if it can't be read. */
+  const snapshotCity = (): Promise<string | null> =>
+    new Promise((resolve) => {
+      const map = mapRef.current;
+      if (!map) return resolve(null);
+      map.once("render", () => {
+        try {
+          const canvas = map.getCanvas();
+          const ratio = canvas.width / Math.max(1, canvas.clientWidth);
+          const crop = Math.min(canvas.clientWidth, canvas.clientHeight, 300);
+          const at = map.project([lng, lat]);
+          const x = Math.min(Math.max(at.x - crop / 2, 0), canvas.clientWidth - crop);
+          const y = Math.min(Math.max(at.y - crop / 2, 0), canvas.clientHeight - crop);
+          const out = document.createElement("canvas");
+          out.width = out.height = 240;
+          out.getContext("2d")?.drawImage(canvas, x * ratio, y * ratio, crop * ratio, crop * ratio, 0, 0, 240, 240);
+          resolve(out.toDataURL("image/jpeg", 0.85));
+        } catch {
+          resolve(null);
+        }
+      });
+      map.triggerRepaint();
+    });
+  const openCountry = () => {
+    setCountryFrom({ left: locatorLeft, bottom: locatorBottom, size: locatorSize });
+    setCityShot(null);
+    snapshotCity().then(setCityShot);
+    toggleCorner("country");
+  };
 
   // Spots. The ones saved in this browser for this place; another place
   // starts without any on the map.
@@ -1850,6 +1901,7 @@ export function MapView({
   const frameSpots = (map: maplibregl.Map, points: { lat: number; lng: number }[], ms?: number, maxZoom = 15) => {
     const bounds = new maplibregl.LngLatBounds();
     for (const p of points) bounds.extend([p.lng, p.lat]);
+    settlePadding(map);
     map.fitBounds(bounds, { padding: spotPadding(map), maxZoom, ...cameraMotion(ms) });
   };
   /** Points brought into the room the spot's card leaves - only if one of
@@ -1864,16 +1916,27 @@ export function MapView({
     if (inView) return;
     const bounds = new maplibregl.LngLatBounds();
     for (const p of points) bounds.extend([p.lng, p.lat]);
+    settlePadding(map);
     map.fitBounds(bounds, { padding: pad, maxZoom: map.getZoom(), ...cameraMotion() });
   };
-  const openSpot = (spot: SpotPoint, maxZoom?: number, withCentre = false) => {
+  /** A spot on its own - an address picked, a tap on the map, one of your
+   *  spots reopened: one framing for all (2026-11-16, owner: "align both
+   *  behaviours"): the spot in the middle of the room its card leaves, at
+   *  SPOT_ZOOM - or closer, for a tap made closer in (`keepCloser`). */
+  const frameSpot = (map: maplibregl.Map, spot: { lat: number; lng: number }, keepCloser = false) => {
+    const zoom = keepCloser ? Math.max(map.getZoom(), SPOT_ZOOM) : SPOT_ZOOM;
+    const at = new maplibregl.LngLatBounds([spot.lng, spot.lat], [spot.lng, spot.lat]);
+    settlePadding(map);
+    map.fitBounds(at, { padding: spotPadding(map), maxZoom: zoom, ...cameraMotion() });
+  };
+  const openSpot = (spot: SpotPoint) => {
     linkSpotsRef.current = false;
     if (!spotsRef.current.a) spotFramedRef.current = true;
     setSpotA(spot);
     setSpotB(null);
     setSpotTarget(null);
     // (The filter bar stays: it's along the top, clear of the spot's card.)
-    if (mapRef.current) frameSpots(mapRef.current, withCentre ? [spot, { lat, lng }] : [spot], undefined, maxZoom);
+    if (mapRef.current) frameSpot(mapRef.current, spot);
   };
   /** The address box's button, on its own (2026-11-12, owner): on, the map
    *  expands from the page if it must, and only the box opens - no filters,
@@ -1891,9 +1954,9 @@ export function MapView({
     setAddressOpen(false);
     releaseFor("address");
   };
-  /** An address picked: the spot, named after it, framed with the city's
-   *  centre (ADDRESS_ZOOM at the closest). The box closes; the spot keeps the map expanded
-   *  (it's the spot button's now). */
+  /** An address picked: the spot, named after it, framed like any spot
+   *  (frameSpot). The box closes; the spot keeps the map expanded (it's
+   *  the spot button's now). */
   const pickAddress = (found: { lat: number; lng: number; title: string }) => {
     const by = expandedByRef.current;
     if (by?.has("address")) {
@@ -1902,7 +1965,7 @@ export function MapView({
     }
     setAddressOpen(false);
     if (spotMode === "a") setSpotMode(null);
-    openSpot({ lat: found.lat, lng: found.lng, name: found.title }, ADDRESS_ZOOM, true);
+    openSpot({ lat: found.lat, lng: found.lng, name: found.title });
   };
 
   // Spots from a shared link, once the map is up: framed now, and in place
@@ -2005,13 +2068,8 @@ export function MapView({
       return;
     }
     if (selfFramed) return;
-    const frame = requestAnimationFrame(() => {
-      const home = homeFrame(map);
-      const bounds = new maplibregl.LngLatBounds([spotA.lng, spotA.lat], [spotA.lng, spotA.lat]);
-      if (home) bounds.extend(home.bounds);
-      // Never closer than now: the room only shrinks.
-      map.fitBounds(bounds, { padding: spotPadding(map), maxZoom: map.getZoom(), ...cameraMotion() });
-    });
+    // A tap: framed like an address (2026-11-16, owner), once its card is in.
+    const frame = requestAnimationFrame(() => frameSpot(map, spotA, true));
     return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spotA]);
@@ -2350,7 +2408,9 @@ export function MapView({
   });
 
   return (
-    <div className="relative w-full h-full">
+    // Its own layer (isolate): what floats on the map stays under the
+    // page's own panels - a computer's place column above all.
+    <div className={cn("relative isolate w-full h-full", corner === "country" && "map-country-view")}>
       <div ref={containerRef} className="w-full h-full" />
       {focusChip && (
         // Only what the filter bar can't say (2026-11-12, owner: a "Forest"
@@ -2629,14 +2689,27 @@ export function MapView({
       {/* What sits along the map's bottom edge, on a layer that follows
        *  the curtain's edge as a phone's map opens and closes (runCurtain). */}
       <div ref={overlayRef} className="pointer-events-none absolute inset-x-0 top-0 z-10 h-full">
-        {locatorShown && countryCode && (
+        {corner === "country" && countryCode && countryFrom ? (
+          <CountryTakeover
+            countryCode={countryCode}
+            countryName={countryName}
+            placeName={areaName?.split(",")[0]}
+            lat={lat}
+            lng={lng}
+            from={countryFrom}
+            corner={{ left: locatorLeft, bottom: locatorBottom, size: locatorSize }}
+            freeLeft={compact ? 0 : locatorLeft - 12}
+            cityShot={cityShot}
+            onClosed={() => toggleCorner("country")}
+          />
+        ) : locatorShown && countryCode && (
           <div
             ref={locatorWrapRef}
             className={cn(
               "pointer-events-auto absolute flex gap-2 transition-[left] duration-300 ease-out",
               smallMap ? "flex-row items-end" : "flex-col-reverse items-start"
             )}
-            style={{ left: locatorLeft, bottom: locatorSize < 96 ? 8 : 24, transformOrigin: "0% 100%", maxWidth: `calc(100% - ${locatorLeft + 56}px)` }}
+            style={{ left: locatorLeft, bottom: locatorBottom, transformOrigin: "0% 100%", maxWidth: `calc(100% - ${locatorLeft + 56}px)` }}
           >
             {corner !== "photo" && (
               <CountryLocator
@@ -2645,12 +2718,11 @@ export function MapView({
                 placeName={areaName?.split(",")[0]}
                 lat={lat}
                 lng={lng}
-                size={corner === "country" ? 240 : locatorSize}
-                expanded={corner === "country"}
-                onToggle={() => toggleCorner("country")}
+                size={locatorSize}
+                onOpen={openCountry}
               />
             )}
-            {photoInfo && corner !== "country" && (
+            {photoInfo && (
               <PlacePhotoCorner
                 photo={photoInfo}
                 placeName={areaName?.split(",")[0]}
