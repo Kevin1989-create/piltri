@@ -4,14 +4,29 @@ The owner's requests and planned work, roughly in order. Updated
 2026-11-11. When an item is done it leaves this list (the details live in
 `HANDOFF.md` and the git history).
 
+## To discuss (owner, 2026-11-16: "to discuss later")
+
+- **The country's figures look messy**: fields not aligned, some on one
+  line and some on two (labels wrapping - "Population growth (5 yrs)" -
+  and the half-width language / religion line). To review: one even grid
+  - same row heights, labels short enough for one line, values never
+  wrapping.
+- **Solid city-level data, safety first** (owner: "happy to study all
+  possible routes, including pulling data from each country one by one").
+  Candidates to check, licence by licence: national crime counts by town
+  or district - France's SSMSI communal figures, England & Wales's
+  police.uk, the US FBI figures by police agency, Germany's PKS by
+  district, Spain's Balance de Criminalidad by municipality, Italy's ISTAT
+  by province, Canada's crime severity by police service, Australia's
+  state figures - then the rest. Builds on the country-by-country plan
+  (Data, phases 2-3, and the plan linked in HANDOFF.md); same rule:
+  never estimated, "No data" plus the country figure where a country has
+  nothing local.
+
 ## Now
 
-- **Next refresh** (owner to run; the one of 2026-11-11 ran before these):
-  "Bus stops" counted from every OpenStreetMap stop (London ~24,000, where
-  it showed 61 bus stations); OpenStreetMap hospitals kept only when
-  acute care (no rehab, psychiatric, long-stay or no-emergency grounds -
-  Olivet's rehab clinic came back through OpenStreetMap); "Patna, Kurji
-  Hospital" out of London; the last "Klinik"s out of Indonesia.
+- **Next refresh** (owner to run): the place photos (63,005 places, in
+  the map's corner) and the main religion fixed for Andorra and DR Congo.
 - **Vercel's 10 GB of deployments - the data moves to Cloudflare Pages**
   (owner, 2026-11-13: Pages rather than R2 - no DNS move, no card). Code
   ready: the site reads the files from `NEXT_PUBLIC_DATA_URL`; the monthly
