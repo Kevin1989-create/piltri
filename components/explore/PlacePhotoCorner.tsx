@@ -76,7 +76,9 @@ export function PlacePhotoCorner({
         </svg>
       </span>
       <figcaption className="truncate px-2.5 py-1.5 text-[10px] leading-4 text-ink-500">
-        Photo: {photo.author} · {photo.licence} ·{" "}
+        {/* No author on record for ~1% of files: the file's page has the full credit. */}
+        Photo: {photo.author !== "Unknown author" && `${photo.author} · `}
+        {photo.licence} ·{" "}
         <a href={photo.page} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-piltri-amber">
           Wikimedia Commons
         </a>
