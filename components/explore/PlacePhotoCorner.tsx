@@ -4,7 +4,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { MOTION_CSS, MOTION_MS, prefersReducedMotion } from "@/lib/motion";
 import type { PlacePhoto } from "@/lib/placePhoto";
-import { CityCorner } from "@/components/explore/CountryLocator";
 
 /** The place's photo in the map's bottom-left corner, beside the country
  *  (2026-11-14, owner): a square thumbnail; a tap opens it over the map
@@ -74,7 +73,8 @@ export function PhotoCover({
   from,
   to,
   freeLeft = 0,
-  back,
+  reserveRight = 0,
+  closeSignal = 0,
   onClosed,
 }: {
   photo: PlacePhoto;
@@ -82,15 +82,16 @@ export function PhotoCover({
   from: CornerSquare;
   to: CornerSquare;
   freeLeft?: number;
-  /** The city's map waiting in the corner, a tap away (2026-11-17, owner):
-   *  where, and its picture (CityCorner). */
-  back?: { at: CornerSquare; shot: string | null };
+  /** Px on the right the corner's squares take over the photo: the
+   *  caption stops short of them. */
+  reserveRight?: number;
+  /** Changes when something else asks it to close (the city's square). */
+  closeSignal?: number;
   onClosed: () => void;
 }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const closingRef = useRef(false);
   const [big, setBig] = useState(false);
-  const [closing, setClosing] = useState(false);
   const alt = placeName ? `A photo of ${placeName}` : "A photo of the place";
 
   const square = (s: CornerSquare): Keyframe => ({ right: `${s.right}px`, bottom: `${s.bottom}px`, width: `${s.size}px`, height: `${s.size}px`, borderRadius: "12px" });
@@ -107,7 +108,6 @@ export function PhotoCover({
   const close = () => {
     if (closingRef.current) return;
     closingRef.current = true;
-    setClosing(true);
     const box = boxRef.current;
     if (!box || prefersReducedMotion()) {
       onClosed();
@@ -126,9 +126,12 @@ export function PhotoCover({
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, []);
+  const firstSignal = useRef(closeSignal);
+  useEffect(() => {
+    if (closeSignal !== firstSignal.current) closeRef.current();
+  }, [closeSignal]);
 
   return (
-    <>
     <div
       ref={boxRef}
       className="pointer-events-auto absolute overflow-hidden bg-ink-900 shadow-card"
@@ -155,7 +158,7 @@ export function PhotoCover({
       </button>
       <p
         className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/60 to-transparent px-3 pb-6 pt-8 text-[11px] leading-4 text-white/90"
-        style={back ? { paddingRight: back.at.right + back.at.size + 12 } : undefined}
+        style={reserveRight ? { paddingRight: reserveRight } : undefined}
       >
         {placeName && <span className="font-serif text-[15px] text-white">{placeName}</span>}
         {placeName && " · "}
@@ -166,14 +169,5 @@ export function PhotoCover({
         </a>
       </p>
     </div>
-    {back && (
-      <div
-        className={cn("pointer-events-auto absolute transition-opacity duration-300", closing ? "opacity-0" : "opacity-100")}
-        style={{ right: back.at.right, bottom: back.at.bottom }}
-      >
-        <CityCorner shot={back.shot} placeName={placeName} size={back.at.size} onBack={close} />
-      </div>
-    )}
-    </>
   );
 }

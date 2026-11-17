@@ -172,6 +172,10 @@ function glideMarker(marker: maplibregl.Marker, to: [number, number], ms = 380):
 
 /** The buttons down the map's right edge: 29 px, 8 px apart. */
 const BUTTON_STEP_PX = 37;
+/** The corner's pair on a phone's small map: a column left of its two
+ *  columns of buttons (right 46 + 29 + 7), from their top (10) to their
+ *  bottom (10 + 2 steps + 29 = 113), two squares 7 apart. */
+const SMALL_CORNER = { right: 82, top: 10, size: 48, gap: 7 };
 /** Buttons moving between the small map's layout and the expanded one's,
  *  at the map's pace (lib/motion.ts). */
 /** The buttons along the map's right side (but + and -): they glide as the
@@ -924,7 +928,9 @@ export function MapView({
     const timing: KeyframeAnimationOptions = { duration: MOTION_MS, easing: MOTION_CSS, fill: "forwards" };
     // The expanded map's pair (80 px, 10 from the right, 24 up) onto the
     // small map's (smallCorner), from its bottom-right corner.
-    const small = `translate(${10 - smallCorner.right}px, ${24 - smallCorner.bottom}px) scale(${smallCorner.size / 80})`;
+    const smallHeight = Math.min(fromHeight, toHeight);
+    const stack = 2 * SMALL_CORNER.size + SMALL_CORNER.gap;
+    const small = `translate(${10 - SMALL_CORNER.right}px, ${SMALL_CORNER.top + stack - (smallHeight - 24)}px) scale(${SMALL_CORNER.size / 80})`;
     const anims: Animation[] = [];
     if (overlayRef.current) anims.push(overlayRef.current.animate([{ height: `${fromHeight}px` }, { height: `${toHeight}px` }], timing));
     if (locatorWrapRef.current)
@@ -1834,16 +1840,27 @@ export function MapView({
   // buttons, which run down the right edge there. 44 px fit the shortest
   // small map (125 px); the gap scales with them, so the expanded map's
   // pair shrinks exactly onto the small one (runCurtain).
-  const locatorSize = smallMap || landscapeShort ? 44 : 80;
-  const cornerGap = Math.round(locatorSize / 10);
+  // A phone's small map (2026-11-17, owner): a column beside its six
+  // buttons, top and bottom on theirs (10 to 113 px), the buttons' own
+  // gap between. The expanded map's pair (80 px, 12 apart) scales onto it
+  // exactly (runCurtain).
+  const locatorSize = smallMap ? SMALL_CORNER.size : landscapeShort ? 44 : 80;
+  const cornerGap = smallMap || landscapeShort ? SMALL_CORNER.gap : 12;
   const locatorShown = !!countryCode && spotMode !== "a" && !(spotA && listHere && !wideScreen) && !pickingDestination;
-  const smallCorner = { right: 10 + 2 * BUTTON_STEP_PX + 6, bottom: 22, size: 44 };
-  const locatorRight = smallMap ? smallCorner.right : landscapeShort ? 10 + BUTTON_STEP_PX + 6 : 10;
-  const locatorBottom = smallMap ? smallCorner.bottom : !compact && cornerBottom != null ? Math.max(24, cornerBottom) : 24;
+  const locatorRight = smallMap ? SMALL_CORNER.right : landscapeShort ? 10 + BUTTON_STEP_PX + 6 : 10;
+  const locatorBottom = !compact && cornerBottom != null ? Math.max(24, cornerBottom) : 24;
   // The photo over the map (PhotoCover): it grows out of its thumbnail and
   // goes back to where the thumbnail is then.
-  const photoSquare = (): CornerSquare => ({ right: locatorRight, bottom: locatorBottom + locatorSize + cornerGap, size: locatorSize });
+  const photoSquare = (): CornerSquare => {
+    if (smallMap) {
+      const height = mapRef.current?.getContainer().clientHeight ?? 0;
+      return { right: SMALL_CORNER.right, bottom: height - SMALL_CORNER.top - SMALL_CORNER.size, size: SMALL_CORNER.size };
+    }
+    return { right: locatorRight, bottom: locatorBottom + locatorSize + cornerGap, size: locatorSize };
+  };
   const [photoFrom, setPhotoFrom] = useState<CornerSquare | null>(null);
+  /** Bumped by the city's square over the photo: the photo shrinks away. */
+  const [photoCloseSignal, setPhotoCloseSignal] = useState(0);
   // On a computer the map expands for it - the place column fades away -
   // so it's full screen; on a phone it stays in the map's own place, not
   // stretched to the whole screen (2026-11-17, owner). The city's map
@@ -2803,41 +2820,54 @@ export function MapView({
       {/* What sits along the map's bottom edge, on a layer that follows
        *  the curtain's edge as a phone's map opens and closes (runCurtain). */}
       <div ref={overlayRef} className="pointer-events-none absolute inset-x-0 top-0 z-10 h-full">
-        {locatorShown && countryCode && (
-          <div
-            ref={locatorWrapRef}
-            className="pointer-events-auto absolute flex flex-col-reverse items-end"
-            style={{ right: locatorRight, bottom: locatorBottom, gap: cornerGap, transformOrigin: "100% 100%" }}
-          >
-            {corner === "country" ? (
-              <CityCorner shot={cityShot} placeName={areaName?.split(",")[0]} size={locatorSize} onBack={closeCountry} />
-            ) : (
-              corner !== "photo" && (
-                <CountryLocator
-                  countryCode={countryCode}
-                  countryName={countryName}
-                  placeName={areaName?.split(",")[0]}
-                  lat={lat}
-                  lng={lng}
-                  size={locatorSize}
-                  onOpen={openCountry}
-                />
-              )
-            )}
-            {photoInfo && corner !== "country" && corner !== "photo" && (
-              <PlacePhotoCorner photo={photoInfo} placeName={areaName?.split(",")[0]} size={locatorSize} onOpen={openPhoto} onFail={() => setPhotoFailed(true)} />
-            )}
-          </div>
-        )}
         {corner === "photo" && photoInfo && photoFrom && (
           <PhotoCover
             photo={photoInfo}
             placeName={areaName?.split(",")[0]}
             from={photoFrom}
             to={photoSquare()}
-            back={{ at: { right: locatorRight, bottom: locatorBottom, size: locatorSize }, shot: cityShot }}
+            reserveRight={locatorRight + locatorSize + 12}
+            closeSignal={photoCloseSignal}
             onClosed={() => toggleCorner("photo")}
           />
+        )}
+        {locatorShown && countryCode && (
+          // Over the photo too (2026-11-17, owner: keep the country and the
+          // city's map): the city's map takes the photo's place.
+          <div
+            ref={locatorWrapRef}
+            className="pointer-events-auto absolute flex flex-col-reverse items-end"
+            style={{
+              right: locatorRight,
+              ...(smallMap ? { top: SMALL_CORNER.top } : { bottom: locatorBottom }),
+              gap: cornerGap,
+              transformOrigin: "100% 100%",
+            }}
+          >
+            {corner === "country" ? (
+              <CityCorner shot={cityShot} placeName={areaName?.split(",")[0]} size={locatorSize} onBack={closeCountry} />
+            ) : (
+              <CountryLocator
+                countryCode={countryCode}
+                countryName={countryName}
+                placeName={areaName?.split(",")[0]}
+                lat={lat}
+                lng={lng}
+                size={locatorSize}
+                onOpen={(bounds) => {
+                  // From the photo: straight to the country.
+                  if (corner === "photo") setCorner(null);
+                  openCountry(bounds);
+                }}
+              />
+            )}
+            {photoInfo && corner === "photo" && (
+              <CityCorner shot={cityShot} placeName={areaName?.split(",")[0]} size={locatorSize} onBack={() => setPhotoCloseSignal((n) => n + 1)} />
+            )}
+            {photoInfo && !corner && (
+              <PlacePhotoCorner photo={photoInfo} placeName={areaName?.split(",")[0]} size={locatorSize} onOpen={openPhoto} onFail={() => setPhotoFailed(true)} />
+            )}
+          </div>
         )}
         <div className="pointer-events-auto">
           <MapCredit routes={!!routeInfo || !!spotTo} />
