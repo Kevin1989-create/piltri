@@ -1700,6 +1700,9 @@ export function MapView({
   // in the middle of the map"): along the top, over a few lines.
   const landscapeShort = useMediaQuery("(orientation: landscape) and (max-height: 520px)");
   const wideScreen = useMediaQuery("(min-width: 640px)");
+  /** A phone's screen (the page's own breakpoint): a computer's expanded
+   *  map is "compact" too, but keeps its own layout. */
+  const phoneScreen = !useMediaQuery("(min-width: 768px)");
   // The filter bar runs along the top on every screen (2026-11-11, owner:
   // "the window is actually not needed ... only the buttons at the top").
   const listOnTop = listShown;
@@ -1723,7 +1726,7 @@ export function MapView({
   // again as it opens) - never hidden and shown again (2026-11-08, owner).
   // On a phone they keep these places expanded too (2026-11-17, owner:
   // "strictly at the same place").
-  const buttonsSmall = compact && !!onToggleExpanded;
+  const buttonsSmall = compact && !!onToggleExpanded && (phoneScreen || !expanded || collapsing);
   const buttonsRight = buttonsSmall ? 10 + BUTTON_STEP_PX - 1 : 10;
   const expandTop = buttonsSmall ? 10 : 76;
   const layersTop = onToggleExpanded ? expandTop + BUTTON_STEP_PX : 76;
@@ -1842,7 +1845,7 @@ export function MapView({
   // A phone (2026-11-17, owner): a column under its six buttons, at the
   // same place small or expanded - when the small map has room for it
   // (its height measured while small); on the shortest, beside them.
-  const phoneCorner = compact && !!onToggleExpanded && !landscapeShort;
+  const phoneCorner = phoneScreen && compact && !!onToggleExpanded && !landscapeShort;
   const [slotHeight, setSlotHeight] = useState<number | null>(null);
   const expandedRef = useRef(expanded);
   expandedRef.current = expanded;
@@ -1874,7 +1877,12 @@ export function MapView({
   const cornerGap = phonePlace || landscapeShort ? SMALL_CORNER.gap : 12;
   const locatorShown = !!countryCode && spotMode !== "a" && !(spotA && listHere && !wideScreen) && !pickingDestination;
   const locatorRight = phonePlace ? phonePlace.right : landscapeShort ? 10 + BUTTON_STEP_PX + 6 : 10;
-  const locatorBottom = !compact && cornerBottom != null ? Math.max(24, cornerBottom) : 24;
+  // On a computer, the photo keeps the squares where they were before it
+  // opened (2026-11-17, owner) - on the column's line, though the map has
+  // expanded and the column gone.
+  const [photoBottom, setPhotoBottom] = useState<number | null>(null);
+  const locatorBottom =
+    corner === "photo" && photoBottom != null ? photoBottom : !compact && cornerBottom != null ? Math.max(24, cornerBottom) : 24;
   // The photo over the map (PhotoCover): it grows out of its thumbnail and
   // goes back to where the thumbnail is then.
   const photoSquare = (): CornerSquare => {
@@ -1894,6 +1902,7 @@ export function MapView({
   // waits in the corner.
   const openPhoto = () => {
     setPhotoFrom(photoSquare());
+    setPhotoBottom(locatorBottom);
     if (!cityShotRef.current) snapshotCity().then(setCityShot);
     if (!expanded && !compact) {
       cornerExpandedMapRef.current = true;
