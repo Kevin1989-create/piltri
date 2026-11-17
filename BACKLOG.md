@@ -25,10 +25,12 @@ The owner's requests and planned work, roughly in order. Updated
 
 ## Now
 
-- **Next refresh** (owner to run): the place photos (63,005 places, in
-  the map's corner) and the main religion fixed for Andorra and DR Congo.
-  The run of 2026-11-16 04:11 lost its runner ~90 min into the build
-  (most likely out of memory): the workflow now adds 8 GB of swap first.
+- **Photos live** (refresh of 2026-11-16 19:27, with the religion fixes).
+  The run before lost its runner ~90 min into the build (most likely out
+  of memory): the workflow now adds 8 GB of swap first. 2026-11-17
+  (owner): a tapped photo grows smoothly out of its thumbnail and covers
+  the map you can see, always the same way (PhotoCover); the corner's
+  squares sit on the bottom line of a computer's place column.
 - **Names in English** (owner, 2026-11-16: "full alignment in English"):
   the map's labels show OpenStreetMap's English name, else the name in
   Latin letters, else the local one (lib/mapLabels.ts) - "Munich", not

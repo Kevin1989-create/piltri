@@ -137,6 +137,15 @@
   opacity: 0;
   pointer-events: none;
 }
+/* The photo over the map (PhotoCover): every button goes, + and - too. */
+.maplibregl-ctrl-top-right {
+  transition: opacity 0.3s ease-out;
+}
+.map-photo-view .map-rail,
+.map-photo-view .maplibregl-ctrl-top-right {
+  opacity: 0;
+  pointer-events: none;
+}
 
 /* Launch splash (components/ui/LaunchSplash.tsx): hidden unless its script
  * switched it on. The letters rise into focus one by one, the amber rule

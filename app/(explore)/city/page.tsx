@@ -694,6 +694,7 @@ function CityContent() {
                 initialSpots={linkSpots}
                 countryCode={data?.countryCode}
                 photo={data?.photo ?? null}
+                cornerBottom={isDesktop && !mapFills ? pinPanelBottomPx : undefined}
                 countryName={data?.country}
                 sidePanelOpen={isDesktop && openSectionKey !== null}
               />

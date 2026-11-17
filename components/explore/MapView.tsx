@@ -24,7 +24,7 @@ import { cityUrl } from "@/lib/urls";
 import { cameraMotion, MOTION_CSS, MOTION_MS, motionEase, prefersReducedMotion } from "@/lib/motion";
 import { CityCorner, CountryLocator, type CountryBounds } from "@/components/explore/CountryLocator";
 import { englishName, labelsInEnglish } from "@/lib/mapLabels";
-import { PlacePhotoCorner } from "@/components/explore/PlacePhotoCorner";
+import { PhotoCover, PlacePhotoCorner, type CornerSquare } from "@/components/explore/PlacePhotoCorner";
 import { placePhoto, type PhotoTuple } from "@/lib/placePhoto";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { escapeHtml } from "@/lib/escapeHtml";
@@ -328,6 +328,10 @@ interface MapViewProps {
   countryName?: string;
   /** The place's photo (lib/placePhoto.ts), in the bottom-left corner. */
   photo?: PhotoTuple | null;
+  /** Px from the map's bottom to the bottom of a computer's place column:
+   *  the corner's squares sit on that line (2026-11-17, owner: "bottoms
+   *  aligned together"). */
+  cornerBottom?: number;
   /** A computer's section panel is open beside the score column: the
    *  place is framed in the room right of both (and the map glides across
    *  as it opens and closes). */
@@ -687,6 +691,7 @@ export function MapView({
   initialSpots,
   countryCode,
   photo,
+  cornerBottom,
   countryName,
   sidePanelOpen = false,
 }: MapViewProps) {
@@ -1828,7 +1833,19 @@ export function MapView({
   // card while it's open.
   const spotCardOpen = listHere && !!spotA && spotMode !== "a";
   const locatorLeft = compact ? (spotCardOpen && wideScreen ? 324 : locatorSize < 96 ? 8 : 10) : sidePanelOpen ? 760 : 352;
-  const locatorBottom = locatorSize < 96 ? 8 : 24;
+  const locatorBottom = !compact && cornerBottom != null ? cornerBottom : locatorSize < 96 ? 8 : 24;
+  // The photo over the map (PhotoCover): it grows out of its thumbnail -
+  // beside the country on a phone's small map, above it otherwise - and
+  // goes back to where the thumbnail is then.
+  const photoSquare = (): CornerSquare =>
+    smallMap
+      ? { left: locatorLeft + locatorSize + 8, bottom: locatorBottom, size: locatorSize }
+      : { left: locatorLeft, bottom: locatorBottom + locatorSize + 8, size: locatorSize };
+  const [photoFrom, setPhotoFrom] = useState<CornerSquare | null>(null);
+  const openPhoto = () => {
+    setPhotoFrom(photoSquare());
+    toggleCorner("photo");
+  };
   // The whole country (2026-11-16, owner: the glide out "was better" than a
   // drawing over the map): the map glides out to it - framed through
   // homeFrame, so a phone's map expanding frames it too - its buttons but
@@ -2459,7 +2476,7 @@ export function MapView({
   return (
     // Its own layer (isolate): what floats on the map stays under the
     // page's own panels - a computer's place column above all.
-    <div className={cn("relative isolate w-full h-full", corner === "country" && "map-country-view")}>
+    <div className={cn("relative isolate w-full h-full", corner === "country" && "map-country-view", corner === "photo" && "map-photo-view")}>
       <div ref={containerRef} className="w-full h-full" />
       {focusChip && (
         // Only what the filter bar can't say (2026-11-12, owner: a "Forest"
@@ -2762,17 +2779,20 @@ export function MapView({
                 />
               )
             )}
-            {photoInfo && corner !== "country" && (
-              <PlacePhotoCorner
-                photo={photoInfo}
-                placeName={areaName?.split(",")[0]}
-                size={locatorSize}
-                open={corner === "photo"}
-                onToggle={() => toggleCorner("photo")}
-                onFail={() => setPhotoFailed(true)}
-              />
+            {photoInfo && corner !== "country" && corner !== "photo" && (
+              <PlacePhotoCorner photo={photoInfo} placeName={areaName?.split(",")[0]} size={locatorSize} onOpen={openPhoto} onFail={() => setPhotoFailed(true)} />
             )}
           </div>
+        )}
+        {corner === "photo" && photoInfo && photoFrom && (
+          <PhotoCover
+            photo={photoInfo}
+            placeName={areaName?.split(",")[0]}
+            from={photoFrom}
+            to={photoSquare()}
+            freeLeft={compact ? 0 : locatorLeft - 12}
+            onClosed={() => toggleCorner("photo")}
+          />
         )}
         <div className="pointer-events-auto">
           <MapCredit routes={!!routeInfo || !!spotTo} />

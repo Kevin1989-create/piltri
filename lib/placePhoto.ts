@@ -12,7 +12,7 @@ export type PhotoTuple = [string, string, number, number, string, string];
 
 export interface PlacePhoto {
   /** About `width` px wide - Wikimedia's standard thumbnail widths. */
-  src: (width: 330 | 500 | 960) => string;
+  src: (width: 330 | 500 | 960 | 1280) => string;
   width: number;
   height: number;
   author: string;
