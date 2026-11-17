@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { MOTION_CSS, MOTION_MS, prefersReducedMotion } from "@/lib/motion";
 import type { PlacePhoto } from "@/lib/placePhoto";
+import { CityCorner } from "@/components/explore/CountryLocator";
 
 /** The place's photo in the map's bottom-left corner, beside the country
  *  (2026-11-14, owner): a square thumbnail; a tap opens it over the map
@@ -73,6 +74,7 @@ export function PhotoCover({
   from,
   to,
   freeLeft = 0,
+  back,
   onClosed,
 }: {
   photo: PlacePhoto;
@@ -80,11 +82,15 @@ export function PhotoCover({
   from: CornerSquare;
   to: CornerSquare;
   freeLeft?: number;
+  /** The city's map waiting in the corner, a tap away (2026-11-17, owner):
+   *  where, and its picture (CityCorner). */
+  back?: { at: CornerSquare; shot: string | null };
   onClosed: () => void;
 }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const closingRef = useRef(false);
   const [big, setBig] = useState(false);
+  const [closing, setClosing] = useState(false);
   const alt = placeName ? `A photo of ${placeName}` : "A photo of the place";
 
   const square = (s: CornerSquare): Keyframe => ({ left: `${s.left}px`, bottom: `${s.bottom}px`, width: `${s.size}px`, height: `${s.size}px`, borderRadius: "12px" });
@@ -101,6 +107,7 @@ export function PhotoCover({
   const close = () => {
     if (closingRef.current) return;
     closingRef.current = true;
+    setClosing(true);
     const box = boxRef.current;
     if (!box || prefersReducedMotion()) {
       onClosed();
@@ -121,6 +128,7 @@ export function PhotoCover({
   }, []);
 
   return (
+    <>
     <div
       ref={boxRef}
       className="pointer-events-auto absolute overflow-hidden bg-ink-900 shadow-card"
@@ -155,5 +163,14 @@ export function PhotoCover({
         </a>
       </p>
     </div>
+    {back && (
+      <div
+        className={cn("pointer-events-auto absolute transition-opacity duration-300", closing ? "opacity-0" : "opacity-100")}
+        style={{ left: back.at.left, bottom: back.at.bottom }}
+      >
+        <CityCorner shot={back.shot} placeName={placeName} size={back.at.size} onBack={close} />
+      </div>
+    )}
+    </>
   );
 }

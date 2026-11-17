@@ -1841,9 +1841,16 @@ export function MapView({
   // to where the thumbnail is then.
   const photoSquare = (): CornerSquare => ({ left: locatorLeft, bottom: locatorBottom + locatorSize + 8, size: locatorSize });
   const [photoFrom, setPhotoFrom] = useState<CornerSquare | null>(null);
+  // Full screen (2026-11-17, owner): the map expands for it - a computer's
+  // place column fades away - and the city's map waits in the corner.
   const openPhoto = () => {
     setPhotoFrom(photoSquare());
-    toggleCorner("photo");
+    if (!cityShotRef.current) snapshotCity().then(setCityShot);
+    if (!expanded) {
+      cornerExpandedMapRef.current = true;
+      expandFor("corner");
+    }
+    setCorner("photo");
   };
   // The whole country (2026-11-16, owner: the glide out "was better" than a
   // drawing over the map): the map glides out to it - framed through
@@ -1852,6 +1859,42 @@ export function MapView({
   // and the city's map, a picture of it as it was, waits in the corner; a
   // tap there (or Escape) glides back.
   const [cityShot, setCityShot] = useState<string | null>(null);
+  const cityShotRef = useRef<string | null>(null);
+  cityShotRef.current = cityShot;
+  const cornerRef = useRef(corner);
+  cornerRef.current = corner;
+  // Taken ahead (2026-11-17, owner: the country view was slow to open):
+  // once the map comes to rest on the place, a moment later, so a tap on
+  // the country or the photo starts at once.
+  useEffect(() => {
+    setCityShot(null);
+    const map = mapRef.current;
+    if (!map) return;
+    let timer = 0;
+    // The view it was taken of - the picture's own redraw ends in another
+    // rest, which mustn't take it again.
+    let takenOf = "";
+    const onIdle = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (cornerRef.current) return;
+        if (!map.getBounds().contains([lng, lat])) return;
+        const c = map.getCenter();
+        const view = `${c.lng.toFixed(5)},${c.lat.toFixed(5)},${map.getZoom().toFixed(2)},${map.getCanvas().clientWidth}x${map.getCanvas().clientHeight}`;
+        if (view === takenOf) return;
+        takenOf = view;
+        snapshotCity().then((shot) => {
+          if (!cornerRef.current && shot) setCityShot(shot);
+        });
+      }, 400);
+    };
+    map.on("idle", onIdle);
+    return () => {
+      map.off("idle", onIdle);
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lat, lng, mapReady]);
   /** The map around the place as a small picture, taken as it's drawn
    *  (the canvas keeps no copy otherwise); null if it can't be read. */
   const snapshotCity = (): Promise<string | null> =>
@@ -1882,8 +1925,9 @@ export function MapView({
     // At least a level out from the place, even for a country smaller
     // than its view (Andorra).
     countryViewRef.current = { bounds, maxZoom: Math.max(map.getZoom() - 1, 3) };
-    setCityShot(null);
-    snapshotCity().then(setCityShot);
+    // The city's picture is usually taken already (when the map last came
+    // to rest): reading the map back now would hold up the glide.
+    if (!cityShotRef.current) snapshotCity().then(setCityShot);
     if (smallMap) {
       // The map expanding frames the country (homeFrame).
       cornerExpandedMapRef.current = true;
@@ -2790,6 +2834,7 @@ export function MapView({
             from={photoFrom}
             to={photoSquare()}
             freeLeft={compact ? 0 : locatorLeft - 12}
+            back={{ at: { left: locatorLeft, bottom: locatorBottom, size: locatorSize }, shot: cityShot }}
             onClosed={() => toggleCorner("photo")}
           />
         )}
