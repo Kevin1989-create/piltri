@@ -75,11 +75,10 @@ function formatCompactNumber(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 
-/** `span`: columns of the 3-column grid it takes (default 1), or half the
- *  line. The grid has 6 tracks so a line can also split in two. */
-type Stat = { label: string; value: string; colorClass: string; title?: string; span?: 2 | 3 | "half" };
-const STAT_GRID = "mt-0.5 grid grid-cols-6 items-start gap-x-3 gap-y-0.5";
-const SPAN_CLASS = { 1: "col-span-2", 2: "col-span-4", 3: "col-span-6", half: "col-span-3" } as const;
+/** `span`: columns of the 3-column grid it takes (default 1). */
+type Stat = { label: string; value: string; colorClass: string; title?: string; span?: 2 | 3 };
+const STAT_GRID = "mt-0.5 grid grid-cols-3 items-start gap-x-3 gap-y-0.5";
+const SPAN_CLASS = { 1: "", 2: "col-span-2", 3: "col-span-3" } as const;
 
 /** A demographics stat: value over label. The label is always shown in
  *  full (wrapping if it must); a long value is cut short - hover shows it,
@@ -196,17 +195,22 @@ export function CityHeader({
         // order of importance would be a political statement.
         (() => {
           const languages = demographics.countryOfficialLanguages ?? [];
+          // In the first column beside the main religion (2026-11-17, owner:
+          // every field on the same three columns): two names at most there.
+          const narrow = hasSource("mainReligion");
+          const most = narrow ? 2 : 3;
+          const official = languages.length === 1 ? "Official language" : "Official languages";
           return {
-            label: languages.length === 1 ? "Official language" : "Official languages",
+            // "Languages" in the narrow column, so it stays on one line.
+            label: narrow ? (languages.length === 1 ? "Language" : "Languages") : official,
             value: !languages.length
               ? NOT_AVAILABLE
-              : languages.length <= 3
+              : languages.length <= most
                 ? languages.join(", ")
-                : `${languages.slice(0, 2).join(", ")} +${languages.length - 2} more`,
+                : `${languages.slice(0, most - 1).join(", ")} +${languages.length - most + 1} more`,
             colorClass: languages.length ? "text-ink-900" : "text-ink-500",
-            title: languages.length > 3 ? `${languages.join(", ")} (alphabetical)` : undefined,
-            // Half the line, beside the main religion (2026-11-15).
-            span: hasSource("mainReligion") ? ("half" as const) : (3 as const),
+            title: languages.length ? `${official}: ${languages.join(", ")}${languages.length > 1 ? " (alphabetical)" : ""}` : undefined,
+            span: narrow ? undefined : (3 as const),
           };
         })(),
         // The largest religious group (2026-11-14, owner) - from datasets
@@ -222,7 +226,8 @@ export function CityHeader({
                   title: religion
                     ? `The largest religious group${religion.pct != null ? `: ${religion.pct}% of people` : ""} - CIA World Factbook${religion.year ? `, ${religion.year} estimate` : ""}`
                     : undefined,
-                  span: "half" as const,
+                  // From the second column, under Density (2026-11-17).
+                  span: 2 as const,
                 };
               })(),
             ]
