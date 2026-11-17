@@ -94,10 +94,10 @@ export function CountryLocator({
     const kx = Math.cos((((miny + maxy) / 2) * Math.PI) / 180);
     const w = Math.max((maxx - minx) * kx, 1e-6);
     const h = Math.max(maxy - miny, 1e-6);
-    const inner = size - (size >= 96 ? 22 : 14);
+    const inner = size - (size >= 76 ? 22 : 14);
     const scale = inner / Math.max(w, h);
     const ox = (size - w * scale) / 2;
-    const oy = (size - h * scale) / 2 - (size >= 96 ? 4 : 0);
+    const oy = (size - h * scale) / 2 - (size >= 76 ? 4 : 0);
     const px = (x: number) => ox + (x - minx) * kx * scale;
     const py = (y: number) => oy + (maxy - y) * scale;
     const d = found.cluster.r
@@ -115,7 +115,7 @@ export function CountryLocator({
   }, [shape, lat, lng, size]);
 
   if (!shape || !drawing) return null;
-  const big = size >= 96;
+  const big = size >= 76;
   const country = countryName ?? shape.name;
   return (
     <button
@@ -167,7 +167,7 @@ export function CityCorner({ shot, placeName, size, onBack }: { shot: string | n
       ) : (
         <span className="flex h-full w-full items-center justify-center px-1 text-center font-serif text-[11px] leading-tight text-ink-700">{placeName ?? "Back"}</span>
       )}
-      {shot && size >= 96 && placeName && (
+      {shot && size >= 76 && placeName && (
         <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/55 to-transparent px-2 pb-1.5 pt-4 text-center font-serif text-[11px] leading-none text-white">
           {placeName}
         </span>

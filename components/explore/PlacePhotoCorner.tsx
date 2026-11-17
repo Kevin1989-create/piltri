@@ -52,10 +52,10 @@ export function PlacePhotoCorner({
   );
 }
 
-/** A square in the map's bottom-left corner: px from the map's left and
+/** A square in the map's bottom-right corner: px from the map's right and
  *  bottom edges, and its side. */
 export interface CornerSquare {
-  left: number;
+  right: number;
   bottom: number;
   size: number;
 }
@@ -93,8 +93,8 @@ export function PhotoCover({
   const [closing, setClosing] = useState(false);
   const alt = placeName ? `A photo of ${placeName}` : "A photo of the place";
 
-  const square = (s: CornerSquare): Keyframe => ({ left: `${s.left}px`, bottom: `${s.bottom}px`, width: `${s.size}px`, height: `${s.size}px`, borderRadius: "12px" });
-  const FULL: Keyframe = { left: `${freeLeft}px`, bottom: "0px", width: `calc(100% - ${freeLeft}px)`, height: "100%", borderRadius: "0px" };
+  const square = (s: CornerSquare): Keyframe => ({ right: `${s.right}px`, bottom: `${s.bottom}px`, width: `${s.size}px`, height: `${s.size}px`, borderRadius: "12px" });
+  const FULL: Keyframe = { right: "0px", bottom: "0px", width: `calc(100% - ${freeLeft}px)`, height: "100%", borderRadius: "0px" };
 
   useLayoutEffect(() => {
     const box = boxRef.current;
@@ -132,7 +132,7 @@ export function PhotoCover({
     <div
       ref={boxRef}
       className="pointer-events-auto absolute overflow-hidden bg-ink-900 shadow-card"
-      style={{ left: freeLeft, bottom: 0, width: `calc(100% - ${freeLeft}px)`, height: "100%" }}
+      style={{ right: 0, bottom: 0, width: `calc(100% - ${freeLeft}px)`, height: "100%" }}
     >
       <button type="button" onClick={close} aria-label="Close the photo" title="Close the photo" className="absolute inset-0 block h-full w-full">
         {/* The thumbnail at once (already loaded), the big one over it as it comes. */}
@@ -153,7 +153,10 @@ export function PhotoCover({
           </svg>
         </span>
       </button>
-      <p className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/60 to-transparent px-3 pb-6 pt-8 text-[11px] leading-4 text-white/90">
+      <p
+        className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/60 to-transparent px-3 pb-6 pt-8 text-[11px] leading-4 text-white/90"
+        style={back ? { paddingRight: back.at.right + back.at.size + 12 } : undefined}
+      >
         {placeName && <span className="font-serif text-[15px] text-white">{placeName}</span>}
         {placeName && " · "}
         Photo: {photo.author !== "Unknown author" && `${photo.author} · `}
@@ -166,7 +169,7 @@ export function PhotoCover({
     {back && (
       <div
         className={cn("pointer-events-auto absolute transition-opacity duration-300", closing ? "opacity-0" : "opacity-100")}
-        style={{ left: back.at.left, bottom: back.at.bottom }}
+        style={{ right: back.at.right, bottom: back.at.bottom }}
       >
         <CityCorner shot={back.shot} placeName={placeName} size={back.at.size} onBack={close} />
       </div>

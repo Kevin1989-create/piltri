@@ -922,7 +922,9 @@ export function MapView({
     for (const a of curtainRef.current) a.cancel();
     if (prefersReducedMotion()) return;
     const timing: KeyframeAnimationOptions = { duration: MOTION_MS, easing: MOTION_CSS, fill: "forwards" };
-    const small = `translate(2px, 16px) scale(${64 / 112})`;
+    // The expanded map's pair (80 px, 10 from the right, 24 up) onto the
+    // small map's (smallCorner), from its bottom-right corner.
+    const small = `translate(${10 - smallCorner.right}px, ${24 - smallCorner.bottom}px) scale(${smallCorner.size / 80})`;
     const anims: Animation[] = [];
     if (overlayRef.current) anims.push(overlayRef.current.animate([{ height: `${fromHeight}px` }, { height: `${toHeight}px` }], timing));
     if (locatorWrapRef.current)
@@ -1787,7 +1789,7 @@ export function MapView({
     </button>
   );
 
-  // The country locator (2026-11-07, owner): bottom left (see locatorLeft), smaller on a
+  // The country locator (2026-11-07, owner): bottom right (see locatorRight), smaller on a
   // phone's map in the page; out of the way while a spot is being placed,
   // or of a phone's spot card along the bottom. Tapping it glides out to
   // the whole country, and back.
@@ -1825,28 +1827,31 @@ export function MapView({
     }
     setCorner(which);
   };
-  // 52 px on a small map: the photo above the country still fits the
-  // shortest one (125 px; 2026-11-17).
-  const locatorSize = smallMap || landscapeShort ? 52 : 112;
+  // The corner's two squares (the photo above the country), bottom right
+  // since 2026-11-17 (owner: smaller, on the right, never over anything):
+  // above the credit line; on a computer on the place column's bottom
+  // line; on a phone's small map (and a short landscape one) left of the
+  // buttons, which run down the right edge there. 44 px fit the shortest
+  // small map (125 px); the gap scales with them, so the expanded map's
+  // pair shrinks exactly onto the small one (runCurtain).
+  const locatorSize = smallMap || landscapeShort ? 44 : 80;
+  const cornerGap = Math.round(locatorSize / 10);
   const locatorShown = !!countryCode && spotMode !== "a" && !(spotA && listHere && !wideScreen) && !pickingDestination;
-  // Bottom left since 2026-11-14 (owner: swapped with the credit line) -
-  // of the map you can see: right of a computer's place column (and of a
-  // section's panel while one is open, gliding with it), and of the spot
-  // card while it's open.
-  const spotCardOpen = listHere && !!spotA && spotMode !== "a";
-  const locatorLeft = compact ? (spotCardOpen && wideScreen ? 324 : locatorSize < 96 ? 8 : 10) : sidePanelOpen ? 760 : 352;
-  const locatorBottom = !compact && cornerBottom != null ? cornerBottom : locatorSize < 96 ? 8 : 24;
-  // The photo over the map (PhotoCover): it grows out of its thumbnail -
-  // above the country, on a phone too (2026-11-17, owner) - and goes back
-  // to where the thumbnail is then.
-  const photoSquare = (): CornerSquare => ({ left: locatorLeft, bottom: locatorBottom + locatorSize + 8, size: locatorSize });
+  const smallCorner = { right: 10 + 2 * BUTTON_STEP_PX + 6, bottom: 22, size: 44 };
+  const locatorRight = smallMap ? smallCorner.right : landscapeShort ? 10 + BUTTON_STEP_PX + 6 : 10;
+  const locatorBottom = smallMap ? smallCorner.bottom : !compact && cornerBottom != null ? Math.max(24, cornerBottom) : 24;
+  // The photo over the map (PhotoCover): it grows out of its thumbnail and
+  // goes back to where the thumbnail is then.
+  const photoSquare = (): CornerSquare => ({ right: locatorRight, bottom: locatorBottom + locatorSize + cornerGap, size: locatorSize });
   const [photoFrom, setPhotoFrom] = useState<CornerSquare | null>(null);
-  // Full screen (2026-11-17, owner): the map expands for it - a computer's
-  // place column fades away - and the city's map waits in the corner.
+  // On a computer the map expands for it - the place column fades away -
+  // so it's full screen; on a phone it stays in the map's own place, not
+  // stretched to the whole screen (2026-11-17, owner). The city's map
+  // waits in the corner.
   const openPhoto = () => {
     setPhotoFrom(photoSquare());
     if (!cityShotRef.current) snapshotCity().then(setCityShot);
-    if (!expanded) {
+    if (!expanded && !compact) {
       cornerExpandedMapRef.current = true;
       expandFor("corner");
     }
@@ -2801,11 +2806,8 @@ export function MapView({
         {locatorShown && countryCode && (
           <div
             ref={locatorWrapRef}
-            className={cn(
-              "pointer-events-auto absolute flex gap-2 transition-[left] duration-300 ease-out",
-              "flex-col-reverse items-start"
-            )}
-            style={{ left: locatorLeft, bottom: locatorBottom, transformOrigin: "0% 100%", maxWidth: `calc(100% - ${locatorLeft + 56}px)` }}
+            className="pointer-events-auto absolute flex flex-col-reverse items-end"
+            style={{ right: locatorRight, bottom: locatorBottom, gap: cornerGap, transformOrigin: "100% 100%" }}
           >
             {corner === "country" ? (
               <CityCorner shot={cityShot} placeName={areaName?.split(",")[0]} size={locatorSize} onBack={closeCountry} />
@@ -2833,8 +2835,7 @@ export function MapView({
             placeName={areaName?.split(",")[0]}
             from={photoFrom}
             to={photoSquare()}
-            freeLeft={compact ? 0 : locatorLeft - 12}
-            back={{ at: { left: locatorLeft, bottom: locatorBottom, size: locatorSize }, shot: cityShot }}
+            back={{ at: { right: locatorRight, bottom: locatorBottom, size: locatorSize }, shot: cityShot }}
             onClosed={() => toggleCorner("photo")}
           />
         )}
