@@ -1825,7 +1825,9 @@ export function MapView({
     }
     setCorner(which);
   };
-  const locatorSize = smallMap || landscapeShort ? 64 : 112;
+  // 52 px on a small map: the photo above the country still fits the
+  // shortest one (125 px; 2026-11-17).
+  const locatorSize = smallMap || landscapeShort ? 52 : 112;
   const locatorShown = !!countryCode && spotMode !== "a" && !(spotA && listHere && !wideScreen) && !pickingDestination;
   // Bottom left since 2026-11-14 (owner: swapped with the credit line) -
   // of the map you can see: right of a computer's place column (and of a
@@ -1835,12 +1837,9 @@ export function MapView({
   const locatorLeft = compact ? (spotCardOpen && wideScreen ? 324 : locatorSize < 96 ? 8 : 10) : sidePanelOpen ? 760 : 352;
   const locatorBottom = !compact && cornerBottom != null ? cornerBottom : locatorSize < 96 ? 8 : 24;
   // The photo over the map (PhotoCover): it grows out of its thumbnail -
-  // beside the country on a phone's small map, above it otherwise - and
-  // goes back to where the thumbnail is then.
-  const photoSquare = (): CornerSquare =>
-    smallMap
-      ? { left: locatorLeft + locatorSize + 8, bottom: locatorBottom, size: locatorSize }
-      : { left: locatorLeft, bottom: locatorBottom + locatorSize + 8, size: locatorSize };
+  // above the country, on a phone too (2026-11-17, owner) - and goes back
+  // to where the thumbnail is then.
+  const photoSquare = (): CornerSquare => ({ left: locatorLeft, bottom: locatorBottom + locatorSize + 8, size: locatorSize });
   const [photoFrom, setPhotoFrom] = useState<CornerSquare | null>(null);
   const openPhoto = () => {
     setPhotoFrom(photoSquare());
@@ -2760,7 +2759,7 @@ export function MapView({
             ref={locatorWrapRef}
             className={cn(
               "pointer-events-auto absolute flex gap-2 transition-[left] duration-300 ease-out",
-              smallMap ? "flex-row items-end" : "flex-col-reverse items-start"
+              "flex-col-reverse items-start"
             )}
             style={{ left: locatorLeft, bottom: locatorBottom, transformOrigin: "0% 100%", maxWidth: `calc(100% - ${locatorLeft + 56}px)` }}
           >
