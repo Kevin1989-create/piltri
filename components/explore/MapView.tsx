@@ -176,6 +176,8 @@ const BUTTON_STEP_PX = 37;
  *  columns of buttons (right 46 + 29 + 7), from their top (10) to their
  *  bottom (10 + 2 steps + 29 = 113), two squares 7 apart. */
 const SMALL_CORNER = { right: 82, top: 10, size: 48, gap: 7 };
+/** Under a phone's buttons: their bottom (113) and their gap. */
+const UNDER_BUTTONS_TOP = 120;
 /** Buttons moving between the small map's layout and the expanded one's,
  *  at the map's pace (lib/motion.ts). */
 /** The buttons along the map's right side (but + and -): they glide as the
@@ -926,15 +928,10 @@ export function MapView({
     for (const a of curtainRef.current) a.cancel();
     if (prefersReducedMotion()) return;
     const timing: KeyframeAnimationOptions = { duration: MOTION_MS, easing: MOTION_CSS, fill: "forwards" };
-    // The expanded map's pair (80 px, 10 from the right, 24 up) onto the
-    // small map's (smallCorner), from its bottom-right corner.
-    const smallHeight = Math.min(fromHeight, toHeight);
-    const stack = 2 * SMALL_CORNER.size + SMALL_CORNER.gap;
-    const small = `translate(${10 - SMALL_CORNER.right}px, ${SMALL_CORNER.top + stack - (smallHeight - 24)}px) scale(${SMALL_CORNER.size / 80})`;
+    // (The corner's squares and the buttons stay where they are: both hang
+    // from the map's top on a phone - 2026-11-17, owner.)
     const anims: Animation[] = [];
     if (overlayRef.current) anims.push(overlayRef.current.animate([{ height: `${fromHeight}px` }, { height: `${toHeight}px` }], timing));
-    if (locatorWrapRef.current)
-      anims.push(locatorWrapRef.current.animate(toHeight > fromHeight ? [{ transform: small }, { transform: "none" }] : [{ transform: "none" }, { transform: small }], timing));
     // Opening: let go at the end (the layer's own size takes over).
     if (toHeight > fromHeight) for (const a of anims) a.onfinish = () => a.cancel();
     curtainRef.current = anims;
@@ -1724,7 +1721,9 @@ export function MapView({
   // The buttons take their small-map places as soon as the map starts
   // going back into the page, and glide there with the curtain (and out
   // again as it opens) - never hidden and shown again (2026-11-08, owner).
-  const buttonsSmall = compact && !!onToggleExpanded && (!expanded || collapsing);
+  // On a phone they keep these places expanded too (2026-11-17, owner:
+  // "strictly at the same place").
+  const buttonsSmall = compact && !!onToggleExpanded;
   const buttonsRight = buttonsSmall ? 10 + BUTTON_STEP_PX - 1 : 10;
   const expandTop = buttonsSmall ? 10 : 76;
   const layersTop = onToggleExpanded ? expandTop + BUTTON_STEP_PX : 76;
@@ -1840,21 +1839,49 @@ export function MapView({
   // buttons, which run down the right edge there. 44 px fit the shortest
   // small map (125 px); the gap scales with them, so the expanded map's
   // pair shrinks exactly onto the small one (runCurtain).
-  // A phone's small map (2026-11-17, owner): a column beside its six
-  // buttons, top and bottom on theirs (10 to 113 px), the buttons' own
-  // gap between. The expanded map's pair (80 px, 12 apart) scales onto it
-  // exactly (runCurtain).
-  const locatorSize = smallMap ? SMALL_CORNER.size : landscapeShort ? 44 : 80;
-  const cornerGap = smallMap || landscapeShort ? SMALL_CORNER.gap : 12;
+  // A phone (2026-11-17, owner): a column under its six buttons, at the
+  // same place small or expanded - when the small map has room for it
+  // (its height measured while small); on the shortest, beside them.
+  const phoneCorner = compact && !!onToggleExpanded && !landscapeShort;
+  const [slotHeight, setSlotHeight] = useState<number | null>(null);
+  const expandedRef = useRef(expanded);
+  expandedRef.current = expanded;
+  const collapseToRef = useRef(collapseTo);
+  collapseToRef.current = collapseTo;
+  useEffect(() => {
+    const box = mapRef.current?.getContainer();
+    if (!box || !phoneCorner) return;
+    const measure = () => {
+      if (!expandedRef.current && collapseToRef.current == null) setSlotHeight(box.clientHeight);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [mapReady, phoneCorner]);
+  // Under them in a column where it fits, else side by side under them,
+  // else (the shortest maps) beside them.
+  const roomUnder = phoneCorner && slotHeight != null ? slotHeight - UNDER_BUTTONS_TOP - 8 : 0;
+  const stacked = Math.min(48, Math.floor((roomUnder - SMALL_CORNER.gap) / 2));
+  const phonePlace = phoneCorner
+    ? stacked >= 40
+      ? { right: 10, top: UNDER_BUTTONS_TOP, size: stacked, row: false }
+      : roomUnder >= 40
+        ? { right: 10, top: UNDER_BUTTONS_TOP, size: Math.min(48, roomUnder), row: true }
+        : { right: SMALL_CORNER.right, top: SMALL_CORNER.top, size: SMALL_CORNER.size, row: false }
+    : null;
+  const locatorSize = phonePlace ? phonePlace.size : landscapeShort ? 44 : 80;
+  const cornerGap = phonePlace || landscapeShort ? SMALL_CORNER.gap : 12;
   const locatorShown = !!countryCode && spotMode !== "a" && !(spotA && listHere && !wideScreen) && !pickingDestination;
-  const locatorRight = smallMap ? SMALL_CORNER.right : landscapeShort ? 10 + BUTTON_STEP_PX + 6 : 10;
+  const locatorRight = phonePlace ? phonePlace.right : landscapeShort ? 10 + BUTTON_STEP_PX + 6 : 10;
   const locatorBottom = !compact && cornerBottom != null ? Math.max(24, cornerBottom) : 24;
   // The photo over the map (PhotoCover): it grows out of its thumbnail and
   // goes back to where the thumbnail is then.
   const photoSquare = (): CornerSquare => {
-    if (smallMap) {
+    if (phonePlace) {
       const height = mapRef.current?.getContainer().clientHeight ?? 0;
-      return { right: SMALL_CORNER.right, bottom: height - SMALL_CORNER.top - SMALL_CORNER.size, size: SMALL_CORNER.size };
+      const right = phonePlace.row ? phonePlace.right + phonePlace.size + SMALL_CORNER.gap : phonePlace.right;
+      return { right, bottom: height - phonePlace.top - phonePlace.size, size: phonePlace.size };
     }
     return { right: locatorRight, bottom: locatorBottom + locatorSize + cornerGap, size: locatorSize };
   };
@@ -2836,10 +2863,10 @@ export function MapView({
           // city's map): the city's map takes the photo's place.
           <div
             ref={locatorWrapRef}
-            className="pointer-events-auto absolute flex flex-col-reverse items-end"
+            className={cn("pointer-events-auto absolute flex", phonePlace?.row ? "flex-row-reverse items-start" : "flex-col-reverse items-end")}
             style={{
               right: locatorRight,
-              ...(smallMap ? { top: SMALL_CORNER.top } : { bottom: locatorBottom }),
+              ...(phonePlace ? { top: phonePlace.top } : { bottom: locatorBottom }),
               gap: cornerGap,
               transformOrigin: "100% 100%",
             }}
@@ -2864,8 +2891,19 @@ export function MapView({
             {photoInfo && corner === "photo" && (
               <CityCorner shot={cityShot} placeName={areaName?.split(",")[0]} size={locatorSize} onBack={() => setPhotoCloseSignal((n) => n + 1)} />
             )}
-            {photoInfo && !corner && (
-              <PlacePhotoCorner photo={photoInfo} placeName={areaName?.split(",")[0]} size={locatorSize} onOpen={openPhoto} onFail={() => setPhotoFailed(true)} />
+            {photoInfo && (!corner || corner === "country") && (
+              // In the country view too (2026-11-17, owner): back to the
+              // city, and the photo opens.
+              <PlacePhotoCorner
+                photo={photoInfo}
+                placeName={areaName?.split(",")[0]}
+                size={locatorSize}
+                onOpen={() => {
+                  if (corner === "country") closeCountry();
+                  openPhoto();
+                }}
+                onFail={() => setPhotoFailed(true)}
+              />
             )}
           </div>
         )}
