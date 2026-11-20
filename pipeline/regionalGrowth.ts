@@ -1,6 +1,8 @@
 import { readdirSync, readFileSync } from "fs";
 import path from "path";
+import { DuckDBInstance } from "@duckdb/node-api";
 import { cached, downloadOnce, fetchWithRetry, log, pointsKey, unzipOnce, WORK_DIR } from "./util";
+import { haversineKm } from "@/lib/geo";
 
 /**
  * Economic growth of the region each place is in (2026-11-20, local data
@@ -19,6 +21,8 @@ import { cached, downloadOnce, fetchWithRetry, log, pointsKey, unzipOnce, WORK_D
  */
 
 const SPAN_YEARS = 10;
+/** A place matched by municipality name further than this from its region's other places is a namesake. */
+const NAME_MATCH_MAX_KM = 120;
 /** A region's series must reach at least this year. */
 const LATEST_FROM = 2022;
 const OECD_GDP =
@@ -38,23 +42,79 @@ function loadUsCounties(dir: string): Map<string, { name: string; growth: number
   if (!file) return out;
   const rows = parseCsv(readFileSync(path.join(dir, file), "latin1"));
   const h = rows[0].map((c) => c.trim());
+  const series = new Map<string, { name: string; byYear: Map<number, number> }>();
   for (const r of rows.slice(1)) {
     if (r[h.indexOf("LineCode")]?.trim() !== "1") continue;
     const fips = r[0].replace(/\D/g, "");
     const m = r[1].match(/^(.*), ([A-Z]{2})\*?$/);
     if (fips.length !== 5 || fips.endsWith("000") || !m) continue;
-    const years = h.map((c, i) => [Number(c), Number(r[i])] as const).filter(([y, v]) => y > 1990 && v > 0);
-    const to = Math.max(...years.map(([y]) => y));
+    const byYear = new Map(h.map((c, i) => [Number(c), Number(r[i])] as const).filter(([y, v]) => y > 1990 && v > 0));
+    series.set(`${m[2]}.${fips.slice(2)}`, { name: m[1], byYear });
+  }
+  // New York City is five counties (its boroughs): their sum.
+  const boroughs = ["NY.005", "NY.047", "NY.061", "NY.081", "NY.085"].map((k) => series.get(k));
+  if (boroughs.every(Boolean)) {
+    const byYear = new Map<number, number>();
+    for (const [y] of boroughs[0]!.byYear) if (boroughs.every((b) => b!.byYear.has(y))) byYear.set(y, boroughs.reduce((s, b) => s + b!.byYear.get(y)!, 0));
+    series.set(NYC, { name: "New York City", byYear });
+  }
+  for (const [key, { name, byYear }] of series) {
+    const to = Math.max(...byYear.keys());
     const from = to - SPAN_YEARS;
-    const a = years.find(([y]) => y === from)?.[1];
-    const b = years.find(([y]) => y === to)?.[1];
+    const a = byYear.get(from);
+    const b = byYear.get(to);
     if (!a || !b || to < LATEST_FROM) continue;
-    out.set(`${m[2]}.${fips.slice(2)}`, { name: m[1], growth: (Math.pow(b / a, 1 / SPAN_YEARS) - 1) * 100, from, to });
+    out.set(key, { name, growth: (Math.pow(b / a, 1 / SPAN_YEARS) - 1) * 100, from, to });
+  }
+  return out;
+}
+const NYC = "NYC";
+/** GeoNames' New York City has no county (it spans five). */
+const NYC_GEONAME_ID = 5128581;
+
+/** Eurostat's municipality (LAU) to small region (NUTS 3) table, 2024
+ *  (Eurostat re-use policy: commercial use allowed with attribution). */
+const EUROSTAT_LAU = "https://ec.europa.eu/eurostat/documents/345175/501971/EU-27-LAU-2024-NUTS-2024.xlsx/12971f56-c035-dbab-4d9f-ff1dcc617bb3?t=1737036272863";
+const EU_SHEETS = ["AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "EL", "ES", "FI", "FR", "HR", "HU", "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO", "SE", "SI", "SK"];
+const plain = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    // Municipality words GeoNames or Eurostat put around the name.
+    .replace(/\b(municipal commune of|municipal community of|local community of|gemeente|gmina|municipality of|municipality|kommune|kommun|obcina|dimos|dimou|concelho|city of|comune di|commune)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/** "PL|krakow" -> NUTS 3 codes of the municipalities (and Eurostat cities) of that name. */
+async function loadLau(file: string): Promise<Map<string, Set<string>>> {
+  const con = await (await DuckDBInstance.create(":memory:")).connect();
+  await con.run("INSTALL excel; LOAD excel;");
+  const out = new Map<string, Set<string>>();
+  const xlsx = file.split(path.sep).join("/");
+  for (const sheet of EU_SHEETS) {
+    let rows: unknown[][];
+    try {
+      rows = (await con.runAndReadAll(`SELECT "NUTS3", "LAU NAME NATIONAL", "LAU NAME LATIN", "CITY NAME" FROM read_xlsx('${xlsx}', sheet='${sheet}', all_varchar=true)`)).getRowsJS();
+    } catch {
+      continue;
+    }
+    const cc = sheet === "EL" ? "GR" : sheet;
+    for (const [nuts, ...names] of rows) {
+      if (typeof nuts !== "string" || nuts.length !== 5) continue;
+      for (const n of names) {
+        if (typeof n !== "string" || !n.trim()) continue;
+        const key = `${cc}|${plain(n.replace(/\(.*?\)/g, ""))}`;
+        if (!out.has(key)) out.set(key, new Set());
+        out.get(key)!.add(nuts);
+      }
+    }
   }
   return out;
 }
 
-export const REGIONAL_GROWTH_SOURCE = `OECD Regional Database, real GDP by region (constant prices, national statistics offices), average growth per year over the ${SPAN_YEARS} years to each region's latest reported year; regions linked through GeoNames and Wikidata (OECD terms: commercial use allowed); US counties from the Bureau of Economic Analysis (real GDP by county, public domain)`;
+export const REGIONAL_GROWTH_SOURCE = `OECD Regional Database, real GDP by region (constant prices, national statistics offices), average growth per year over the ${SPAN_YEARS} years to each region's latest reported year; regions linked through GeoNames, Wikidata and Eurostat's municipality table (OECD and Eurostat terms: commercial use allowed); US counties from the Bureau of Economic Analysis (real GDP by county, public domain)`;
 
 export interface RegionalGrowth {
   /** Average real GDP growth per year, %. */
@@ -162,8 +222,20 @@ const ALIASES: Record<string, string> = {
   "MEX|mexico city": "ME09",
 };
 
+/** Places Eurostat can't place by name: "ISO3|plain city name" -> OECD small region. */
+const CITY_ALIASES: Record<string, string> = {
+  "PRT|lisbon": "PT1A0",
+  "PRT|porto": "PT11A",
+  "IRL|dublin": "IE061",
+  "IRL|cork": "IE053",
+  "IRL|galway": "IE042",
+  "IRL|limerick": "IE051",
+  "GRC|athens": "EL303",
+  "GRC|piraeus": "EL307",
+};
+
 export async function sampleRegionalGrowth(
-  places: { geonameId: number; countryCode: string; lat: number; lng: number }[],
+  places: { geonameId: number; countryCode: string; lat: number; lng: number; cityName?: string; altNames?: string[] }[],
   iso3Of: (string | null)[],
 ): Promise<{ places: RegionalGrowth[]; national: Map<string, { pctPerYear: number; fromYear: number; toYear: number }> }> {
   const admin1File = await downloadOnce("https://download.geonames.org/export/dump/admin1CodesASCII.txt", "admin1CodesASCII.txt");
@@ -176,10 +248,13 @@ export async function sampleRegionalGrowth(
   }
   const beaDir = path.join(WORK_DIR, "bea-cagdp9");
   unzipOnce(await downloadOnce(BEA_COUNTY_GDP, "bea-CAGDP9.zip"), beaDir, "CAGDP9__definition.xml");
-  const result = await cached(`regional-growth-v5-${pointsKey(places)}`, async () => {
+  const lauFile = await downloadOnce(EUROSTAT_LAU, "eurostat-EU-27-LAU-2024-NUTS-2024.xlsx");
+  const result = await cached(`regional-growth-v12-${pointsKey(places)}`, async () => {
     const regions = await loadRegions();
     const nutsByGid = await loadNutsByGeonameId();
     const usCounties = loadUsCounties(beaDir);
+    const lau = await loadLau(lauFile);
+    log("regionGrowth", `${lau.size} EU municipality names (Eurostat)`);
     log("regionGrowth", `${usCounties.size} US counties (BEA)`);
     log("regionGrowth", `${regions.length} regions with ${SPAN_YEARS}-year real GDP growth; ${nutsByGid.size} GeoNames divisions with a NUTS code`);
 
@@ -221,6 +296,10 @@ export async function sampleRegionalGrowth(
       return large.length === 1 ? large[0] : null;
     };
 
+    // Each place's region code, and - for places placed by municipality
+    // name - what they had before (a large region, or nothing).
+    const code: (string | undefined)[] = [];
+    const byName: Record<number, Region | undefined> = {};
     const out: RegionalGrowth[] = places.map((p, i) => {
       const empty: RegionalGrowth = { pctPerYear: null, fromYear: null, toYear: null, region: null, level: null };
       const iso3 = iso3Of[i];
@@ -230,12 +309,50 @@ export async function sampleRegionalGrowth(
       const keys = [a3 && `${cc}.${a1}.${a2}.${a3}`, a2 && `${cc}.${a1}.${a2}`, a1 && `${cc}.${a1}`].filter(Boolean) as string[];
       const divs = keys.map((k) => division.get(k)).filter((d): d is [string, number] => !!d);
       // US counties: BEA's own county figures, finer than the OECD's areas.
-      const county = cc === "US" && a2 ? usCounties.get(`${a1}.${a2}`) : undefined;
+      const county = cc === "US" ? usCounties.get(p.geonameId === NYC_GEONAME_ID ? NYC : `${a1}.${a2}`) : undefined;
       if (county) return { pctPerYear: Math.round(county.growth * 10) / 10, fromYear: county.from, toYear: county.to, region: division.get(`US.${a1}.${a2}`)?.[0] ?? county.name, level: "county" };
-      const r = regionFor(divs.map((d) => d[1]), divs.map((d) => d[0]), iso3);
+      // A few big cities Eurostat lists only by parish, district or a "greater city" across two regions.
+      const cityAlias = byCode.get(CITY_ALIASES[`${iso3}|${plain(p.cityName ?? "")}`] ?? "");
+      let r = cityAlias ?? regionFor(divs.map((d) => d[1]), divs.map((d) => d[0]), iso3);
+      // EU places still without a small region: their municipality's, from
+      // Eurostat, by name - within the large region already found, and only
+      // when the name points to a single small region.
+      if (r?.level !== "TL3") {
+        for (const name of [p.cityName ?? "", ...(p.altNames ?? []), ...divs.map((d) => d[0])]) {
+          const nuts = [...(lau.get(`${cc}|${plain(name)}`) ?? [])].filter((c) => !r || c.startsWith(r.code.slice(0, 3)));
+          const hits = [...new Set(nuts)].map((c) => byCode.get(c)).filter((x): x is Region => x?.level === "TL3");
+          if (hits.length === 1) { byName[i] = r ?? undefined; r = hits[0]; break; }
+          if (nuts.length) break;
+        }
+      }
       if (!r) return empty;
+      code[i] = r.code;
       return { pctPerYear: Math.round(r.growth * 10) / 10, fromYear: r.from, toYear: r.to, region: r.name, level: r.level };
     });
+    // A same-named village elsewhere can mislead the name match (Seixal, near
+    // Lisbon, has a namesake on Madeira): a place matched by name that lies
+    // far from the other places of its region goes back to what it had.
+    const where = new Map<string, { lat: number[]; lng: number[] }>();
+    places.forEach((p, i) => {
+      if (!code[i]) return;
+      const w = where.get(code[i]!) ?? { lat: [], lng: [] };
+      w.lat.push(p.lat);
+      w.lng.push(p.lng);
+      where.set(code[i]!, w);
+    });
+    const median = (a: number[]) => [...a].sort((x, y) => x - y)[a.length >> 1];
+    let reverted = 0;
+    places.forEach((p, i) => {
+      if (!(i in byName)) return;
+      const w = where.get(code[i]!)!;
+      if (w.lat.length < 3 || haversineKm(p.lat, p.lng, median(w.lat), median(w.lng)) <= NAME_MATCH_MAX_KM) return;
+      const back = byName[i];
+      out[i] = back
+        ? { pctPerYear: Math.round(back.growth * 10) / 10, fromYear: back.from, toYear: back.to, region: back.name, level: back.level }
+        : { pctPerYear: null, fromYear: null, toYear: null, region: null, level: null };
+      reverted++;
+    });
+    log("regionGrowth", `${Object.keys(byName).length} places placed by municipality name, ${reverted} of them undone as too far from their region`);
     const national: Record<string, { pctPerYear: number; fromYear: number; toYear: number }> = {};
     for (const r of regions) if (r.level === "CTRY") national[r.iso3] = { pctPerYear: Math.round(r.growth * 10) / 10, fromYear: r.from, toYear: r.to };
 
@@ -246,7 +363,7 @@ export async function sampleRegionalGrowth(
       if (!iso3 || !byCountry.has(iso3)) return;
       const c = per.get(iso3) ?? [0, 0, 0];
       c[0]++;
-      if (out[i].level === "TL3") c[1]++;
+      if (out[i].level === "TL3" || out[i].level === "county") c[1]++;
       else if (out[i].level === "TL2") c[2]++;
       per.set(iso3, c);
     });

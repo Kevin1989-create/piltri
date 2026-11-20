@@ -170,7 +170,7 @@ const WGI = "World Bank, Worldwide Governance Indicators";
 const WORLDCLIM = CLIMATE_SOURCE;
 const OVERTURE = "Overture Maps places (OpenStreetMap and other open sources)";
 const REGION_GDP_SOURCE = "Kummu et al. (2025), GDP per capita v4 (Zenodo, CC BY 4.0) - regional figures as each country reported them";
-const REGION_GROWTH_SOURCE = "OECD Regional Database - real GDP by region (constant prices) as national statistics offices report it; regions linked through GeoNames and Wikidata";
+const REGION_GROWTH_SOURCE = "OECD Regional Database - real GDP by region (constant prices) as national statistics offices report it (US counties: Bureau of Economic Analysis); regions linked through GeoNames, Wikidata and Eurostat's municipality table";
 // The years match pipeline/conflict.ts (GED 26.1: 2021-2025).
 const UCDP = "Uppsala Conflict Data Program, Georeferenced Event Dataset 26.1 (CC BY 4.0)";
 const AQUEDUCT = "WRI Aqueduct 4.0, World Resources Institute (2023, CC BY 4.0) - baseline, modelled from rainfall, river flows and water use";
