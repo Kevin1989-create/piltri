@@ -24,6 +24,7 @@ import { POPULATION_GROWTH_SOURCE, POPULATION_SOURCE, sampleDensity, samplePopul
 import { sampleWater, WATER_SOURCE } from "./water";
 import { keepHospitals, placedRightTest } from "./hospitals";
 import { REGIONAL_GDP_SOURCE, sampleRegionalGdp } from "./regionalGdp";
+import { REGIONAL_GROWTH_SOURCE, sampleRegionalGrowth } from "./regionalGrowth";
 import { anyInside, circleArea, cityArea, countInside, placesInside, type PlaceIndex } from "./insidePlaces";
 import { KOPPEN_SOURCE, sampleKoppen } from "./koppenMap";
 import { loadShortlist } from "./shortlist";
@@ -224,6 +225,7 @@ async function main() {
   // to the province's reported figure, as a share of the country's) after
   // a pause from 2026-10-30.
   const regionGdp = await optional("regional GDP", () => sampleRegionalGdp(points, shortlist.map((c) => countryInfo[c.countryCode]?.iso3 ?? null)));
+  const regionGrowth = await optional("regional growth", () => sampleRegionalGrowth(shortlist, shortlist.map((c) => countryInfo[c.countryCode]?.iso3 ?? null)));
 
   const { glob: placesGlob, release } = await extractOverturePlaces();
   const { glob: railGlob } = await extractOvertureRail();
@@ -489,6 +491,11 @@ async function main() {
         regionGdpPerHeadPpp: regionGdp?.[i].perHead ?? null,
         regionGdpYear: regionGdp?.[i].year ?? null,
         regionGdpVsNationalPct: regionGdp?.[i].vsNationalPct ?? null,
+        regionGrowthPctYr: regionGrowth?.places[i].pctPerYear ?? null,
+        regionGrowthFromYear: regionGrowth?.places[i].fromYear ?? null,
+        regionGrowthToYear: regionGrowth?.places[i].toYear ?? null,
+        regionGrowthArea: regionGrowth?.places[i].region ?? null,
+        regionGrowthNationalPctYr: regionGrowth?.national.get(countryInfo[c.countryCode]?.iso3 ?? "")?.pctPerYear ?? null,
         insideCounts,
         insideNearestKm,
         waterStressPct: water?.stressPct[i] ?? null,
@@ -556,6 +563,7 @@ async function main() {
   report("hospital km", records.map((r) => r.record.distanceToHospitalKm));
   report("conflict events 50 km", records.map((r) => r.record.conflictEvents5yr));
   report("regional GDP vs national %", records.map((r) => r.record.regionGdpVsNationalPct));
+  report("regional real GDP growth %/yr", records.map((r) => r.record.regionGrowthPctYr ?? null));
   report("water stress % (basin)", records.map((r) => r.record.waterStressPct ?? null));
   report("groundwater cm/yr (basin)", records.map((r) => r.record.groundwaterTrendCmYr ?? null));
   log("dist", `tram: ${records.filter((r) => r.record.hasTramway).length} cities, metro: ${records.filter((r) => r.record.hasSubway).length} cities`);
@@ -649,6 +657,7 @@ async function main() {
       ...(conflict ? { conflict: CONFLICT_SOURCE } : {}),
       ...(water ? { water: WATER_SOURCE } : {}),
       ...(regionGdp ? { regionGdp: REGIONAL_GDP_SOURCE } : {}),
+      ...(regionGrowth ? { regionGrowth: REGIONAL_GROWTH_SOURCE } : {}),
     },
   });
   log("build", `dataset ${version} written to ${outDir} in ${Math.round((Date.now() - startedAt) / 1000)}s`);

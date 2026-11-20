@@ -93,6 +93,12 @@ export interface EconomyFields {
   regionGdpPerHeadPpp?: number | null;
   regionGdpYear?: number | null;
   regionGdpVsNationalPct?: number | null;
+  /** Real GDP growth of the region, % a year (OECD) - absent before 2026-11-20. */
+  regionGrowthPctYr?: number | null;
+  regionGrowthFromYear?: number | null;
+  regionGrowthToYear?: number | null;
+  regionGrowthArea?: string | null;
+  regionGrowthNationalPctYr?: number | null;
 }
 
 /** World Bank Worldwide Governance Indicators (0-100) and UNODC homicide

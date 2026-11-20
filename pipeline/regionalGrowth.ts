@@ -1,0 +1,223 @@
+import { readFileSync } from "fs";
+import path from "path";
+import { cached, downloadOnce, fetchWithRetry, log, pointsKey, unzipOnce, WORK_DIR } from "./util";
+
+/**
+ * Economic growth of the region each place is in (2026-11-20, local data
+ * Wave 1): real GDP (constant prices, as reported by each national
+ * statistics office and harmonised by the OECD Regional Database), average
+ * growth per year over the ten years to the region's latest reported year.
+ * The finest region linked: small regions (TL3: départements, Kreise,
+ * provinces, counties...) where a place can be tied to one, otherwise large
+ * regions (TL2: states, provinces, regions). Values flagged as estimates
+ * are not used; provisional ones (first official releases) are.
+ *
+ * Places are tied to regions without boundary files (the EU's NUTS outlines
+ * forbid commercial use): through their GeoNames administrative divisions,
+ * matched to OECD regions by the NUTS code Wikidata records for that
+ * division (CC0), or failing that by name within the country.
+ */
+
+const SPAN_YEARS = 10;
+/** A region's series must reach at least this year. */
+const LATEST_FROM = 2022;
+const OECD_GDP =
+  "https://sdmx.oecd.org/public/rest/data/OECD.CFE.EDS,DSD_REG_ECO@DF_GDP,/A....GDP..Q.XDC?startPeriod=2008&format=csv";
+const OECD_STRUCTURE = "https://sdmx.oecd.org/public/rest/dataflow/OECD.CFE.EDS/DSD_REG_ECO@DF_GDP/latest?references=all";
+/** Normal and provisional values; E (estimated), F (forecast) and the rest are left out. */
+const ACCEPTED_STATUS = new Set(["A", "P"]);
+
+export const REGIONAL_GROWTH_SOURCE = `OECD Regional Database, real GDP by region (constant prices, national statistics offices), average growth per year over the ${SPAN_YEARS} years to each region's latest reported year; regions linked through GeoNames and Wikidata (OECD terms: commercial use allowed)`;
+
+export interface RegionalGrowth {
+  /** Average real GDP growth per year, %. */
+  pctPerYear: number | null;
+  fromYear: number | null;
+  toYear: number | null;
+  /** The region's name, e.g. "Rhône". */
+  region: string | null;
+  /** "TL3" (small region) or "TL2" (large region). */
+  level: string | null;
+}
+
+interface Region { code: string; iso3: string; level: string; name: string; growth: number; from: number; to: number }
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line) continue;
+    const cells: string[] = [];
+    let cur = "";
+    let quoted = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (quoted) {
+        if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+        else if (ch === '"') quoted = false;
+        else cur += ch;
+      } else if (ch === '"') quoted = true;
+      else if (ch === ",") { cells.push(cur); cur = ""; }
+      else cur += ch;
+    }
+    cells.push(cur);
+    rows.push(cells);
+  }
+  return rows;
+}
+
+const tsv = (file: string) => readFileSync(file, "utf8").split("\n").filter(Boolean).map((l) => l.split("\t"));
+
+/** Lower-case, no accents, no generic words ("Province", "Landkreis"...). */
+export function normName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\(.*?\)/g, " ")
+    .replace(/\b(province|provincia|provincie|provinz|prefecture|state|region|regione|regiao|departement|department|county|kreisfreie stadt|landkreis|stadtkreis|kreis|district|voivodeship|wojewodztwo|autonomous community|comunidad autonoma|comunidad|canton|kanton|of|du|de|del|della|di|la|le|les|des|do|da|dos|das|the|y|and|et|und|dki|d i|special|capital|territory|federal|governorate|land|freistaat)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+async function loadRegions(): Promise<Region[]> {
+  const csv = await downloadOnce(OECD_GDP, "oecd-regional-real-gdp.csv");
+  const structure = await (await fetchWithRetry(OECD_STRUCTURE, { headers: { accept: "application/vnd.sdmx.structure+json" } })).json();
+  const regional = structure.data.codelists.find((c: { id: string }) => c.id === "CL_REGIONAL");
+  const nameOf = new Map<string, string>(regional.codes.map((c: { id: string; name: string }) => [c.id, c.name]));
+
+  const rows = parseCsv(readFileSync(csv, "utf8"));
+  const h = rows[0];
+  const col = (n: string) => h.indexOf(n);
+  const [cLevel, cArea, cYear, cValue, cCountry, cStatus] = ["TERRITORIAL_LEVEL", "REF_AREA", "TIME_PERIOD", "OBS_VALUE", "COUNTRY", "OBS_STATUS"].map(col);
+  const series = new Map<string, { iso3: string; level: string; byYear: Map<number, number> }>();
+  for (const r of rows.slice(1)) {
+    if (!ACCEPTED_STATUS.has(r[cStatus])) continue;
+    const level = r[cLevel];
+    if (level !== "TL2" && level !== "TL3" && level !== "CTRY") continue;
+    const value = Number(r[cValue]);
+    if (!(value > 0)) continue;
+    const key = r[cArea];
+    if (!series.has(key)) series.set(key, { iso3: r[cCountry], level, byYear: new Map() });
+    series.get(key)!.byYear.set(Number(r[cYear]), value);
+  }
+  const out: Region[] = [];
+  for (const [code, s] of series) {
+    const to = Math.max(...s.byYear.keys());
+    const from = to - SPAN_YEARS;
+    const a = s.byYear.get(from);
+    const b = s.byYear.get(to);
+    // Series that stop early (Russia: 2019) would break the common window.
+    if (!a || !b || to < LATEST_FROM) continue;
+    out.push({ code, iso3: s.iso3, level: s.level, name: nameOf.get(code) ?? code, growth: (Math.pow(b / a, 1 / SPAN_YEARS) - 1) * 100, from, to });
+  }
+  return out;
+}
+
+/** GeoNames id -> NUTS codes, from Wikidata (CC0). */
+async function loadNutsByGeonameId(): Promise<Map<number, string[]>> {
+  const query = "SELECT ?nuts ?gn WHERE { ?i wdt:P605 ?nuts ; wdt:P1566 ?gn . }";
+  const res = await fetchWithRetry(`https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}`, { headers: { accept: "text/csv" } });
+  const map = new Map<number, string[]>();
+  for (const [nuts, gn] of parseCsv(await res.text()).slice(1)) {
+    const id = Number(gn);
+    if (!id) continue;
+    if (!map.has(id)) map.set(id, []);
+    map.get(id)!.push(nuts.trim());
+  }
+  return map;
+}
+
+/** GeoNames countries whose small regions are third-level divisions (Kreise). */
+const ADMIN3_COUNTRIES = ["DE", "BE"];
+
+/** GeoNames division names the OECD spells differently: "ISO3|normalised name" -> OECD code. */
+const ALIASES: Record<string, string> = {
+  "MEX|mexico city": "ME09",
+};
+
+export async function sampleRegionalGrowth(
+  places: { geonameId: number; countryCode: string; lat: number; lng: number }[],
+  iso3Of: (string | null)[],
+): Promise<{ places: RegionalGrowth[]; national: Map<string, { pctPerYear: number; fromYear: number; toYear: number }> }> {
+  const admin1File = await downloadOnce("https://download.geonames.org/export/dump/admin1CodesASCII.txt", "admin1CodesASCII.txt");
+  const admin2File = await downloadOnce("https://download.geonames.org/export/dump/admin2Codes.txt", "admin2Codes.txt");
+  const admin3Dirs: string[] = [];
+  for (const cc of ADMIN3_COUNTRIES) {
+    const dir = path.join(WORK_DIR, `geonames-${cc}`);
+    unzipOnce(await downloadOnce(`https://download.geonames.org/export/dump/${cc}.zip`, `geonames-${cc}.zip`), dir, `${cc}.txt`);
+    admin3Dirs.push(path.join(dir, `${cc}.txt`));
+  }
+  const result = await cached(`regional-growth-v4-${pointsKey(places)}`, async () => {
+    const regions = await loadRegions();
+    const nutsByGid = await loadNutsByGeonameId();
+    log("regionGrowth", `${regions.length} regions with ${SPAN_YEARS}-year real GDP growth; ${nutsByGid.size} GeoNames divisions with a NUTS code`);
+
+    const byCode = new Map(regions.map((r) => [r.code, r]));
+    const byCountry = new Map<string, Region[]>();
+    for (const r of regions) {
+      if (r.level === "CTRY") continue;
+      if (!byCountry.has(r.iso3)) byCountry.set(r.iso3, []);
+      byCountry.get(r.iso3)!.push(r);
+    }
+
+    // Division code -> [name, GeoNames id].
+    const division = new Map<string, [string, number]>();
+    for (const [code, name, , gid] of [...tsv(admin1File), ...tsv(admin2File)]) division.set(code, [name, Number(gid)]);
+    for (const file of admin3Dirs)
+      for (const c of tsv(file)) if (c[7] === "ADM3") division.set(`${c[8]}.${c[10]}.${c[11]}.${c[12]}`, [c[1], Number(c[0])]);
+
+    // Each place's divisions, from GeoNames' cities file (already unpacked by the shortlist).
+    const codesOf = new Map<number, string[]>();
+    for (const c of tsv(path.join(WORK_DIR, "geonames", "cities1000.txt"))) codesOf.set(Number(c[0]), [c[8], c[10], c[11], c[12]]);
+
+    const regionFor = (gidChain: (number | undefined)[], nameChain: string[], iso3: string): Region | null => {
+      // Small regions first, by NUTS code then by name; large regions the
+      // same way; a country with a single large region gets that one.
+      const candidates = byCountry.get(iso3) ?? [];
+      for (const level of ["TL3", "TL2"]) {
+        for (const gid of gidChain) {
+          const hit = (nutsByGid.get(gid ?? 0) ?? []).map((c) => byCode.get(c)).find((r) => r && r.iso3 === iso3 && r.level === level);
+          if (hit) return hit;
+        }
+        for (const name of nameChain) {
+          const n = normName(name);
+          const alias = byCode.get(ALIASES[`${iso3}|${n}`] ?? "");
+          const hit = alias?.level === level ? alias : n ? candidates.find((r) => r.level === level && normName(r.name) === n) : undefined;
+          if (hit) return hit;
+        }
+      }
+      const large = candidates.filter((r) => r.level === "TL2");
+      return large.length === 1 ? large[0] : null;
+    };
+
+    const out: RegionalGrowth[] = places.map((p, i) => {
+      const empty: RegionalGrowth = { pctPerYear: null, fromYear: null, toYear: null, region: null, level: null };
+      const iso3 = iso3Of[i];
+      const codes = codesOf.get(p.geonameId);
+      if (!iso3 || !codes || !byCountry.has(iso3)) return empty;
+      const [cc, a1, a2, a3] = codes;
+      const keys = [a3 && `${cc}.${a1}.${a2}.${a3}`, a2 && `${cc}.${a1}.${a2}`, a1 && `${cc}.${a1}`].filter(Boolean) as string[];
+      const divs = keys.map((k) => division.get(k)).filter((d): d is [string, number] => !!d);
+      const r = regionFor(divs.map((d) => d[1]), divs.map((d) => d[0]), iso3);
+      if (!r) return empty;
+      return { pctPerYear: Math.round(r.growth * 10) / 10, fromYear: r.from, toYear: r.to, region: r.name, level: r.level };
+    });
+    const national: Record<string, { pctPerYear: number; fromYear: number; toYear: number }> = {};
+    for (const r of regions) if (r.level === "CTRY") national[r.iso3] = { pctPerYear: Math.round(r.growth * 10) / 10, fromYear: r.from, toYear: r.to };
+
+    // Coverage per country, for the log.
+    const per = new Map<string, [number, number, number]>();
+    places.forEach((_, i) => {
+      const iso3 = iso3Of[i];
+      if (!iso3 || !byCountry.has(iso3)) return;
+      const c = per.get(iso3) ?? [0, 0, 0];
+      c[0]++;
+      if (out[i].level === "TL3") c[1]++;
+      else if (out[i].level === "TL2") c[2]++;
+      per.set(iso3, c);
+    });
+    log("regionGrowth", [...per].map(([k, [n, t3, t2]]) => `${k} ${n}: ${t3}/${t2}`).join(", "));
+    return { places: out, national };
+  });
+  return { places: result.places, national: new Map(Object.entries(result.national)) };
+}

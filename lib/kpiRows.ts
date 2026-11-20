@@ -170,6 +170,7 @@ const WGI = "World Bank, Worldwide Governance Indicators";
 const WORLDCLIM = CLIMATE_SOURCE;
 const OVERTURE = "Overture Maps places (OpenStreetMap and other open sources)";
 const REGION_GDP_SOURCE = "Kummu et al. (2025), GDP per capita v4 (Zenodo, CC BY 4.0) - regional figures as each country reported them";
+const REGION_GROWTH_SOURCE = "OECD Regional Database - real GDP by region (constant prices) as national statistics offices report it; regions linked through GeoNames and Wikidata";
 // The years match pipeline/conflict.ts (GED 26.1: 2021-2025).
 const UCDP = "Uppsala Conflict Data Program, Georeferenced Event Dataset 26.1 (CC BY 4.0)";
 const AQUEDUCT = "WRI Aqueduct 4.0, World Resources Institute (2023, CC BY 4.0) - baseline, modelled from rainfall, river flows and water use";
@@ -285,7 +286,24 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
             : ` ${data.country} doesn't publish one recent enough (2018 or later), so none is shown - the country's figures are below.`),
         source: REGION_GDP_SOURCE,
       };
+      // The region's real growth (2026-11-20, owner: total growth, recent, one method).
+      const signed = (n: number) => `${n > 0 ? "+" : ""}${n.toFixed(1)}%/yr`;
+      const growthAbout = {
+        definition:
+          "How fast the economy of the region this place is in has grown: real GDP (after inflation), average change a year over ten years, as the country's statistics office reports it." +
+          (e.regionGrowthPctYr != null
+            ? ` Region: ${e.regionGrowthArea}, ${e.regionGrowthFromYear}-${e.regionGrowthToYear}.${e.regionGrowthNationalPctYr != null ? ` ${data.country} as a whole: ${signed(e.regionGrowthNationalPctYr)} over the same years.` : ""}`
+            : e.regionGrowthNationalPctYr != null
+              ? ` This place couldn't be tied to one of ${data.country}'s reported regions. ${data.country} as a whole: ${signed(e.regionGrowthNationalPctYr)} over the last ten reported years.`
+              : ` ${data.country} doesn't report regional figures to the OECD - the country's figures are below.`),
+        source: REGION_GROWTH_SOURCE,
+      };
       const rows: (KpiRow | null)[] = [
+        !hasSource("regionGrowth")
+          ? null
+          : e.regionGrowthPctYr == null
+            ? missing("Economic growth", "city", growthAbout)
+            : neutral("Economic growth", signed(e.regionGrowthPctYr), "city", growthAbout, `(${e.regionGrowthArea}, ${e.regionGrowthFromYear}-${e.regionGrowthToYear})`),
         !hasSource("regionGdp")
           ? null
           : e.regionGdpPerHeadPpp == null

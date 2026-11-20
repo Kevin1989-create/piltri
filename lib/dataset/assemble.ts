@@ -297,6 +297,11 @@ export function assembleCityExploreData(
       regionGdpPerHeadPpp: city.regionGdpPerHeadPpp ?? null,
       regionGdpYear: city.regionGdpYear ?? null,
       regionGdpVsNationalPct: city.regionGdpVsNationalPct ?? null,
+      regionGrowthPctYr: city.regionGrowthPctYr,
+      regionGrowthFromYear: city.regionGrowthFromYear,
+      regionGrowthToYear: city.regionGrowthToYear,
+      regionGrowthArea: city.regionGrowthArea,
+      regionGrowthNationalPctYr: city.regionGrowthNationalPctYr,
     },
     safetyStability: {
       ...country.safetyStability,

@@ -181,6 +181,13 @@ export const CITY_FIELDS = [
   "groundwaterTrendCmYr",
   // A photo (2026-11-14, Wikimedia Commons via Wikidata - lib/placePhoto.ts).
   "photo",
+  // Economic growth of the region (2026-11-20, OECD Regional Database): real
+  // GDP, average % a year over the 10 years to the latest reported year.
+  "regionGrowthPctYr",
+  "regionGrowthFromYear",
+  "regionGrowthToYear",
+  "regionGrowthArea",
+  "regionGrowthNationalPctYr",
 ] as const;
 
 export interface CityRecord {
@@ -296,6 +303,14 @@ export interface CityRecord {
   rankSafetyStability: number | null;
   rankClimate: number | null;
   rankLiveability: number | null;
+  /** Real GDP growth of the region (% a year), its years and name, and the
+   *  country's over the same years - absent before 2026-11-20, null where
+   *  the place isn't linked to an OECD region. */
+  regionGrowthPctYr?: number | null;
+  regionGrowthFromYear?: number | null;
+  regionGrowthToYear?: number | null;
+  regionGrowthArea?: string | null;
+  regionGrowthNationalPctYr?: number | null;
 }
 
 /** What a city page's Yes and distance figures can show on its map, in
