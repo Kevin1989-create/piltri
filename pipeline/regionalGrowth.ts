@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import path from "path";
 import { cached, downloadOnce, fetchWithRetry, log, pointsKey, unzipOnce, WORK_DIR } from "./util";
 
@@ -26,8 +26,35 @@ const OECD_GDP =
 const OECD_STRUCTURE = "https://sdmx.oecd.org/public/rest/dataflow/OECD.CFE.EDS/DSD_REG_ECO@DF_GDP/latest?references=all";
 /** Normal and provisional values; E (estimated), F (forecast) and the rest are left out. */
 const ACCEPTED_STATUS = new Set(["A", "P"]);
+/** US Bureau of Economic Analysis, real GDP by county (chained dollars), public domain. */
+const BEA_COUNTY_GDP = "https://apps.bea.gov/regional/zip/CAGDP9.zip";
 
-export const REGIONAL_GROWTH_SOURCE = `OECD Regional Database, real GDP by region (constant prices, national statistics offices), average growth per year over the ${SPAN_YEARS} years to each region's latest reported year; regions linked through GeoNames and Wikidata (OECD terms: commercial use allowed)`;
+/** "TX.453" (GeoNames admin1.admin2: state, county FIPS) -> growth over the
+ *  same span as the OECD figures. Counties BEA combines (Virginia's
+ *  independent cities) aren't keyed and fall back to the state. */
+function loadUsCounties(dir: string): Map<string, { name: string; growth: number; from: number; to: number }> {
+  const file = readdirSync(dir).find((f) => /^CAGDP9__ALL_AREAS_.*\.csv$/.test(f));
+  const out = new Map<string, { name: string; growth: number; from: number; to: number }>();
+  if (!file) return out;
+  const rows = parseCsv(readFileSync(path.join(dir, file), "latin1"));
+  const h = rows[0].map((c) => c.trim());
+  for (const r of rows.slice(1)) {
+    if (r[h.indexOf("LineCode")]?.trim() !== "1") continue;
+    const fips = r[0].replace(/\D/g, "");
+    const m = r[1].match(/^(.*), ([A-Z]{2})\*?$/);
+    if (fips.length !== 5 || fips.endsWith("000") || !m) continue;
+    const years = h.map((c, i) => [Number(c), Number(r[i])] as const).filter(([y, v]) => y > 1990 && v > 0);
+    const to = Math.max(...years.map(([y]) => y));
+    const from = to - SPAN_YEARS;
+    const a = years.find(([y]) => y === from)?.[1];
+    const b = years.find(([y]) => y === to)?.[1];
+    if (!a || !b || to < LATEST_FROM) continue;
+    out.set(`${m[2]}.${fips.slice(2)}`, { name: m[1], growth: (Math.pow(b / a, 1 / SPAN_YEARS) - 1) * 100, from, to });
+  }
+  return out;
+}
+
+export const REGIONAL_GROWTH_SOURCE = `OECD Regional Database, real GDP by region (constant prices, national statistics offices), average growth per year over the ${SPAN_YEARS} years to each region's latest reported year; regions linked through GeoNames and Wikidata (OECD terms: commercial use allowed); US counties from the Bureau of Economic Analysis (real GDP by county, public domain)`;
 
 export interface RegionalGrowth {
   /** Average real GDP growth per year, %. */
@@ -147,9 +174,13 @@ export async function sampleRegionalGrowth(
     unzipOnce(await downloadOnce(`https://download.geonames.org/export/dump/${cc}.zip`, `geonames-${cc}.zip`), dir, `${cc}.txt`);
     admin3Dirs.push(path.join(dir, `${cc}.txt`));
   }
-  const result = await cached(`regional-growth-v4-${pointsKey(places)}`, async () => {
+  const beaDir = path.join(WORK_DIR, "bea-cagdp9");
+  unzipOnce(await downloadOnce(BEA_COUNTY_GDP, "bea-CAGDP9.zip"), beaDir, "CAGDP9__definition.xml");
+  const result = await cached(`regional-growth-v5-${pointsKey(places)}`, async () => {
     const regions = await loadRegions();
     const nutsByGid = await loadNutsByGeonameId();
+    const usCounties = loadUsCounties(beaDir);
+    log("regionGrowth", `${usCounties.size} US counties (BEA)`);
     log("regionGrowth", `${regions.length} regions with ${SPAN_YEARS}-year real GDP growth; ${nutsByGid.size} GeoNames divisions with a NUTS code`);
 
     const byCode = new Map(regions.map((r) => [r.code, r]));
@@ -198,6 +229,9 @@ export async function sampleRegionalGrowth(
       const [cc, a1, a2, a3] = codes;
       const keys = [a3 && `${cc}.${a1}.${a2}.${a3}`, a2 && `${cc}.${a1}.${a2}`, a1 && `${cc}.${a1}`].filter(Boolean) as string[];
       const divs = keys.map((k) => division.get(k)).filter((d): d is [string, number] => !!d);
+      // US counties: BEA's own county figures, finer than the OECD's areas.
+      const county = cc === "US" && a2 ? usCounties.get(`${a1}.${a2}`) : undefined;
+      if (county) return { pctPerYear: Math.round(county.growth * 10) / 10, fromYear: county.from, toYear: county.to, region: division.get(`US.${a1}.${a2}`)?.[0] ?? county.name, level: "county" };
       const r = regionFor(divs.map((d) => d[1]), divs.map((d) => d[0]), iso3);
       if (!r) return empty;
       return { pctPerYear: Math.round(r.growth * 10) / 10, fromYear: r.from, toYear: r.to, region: r.name, level: r.level };
