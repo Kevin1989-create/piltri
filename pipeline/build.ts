@@ -220,10 +220,10 @@ async function main() {
   const conflict = await optional("armed conflict", () => sampleConflict(points));
   // Water for the river basin (2026-11-07, owner) - WRI Aqueduct 4.0.
   const water = await optional("water", () => sampleWater(points));
-  // Regional GDP per head (Kummu et al.) is switched off (2026-10-30, owner):
-  // 2018-2021 figures - Lyon's from the pandemic year - for a whole region,
-  // counted where people work. Local household income comes in phase 2.
-  const regionGdp = null as Awaited<ReturnType<typeof sampleRegionalGdp>> | null;
+  // Regional GDP per head (Kummu et al.), back on 2026-11-17 (owner: "okay"
+  // to the province's reported figure, as a share of the country's) after
+  // a pause from 2026-10-30.
+  const regionGdp = await optional("regional GDP", () => sampleRegionalGdp(points, shortlist.map((c) => countryInfo[c.countryCode]?.iso3 ?? null)));
 
   const { glob: placesGlob, release } = await extractOverturePlaces();
   const { glob: railGlob } = await extractOvertureRail();

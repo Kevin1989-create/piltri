@@ -169,6 +169,7 @@ const WB = (code: string) => `World Bank, World Development Indicators (${code})
 const WGI = "World Bank, Worldwide Governance Indicators";
 const WORLDCLIM = CLIMATE_SOURCE;
 const OVERTURE = "Overture Maps places (OpenStreetMap and other open sources)";
+const REGION_GDP_SOURCE = "Kummu et al. (2025), GDP per capita v4 (Zenodo, CC BY 4.0) - regional figures as each country reported them";
 // The years match pipeline/conflict.ts (GED 26.1: 2021-2025).
 const UCDP = "Uppsala Conflict Data Program, Georeferenced Event Dataset 26.1 (CC BY 4.0)";
 const AQUEDUCT = "WRI Aqueduct 4.0, World Resources Institute (2023, CC BY 4.0) - baseline, modelled from rainfall, river flows and water use";
@@ -275,7 +276,27 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
                 "How much consumer prices rose over the latest year. Around 2% is what most central banks aim for; much higher eats into savings and salaries, and falling prices (deflation) usually go with a weak economy.",
               source: WB("FP.CPI.TOTL.ZG"),
             });
+      // The region's own wealth, first (2026-11-17, owner: local economy).
+      const regionAbout = {
+        definition:
+          "GDP per head of the region this place is in, as its country reports it (a province, state or département), compared with the country's." +
+          (e.regionGdpPerHeadPpp != null
+            ? ` In ${e.regionGdpYear}: ${e.regionGdpPerHeadPpp.toLocaleString("en-GB")} international dollars a person at purchasing-power parity${e.regionGdpVsNationalPct != null ? `, ${e.regionGdpVsNationalPct}% of ${data.country}'s figure` : ""}. Output is counted where people work, so a region that draws commuters reads high.`
+            : ` ${data.country} doesn't publish one recent enough (2018 or later), so none is shown - the country's figures are below.`),
+        source: REGION_GDP_SOURCE,
+      };
       const rows: (KpiRow | null)[] = [
+        !hasSource("regionGdp")
+          ? null
+          : e.regionGdpPerHeadPpp == null
+            ? missing("Regional wealth", "city", regionAbout)
+            : neutral(
+                "Regional wealth",
+                e.regionGdpVsNationalPct != null ? `${e.regionGdpVsNationalPct}% of national` : `$${e.regionGdpPerHeadPpp.toLocaleString("en-GB")} PPP`,
+                "city",
+                regionAbout,
+                `(${e.regionGdpYear})`
+              ),
         e.gdpUsd != null
           ? scored("GDP", e.gdpUsd, formatGdpUsd(e.gdpUsd), "country", SCALES.gdp, formatGdpUsd, {
               definition: "The total value of everything the country produces in a year, in US dollars. Larger economies tend to offer more jobs and services.",
