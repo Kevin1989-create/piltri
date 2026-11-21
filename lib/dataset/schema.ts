@@ -209,8 +209,9 @@ export const CRIME_SOURCES: Record<string, string> = {
   FR: "SSMSI, the French Interior Ministry's statistics service - crimes recorded by the police and gendarmerie, by commune (Licence Ouverte 2.0)",
   GB: "data.police.uk - crimes recorded by the police forces of England and Wales, by neighbourhood, counted inside the town's outline (Open Government Licence v3.0); residents from the 2021 census (ONS)",
   US: "FBI, Crime in the United States, Table 8 - offences known to each city's police, with the population it serves (public domain)",
+  NL: "Statistics Netherlands (CBS) - crimes registered by the police, by municipality, tables 83648NED and 83651NED (CC BY 4.0)",
 };
-export const CRIME_COUNTRIES: Record<string, string> = { FR: "FR", GP: "FR", MQ: "FR", GF: "FR", RE: "FR", YT: "FR", GB: "GB", US: "US" };
+export const CRIME_COUNTRIES: Record<string, string> = { FR: "FR", GP: "FR", MQ: "FR", GF: "FR", RE: "FR", YT: "FR", GB: "GB", US: "US", NL: "NL" };
 
 export interface CityRecord {
   id: string;

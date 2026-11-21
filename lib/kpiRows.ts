@@ -215,6 +215,16 @@ const CRIME_BY_SOURCE: Record<string, { area: string; definitions?: Partial<Reco
       vandalism: "Deliberate damage to property - not in the FBI's city figures.",
     },
   },
+  NL: {
+    area: "The Netherlands",
+    definitions: {
+      violent: "Violent and sexual crimes (assault, threats, stalking, sexual offences...) registered by the police, per 1,000 residents a year.",
+      burglary: "Break-ins and thefts from homes registered by the police, per 1,000 residents a year.",
+      theft: "Pickpocketing and bicycle thefts registered by the police, per 1,000 residents a year.",
+      vehicle: "Cars, motorbikes and scooters stolen, and thefts from cars, registered by the police, per 1,000 residents a year.",
+      vandalism: "Destruction and damage to property registered by the police, per 1,000 residents a year.",
+    },
+  },
   GB: {
     area: "England and Wales",
     definitions: {

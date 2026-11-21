@@ -398,6 +398,101 @@ async function loadUnitedStates(): Promise<{ byCity: Record<string, (number | nu
   });
 }
 
+// ---- Netherlands ----------------------------------------------------------
+
+/**
+ * Statistics Netherlands (CBS, CC BY 4.0): crimes registered by the police,
+ * by municipality - table 83648NED (by kind of crime) and 83651NED (thefts
+ * by kind). The last three years. Residents: CBS's own, from its rate per
+ * 1,000 of all crimes. GeoNames' second-level code is the municipality's.
+ */
+const CBS = "https://opendata.cbs.nl/ODataApi/odata";
+const NL_KINDS: Record<(typeof CRIME_KINDS)[number], { table: "83648NED" | "83651NED"; codes: string[] }> = {
+  // Violent and sexual crimes (assault, threats, sexual offences...).
+  violent: { table: "83648NED", codes: ["CRI3000"] },
+  // Break-ins and thefts from homes.
+  burglary: { table: "83651NED", codes: ["CRI1135"] },
+  // Pickpocketing and bicycle theft.
+  theft: { table: "83651NED", codes: ["CRI1133", "CRI1122"] },
+  // Cars, motorbikes and scooters stolen; thefts from cars.
+  vehicle: { table: "83651NED", codes: ["CRI1124", "CRI1125", "CRI1128"] },
+  // Destruction and damage.
+  vandalism: { table: "83648NED", codes: ["CRI2100"] },
+};
+
+type CbsRow = Record<string, string | number | null>;
+
+async function cbsRows(table: string, filter: string): Promise<CbsRow[]> {
+  const out: CbsRow[] = [];
+  let url: string | null = `${CBS}/${table}/TypedDataSet?$filter=${encodeURIComponent(filter)}`;
+  while (url) {
+    const page: { value: CbsRow[]; "odata.nextLink"?: string } = await fetchJson(url);
+    out.push(...page.value);
+    url = page["odata.nextLink"] ?? null;
+  }
+  return out;
+}
+
+async function loadNetherlands(): Promise<{ byMunicipality: Record<string, (number | null)[]>; residents: Record<string, number>; national: (number | null)[]; years: string }> {
+  const periods = (await fetchJson<{ value: { Key: string }[] }>(`${CBS}/83648NED/Perioden`)).value.map((p) => p.Key).filter((k) => /JJ00$/.test(k));
+  const years = periods.slice(-3);
+  return cached(`crime-nl-v2-${years.join("-")}`, async () => {
+    const inYears = `(${years.map((y) => `Perioden eq '${y}'`).join(" or ")})`;
+    const places = "(startswith(RegioS,'GM') or startswith(RegioS,'NL01'))";
+    const any = (dim: string, codes: string[]) => `(${codes.map((c) => `${dim} eq '${c}'`).join(" or ")})`;
+    const crimeCodes = ["T001161", ...NL_KINDS.violent.codes, ...NL_KINDS.vandalism.codes];
+    const theftCodes = (["burglary", "theft", "vehicle"] as const).flatMap((k) => NL_KINDS[k].codes);
+    const crimes = await cbsRows("83648NED", `${places} and ${inYears} and ${any("SoortMisdrijf", crimeCodes)}`);
+    const thefts = await cbsRows("83651NED", `${places} and ${inYears} and GebruikVanGeweld eq 'T001540' and ${any("SoortDiefstal", theftCodes)}`);
+
+    // region -> code -> summed count over the years; region -> residents summed over the years
+    const counts = new Map<string, Map<string, number>>();
+    const residentYears = new Map<string, number>();
+    const add = (region: string, code: string, n: number) => {
+      if (!counts.has(region)) counts.set(region, new Map());
+      counts.get(region)!.set(code, (counts.get(region)!.get(code) ?? 0) + n);
+    };
+    for (const r of crimes) {
+      const region = String(r.RegioS).trim();
+      const n = Number(r.TotaalGeregistreerdeMisdrijven_1);
+      if (r.TotaalGeregistreerdeMisdrijven_1 == null || !Number.isFinite(n)) continue;
+      add(region, String(r.SoortMisdrijf), n);
+      const per1000 = Number(r.GeregistreerdeMisdrijvenPer1000Inw_3);
+      if (r.SoortMisdrijf === "T001161" && per1000 > 0) residentYears.set(region, (residentYears.get(region) ?? 0) + (n * 1000) / per1000);
+    }
+    for (const r of thefts) {
+      const n = Number(r.TotaalGeregistreerdeDiefstallen_1);
+      if (r.TotaalGeregistreerdeDiefstallen_1 == null || !Number.isFinite(n)) continue;
+      add(String(r.RegioS).trim(), String(r.SoortDiefstal), n);
+    }
+    // Rates per 1,000 residents a year: the years' crimes over the years' residents.
+    const ratesOf = (region: string) => {
+      const people = residentYears.get(region);
+      const c = counts.get(region);
+      if (!people || !c) return null;
+      return CRIME_KINDS.map((kind) => {
+        const { codes } = NL_KINDS[kind];
+        if (codes.some((code) => !c.has(code))) return null;
+        return Math.round((codes.reduce((s, code) => s + c.get(code)!, 0) / people) * 1000 * 100) / 100;
+      });
+    };
+    const byMunicipality: Record<string, (number | null)[]> = {};
+    const residents: Record<string, number> = {};
+    for (const region of counts.keys()) {
+      if (!region.startsWith("GM")) continue;
+      const rates = ratesOf(region);
+      if (rates) {
+        byMunicipality[region] = rates;
+        residents[region] = Math.round(residentYears.get(region)! / years.length);
+      }
+    }
+    const national = ratesOf("NL01") ?? CRIME_KINDS.map(() => null);
+    const label = `${years[0].slice(0, 4)}-${years[years.length - 1].slice(0, 4)}`;
+    log("crime", `CBS ${label}: ${Object.keys(byMunicipality).length} municipalities; national per 1,000: ${CRIME_KINDS.map((k, i) => `${k} ${national[i]}`).join(", ")}`);
+    return { byMunicipality, residents, national, years: label };
+  });
+}
+
 /** Ray casting over a GeoJSON-style multipolygon ([lng, lat] rings, holes after the outer one). */
 function inside(lng: number, lat: number, polygons: number[][][][]): boolean {
   let hit = false;
@@ -435,9 +530,10 @@ export async function sampleCrime(
   /** The place's outline (its border, or its built-up area), if any. */
   outlineOf: (i: number) => EncodedBoundary | null
 ): Promise<(PlaceCrime | null)[]> {
-  return cached(`crime-v8-${pointsKey(places)}`, async () => {
+  return cached(`crime-v10-${pointsKey(places)}`, async () => {
     // Each place's official local code (GeoNames admin4: the INSEE commune code in France).
     const admin4 = new Map<number, string>();
+    const nlMunicipality = new Map<number, string>();
     const usNames = new Map<number, { state: string; names: string[] }>();
     const stateNames = new Map<string, string>();
     for (const line of readFileSync(path.join(RAW_DIR, "admin1CodesASCII.txt"), "utf8").split("\n")) {
@@ -447,11 +543,14 @@ export async function sampleCrime(
     for (const line of readFileSync(path.join(WORK_DIR, "geonames", "cities1000.txt"), "utf8").split("\n")) {
       const c = line.split("\t");
       if (FR_COUNTRIES.has(c[8]) && c[13]) admin4.set(Number(c[0]), c[13]);
+      // The Netherlands: GeoNames' admin2 is CBS's municipality code.
+      if (c[8] === "NL" && c[11]) nlMunicipality.set(Number(c[0]), `GM${c[11]}`);
       if (c[8] === "US" && stateNames.has(c[10])) usNames.set(Number(c[0]), { state: stateNames.get(c[10])!, names: [...new Set([c[1], c[2]].map(usPlain))] });
     }
     const fr = places.some((p) => FR_COUNTRIES.has(p.countryCode)) ? await loadFrance() : null;
     const ew = places.some((p) => p.countryCode === "GB") ? await loadEnglandWales() : null;
     const us = places.some((p) => p.countryCode === "US") ? await loadUnitedStates() : null;
+    const nl = places.some((p) => p.countryCode === "NL") ? await loadNetherlands() : null;
     // A US place's FBI city: same state, same name - or the FBI's name less
     // "township", "village", "borough", "town", "city" ("New York City" is
     // the FBI's "New York"). One FBI city for the largest place of that name.
@@ -500,6 +599,15 @@ export async function sampleCrime(
     }
     let found = 0;
     const out = places.map((p, i) => {
+      if (nl && p.countryCode === "NL") {
+        const code = nlMunicipality.get(p.geonameId) ?? "";
+        const rates = nl.byMunicipality[code];
+        // A municipality's figure is its main town's, not each of its
+        // villages': only a place with 30%+ of its residents gets it.
+        if (!rates || p.population < 0.3 * nl.residents[code]) return null;
+        found++;
+        return { rates, national: nl.national, years: nl.years, source: "NL" };
+      }
       if (us && p.countryCode === "US") {
         const key = usKeyOf.get(i);
         if (!key) return null;
