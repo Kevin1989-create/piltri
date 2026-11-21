@@ -1,4 +1,5 @@
 import { readFileSync } from "fs";
+import path from "path";
 import { cached, downloadOnce, log } from "./util";
 
 /**
@@ -36,9 +37,20 @@ async function latestBy(url: string, file: string, keep: (row: Record<string, st
 
 export async function loadTaxRates(): Promise<{ corporate: Record<string, TaxRate>; personal: Record<string, TaxRate> }> {
   return cached("tax-rates-v1", async () => {
-    const corporate = await latestBy(CIT, "oecd-corporate-tax.csv", (r) => r.MEASURE === "CIT_C" && r.TARGETING === "ST");
-    const personal = await latestBy(PIT, "oecd-top-personal-tax.csv", (r) => r.MEASURE === "TS_PIT");
-    log("tax", `corporate tax rate for ${Object.keys(corporate).length} countries, top personal rate for ${Object.keys(personal).length}`);
-    return { corporate, personal };
+    try {
+      const corporate = await latestBy(CIT, "oecd-corporate-tax.csv", (r) => r.MEASURE === "CIT_C" && r.TARGETING === "ST");
+      const personal = await latestBy(PIT, "oecd-top-personal-tax.csv", (r) => r.MEASURE === "TS_PIT");
+      log("tax", `corporate tax rate for ${Object.keys(corporate).length} countries, top personal rate for ${Object.keys(personal).length}`);
+      return { corporate, personal };
+    } catch (err) {
+      // The OECD's API can refuse a cloud runner (2026-11-21: the refresh
+      // stopped here). The rates change once a year: the last ones fetched
+      // (pipeline/static/oecd-tax-rates.json, 2026-11-21) rather than no
+      // dataset at all.
+      const message = `OECD tax rates unavailable (${String(err).slice(0, 200)}) - using the saved 2026-11-21 copy`;
+      log("tax", `WARNING: ${message}`);
+      if (process.env.GITHUB_ACTIONS) console.log(`::warning title=Tax rates::${message.replace(/\s+/g, " ")}`);
+      return JSON.parse(readFileSync(path.join(__dirname, "static", "oecd-tax-rates.json"), "utf8")) as { corporate: Record<string, TaxRate>; personal: Record<string, TaxRate> };
+    }
   });
 }
