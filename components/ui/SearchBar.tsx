@@ -13,7 +13,8 @@ interface SearchBarProps {
   placeholder?: string;
   /** Focus on load - with a mouse/trackpad only (not on phones). */
   autoFocus?: boolean;
-  variant?: "landing" | "compact";
+  /** "block": square, hard ink edge - the home page (2026-11-21). */
+  variant?: "landing" | "compact" | "block";
   className?: string;
   /** If provided, selecting a result calls this instead of navigating to
    *  the results page — used by the Compare page to add a city to the
@@ -163,9 +164,13 @@ export function SearchBar({
         className={cn(
           // Same border as the Card component (Home page's Explore card):
           // plain border-surface-border, not the brand amber.
-          "w-full rounded-pill border border-surface-border bg-surface font-sans text-ink-900",
-          "placeholder:text-ink-300 focus:outline-none transition-colors",
-          variant === "landing" ? "px-4 sm:px-6 py-4 text-base shadow-card" : "px-4 py-2 text-sm"
+          "w-full bg-surface font-sans text-ink-900",
+          "placeholder:text-ink-300 focus:outline-none transition-[colors,box-shadow]",
+          variant === "block"
+            ? "rounded-none border-[1.5px] border-ink-900 px-4 sm:px-5 py-4 text-base focus:shadow-[4px_4px_0_0_#BA7517]"
+            : variant === "landing"
+              ? "rounded-pill border border-surface-border px-4 sm:px-6 py-4 text-base shadow-card"
+              : "rounded-pill border border-surface-border px-4 py-2 text-sm"
         )}
         aria-label="Search locations"
         aria-expanded={open}
@@ -176,7 +181,10 @@ export function SearchBar({
       {open && results.length > 0 && (
         <ul
           role="listbox"
-          className="absolute z-20 mt-2 w-full rounded-card border border-surface-border bg-surface shadow-card overflow-hidden"
+          className={cn(
+            "absolute z-20 mt-2 w-full bg-surface overflow-hidden",
+            variant === "block" ? "border-[1.5px] border-ink-900" : "rounded-card border border-surface-border shadow-card"
+          )}
         >
           {results.map((city, i) => (
             <li

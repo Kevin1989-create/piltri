@@ -1,84 +1,174 @@
 import Link from "next/link";
+import type { ComponentType, SVGProps } from "react";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
-import type { ComponentType, SVGProps } from "react";
-import { CogIcon, FilterIcon, HeartIcon, QuizIcon, TrophyIcon } from "@/components/ui/icons";
-import { leaderboardsUrl, savedUrl, searchUrl, SETTINGS_URL, sourcesUrl } from "@/lib/urls";
+import { PAGE_GUTTER, PAGE_WIDTH } from "@/components/ui/PageShell";
+import { CogIcon, FilterIcon, HeartIcon, QuizIcon, SECTION_ICONS, TrophyIcon } from "@/components/ui/icons";
+import { manifest } from "@/lib/dataset/files";
+import { SECTION_LABELS, SECTION_WEIGHTS, type SectionKey } from "@/lib/types";
+import { cityUrl, leaderboardsUrl, savedUrl, searchUrl, SETTINGS_URL, sourcesUrl } from "@/lib/urls";
+import { cn } from "@/lib/cn";
 
-/** An icon-only bordered amber button under the search bar; hovering (or
- *  focusing) shows the page's name in a small label beneath it, at once -
- *  the browser's own tooltip takes a second and looks out of place. */
-function IconLink({ href, label, Icon }: { href: string; label: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }) {
-  return (
-    <Link
-      href={href}
-      aria-label={label}
-      className="group relative w-8 h-8 rounded-lg border-[1.5px] border-piltri-amber text-piltri-amber flex items-center justify-center hover:bg-piltri-amber hover:text-white focus-visible:bg-piltri-amber focus-visible:text-white transition-colors outline-none"
-    >
-      <Icon className="w-4 h-4" />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink-900 px-2 py-1 text-[11px] text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-      >
-        {label}
-      </span>
-    </Link>
-  );
-}
+/** Home (2026-11-21, owner: "a bit sad ... still clean and brutalist, but
+ *  for the user to understand what is going on"). Plain blocks with hard
+ *  ink edges, on the same width and margins as every page it opens: what
+ *  Piltri is and how many places it covers, the search, a few places to
+ *  try, the five ways in - named and explained, no longer bare icons - and
+ *  how the score is made. */
 
-/** Page 2 — Explore landing. Piltri logo top left (top right on Home only),
- *  centred search, no description line or Home link.
- *
- *  Uses the shared NavBar component (rather than its own custom header div,
- *  which it used to) so the logo's padding/position is pixel-identical to
- *  every other Explore page — previously this page had py-4 while NavBar's
- *  header used py-3, a small but real mismatch. border={false} keeps this
- *  page's original borderless, minimal top edge. */
+const EXAMPLES: [string, string][] = [
+  ["Lisbon", "lisbon-pt"],
+  ["Kyoto", "kyoto-jp"],
+  ["Austin", "austin-us"],
+  ["Annecy", "annecy-fr"],
+  ["Cape Town", "cape-town-za"],
+];
+
+const WAYS_IN: { href: string; title: string; text: string; Icon: ComponentType<SVGProps<SVGSVGElement>>; main?: boolean }[] = [
+  { href: "/quiz", title: "Take the quiz", text: "Eight silly questions, your best matches.", Icon: QuizIcon, main: true },
+  { href: searchUrl(), title: "Advanced search", text: "Filter by region, size, climate, what's near.", Icon: FilterIcon },
+  { href: leaderboardsUrl(), title: "Leaderboards", text: "The best places, fourteen ways.", Icon: TrophyIcon },
+  { href: savedUrl(), title: "Saved", text: "The places you keep an eye on.", Icon: HeartIcon },
+  { href: SETTINGS_URL, title: "Settings", text: "Your score weights and units.", Icon: CogIcon },
+];
+
+const SECTION_BLURBS: Record<SectionKey, string> = {
+  safetyStability: "Crime, stability, rule of law, conflict nearby.",
+  economy: "Growth, jobs, wages, prices, taxes, businesses.",
+  climate: "Weather, air, water, nature within reach.",
+  liveability: "Health, schools, transport, things to do.",
+};
+const SECTIONS: SectionKey[] = ["safetyStability", "economy", "climate", "liveability"];
+
+/** The hard-edged block every part of the page is built from. */
+const BLOCK = "border-[1.5px] border-ink-900";
+
 export default function ExploreLandingPage() {
+  const places = manifest.cityCount.toLocaleString("en-GB");
   return (
-    <main className="min-h-dvh flex flex-col">
-      <NavBar border={false} />
+    <main className="min-h-dvh flex flex-col bg-surface-muted">
+      <NavBar />
 
-      {/* -mt-12 only from sm: up (2026-09-26, on request - "the search bar
-          is not fully centered right now on the phone"): this offset nudges
-          the block up to visually center against the desktop NavBar's own
-          height/whitespace, but on a tall phone viewport it overcorrected,
-          pushing the search bar noticeably above true centre with a big
-          empty gap below - unscoped, it was making every mobile visit look
-          off, not just a one-off. */}
-      <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 sm:-mt-12">
-        {/* On phones the search bar itself is what sits in the middle of the
-         *  screen (2026-09-30, on request): the heading hangs above it, out
-         *  of the flow, so it doesn't count in the centring. From sm: up the
-         *  heading is back in the flow, as before. -mt-8 lifts it 16px,
-         *  making up for the logo bar being taller than the footer. */}
-        <div className="relative w-full max-w-xl -mt-8 sm:mt-0">
-          <h1 className="absolute inset-x-0 bottom-full mb-8 sm:static font-serif text-4xl sm:text-5xl text-ink-900 text-center">
-            Find your Piltri.
-          </h1>
-
-          <SearchBar autoFocus placeholder="Search for a place you will call home…" />
-
-          {/* Under the search bar, icons only (2026-10-11, on request):
-           *  Advanced search, Leaderboards (both moved here from the city
-           *  page), Settings (units and language). The score weighting is
-           *  separate: Score settings, on the results page. Like the
-           *  heading, the row hangs outside the flow on phones so the search
-           *  bar stays in the middle. */}
-          <div className="absolute inset-x-0 top-full mt-3 flex justify-center gap-2.5 sm:static">
-            <IconLink href="/quiz" label="Find your Piltri" Icon={QuizIcon} />
-            <IconLink href={searchUrl()} label="Advanced search" Icon={FilterIcon} />
-            <IconLink href={leaderboardsUrl()} label="Leaderboards" Icon={TrophyIcon} />
-            <IconLink href={savedUrl()} label="Saved" Icon={HeartIcon} />
-            <IconLink href={SETTINGS_URL} label="Settings" Icon={CogIcon} />
+      <div className={cn("flex-1 w-full mx-auto pt-6 sm:pt-12 pb-10", PAGE_WIDTH, PAGE_GUTTER)}>
+        {/* What it is. */}
+        <section className="max-w-3xl">
+          <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-ink-500">
+            <span className="inline-block h-2 w-2 bg-piltri-amber" aria-hidden />
+            {places} places · {manifest.countryCount} countries<span className="hidden sm:inline"> · free, open data</span>
+          </p>
+          <h1 className="mt-3 font-serif text-[44px] leading-[1.02] sm:text-7xl text-ink-900">Find your Piltri.</h1>
+          <p className="mt-4 max-w-xl text-base sm:text-lg text-ink-700 leading-snug">
+            Type any town, city or village. Piltri scores it from 0 to 100 on safety, economy, environment and quality of
+            life - and shows you every figure behind it.
+          </p>
+          <div className="mt-6 max-w-xl">
+            <SearchBar autoFocus variant="block" placeholder="Search for a place you will call home…" />
           </div>
-        </div>
+          <p className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-2 text-sm text-ink-500">
+            <span className="mr-1">Try</span>
+            {EXAMPLES.map(([name, id], n) => (
+              <Link
+                key={id}
+                href={cityUrl(id)}
+                className={cn(n === EXAMPLES.length - 1 && "hidden sm:inline-block", "border border-ink-900/80 bg-surface px-2.5 py-0.5 text-[13px] text-ink-900 transition-colors hover:bg-ink-900 hover:text-white")}
+              >
+                {name}
+              </Link>
+            ))}
+          </p>
+        </section>
+
+        {/* The five ways in. */}
+        <section className="mt-12 sm:mt-16" aria-labelledby="ways-in">
+          <h2 id="ways-in" className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-500">
+            Or start here
+          </h2>
+          <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {WAYS_IN.map(({ href, title, text, Icon, main }) => (
+              <li key={href} className={cn(main && "col-span-2 sm:col-span-1")}>
+                <Link
+                  href={href}
+                  className={cn(
+                    main ? "border-[1.5px] border-ink-900 bg-piltri-amber text-white" : cn(BLOCK, "bg-surface"),
+                    "group flex h-full flex-col p-4 transition-[transform,box-shadow] duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_#1E1A16] focus-visible:shadow-[4px_4px_0_0_#1E1A16] outline-none",
+                  )}
+                >
+                  <span className="flex items-center justify-between">
+                    <Icon className={cn("h-5 w-5", main ? "text-white" : "text-piltri-amber")} />
+                    <span aria-hidden className={cn("text-lg leading-none transition-transform group-hover:translate-x-0.5", main ? "text-white" : "text-ink-900")}>
+                      →
+                    </span>
+                  </span>
+                  <span className={cn("mt-4 font-serif text-xl leading-tight", main ? "text-white" : "text-ink-900")}>{title}</span>
+                  <span className={cn("mt-1 text-xs leading-snug", main ? "text-white/90" : "text-ink-500")}>{text}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* How the score is made. */}
+        <section className="mt-12 sm:mt-16" aria-labelledby="how">
+          <h2 id="how" className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-500">
+            How a place is scored
+          </h2>
+          <div className={cn(BLOCK, "bg-surface mt-3 grid grid-cols-2 lg:grid-cols-4")}>
+            {SECTIONS.map((key, i) => {
+              const Icon = SECTION_ICONS[key];
+              return (
+                <div
+                  key={key}
+                  className={cn(
+                    "p-4 sm:p-5 border-ink-900",
+                    i % 2 === 1 && "border-l-[1.5px]",
+                    i >= 2 && "border-t-[1.5px] lg:border-t-0",
+                    i === 2 && "lg:border-l-[1.5px]"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <Icon className="h-5 w-5 text-piltri-amber" />
+                    <span className="font-serif text-2xl text-ink-900 tabular-nums">{Math.round(SECTION_WEIGHTS[key] * 100)}%</span>
+                  </div>
+                  <p className="mt-3 text-sm font-medium text-ink-900">{SECTION_LABELS[key]}</p>
+                  <p className="mt-0.5 text-xs leading-snug text-ink-500">{SECTION_BLURBS[key]}</p>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex flex-col gap-2 text-xs text-ink-500 sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span>Every figure is coloured:</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 bg-score-strong" aria-hidden /> Good
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 bg-score-moderate" aria-hidden /> Middling
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 bg-score-weak" aria-hidden /> Weak
+              </span>
+            </p>
+            <p>
+              The weights are yours to change in{" "}
+              <Link href={SETTINGS_URL} className="text-ink-900 underline underline-offset-2 hover:text-piltri-amber-dark">
+                Settings
+              </Link>
+              .
+            </p>
+          </div>
+        </section>
       </div>
 
-      <footer className="pb-4 text-center">
-        <Link href={sourcesUrl()} className="text-[11px] text-ink-300 hover:text-ink-500">
-          Data &amp; Sources
-        </Link>
+      <footer className={cn("w-full mx-auto pb-5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-ink-500", PAGE_WIDTH, PAGE_GUTTER)}>
+        <span>Open data from the World Bank, OECD, WHO, Overture Maps, OpenStreetMap and more.</span>
+        <span className="flex gap-4">
+          <Link href={sourcesUrl()} className="hover:text-ink-900">
+            Data &amp; Sources
+          </Link>
+          <Link href="/privacy" className="hover:text-ink-900">
+            Privacy
+          </Link>
+        </span>
       </footer>
     </main>
   );
