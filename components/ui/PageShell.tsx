@@ -17,7 +17,8 @@ export function PageShell({
   title,
   subtitle,
   narrow,
-  compact,
+  centered,
+  fit,
   mainClassName,
   children,
 }: {
@@ -25,21 +26,42 @@ export function PageShell({
   subtitle?: ReactNode;
   /** A reading-width column (~42rem), left-aligned with the header. */
   narrow?: boolean;
-  /** Tighter spacing above and below the title (the quiz: everything on one screen). */
-  compact?: boolean;
+  /** The header and content in one column in the middle of the page, this
+   *  wide ("max-w-2xl") - the quiz (2026-11-21, owner: "not centered"). */
+  centered?: string;
+  /** Exactly one screen tall, never a page scroll (the quiz, 2026-11-21,
+   *  owner: "I want the adjustment to be perfect"): tighter spacing, the
+   *  subtitle only on tall screens, and anything that still can't fit
+   *  scrolls inside the content area rather than the page. */
+  fit?: boolean;
   mainClassName?: string;
   children: ReactNode;
 }) {
+  const column = narrow ? "max-w-2xl" : centered ? cn("w-full mx-auto", centered) : undefined;
   return (
-    <main className={cn("min-h-dvh flex flex-col bg-surface-muted", mainClassName)}>
+    <main className={cn("flex flex-col bg-surface-muted", fit ? "h-dvh overflow-hidden" : "min-h-dvh", mainClassName)}>
       <NavBar />
-      <div className={cn("flex-1 w-full mx-auto", PAGE_WIDTH, PAGE_GUTTER, compact ? "pt-3 sm:pt-4 pb-3" : "pt-4 sm:pt-6 pb-16")}>
-        <div className={cn(narrow && "max-w-2xl")}>
+      <div
+        className={cn(
+          "flex-1 w-full mx-auto",
+          PAGE_WIDTH,
+          PAGE_GUTTER,
+          fit ? "min-h-0 flex flex-col pt-3 sm:pt-4 [@media(max-height:700px)]:pt-2 pb-3" : "pt-4 sm:pt-6 pb-16"
+        )}
+      >
+        <div className={cn("flex-shrink-0", column)}>
           <BackLink />
-          <h1 className={cn("font-serif text-ink-900 leading-tight", compact ? "mt-2 text-2xl sm:text-4xl" : "mt-3 text-3xl sm:text-4xl")}>{title}</h1>
-          {subtitle && <p className={cn("mt-1 text-sm text-ink-500", compact && "hidden sm:block")}>{subtitle}</p>}
+          <h1
+            className={cn(
+              "font-serif text-ink-900 leading-tight",
+              fit ? "mt-2 text-2xl sm:text-4xl [@media(max-height:760px)]:sm:text-3xl" : "mt-3 text-3xl sm:text-4xl"
+            )}
+          >
+            {title}
+          </h1>
+          {subtitle && <p className={cn("mt-1 text-sm text-ink-500", fit && "hidden sm:block [@media(max-height:820px)]:hidden")}>{subtitle}</p>}
         </div>
-        <div className={cn(compact ? "mt-3 sm:mt-5" : "mt-6", narrow && "max-w-2xl")}>{children}</div>
+        <div className={cn(fit ? "mt-3 sm:mt-4 flex-1 min-h-0 overflow-y-auto no-scrollbar" : "mt-6", narrow && "max-w-2xl", centered && cn("w-full mx-auto", centered))}>{children}</div>
       </div>
     </main>
   );

@@ -113,8 +113,8 @@ export default function QuizPage() {
     // not want to have to scroll for quizz"): the questions in a reading
     // column, "Change my last answer" on the progress line rather than under
     // the card; the results across the page's full width, side by side.
-    <PageShell title="Find your Piltri" subtitle="Eight silly questions. One very serious answer. Different every time." compact>
-        <div className={cn(!done && "max-w-2xl")}>
+    <PageShell title="Find your Piltri" subtitle="Eight silly questions. One very serious answer. Different every time." centered={done ? "max-w-4xl" : "max-w-2xl"} fit>
+        <div>
           {!done && (
             <div>
               <div className="h-1.5 rounded-pill bg-ink-100 overflow-hidden">
@@ -142,9 +142,9 @@ export default function QuizPage() {
           {failed ? (
             <p className="mt-10 text-sm text-score-weak">Couldn&apos;t load the places - please try again.</p>
           ) : !done && question ? (
-            <section key={question.key} className="mt-4 rounded-card border border-surface-border bg-surface p-4 sm:p-6 shadow-card animate-fade-up">
+            <section key={question.key} className="mt-4 [@media(max-height:700px)]:mt-3 rounded-card border border-surface-border bg-surface p-4 sm:p-6 [@media(max-height:760px)]:sm:p-5 shadow-card animate-fade-up">
               <h2 className="font-serif text-[22px] sm:text-[26px] text-ink-900 leading-snug">{question.title}</h2>
-              <div className="mt-3 sm:mt-4 grid gap-2">
+              <div className="mt-3 sm:mt-4 [@media(max-height:700px)]:mt-2.5 grid gap-2 [@media(max-height:700px)]:gap-1.5">
                 {question.answers.map((o) => (
                   <button
                     key={o.key}
@@ -152,7 +152,7 @@ export default function QuizPage() {
                     disabled={!table || busy}
                     onClick={() => choose(o)}
                     className={cn(
-                      "min-h-[48px] sm:min-h-[52px] rounded-xl border px-4 py-2 sm:py-2.5 text-left flex items-center gap-3 transition-all disabled:cursor-default",
+                      "min-h-[48px] sm:min-h-[52px] [@media(max-height:700px)]:min-h-[42px] rounded-xl border px-4 py-2 sm:py-2.5 [@media(max-height:700px)]:py-1.5 text-left flex items-center gap-3 transition-all disabled:cursor-default",
                       tapped === o.key
                         ? "border-piltri-amber bg-piltri-amber-tint scale-[1.01]"
                         : "border-surface-border hover:border-piltri-amber-light hover:bg-surface-muted",
@@ -237,8 +237,8 @@ function Results({
 
   return (
     <section className="animate-fade-up">
-      <p className="text-xs uppercase tracking-wide text-piltri-amber-dark">{intro}</p>
-      <h2 className="font-serif text-2xl sm:text-3xl text-ink-900 mt-1 leading-tight">You&apos;re {title}.</h2>
+      <p className="text-xs uppercase tracking-wide text-piltri-amber-dark [@media(max-height:640px)]:hidden">{intro}</p>
+      <h2 className="font-serif text-2xl sm:text-3xl text-ink-900 mt-1 [@media(max-height:640px)]:mt-0 leading-tight">You&apos;re {title}.</h2>
       <p className="text-sm text-ink-500 mt-1">
         {total === 1
           ? "Exactly one place in the world fits you. Here it is:"
@@ -268,7 +268,7 @@ function Results({
                   <span className="block text-xs text-ink-500 mt-0.5 truncate">{[table.region[i], countryName(table.cc[i])].filter(Boolean).join(", ")}</span>
                   <span className="hidden sm:block text-xs italic text-piltri-amber-dark mt-1">{lines[(page * 3 + k) % lines.length]}</span>
                   {facts.length > 0 && (
-                    <span className="mt-1.5 sm:mt-2 flex flex-wrap gap-1">
+                    <span className="mt-1.5 sm:mt-2 flex flex-wrap gap-1 [@media(max-height:640px)]:hidden">
                       {facts.map((f, n) => (
                         <span key={f} className={cn("rounded-pill bg-surface-muted px-2 py-0.5 text-[11px] text-ink-700", n > 1 && "hidden sm:inline")}>
                           {f}

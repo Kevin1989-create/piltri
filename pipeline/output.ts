@@ -9,6 +9,7 @@ import { precomputeLeaderboards } from "@/lib/leaderboards";
 import { DEFAULT_WEIGHT_PERCENTAGES, weightPercentagesToScores } from "@/lib/scoreWeights";
 import {
   CITY_CHUNK_SIZE,
+  CITY_FIELDS,
   cityChunk,
   cityIdFor,
   DATASET_SCHEMA_VERSION,
@@ -25,6 +26,7 @@ import {
   type CityRecord,
   type CountryRecord,
   type DatasetManifest,
+  type DailyPick,
   type EncodedBoundary,
   type InsideChunkFile,
   type NearbyChunkFile,
@@ -280,6 +282,45 @@ export async function writeDataset(outDir: string, ds: DatasetToWrite): Promise<
   const leaderboards = precomputeLeaderboards({ table, weights: normaliseWeights(weightPercentagesToScores(DEFAULT_WEIGHT_PERCENTAGES)), col: column });
   for (const [region, file] of Object.entries(leaderboards)) writeJson(outDir, `leaderboards/${region}.json`, file);
 
+  // ---- Places of the day (home page) ------------------------------------------
+  // "Today, let's try" (2026-11-21, owner: only places with the most data,
+  // a photo, and scoring 70 or more): cities of 100,000+ (a name people may
+  // know) with a photo, among the tenth best covered, at 70+ by the default
+  // score settings. Not a district or suburb: nothing within 25 km of a
+  // larger city, nor within 15 km of a bigger pick (Bratislava's Petržalka).
+  // The best few per country, so the days stay varied.
+  const DAILY_MIN_POPULATION = 100_000;
+  const DAILY_MIN_SCORE = 70;
+  const DAILY_PER_COUNTRY = 6;
+  const defaultWeights = normaliseWeights(weightPercentagesToScores(DEFAULT_WEIGHT_PERCENTAGES));
+  const filled = ordered.map((c) => CITY_FIELDS.filter((k) => c.record[k] != null).length);
+  const wellCovered = [...filled].sort((a, b) => a - b)[Math.floor(filled.length * 0.9)];
+  const candidates = ordered.flatMap((c, i) => {
+    const score = table.piltri(i, defaultWeights);
+    const nearLarge = c.record.nearestLargeCityKm;
+    return c.record.photo &&
+      (c.record.population ?? 0) >= DAILY_MIN_POPULATION &&
+      !/\d/.test(c.record.name) &&
+      (nearLarge == null || nearLarge >= 25) &&
+      filled[i] >= wellCovered &&
+      score >= DAILY_MIN_SCORE
+      ? [{ c, i, score }]
+      : [];
+  });
+  const km = (a: CityRecord, b: CityRecord) =>
+    6371 * Math.hypot(((b.lng - a.lng) * Math.PI) / 180 * Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180), ((b.lat - a.lat) * Math.PI) / 180);
+  const pickByCountry = new Map<string, { pick: DailyPick; score: number }[]>();
+  for (const { c, i, score } of candidates) {
+    const bigger = candidates.some((o) => o.c !== c && o.c.cc === c.cc && (o.c.record.population ?? 0) > (c.record.population ?? 0) && km(o.c.record, c.record) < 15);
+    if (bigger) continue;
+    const list = pickByCountry.get(c.cc) ?? [];
+    list.push({ pick: [c.record.name, table.id(i), c.cc], score });
+    pickByCountry.set(c.cc, list);
+  }
+  const picks = [...pickByCountry.values()].flatMap((list) => list.sort((a, b) => b.score - a.score).slice(0, DAILY_PER_COUNTRY).map((p) => p.pick));
+  writeJson(outDir, "picks.json", picks);
+  log("output", `places of the day: ${picks.length} in ${pickByCountry.size} countries`);
+
   // ---- Pin mode tiles --------------------------------------------------------
   const tiles = buildPoiTiles(path.join(outDir, "poi"), ds.poi);
 
@@ -299,6 +340,7 @@ export async function writeDataset(outDir: string, ds: DatasetToWrite): Promise<
     nearbyChunks,
     ...(ds.inside ? { insideChunks } : {}),
     leaderboards: true,
+    picks: true,
     sources: ds.sources,
   };
   writeJson(outDir, "manifest.json", manifest);

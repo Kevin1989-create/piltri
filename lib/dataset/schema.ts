@@ -448,6 +448,8 @@ export interface DatasetManifest {
   /** leaderboards/<region>.json files, worked out at the default score
    *  settings (lib/leaderboards.ts) - absent before 2026-11-07. */
   leaderboards?: boolean;
+  /** picks.json, the home page's places of the day (DailyPick[]) - absent before 2026-11-21. */
+  picks?: boolean;
   /** Human-readable source + vintage notes, shown on /admin. */
   sources: Record<string, string>;
 }
@@ -554,3 +556,6 @@ export interface AdvCountries {
     }
   >;
 }
+
+/** A home page place of the day: name, id, country code (picks.json). */
+export type DailyPick = [name: string, id: string, countryCode: string];
