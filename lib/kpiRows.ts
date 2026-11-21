@@ -159,6 +159,10 @@ const SCALES = {
   mobile: { kind: "higher", min: 5, max: 150 },
   pisa: { kind: "higher", ...RANGES.pisaScore },
   score: { kind: "score" },
+  regionGrowth: { kind: "higher", ...RANGES.regionGrowth },
+  regionWealth: { kind: "higher", ...RANGES.regionWealth },
+  corporateTax: { kind: "lower", ...RANGES.corporateTax },
+  personalTax: { kind: "lower", ...RANGES.personalTax },
 } satisfies Record<string, NumericScale>;
 
 /** Beyond this straight-line distance a drive-time estimate isn't shown
@@ -303,18 +307,14 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           ? null
           : e.regionGrowthPctYr == null
             ? missing("Economic growth", "city", growthAbout)
-            : neutral("Economic growth", signed(e.regionGrowthPctYr), "city", growthAbout, `(${e.regionGrowthArea}, ${e.regionGrowthFromYear}-${e.regionGrowthToYear})`),
+            : scored("Economic growth", e.regionGrowthPctYr, signed(e.regionGrowthPctYr), "city", SCALES.regionGrowth, signed, growthAbout, `(${e.regionGrowthArea}, ${e.regionGrowthFromYear}-${e.regionGrowthToYear})`),
         !hasSource("regionGdp")
           ? null
           : e.regionGdpPerHeadPpp == null
             ? missing("Regional wealth", "city", regionAbout)
-            : neutral(
-                "Regional wealth",
-                e.regionGdpVsNationalPct != null ? `${e.regionGdpVsNationalPct}% of national` : `$${e.regionGdpPerHeadPpp.toLocaleString("en-GB")} PPP`,
-                "city",
-                regionAbout,
-                `(${e.regionGdpYear})`
-              ),
+            : e.regionGdpVsNationalPct != null
+              ? scored("Regional wealth", e.regionGdpVsNationalPct, `${e.regionGdpVsNationalPct}% of national`, "city", SCALES.regionWealth, (n) => `${num(n)}% of national`, regionAbout, `(${e.regionGdpYear})`)
+              : neutral("Regional wealth", `${e.regionGdpPerHeadPpp.toLocaleString("en-GB")} PPP`, "city", regionAbout, `(${e.regionGdpYear})`),
         // Businesses near the centre (2026-11-21, owner), like restaurants per 1,000.
         e.businessesWithin5km == null
           ? null
@@ -328,7 +328,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               };
               return e.businessesPer1k == null
                 ? missing("Businesses", "city", about)
-                : neutral("Businesses", num(e.businessesPer1k, 1), "city", about, "per 1,000 residents");
+                : scored("Businesses", e.businessesPer1k, num(e.businessesPer1k, 1), "city", { kind: "ratio", cap: AMENITY_RATIOS.businesses.cap }, (n) => `${num(n, 1)} per 1,000 residents`, about, "per 1,000 residents");
             })(),
         e.gdpUsd != null
           ? scored("GDP", e.gdpUsd, formatGdpUsd(e.gdpUsd), "country", SCALES.gdp, formatGdpUsd, {
@@ -380,7 +380,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               };
               return e.corporateTaxPct == null
                 ? missing("Corporate tax", "country", about)
-                : neutral("Corporate tax", `${num(e.corporateTaxPct, 1)}%`, "country", about, `(${e.corporateTaxYear})`);
+                : scored("Corporate tax", e.corporateTaxPct, `${num(e.corporateTaxPct, 1)}%`, "country", SCALES.corporateTax, withUnit("%", 1), about, `(${e.corporateTaxYear})`);
             })(),
         e.personalTopTaxPct === undefined
           ? null
@@ -395,7 +395,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               };
               return e.personalTopTaxPct == null
                 ? missing("Personal income tax (top rate)", "country", about)
-                : neutral("Personal income tax (top rate)", `${num(e.personalTopTaxPct, 1)}%`, "country", about, `(${e.personalTopTaxYear})`);
+                : scored("Personal income tax (top rate)", e.personalTopTaxPct, `${num(e.personalTopTaxPct, 1)}%`, "country", SCALES.personalTax, withUnit("%", 1), about, `(${e.personalTopTaxYear})`);
             })(),
         e.currency
           ? neutral("Currency", `${e.currency.name} (${e.currency.code})`, "country", {

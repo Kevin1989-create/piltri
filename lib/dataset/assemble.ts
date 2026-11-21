@@ -27,6 +27,15 @@ export const RANGES = {
   /** WHO's guideline is 5 µg/m³; 50+ (Delhi, Lahore, Dhaka) scores 0. */
   pm25: { min: 5, max: 50 },
   pisaScore: { min: 350, max: 590 },
+  // Local economy and tax (2026-11-21, owner: coloured and scored). Linear,
+  // so the colours' thirds fall on: growth green from +2.3%/yr, red below
+  // +0.7%; wealth green from 117% of the national figure, red below 84%;
+  // corporate tax green up to 20%, red above 28%; top personal tax green up
+  // to 35%, red above 45%.
+  regionGrowth: { min: -1, max: 4 },
+  regionWealth: { min: 50, max: 150 },
+  corporateTax: { min: 12, max: 36 },
+  personalTax: { min: 25, max: 55 },
 };
 
 /** Amenities are shown and scored per resident: the places within 5 km of
@@ -41,6 +50,9 @@ export const AMENITY_RATIOS = {
   parks: { per: 10000, cap: 6 },
   cultural: { per: 10000, cap: 5 },
   family: { per: 10000, cap: 1.5 },
+  // Provisional (2026-11-21): restaurants are about a fifth of all listed
+  // businesses, so ~5x their cap - recalibrate on the first dataset.
+  businesses: { per: 1000, cap: 35 },
 };
 
 /** Small islands the population grid undercounts are treated as having at
@@ -199,6 +211,16 @@ function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): R
       orNull(gniPerCapitaUsd, (v) => normalise(v, RANGES.salary.min, RANGES.salary.max)),
       orNull(e.costOfLivingIndex, (v) => 100 - v),
       e.purchasingPowerIndex,
+      // The local and tax figures count only where they exist (2026-11-21):
+      // often missing (top personal tax: OECD members only), they must not
+      // push a place below hasEnoughFigures' half.
+      ...[
+        orNull(e.regionGrowthPctYr ?? null, (v) => normalise(v, RANGES.regionGrowth.min, RANGES.regionGrowth.max)),
+        orNull(e.regionGdpVsNationalPct ?? null, (v) => normalise(v, RANGES.regionWealth.min, RANGES.regionWealth.max)),
+        orNull(e.businessesPer1k ?? null, (v) => logScore(v, AMENITY_RATIOS.businesses.cap)),
+        orNull(e.corporateTaxPct ?? null, (v) => normalise(v, RANGES.corporateTax.min, RANGES.corporateTax.max, true)),
+        orNull(e.personalTopTaxPct ?? null, (v) => normalise(v, RANGES.personalTax.min, RANGES.personalTax.max, true)),
+      ].filter((v) => v != null),
     ],
     safetyStability: [
       s.politicalStabilityScore,
@@ -303,7 +325,7 @@ export function assembleCityExploreData(
       regionGrowthArea: city.regionGrowthArea,
       regionGrowthNationalPctYr: city.regionGrowthNationalPctYr,
       businessesWithin5km: city.businessesWithin5km,
-      businessesPer1k: city.businessesWithin5km == null ? city.businessesWithin5km : perResidents(city.businessesWithin5km, city.densityPerKm2, 1000),
+      businessesPer1k: city.businessesWithin5km == null ? city.businessesWithin5km : perResidents(city.businessesWithin5km, city.densityPerKm2, AMENITY_RATIOS.businesses.per),
     },
     safetyStability: {
       ...country.safetyStability,
