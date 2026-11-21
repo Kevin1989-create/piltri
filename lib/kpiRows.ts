@@ -315,6 +315,21 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
                 regionAbout,
                 `(${e.regionGdpYear})`
               ),
+        // Businesses near the centre (2026-11-21, owner), like restaurants per 1,000.
+        e.businessesWithin5km == null
+          ? null
+          : (() => {
+              const about = {
+                definition:
+                  "Shops, cafés and restaurants, offices and services (banks, lawyers, hairdressers, garages...), hotels and private health practices within 5 km of the centre, per 1,000 people living in those 5 km" +
+                  (e.businessesPer1k != null ? ` - ${e.businessesWithin5km.toLocaleString("en-GB")} listed.` : ".") +
+                  " Counted from open map listings, which are thinner in some countries (China, much of Africa), so compare places within a country first.",
+                source: `${OVERTURE}; residents from GHS-POP 2025 (EC JRC)`,
+              };
+              return e.businessesPer1k == null
+                ? missing("Businesses", "city", about)
+                : neutral("Businesses", num(e.businessesPer1k, 1), "city", about, "per 1,000 residents");
+            })(),
         e.gdpUsd != null
           ? scored("GDP", e.gdpUsd, formatGdpUsd(e.gdpUsd), "country", SCALES.gdp, formatGdpUsd, {
               definition: "The total value of everything the country produces in a year, in US dollars. Larger economies tend to offer more jobs and services.",
@@ -353,6 +368,35 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
               source: WB("GC.TAX.TOTL.GD.ZS"),
             })
           : null,
+        // Tax rates (2026-11-21, owner). Datasets before then don't have them.
+        e.corporateTaxPct === undefined
+          ? null
+          : (() => {
+              const about = {
+                definition:
+                  "The headline rate companies pay on their profits, central and local government combined." +
+                  (e.corporateTaxPct != null ? ` Rate for ${e.corporateTaxYear}. Lower rates for small firms or special zones aren't shown.` : ` The OECD doesn't publish one for ${data.country}.`),
+                source: "OECD Corporate Tax Statistics (combined statutory corporate income tax rate)",
+              };
+              return e.corporateTaxPct == null
+                ? missing("Corporate tax", "country", about)
+                : neutral("Corporate tax", `${num(e.corporateTaxPct, 1)}%`, "country", about, `(${e.corporateTaxYear})`);
+            })(),
+        e.personalTopTaxPct === undefined
+          ? null
+          : (() => {
+              const about = {
+                definition:
+                  "The highest rate of income tax on salaries, central and local government combined - what the top earners pay on each extra unit of income." +
+                  (e.personalTopTaxPct != null
+                    ? ` Rate for ${e.personalTopTaxYear}. Most people pay a lower average rate.`
+                    : ` Only published for the 38 OECD member countries, so none for ${data.country}.`),
+                source: "OECD Taxing Wages (top statutory personal income tax rate)",
+              };
+              return e.personalTopTaxPct == null
+                ? missing("Personal income tax (top rate)", "country", about)
+                : neutral("Personal income tax (top rate)", `${num(e.personalTopTaxPct, 1)}%`, "country", about, `(${e.personalTopTaxYear})`);
+            })(),
         e.currency
           ? neutral("Currency", `${e.currency.name} (${e.currency.code})`, "country", {
               definition: "The country's official currency.",
@@ -631,9 +675,11 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           const where = airport
             ? `within ${distance(AIRPORT_REACH_KM)} of the centre (about an hour by car)`
             : "in the city or within 1 km of its edge (within 5 km of the centre for a place without a mapped edge)";
+          // How many, not Yes/No (2026-11-21, owner: "the actual number").
           const definition =
-            `Whether there is ${what} ${where}.` +
-            ` If not, the straight-line distance from the centre to the nearest one${!yes && nearestKm != null && byCar(nearestKm) ? `.${driveNote}` : "."}`;
+            `How many there are of ${what} ${where}.` +
+            ` If there are none, the straight-line distance from the centre to the nearest one${!yes && nearestKm != null && byCar(nearestKm) ? `.${driveNote}` : "."}` +
+            (kind === "university" ? " Open map data sometimes lists a university's separate campuses or faculties as several." : "");
           const nearest = nearestKm != null ? `nearest ${distance(nearestKm)} ${byCar(nearestKm) ?? ""}`.trim() : `none within ${distance(500)}`;
           // A Yes from the line alone (a tram with no stop mapped - London's
           // Tramlink): nothing to show on the map yet (2026-11-06).
@@ -641,7 +687,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           const note = trackOnly
             ? "the line runs through it; its stops aren't mapped yet"
             : airport && yes
-              ? `${count} within ${distance(AIRPORT_REACH_KM)} · nearest ${distance(nearestKm ?? 0)}`
+              ? `within ${distance(AIRPORT_REACH_KM)} · nearest ${distance(nearestKm ?? 0)}`
               : yes
                 ? undefined
                 : nearest;
@@ -661,10 +707,11 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
                 { tier: "poor", text: `Further than ${distance(near.okKm)}` },
               ]
             : [
-                { tier: "good", text: "Yes - in the city or within 1 km of it" },
-                { tier: "poor", text: "No - the nearest one is further" },
+                { tier: "good", text: "At least one in the city or within 1 km of it" },
+                { tier: "poor", text: "None - the nearest one is further" },
               ];
-          const row: KpiRow = { ...categorical(label, yes ? "Yes" : "No", "pinned", tier, legend, { definition, source }), note };
+          const value = trackOnly ? "Line only" : count.toLocaleString("en-GB");
+          const row: KpiRow = { ...categorical(label, value, "pinned", tier, legend, { definition, source }), note };
           // A Yes shows every one on the map; a No, the journey to the
           // nearest (none to show when there's none within reach, or only
           // the line).

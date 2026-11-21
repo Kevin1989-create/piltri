@@ -188,6 +188,8 @@ export const CITY_FIELDS = [
   "regionGrowthToYear",
   "regionGrowthArea",
   "regionGrowthNationalPctYr",
+  // Businesses within 5 km (2026-11-21, Overture places).
+  "businessesWithin5km",
 ] as const;
 
 export interface CityRecord {
@@ -311,6 +313,8 @@ export interface CityRecord {
   regionGrowthToYear?: number | null;
   regionGrowthArea?: string | null;
   regionGrowthNationalPctYr?: number | null;
+  /** Businesses listed within 5 km of the centre (Overture) - absent before 2026-11-21. */
+  businessesWithin5km?: number | null;
 }
 
 /** What a city page's Yes and distance figures can show on its map, in

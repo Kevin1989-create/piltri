@@ -73,6 +73,15 @@ export interface EconomyFields {
   /** Consumer price inflation over the latest year, % (FP.CPI.TOTL.ZG) -
    *  absent from datasets before 2026-11-06. */
   inflationPct?: number | null;
+  /** Combined statutory corporate income tax rate, % (OECD) - absent before 2026-11-21. */
+  corporateTaxPct?: number | null;
+  corporateTaxYear?: number | null;
+  /** Top statutory personal income tax rate, % (OECD, members only) - absent before 2026-11-21. */
+  personalTopTaxPct?: number | null;
+  personalTopTaxYear?: number | null;
+  /** Businesses listed within 5 km of the centre, and per 1,000 residents of those 5 km (Overture) - absent before 2026-11-21. */
+  businessesWithin5km?: number | null;
+  businessesPer1k?: number | null;
   /** Agriculture/Industry/Services by share of GDP, largest first (0-3
    *  entries - only sectors World Bank has a value for). */
   gdpSectorRanking: GdpSectorShare[];

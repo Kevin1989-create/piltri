@@ -302,6 +302,8 @@ export function assembleCityExploreData(
       regionGrowthToYear: city.regionGrowthToYear,
       regionGrowthArea: city.regionGrowthArea,
       regionGrowthNationalPctYr: city.regionGrowthNationalPctYr,
+      businessesWithin5km: city.businessesWithin5km,
+      businessesPer1k: city.businessesWithin5km == null ? city.businessesWithin5km : perResidents(city.businessesWithin5km, city.densityPerKm2, 1000),
     },
     safetyStability: {
       ...country.safetyStability,

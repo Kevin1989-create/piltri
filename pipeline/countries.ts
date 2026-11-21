@@ -9,6 +9,7 @@ import type { CountryRecord } from "@/lib/dataset/schema";
 import type { GdpSector, GdpSectorShare, TrendDirection } from "@/lib/types";
 import type { CountryInfo } from "./shortlist";
 import { cached, fetchJson, log, round, sleep } from "./util";
+import { loadTaxRates } from "./taxRates";
 
 /** Every World Bank indicator the site uses, fetched ONCE for all
  *  countries at the same time (country/all bulk endpoint) instead of
@@ -131,6 +132,7 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
   });
   const uhc = await cached("uhc-index", fetchUhc);
   const officialLanguages = await loadOfficialLanguages();
+  const tax = await loadTaxRates();
 
   // GDP world rank among real economies only (the bulk endpoint also
   // returns aggregates like "World"/"Euro area", which have no ISO code).
@@ -171,6 +173,10 @@ export async function buildCountries(countryInfo: Record<string, CountryInfo>): 
         averageSalaryGbp: gni != null ? Math.round(gni * 0.79) : null,
         unemploymentRatePct: latest(get("unemployment")),
         inflationPct: round(latest(get("inflation")), 1),
+        corporateTaxPct: iso3 ? tax.corporate[iso3]?.pct ?? null : null,
+        corporateTaxYear: iso3 ? tax.corporate[iso3]?.year ?? null : null,
+        personalTopTaxPct: iso3 ? tax.personal[iso3]?.pct ?? null : null,
+        personalTopTaxYear: iso3 ? tax.personal[iso3]?.year ?? null : null,
         gdpSectorRanking: rankGdpSectors(latest(get("agriculture")), latest(get("industry")), latest(get("services"))),
         costOfLivingIndex: priceLevel != null ? normalise(priceLevel, RANGES.priceLevel.min, RANGES.priceLevel.max) : null,
         purchasingPowerIndex: ppp != null ? normalise(ppp, RANGES.ppp.min, RANGES.ppp.max) : null,

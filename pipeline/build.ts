@@ -253,7 +253,7 @@ async function main() {
   // Counting within 5 km runs inside DuckDB (millions of restaurants never
   // enter JavaScript); only points needed for nearest distances are loaded.
   log("build", "counting Overture places within 5 km of every city (DuckDB)...");
-  const counted = [POI.eating, POI.cultural, POI.family, POI.park, POI.school, POI.university, POI.nursery, POI.careHome];
+  const counted = [POI.eating, POI.cultural, POI.family, POI.park, POI.school, POI.university, POI.nursery, POI.careHome, POI.business];
   const counts = await countNearCities(`SELECT cat, lat, lng FROM read_parquet('${placesGlob}') WHERE cat IN (${counted.join(",")})`, points, LOCAL_RADIUS_KM);
   const ovCount = (i: number, cat: number) => counts.get(i)?.get(cat) ?? 0;
   const tramTrack = mergePoints(await loadOvertureCategory(railGlob, "tram"), await loadOvertureCategory(railGlob, "light_rail"));
@@ -504,6 +504,8 @@ async function main() {
         nearestLargeCityName: nearestLarge ? large[nearestLarge.id].cityName : null,
         nearestLargeCityKm: nearestLarge ? round(nearestLarge.km, 0) : null,
         restaurantsBarsWithin5km: ovCount(i, POI.eating),
+        // Businesses: places to eat, care homes and every other business branch (pipeline/overture.ts).
+        businessesWithin5km: ovCount(i, POI.eating) + ovCount(i, POI.careHome) + ovCount(i, POI.business),
         parksWithin5km: ovCount(i, POI.park),
         culturalVenuesWithin5km: ovCount(i, POI.cultural),
         familyActivitiesWithin5km: ovCount(i, POI.family),

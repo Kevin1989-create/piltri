@@ -42,7 +42,14 @@ export const POI = {
   nursery: 13, // nurseries, day care, preschools
   careHome: 14, // care, nursing, retirement and assisted-living homes
   hospital: 15, // hospitals and emergency departments (not clinics or surgeries)
+  business: 16, // every other shop, office, service, hotel or practice (BUSINESS_BRANCHES); counted only, no name kept
 } as const;
+
+/** Overture's top-level branches counted as businesses (2026-11-21, owner:
+ *  businesses per 1,000 people), with the places to eat (POI.eating) and
+ *  care homes and hospitals already coded above. Schools, government,
+ *  transport, culture, sport grounds and nature are not businesses. */
+const BUSINESS_BRANCHES = ["services_and_business", "food_and_drink", "shopping", "lifestyle_services", "lodging", "health_care"];
 
 const BASIC_CATEGORY_TO_CODE: Record<string, number> = {
   restaurant: POI.eating,
@@ -107,16 +114,17 @@ export async function extractOverturePlaces(): Promise<{ glob: string; release: 
   const release = await resolveOvertureRelease();
   const basicList = Object.keys(BASIC_CATEGORY_TO_CODE).map((c) => `'${c}'`).join(",");
   const taxList = Object.keys(TAXONOMY_TO_CODE).map((c) => `'${c}'`).join(",");
+  const branchList = BUSINESS_BRANCHES.map((c) => `'${c}'`).join(",");
   const glob = await extractParts(release, {
     // Versioned: a changed category list needs a fresh extract.
-    name: "places-v4",
+    name: "places-v5",
     source: "theme=places/type=place",
     select: `
-      CASE ${sqlCase("taxonomy.primary", TAXONOMY_TO_CODE)} ${sqlCase("basic_category", BASIC_CATEGORY_TO_CODE)} END::TINYINT AS cat,
+      CASE ${sqlCase("taxonomy.primary", TAXONOMY_TO_CODE)} ${sqlCase("basic_category", BASIC_CATEGORY_TO_CODE)} WHEN taxonomy.hierarchy[1] IN (${branchList}) THEN ${POI.business} END::TINYINT AS cat,
       round((bbox.xmin + bbox.xmax) / 2, 5) AS lng,
       round((bbox.ymin + bbox.ymax) / 2, 5) AS lat,
-      names."primary" AS name`,
-    where: `(basic_category IN (${basicList}) OR taxonomy.primary IN (${taxList}))
+      CASE WHEN basic_category IN (${basicList}) OR taxonomy.primary IN (${taxList}) THEN names."primary" END AS name`,
+    where: `(basic_category IN (${basicList}) OR taxonomy.primary IN (${taxList}) OR taxonomy.hierarchy[1] IN (${branchList}))
       AND coalesce(confidence, 1) >= 0.5
       AND coalesce(operating_status, 'open') <> 'permanently_closed'`,
   });
