@@ -3,7 +3,7 @@
 import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { BACK_LINK_CLASS, BackArrow } from "@/components/ui/BackLink";
+import { BackButton } from "@/components/ui/BackLink";
 import { NavBar } from "@/components/ui/NavBar";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
@@ -303,11 +303,8 @@ function CompareContent() {
       <div className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-6 pt-5 pb-10">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
           <div>
-            <Link href={originId ? cityUrl(originId) : HOME_URL} className={BACK_LINK_CLASS}>
-              <BackArrow />
-              {originId ? "Back to results" : "Back to home"}
-            </Link>
-            <h1 className="font-serif text-3xl text-ink-900 mt-1">Compare</h1>
+            <BackButton href={originId ? cityUrl(originId) : HOME_URL}>{originId ? "Back to results" : "Home"}</BackButton>
+            <h1 className="font-serif text-3xl text-ink-900 mt-3">Compare</h1>
           </div>
           {columns.length < MAX_COLUMNS && (
             <div className="w-full md:w-[320px]">

@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { BACK_LINK_CLASS, BackArrow } from "@/components/ui/BackLink";
+import { BackButton } from "@/components/ui/BackLink";
 import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
@@ -91,10 +91,7 @@ function CountryReportContent() {
   return (
     <main className="min-h-dvh bg-surface-muted print:bg-white">
       <div className="print:hidden sticky top-0 z-10 bg-surface border-b border-surface-border px-6 py-3 flex items-center justify-between">
-        <Link href={HOME_URL} className={BACK_LINK_CLASS}>
-          <BackArrow />
-          Back to home
-        </Link>
+        <BackButton href={HOME_URL}>Home</BackButton>
         <button
           onClick={() => window.print()}
           className="text-xs px-3 py-1.5 rounded-pill border border-piltri-amber text-piltri-amber-dark hover:bg-piltri-amber hover:text-white transition-colors"

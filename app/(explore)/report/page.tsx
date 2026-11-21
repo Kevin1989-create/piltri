@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { BACK_LINK_CLASS, BackArrow } from "@/components/ui/BackLink";
+import { BackButton } from "@/components/ui/BackLink";
 import { ClimateChart } from "@/components/explore/ClimateChart";
 import { KpiInfoButton } from "@/components/explore/KpiInfo";
 import { ResourcesDetail } from "@/components/explore/ResourcesDetail";
@@ -82,10 +82,7 @@ function ReportContent() {
       <div className="print:hidden sticky top-0 z-10 bg-surface border-b border-surface-border px-6 py-3 flex items-center justify-between">
         {/* Opened in a new tab (from a city, or an Advanced search result):
          *  the way back is to the city itself. */}
-        <Link href={data ? cityUrl(data.cityId) : HOME_URL} className={BACK_LINK_CLASS}>
-          <BackArrow />
-          {data ? `Back to ${data.cityName}` : "Back to home"}
-        </Link>
+        <BackButton href={data ? cityUrl(data.cityId) : HOME_URL}>{data ? `Back to ${data.cityName}` : "Home"}</BackButton>
         <button
           onClick={() => window.print()}
           className="text-xs px-3 py-1.5 rounded-pill border border-piltri-amber text-piltri-amber-dark hover:bg-piltri-amber hover:text-white transition-colors"
