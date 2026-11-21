@@ -227,7 +227,9 @@ async function main() {
   // to the province's reported figure, as a share of the country's) after
   // a pause from 2026-10-30.
   const regionGdp = await optional("regional GDP", () => sampleRegionalGdp(points, shortlist.map((c) => countryInfo[c.countryCode]?.iso3 ?? null)));
-  const crime = await optional("crime by town", () => sampleCrime(shortlist));
+  const crime = await optional("crime by town", () =>
+    sampleCrime(shortlist, (i) => outlines[i] ?? builtUpList[withoutOutline.indexOf(i)] ?? null)
+  );
   const regionGrowth = await optional("regional growth", () => sampleRegionalGrowth(shortlist, shortlist.map((c) => countryInfo[c.countryCode]?.iso3 ?? null)));
 
   const { glob: placesGlob, release } = await extractOverturePlaces();

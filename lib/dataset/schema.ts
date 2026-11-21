@@ -207,8 +207,9 @@ export const CRIME_TOO_FEW = -1;
  *  crimeSource). The French overseas departments are France's. */
 export const CRIME_SOURCES: Record<string, string> = {
   FR: "SSMSI, the French Interior Ministry's statistics service - crimes recorded by the police and gendarmerie, by commune (Licence Ouverte 2.0)",
+  GB: "data.police.uk - crimes recorded by the police forces of England and Wales, by neighbourhood, counted inside the town's outline (Open Government Licence v3.0); residents from the 2021 census (ONS)",
 };
-export const CRIME_COUNTRIES: Record<string, string> = { FR: "FR", GP: "FR", MQ: "FR", GF: "FR", RE: "FR", YT: "FR" };
+export const CRIME_COUNTRIES: Record<string, string> = { FR: "FR", GP: "FR", MQ: "FR", GF: "FR", RE: "FR", YT: "FR", GB: "GB" };
 
 export interface CityRecord {
   id: string;

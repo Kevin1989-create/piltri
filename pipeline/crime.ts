@@ -1,8 +1,9 @@
-import { readFileSync } from "fs";
+import { execSync } from "child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { DuckDBInstance } from "@duckdb/node-api";
-import { CRIME_COUNTRIES, CRIME_KINDS, CRIME_SOURCES, CRIME_TOO_FEW } from "@/lib/dataset/schema";
-import { cached, downloadOnce, fetchJson, log, pointsKey, WORK_DIR } from "./util";
+import { CRIME_COUNTRIES, CRIME_KINDS, CRIME_SOURCES, CRIME_TOO_FEW, decodeBoundary, type EncodedBoundary } from "@/lib/dataset/schema";
+import { cached, downloadOnce, fetchJson, fetchWithRetry, log, pointsKey, WORK_DIR } from "./util";
 
 /**
  * Recorded crime by town (2026-11-21, owner: "focus on safety: we need more
@@ -133,10 +134,196 @@ async function loadFrance(): Promise<{ byCommune: Record<string, (number | null)
   });
 }
 
+// ---- England and Wales ---------------------------------------------------
+
+/**
+ * data.police.uk (Open Government Licence v3.0): every crime recorded by the
+ * police forces of England and Wales, placed on a nearby street and tagged
+ * with its census neighbourhood (LSOA, ~1,600 residents), the last 36 months
+ * in one archive. A town's figure: the crimes of the neighbourhoods inside
+ * its outline, per their residents at the 2021 census (ONS via Nomis, OGL).
+ * Each neighbourhood sits where the middle of its recorded crimes is. A
+ * force's crimes are averaged over the months it supplied; a town reached by
+ * one with under two years of them has no figure (never estimated).
+ */
+const UK_KINDS: Record<(typeof CRIME_KINDS)[number], string[]> = {
+  violent: ["Violence and sexual offences", "Robbery"],
+  burglary: ["Burglary"],
+  theft: ["Theft from the person", "Bicycle theft", "Other theft"],
+  vehicle: ["Vehicle crime"],
+  vandalism: ["Criminal damage and arson"],
+};
+const NOMIS_LSOA_RESIDENTS =
+  "https://www.nomisweb.co.uk/api/v01/dataset/NM_2021_1.data.csv?date=latest&geography=TYPE151&c2021_restype_3=0&measures=20100&select=geography_code,obs_value";
+
+interface Neighbourhood {
+  lng: number;
+  lat: number;
+  residents: number;
+  /** Crimes a year, per CRIME_KINDS. */
+  perYear: number[];
+  complete: boolean;
+}
+
+const sqlText = (v: string) => `'${v.replace(/'/g, "''")}'`;
+
+async function loadEnglandWales(): Promise<{ hoods: Neighbourhood[]; national: (number | null)[]; years: string }> {
+  const page = await (await fetchWithRetry("https://data.police.uk/data/archive/")).text();
+  const latest = page.match(/\/data\/archive\/(\d{4}-\d{2})\.zip/)?.[1];
+  if (!latest) throw new Error("police.uk: no archive listed");
+  return cached(`crime-ew-v4-${latest}`, async () => {
+    const zip = await downloadOnce(`https://data.police.uk/data/archive/${latest}.zip`, `police-uk/${latest}.zip`);
+    const dir = path.join(WORK_DIR, "police-uk", latest);
+    if (!existsSync(path.join(dir, ".done"))) {
+      mkdirSync(dir, { recursive: true });
+      log("crime", `unzipping the street-level files of police.uk ${latest}...`);
+      execSync(`unzip -o -q "${zip}" "*/*-street.csv" -d "${dir}"`, { stdio: "inherit" });
+      writeFileSync(path.join(dir, ".done"), "");
+    }
+    const glob = path.join(dir, "*", "*-street.csv").replace(/\\/g, "/");
+    const db = await (await DuckDBInstance.create()).connect();
+    const src = `read_csv('${glob}', header = true, all_varchar = true, union_by_name = true)`;
+    // British Transport Police (crimes on the railways, across the country)
+    // are left out: they aren't the town's police, and their months are patchy.
+    const forceMonths = (
+      await db.runAndReadAll(
+        `SELECT "Falls within" AS force, count(DISTINCT "Month") AS months, min("Month") AS first, max("Month") AS last FROM ${src} WHERE "Falls within" <> 'British Transport Police' GROUP BY 1`
+      )
+    ).getRowObjectsJson() as { force: string; months: number; first: string; last: string }[];
+    // A force's crimes are averaged over the months it supplied; one with
+    // under two years of them is left out (its towns get no figure).
+    const monthsOf = new Map(forceMonths.map((f) => [f.force, Number(f.months)]));
+    const usable = (force: string) => (monthsOf.get(force) ?? 0) >= 24;
+    const first = forceMonths.map((f) => f.first).sort()[0];
+    const last = forceMonths.map((f) => f.last).sort().pop()!;
+    const months = Math.max(...monthsOf.values());
+    const partial = forceMonths.filter((f) => Number(f.months) < months).map((f) => `${f.force} ${f.months}`);
+    log("crime", `police.uk ${first} to ${last}: ${forceMonths.length} forces${partial.length ? `, some months missing: ${partial.join(", ")}` : ""}`);
+
+    const typeCase = `CASE ${CRIME_KINDS.map((kind, k) => `WHEN "Crime type" IN (${UK_KINDS[kind].map(sqlText).join(",")}) THEN ${k}`).join(" ")} ELSE -1 END`;
+    const rows = (
+      await db.runAndReadAll(
+        `SELECT "LSOA code" AS lsoa, any_value("LSOA name") AS lsoaName, "Falls within" AS force, ${typeCase} AS kind, count(*) AS n,
+                median(TRY_CAST("Longitude" AS DOUBLE)) AS lng, median(TRY_CAST("Latitude" AS DOUBLE)) AS lat
+         FROM ${src} WHERE "LSOA code" IS NOT NULL AND "LSOA code" <> '' AND "Falls within" <> 'British Transport Police' GROUP BY ALL`
+      )
+    ).getRowObjectsJson() as { lsoa: string; lsoaName: string | null; force: string; kind: number; n: number; lng: number | null; lat: number | null }[];
+
+    // The 2021 census, residents by neighbourhood (Nomis pages of 25,000).
+    const residents = new Map<string, number>();
+    for (let offset = 0; ; offset += 25000) {
+      const lines = readFileSync(await downloadOnce(`${NOMIS_LSOA_RESIDENTS}&RecordOffset=${offset}`, `census2021-lsoa-residents-${offset}.csv`), "utf8")
+        .split(/\r?\n/)
+        .slice(1)
+        .filter(Boolean);
+      for (const line of lines) {
+        const [code, n] = line.replace(/"/g, "").split(",");
+        if (code) residents.set(code, Number(n));
+      }
+      if (lines.length < 25000) break;
+    }
+
+    // Each neighbourhood where the middle of its crimes is (each kind's
+    // median position, weighted by its count), and its crimes a year by kind.
+    const byLsoa = new Map<string, { lngSum: number; latSum: number; w: number; perYear: number[]; allPerYear: number; complete: boolean; area: string }>();
+    for (const r of rows) {
+      const e = byLsoa.get(r.lsoa) ?? { lngSum: 0, latSum: 0, w: 0, perYear: CRIME_KINDS.map(() => 0), allPerYear: 0, complete: true, area: (r.lsoaName ?? "").replace(/\s+\w+$/, "") };
+      const n = Number(r.n);
+      if (r.lng != null && r.lat != null) {
+        e.lngSum += Number(r.lng) * n;
+        e.latSum += Number(r.lat) * n;
+        e.w += n;
+      }
+      if (!usable(r.force)) e.complete = false;
+      else {
+        const perYear = n / (monthsOf.get(r.force)! / 12);
+        e.allPerYear += perYear;
+        if (Number(r.kind) >= 0) e.perYear[Number(r.kind)] += perYear;
+      }
+      byLsoa.set(r.lsoa, e);
+    }
+    // A force that supplies nothing (Greater Manchester Police, since 2019)
+    // leaves its council areas with only the odd crime a neighbouring force
+    // recorded there: a council area (the neighbourhood names' "Manchester"
+    // in "Manchester 001A") with under a tenth of the usual level of crime
+    // of all kinds is taken as unreported, not safe.
+    const areas = new Map<string, { crimes: number; people: number }>();
+    let allCrimes = 0;
+    let allResidents = 0;
+    for (const [code, e] of byLsoa) {
+      const people = residents.get(code);
+      if (!people || !e.complete) continue;
+      const a = areas.get(e.area) ?? { crimes: 0, people: 0 };
+      a.crimes += e.allPerYear;
+      a.people += people;
+      areas.set(e.area, a);
+      allCrimes += e.allPerYear;
+      allResidents += people;
+    }
+    const floor = (allCrimes / allResidents) * 0.1;
+    const unreported = new Set([...areas].filter(([, a]) => a.crimes / a.people < floor).map(([name]) => name));
+    for (const e of byLsoa.values()) if (unreported.has(e.area)) e.complete = false;
+    log("crime", `council areas with almost nothing recorded, taken as unreported: ${[...unreported].join(", ") || "none"}`);
+    const hoods: Neighbourhood[] = [];
+    let natResidents = 0;
+    const natPerYear = CRIME_KINDS.map(() => 0);
+    let unmatched = 0;
+    for (const [code, e] of byLsoa) {
+      const people = residents.get(code);
+      if (!people || !e.w) {
+        unmatched++;
+        continue;
+      }
+      hoods.push({ lng: e.lngSum / e.w, lat: e.latSum / e.w, residents: people, perYear: e.perYear, complete: e.complete });
+      if (e.complete) {
+        natResidents += people;
+        e.perYear.forEach((n, k) => (natPerYear[k] += n));
+      }
+    }
+    const national = natPerYear.map((n) => (natResidents ? Math.round((n / natResidents) * 1000 * 100) / 100 : null));
+    log("crime", `England and Wales: ${hoods.length} neighbourhoods (${unmatched} without census residents, e.g. Northern Ireland's); national per 1,000: ${CRIME_KINDS.map((k, i) => `${k} ${national[i]}`).join(", ")}`);
+    return { hoods, national, years: `${first.slice(0, 7)} to ${last.slice(0, 7)}` };
+  });
+}
+
+/** Ray casting over a GeoJSON-style multipolygon ([lng, lat] rings, holes after the outer one). */
+function inside(lng: number, lat: number, polygons: number[][][][]): boolean {
+  let hit = false;
+  for (const rings of polygons)
+    for (const ring of rings)
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i];
+        const [xj, yj] = ring[j];
+        if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) hit = !hit;
+      }
+  return hit;
+}
+
+/** A town's rates from the neighbourhoods inside its outline - null when
+ *  there are none (Scotland, Northern Ireland), when a force missed months,
+ *  or under 1,000 residents. */
+function englandWalesRates(ew: Awaited<ReturnType<typeof loadEnglandWales>>, grid: Map<string, Neighbourhood[]>, encoded: EncodedBoundary): (number | null)[] | null {
+  const polygons = decodeBoundary(encoded);
+  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const rings of polygons) for (const [x, y] of rings[0]) [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)];
+  const within: Neighbourhood[] = [];
+  for (let gx = Math.floor(x0 * 10); gx <= Math.floor(x1 * 10); gx++)
+    for (let gy = Math.floor(y0 * 10); gy <= Math.floor(y1 * 10); gy++)
+      for (const h of grid.get(`${gx},${gy}`) ?? []) if (inside(h.lng, h.lat, polygons)) within.push(h);
+  if (!within.length || within.some((h) => !h.complete)) return null;
+  const people = within.reduce((sum, h) => sum + h.residents, 0);
+  if (people < 1000) return null;
+  return CRIME_KINDS.map((_, k) => Math.round((within.reduce((sum, h) => sum + h.perYear[k], 0) / people) * 1000 * 100) / 100);
+}
+
 // ---- All countries --------------------------------------------------------
 
-export async function sampleCrime(places: { geonameId: number; countryCode: string; lat: number; lng: number }[]): Promise<(PlaceCrime | null)[]> {
-  return cached(`crime-v2-${pointsKey(places)}`, async () => {
+export async function sampleCrime(
+  places: { geonameId: number; countryCode: string; lat: number; lng: number }[],
+  /** The place's outline (its border, or its built-up area), if any. */
+  outlineOf: (i: number) => EncodedBoundary | null
+): Promise<(PlaceCrime | null)[]> {
+  return cached(`crime-v6-${pointsKey(places)}`, async () => {
     // Each place's official local code (GeoNames admin4: the INSEE commune code in France).
     const admin4 = new Map<number, string>();
     for (const line of readFileSync(path.join(WORK_DIR, "geonames", "cities1000.txt"), "utf8").split("\n")) {
@@ -144,8 +331,23 @@ export async function sampleCrime(places: { geonameId: number; countryCode: stri
       if (FR_COUNTRIES.has(c[8]) && c[13]) admin4.set(Number(c[0]), c[13]);
     }
     const fr = places.some((p) => FR_COUNTRIES.has(p.countryCode)) ? await loadFrance() : null;
+    const ew = places.some((p) => p.countryCode === "GB") ? await loadEnglandWales() : null;
+    // Neighbourhoods on a 0.1-degree grid, for finding those inside an outline.
+    const grid = new Map<string, Neighbourhood[]>();
+    for (const h of ew?.hoods ?? []) {
+      const key = `${Math.floor(h.lng * 10)},${Math.floor(h.lat * 10)}`;
+      if (!grid.has(key)) grid.set(key, []);
+      grid.get(key)!.push(h);
+    }
     let found = 0;
-    const out = places.map((p) => {
+    const out = places.map((p, i) => {
+      if (ew && p.countryCode === "GB") {
+        const encoded = outlineOf(i);
+        const rates = encoded ? englandWalesRates(ew, grid, encoded) : null;
+        if (!rates) return null;
+        found++;
+        return { rates, national: ew.national, years: ew.years, source: "GB" };
+      }
       if (fr && FR_COUNTRIES.has(p.countryCode)) {
         const rates = fr.byCommune[admin4.get(p.geonameId) ?? ""];
         if (!rates) return null;

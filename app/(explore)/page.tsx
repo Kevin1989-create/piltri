@@ -119,8 +119,8 @@ export default function ExploreLandingPage() {
         </div>
       </div>
 
-      <footer className={cn("flex-shrink-0 w-full mx-auto pb-4 sm:pb-5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-ink-500", PAGE_WIDTH, PAGE_GUTTER)}>
-        <span className="hidden sm:inline">Open data from the World Bank, OECD, WHO, Overture Maps, OpenStreetMap and more.</span>
+      <footer className={cn("flex-shrink-0 w-full mx-auto pb-4 sm:pb-5 flex flex-wrap items-center justify-end gap-2 text-[11px] text-ink-500", PAGE_WIDTH, PAGE_GUTTER)}>
+        {/* The sources are on Data & Sources (2026-11-21, owner). */}
         <span className="flex gap-4">
           <Link href={sourcesUrl()} className="hover:text-ink-900">
             Data &amp; Sources

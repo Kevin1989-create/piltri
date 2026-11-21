@@ -201,19 +201,36 @@ const CRIME_ROWS: Record<CrimeKind, { label: string; definition: string }> = {
   vehicle: { label: "Vehicle crime", definition: "Vehicles stolen or broken into, recorded by the police, per 1,000 residents a year." },
   vandalism: { label: "Vandalism", definition: "Deliberate damage to property recorded by the police, per 1,000 residents a year." },
 };
+/** Where a country's police count differently from the definitions above,
+ *  and what "national" covers. */
+const CRIME_BY_SOURCE: Record<string, { area: string; definitions?: Partial<Record<CrimeKind, string>> }> = {
+  FR: { area: "France" },
+  GB: {
+    area: "England and Wales",
+    definitions: {
+      violent: "Violence against the person (assaults, harassment, domestic violence included), sexual offences and robbery recorded by the police, per 1,000 residents a year.",
+      burglary: "Break-ins into homes and businesses recorded by the police, per 1,000 residents a year.",
+      theft: "Thefts from people, bicycle thefts and other thefts (not shoplifting) recorded by the police, per 1,000 residents a year.",
+      vehicle: "Thefts of and from vehicles, and tampering with them, recorded by the police, per 1,000 residents a year.",
+      vandalism: "Criminal damage and arson recorded by the police, per 1,000 residents a year.",
+    },
+  },
+};
 
 function crimeRows(countryCode: string, s: CityExploreData["safetyStability"]): KpiRow[] {
   const sourceKey = s.crimeSource ?? CRIME_COUNTRIES[countryCode];
   if (!sourceKey || !hasSource("crime")) return [];
   return CRIME_KINDS.map((kind, k) => {
-    const { label, definition } = CRIME_ROWS[kind];
+    const { label } = CRIME_ROWS[kind];
+    const bySource = CRIME_BY_SOURCE[sourceKey];
+    const definition = bySource?.definitions?.[kind] ?? CRIME_ROWS[kind].definition;
     const rate = s.crimeRates?.[k] ?? null;
     const nat = s.crimeNationalRates?.[k] ?? null;
     const about = {
       definition:
         definition +
         (s.crimeYears ? ` Average of ${s.crimeYears}.` : "") +
-        (nat != null ? ` The whole country: ${num(nat, 1)}.` : "") +
+        (nat != null ? ` ${bySource?.area ?? "The whole country"}: ${num(nat, 1)}.` : "") +
         " Only crimes reported to and recorded by the police are counted, and a town centre with many visitors counts their thefts too.",
       source: CRIME_SOURCES[sourceKey] ?? sourceKey,
     };
