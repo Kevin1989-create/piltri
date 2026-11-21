@@ -205,6 +205,16 @@ const CRIME_ROWS: Record<CrimeKind, { label: string; definition: string }> = {
  *  and what "national" covers. */
 const CRIME_BY_SOURCE: Record<string, { area: string; definitions?: Partial<Record<CrimeKind, string>> }> = {
   FR: { area: "France" },
+  US: {
+    area: "Reporting US cities",
+    definitions: {
+      violent: "Murders, rapes, robberies and aggravated assaults known to the city's police, per 1,000 residents a year.",
+      burglary: "Break-ins into homes and businesses known to the city's police, per 1,000 residents a year.",
+      theft: "Thefts without force or break-in (shoplifting, pickpocketing, thefts from cars and bicycles...) known to the city's police, per 1,000 residents a year.",
+      vehicle: "Cars and other motor vehicles stolen, known to the city's police, per 1,000 residents a year.",
+      vandalism: "Deliberate damage to property - not in the FBI's city figures.",
+    },
+  },
   GB: {
     area: "England and Wales",
     definitions: {

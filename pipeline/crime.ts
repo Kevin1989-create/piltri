@@ -1,9 +1,9 @@
 import { execSync } from "child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { DuckDBInstance } from "@duckdb/node-api";
 import { CRIME_COUNTRIES, CRIME_KINDS, CRIME_SOURCES, CRIME_TOO_FEW, decodeBoundary, type EncodedBoundary } from "@/lib/dataset/schema";
-import { cached, downloadOnce, fetchJson, fetchWithRetry, log, pointsKey, WORK_DIR } from "./util";
+import { cached, downloadOnce, fetchJson, fetchWithRetry, log, pointsKey, RAW_DIR, WORK_DIR } from "./util";
 
 /**
  * Recorded crime by town (2026-11-21, owner: "focus on safety: we need more
@@ -286,6 +286,118 @@ async function loadEnglandWales(): Promise<{ hoods: Neighbourhood[]; national: (
   });
 }
 
+// ---- United States ---------------------------------------------------------
+
+/**
+ * The FBI's Crime in the United States, Table 8 - offences known to the
+ * police of each city that reports, with the population it serves (US
+ * government work, public domain). The last three years; a city needs two
+ * of them. No vandalism in the table: that row has no figure.
+ */
+const US_YEARS = 3;
+/** Table 8's columns, after state, city and population. */
+const US_COLUMNS = ["violent", "murder", "rape", "robbery", "assault", "property", "burglary", "larceny", "vehicleTheft", "arson"] as const;
+const US_KINDS: Record<(typeof CRIME_KINDS)[number], (typeof US_COLUMNS)[number] | null> = {
+  violent: "violent",
+  burglary: "burglary",
+  theft: "larceny",
+  vehicle: "vehicleTheft",
+  vandalism: null,
+};
+
+/** The FBI's file for a year, through the Crime Data Explorer's download
+ *  link (no key needed). */
+async function fbiTable8(year: number): Promise<string | null> {
+  const key = `cius/${year}/offenses-known-to-le-${year}.zip`;
+  const zipName = `fbi/offenses-known-to-le-${year}.zip`;
+  let zip: string;
+  try {
+    const signed = await fetchJson<Record<string, string>>(`https://cde.ucr.cjis.gov/LATEST/s3/signedurl?key=${encodeURIComponent(key)}`);
+    if (!signed[key]) return null;
+    zip = await downloadOnce(signed[key], zipName);
+  } catch {
+    return null;
+  }
+  const dir = path.join(WORK_DIR, "fbi", String(year));
+  if (!existsSync(path.join(dir, ".done"))) {
+    mkdirSync(dir, { recursive: true });
+    execSync(`unzip -o -q "${zip}" "*Table_8*" -d "${dir}"`, { stdio: "inherit" });
+    writeFileSync(path.join(dir, ".done"), "");
+  }
+  const file = readdirSync(dir).find((f) => /Table_8.*\.xlsx$/i.test(f));
+  return file ? path.join(dir, file) : null;
+}
+
+/** "Chicago3" -> "chicago": footnote digits, accents and case away. */
+const usPlain = (name: string) =>
+  name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[\d,]+$/g, "")
+    .replace(/\bst\.? /g, "saint ")
+    .replace(/\bft\.? /g, "fort ")
+    .replace(/\bmt\.? /g, "mount ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+async function loadUnitedStates(): Promise<{ byCity: Record<string, (number | null)[]>; national: (number | null)[]; years: string }> {
+  // The latest year published: from next year back.
+  const now = new Date().getUTCFullYear();
+  const files: [number, string][] = [];
+  for (let year = now; year >= now - 6 && files.length < US_YEARS; year--) {
+    const file = await fbiTable8(year);
+    if (file) files.push([year, file]);
+  }
+  if (!files.length) throw new Error("FBI: no Table 8 found");
+  const tag = files.map(([y]) => y).join("-");
+  return cached(`crime-us-v2-${tag}`, async () => {
+    const db = await (await DuckDBInstance.create()).connect();
+    await db.run("INSTALL excel; LOAD excel;");
+    // "<state>|<city>" -> per year: [population, ...counts]
+    const byCityYears = new Map<string, number[][]>();
+    for (const [, file] of files) {
+      const rows = (await db.runAndReadAll(`SELECT * FROM read_xlsx('${file.replace(/\\/g, "/")}', header = true, all_varchar = true, range = 'A4:M20000')`)).getRows();
+      let state = "";
+      for (const row of rows) {
+        const cells = row.map((v) => (v == null ? null : String(v)));
+        if (cells[0]) state = usPlain(cells[0]);
+        const city = cells[1] ? usPlain(cells[1]) : "";
+        const people = Number(cells[2]?.replace(/,/g, ""));
+        if (!state || !city || !people) continue;
+        const counts = US_COLUMNS.map((_, k) => Number(cells[3 + k]?.replace(/,/g, "") ?? NaN));
+        const key = `${state}|${city}`;
+        if (!byCityYears.has(key)) byCityYears.set(key, []);
+        byCityYears.get(key)!.push([people, ...counts]);
+      }
+    }
+    const byCity: Record<string, (number | null)[]> = {};
+    const natCount = CRIME_KINDS.map(() => 0);
+    const natPeople = CRIME_KINDS.map(() => 0);
+    for (const [key, years] of byCityYears) {
+      // At least two of the three years.
+      if (years.length < Math.min(2, files.length)) continue;
+      const rates = CRIME_KINDS.map((kind, k) => {
+        const col = US_KINDS[kind];
+        if (!col) return null;
+        const at = 1 + US_COLUMNS.indexOf(col);
+        const valid = years.filter((y) => Number.isFinite(y[at]));
+        if (valid.length < Math.min(2, files.length)) return null;
+        const crimes = valid.reduce((s, y) => s + y[at], 0);
+        const people = valid.reduce((s, y) => s + y[0], 0);
+        natCount[k] += crimes;
+        natPeople[k] += people;
+        return Math.round((crimes / people) * 1000 * 100) / 100;
+      });
+      byCity[key] = rates;
+    }
+    const national = CRIME_KINDS.map((kind, k) => (US_KINDS[kind] && natPeople[k] ? Math.round((natCount[k] / natPeople[k]) * 1000 * 100) / 100 : null));
+    const years = files.map(([y]) => y).sort();
+    log("crime", `FBI ${years.join(", ")}: ${Object.keys(byCity).length} cities; all reporting cities per 1,000: ${CRIME_KINDS.map((k, i) => `${k} ${national[i]}`).join(", ")}`);
+    return { byCity, national, years: `${years[0]}-${years[years.length - 1]}` };
+  });
+}
+
 /** Ray casting over a GeoJSON-style multipolygon ([lng, lat] rings, holes after the outer one). */
 function inside(lng: number, lat: number, polygons: number[][][][]): boolean {
   let hit = false;
@@ -319,19 +431,66 @@ function englandWalesRates(ew: Awaited<ReturnType<typeof loadEnglandWales>>, gri
 // ---- All countries --------------------------------------------------------
 
 export async function sampleCrime(
-  places: { geonameId: number; countryCode: string; lat: number; lng: number }[],
+  places: { geonameId: number; countryCode: string; lat: number; lng: number; population: number }[],
   /** The place's outline (its border, or its built-up area), if any. */
   outlineOf: (i: number) => EncodedBoundary | null
 ): Promise<(PlaceCrime | null)[]> {
-  return cached(`crime-v6-${pointsKey(places)}`, async () => {
+  return cached(`crime-v8-${pointsKey(places)}`, async () => {
     // Each place's official local code (GeoNames admin4: the INSEE commune code in France).
     const admin4 = new Map<number, string>();
+    const usNames = new Map<number, { state: string; names: string[] }>();
+    const stateNames = new Map<string, string>();
+    for (const line of readFileSync(path.join(RAW_DIR, "admin1CodesASCII.txt"), "utf8").split("\n")) {
+      const [code, name] = line.split("\t");
+      if (code?.startsWith("US.")) stateNames.set(code.slice(3), usPlain(name));
+    }
     for (const line of readFileSync(path.join(WORK_DIR, "geonames", "cities1000.txt"), "utf8").split("\n")) {
       const c = line.split("\t");
       if (FR_COUNTRIES.has(c[8]) && c[13]) admin4.set(Number(c[0]), c[13]);
+      if (c[8] === "US" && stateNames.has(c[10])) usNames.set(Number(c[0]), { state: stateNames.get(c[10])!, names: [...new Set([c[1], c[2]].map(usPlain))] });
     }
     const fr = places.some((p) => FR_COUNTRIES.has(p.countryCode)) ? await loadFrance() : null;
     const ew = places.some((p) => p.countryCode === "GB") ? await loadEnglandWales() : null;
+    const us = places.some((p) => p.countryCode === "US") ? await loadUnitedStates() : null;
+    // A US place's FBI city: same state, same name - or the FBI's name less
+    // "township", "village", "borough", "town", "city" ("New York City" is
+    // the FBI's "New York"). One FBI city for the largest place of that name.
+    const usKeyOf = new Map<number, string>();
+    if (us) {
+      const fbiShort = new Map<string, string | null>();
+      for (const key of Object.keys(us.byCity)) {
+        // "Metropolitan Nashville Police Department", "Louisville Metro",
+        // "Charlotte-Mecklenburg", "Cherry Hill Township" -> the town.
+        const [state, city] = key.split("|");
+        const short = city
+          .replace(/^metropolitan (.+) police department$/, "$1")
+          .replace(/ (metropolitan )?police department$/, "")
+          .replace(/ metro$/, "")
+          .replace(/-.*$/, "")
+          .replace(/ (township|village|borough|town|city)$/, "");
+        const shortKey = `${state}|${short}`;
+        if (short !== city) fbiShort.set(shortKey, fbiShort.has(shortKey) ? null : key);
+      }
+      const owner = new Map<string, { i: number; pop: number }>();
+      places.forEach((p, i) => {
+        if (p.countryCode !== "US") return;
+        const names = usNames.get(p.geonameId);
+        if (!names) return;
+        let key: string | null = null;
+        for (const name of names.names) {
+          for (const candidate of [name, name.replace(/ city$/, ""), name.replace(/-.*$/, "")]) {
+            const k = `${names.state}|${candidate}`;
+            if (us.byCity[k]) key ??= k;
+            else if (fbiShort.get(k)) key ??= fbiShort.get(k)!;
+          }
+        }
+        if (!key) return;
+        const pop = p.population;
+        const prev = owner.get(key);
+        if (!prev || pop > prev.pop) owner.set(key, { i, pop });
+      });
+      for (const [key, { i }] of owner) usKeyOf.set(i, key);
+    }
     // Neighbourhoods on a 0.1-degree grid, for finding those inside an outline.
     const grid = new Map<string, Neighbourhood[]>();
     for (const h of ew?.hoods ?? []) {
@@ -341,6 +500,12 @@ export async function sampleCrime(
     }
     let found = 0;
     const out = places.map((p, i) => {
+      if (us && p.countryCode === "US") {
+        const key = usKeyOf.get(i);
+        if (!key) return null;
+        found++;
+        return { rates: us.byCity[key], national: us.national, years: us.years, source: "US" };
+      }
       if (ew && p.countryCode === "GB") {
         const encoded = outlineOf(i);
         const rates = encoded ? englandWalesRates(ew, grid, encoded) : null;

@@ -89,8 +89,9 @@ async function commonsQuery(params, label) {
   const pages = new Map();
   let cont = {};
   for (;;) {
-    const url = `${COMMONS}?${new URLSearchParams({ action: "query", format: "json", formatversion: "2", maxlag: "5", ...params, ...cont })}`;
-    const json = await fetchJson(url, {}, label);
+    // POST: fifty long file names don't fit in an address (HTTP 414).
+    const body = new URLSearchParams({ action: "query", format: "json", formatversion: "2", maxlag: "5", ...params, ...cont });
+    const json = await fetchJson(COMMONS, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body }, label);
     for (const p of json.query?.pages ?? []) {
       const prev = pages.get(p.title);
       if (!prev) pages.set(p.title, p);
