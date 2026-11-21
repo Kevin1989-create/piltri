@@ -4,8 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { NavBar } from "@/components/ui/NavBar";
-import { BackLink } from "@/components/ui/BackLink";
+import { PAGE_GUTTER, PAGE_WIDTH, PageShell } from "@/components/ui/PageShell";
 import { Chip } from "@/components/ui/Chip";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
 import { CloseIcon, FilterIcon, PlusIcon, SECTION_ICONS } from "@/components/ui/icons";
@@ -443,13 +442,12 @@ function SearchContent() {
   const clearAll = () => setState((s) => ({ ...EMPTY_STATE, sort: s.sort, view: s.view }));
 
   return (
-    <main className={cn("min-h-dvh flex flex-col bg-surface-muted", picked.length > 0 && "pb-20")}>
-      <NavBar />
-      <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 pt-5 pb-10">
-        <BackLink />
-        <h1 className="font-serif text-3xl text-ink-900 mt-1">Advanced search</h1>
-
-        <div className="mt-5 md:flex md:gap-6 md:items-start">
+    <PageShell
+      title="Advanced search"
+      subtitle="Filter every place by region, size, climate and what's within reach."
+      mainClassName={cn(picked.length > 0 && "pb-20")}
+    >
+        <div className="md:flex md:gap-6 md:items-start">
           {/* Filters: a side panel on desktop, a full-screen sheet on phones. */}
           <aside className="hidden md:block w-[320px] flex-shrink-0 sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto no-scrollbar rounded-card border border-surface-border bg-surface px-4">
             <div className="flex items-center justify-between pt-4">
@@ -618,12 +616,11 @@ function SearchContent() {
             </div>
           </section>
         </div>
-      </div>
 
       {/* Compare tray: places picked with "+". */}
       {picked.length > 0 && table && (
         <div className="fixed bottom-0 inset-x-0 z-40 border-t border-surface-border bg-surface/95 backdrop-blur">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
+          <div className={cn(PAGE_WIDTH, PAGE_GUTTER, "mx-auto py-3 flex items-center gap-3")}>
             <p className="text-xs text-ink-700 min-w-0 truncate flex-1">
               <span className="font-medium text-ink-900">{picked.length} picked</span>
               <span className="hidden sm:inline text-ink-500"> · up to {MAX_COMPARE}</span>
@@ -644,7 +641,7 @@ function SearchContent() {
           </div>
         </div>
       )}
-    </main>
+    </PageShell>
   );
 }
 

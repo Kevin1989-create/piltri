@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { NavBar } from "@/components/ui/NavBar";
-import { BackLink } from "@/components/ui/BackLink";
+import { PageShell } from "@/components/ui/PageShell";
 import { CloseIcon, HeartIcon } from "@/components/ui/icons";
 import { AccountCard } from "@/components/saved/AccountCard";
 import type { GlobePoint } from "@/components/saved/SavedGlobe";
@@ -148,14 +147,8 @@ export default function SavedPage() {
   const nothing = ready && items.length === 0;
 
   return (
-    <main className="min-h-dvh flex flex-col bg-surface-muted">
-      <NavBar />
-      <div className="px-4 sm:px-6 pt-6 sm:pt-8 pb-16">
-        <div className="max-w-5xl mx-auto">
-          <BackLink />
-          <h1 className="font-serif text-3xl sm:text-4xl text-ink-900 mt-2">Saved</h1>
-          <p className="text-sm text-ink-500 mt-1">The cities and spots you keep an eye on.</p>
-
+    <PageShell title="Saved" subtitle="The cities and spots you keep an eye on.">
+        <div className="[&>*:first-child]:mt-0">
           <AccountCard />
 
           {nothing && (
@@ -283,7 +276,6 @@ export default function SavedPage() {
             </>
           )}
         </div>
-      </div>
-    </main>
+    </PageShell>
   );
 }

@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode, type SVGProps } from "react";
 import Link from "next/link";
-import { NavBar } from "@/components/ui/NavBar";
-import { BackLink } from "@/components/ui/BackLink";
+import { PageShell } from "@/components/ui/PageShell";
 import { Chip } from "@/components/ui/Chip";
 import { IconClimate, IconEconomy, IconLiveability, IconSafety, TrophyIcon } from "@/components/ui/icons";
 import { SIZE_BANDS } from "@/lib/advancedSearch/thresholds";
@@ -241,16 +240,10 @@ export default function LeaderboardsPage() {
   }, [precomputed, files, filters, ctx, orders]);
 
   return (
-    <main className="min-h-dvh flex flex-col bg-surface-muted">
-      <NavBar />
-      <div className="px-4 sm:px-6 pt-6 sm:pt-8 pb-16">
-        <div className="max-w-6xl mx-auto">
-          <BackLink />
-          <h1 className="font-serif text-3xl sm:text-4xl text-ink-900 mt-2">Leaderboards</h1>
-          <p className="text-sm text-ink-500 mt-1">The world&apos;s best places, {COUNT_WORDS[(boards ?? BOARDS).length] ?? (boards ?? BOARDS).length} ways.</p>
-
+    <PageShell title="Leaderboards" subtitle={<>The world&apos;s best places, {COUNT_WORDS[(boards ?? BOARDS).length] ?? (boards ?? BOARDS).length} ways.</>}>
+        <div>
           {/* Filters: region, size, places per country. */}
-          <div className="mt-6 space-y-2.5">
+          <div className="space-y-2.5">
             <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
               <Chip active={filters.region === "world"} onClick={() => setFilters((f) => ({ ...f, region: "world" }))}>
                 World
@@ -323,7 +316,6 @@ export default function LeaderboardsPage() {
             score settings.
           </p>
         </div>
-      </div>
-    </main>
+    </PageShell>
   );
 }

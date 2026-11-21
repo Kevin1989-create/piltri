@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { NavBar } from "@/components/ui/NavBar";
-import { BackLink, BackArrow } from "@/components/ui/BackLink";
+import { PageShell } from "@/components/ui/PageShell";
+import { BackArrow } from "@/components/ui/BackLink";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
 import { getPlaceTable, type PlaceTable } from "@/lib/advancedSearch/engine";
 import { columnsFor, factsFor, finderQuery, runFinder, type FinderResult, type FinderState } from "@/lib/advancedSearch/finder";
@@ -109,34 +109,42 @@ export default function QuizPage() {
   const count = current.result?.indices.length ?? table?.count ?? null;
 
   return (
-    <main className="min-h-dvh flex flex-col bg-surface-muted">
-      <NavBar />
-      <div className="flex-1 px-4 sm:px-6 pt-6 sm:pt-8 pb-16">
-        <div className="max-w-xl mx-auto">
-          <BackLink />
-          <h1 className="font-serif text-3xl sm:text-4xl text-ink-900 mt-2">Find your Piltri</h1>
-          <p className="text-sm text-ink-500 mt-1">Eight silly questions. One very serious answer. Different every time.</p>
-
-          <div className="mt-6">
-            <div className="h-1.5 rounded-pill bg-ink-100 overflow-hidden">
-              <div className="h-full bg-piltri-amber transition-[width] duration-300" style={{ width: `${(Math.min(index, total) / total) * 100}%` }} />
+    // Everything on one screen, laptop or phone (2026-11-21, owner: "I do
+    // not want to have to scroll for quizz"): the questions in a reading
+    // column, "Change my last answer" on the progress line rather than under
+    // the card; the results across the page's full width, side by side.
+    <PageShell title="Find your Piltri" subtitle="Eight silly questions. One very serious answer. Different every time." compact>
+        <div className={cn(!done && "max-w-2xl")}>
+          {!done && (
+            <div>
+              <div className="h-1.5 rounded-pill bg-ink-100 overflow-hidden">
+                <div className="h-full bg-piltri-amber transition-[width] duration-300" style={{ width: `${(Math.min(index, total) / total) * 100}%` }} />
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-ink-500">
+                <span className="flex items-center gap-3">
+                  {`Question ${index + 1} of ${total}`}
+                  {index > 0 && (
+                    <button type="button" onClick={back} disabled={busy} className="inline-flex items-center gap-1 text-ink-500 underline-offset-2 hover:text-ink-900 hover:underline">
+                      <BackArrow />
+                      Change last answer
+                    </button>
+                  )}
+                </span>
+                <span className="tabular-nums text-right" aria-live="polite">
+                  {busy ? "Thinking…" : count != null ? `${count.toLocaleString("en-GB")} ${count === 1 ? "place" : "places"} left` : ""}
+                </span>
+              </div>
             </div>
-            <div className="mt-2 flex items-center justify-between text-xs text-ink-500">
-              <span>{done ? "Done!" : `Question ${index + 1} of ${total}`}</span>
-              <span className="tabular-nums" aria-live="polite">
-                {busy ? "Thinking…" : count != null ? `${count.toLocaleString("en-GB")} ${count === 1 ? "place" : "places"} still in the game` : ""}
-              </span>
-            </div>
-          </div>
+          )}
 
-          {current.note && <p className="mt-4 rounded-lg bg-piltri-amber-tint px-3 py-2 text-xs text-piltri-amber-dark">{current.note}</p>}
+          {current.note && <p className={cn("rounded-lg bg-piltri-amber-tint px-3 py-2 text-xs text-piltri-amber-dark", done ? "mb-4" : "mt-3")}>{current.note}</p>}
 
           {failed ? (
             <p className="mt-10 text-sm text-score-weak">Couldn&apos;t load the places - please try again.</p>
           ) : !done && question ? (
-            <section key={question.key} className="mt-6 rounded-card border border-surface-border bg-surface p-5 sm:p-6 shadow-card animate-fade-up">
-              <h2 className="font-serif text-2xl sm:text-[26px] text-ink-900 leading-snug">{question.title}</h2>
-              <div className="mt-4 grid gap-2">
+            <section key={question.key} className="mt-4 rounded-card border border-surface-border bg-surface p-4 sm:p-6 shadow-card animate-fade-up">
+              <h2 className="font-serif text-[22px] sm:text-[26px] text-ink-900 leading-snug">{question.title}</h2>
+              <div className="mt-3 sm:mt-4 grid gap-2">
                 {question.answers.map((o) => (
                   <button
                     key={o.key}
@@ -144,7 +152,7 @@ export default function QuizPage() {
                     disabled={!table || busy}
                     onClick={() => choose(o)}
                     className={cn(
-                      "min-h-[52px] rounded-xl border px-4 py-2.5 text-left flex items-center gap-3 transition-all disabled:cursor-default",
+                      "min-h-[48px] sm:min-h-[52px] rounded-xl border px-4 py-2 sm:py-2.5 text-left flex items-center gap-3 transition-all disabled:cursor-default",
                       tapped === o.key
                         ? "border-piltri-amber bg-piltri-amber-tint scale-[1.01]"
                         : "border-surface-border hover:border-piltri-amber-light hover:bg-surface-muted",
@@ -158,12 +166,6 @@ export default function QuizPage() {
                   </button>
                 ))}
               </div>
-              {index > 0 && (
-                <button type="button" onClick={back} disabled={busy} className="mt-5 inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900">
-                  <BackArrow />
-                  Change my last answer
-                </button>
-              )}
             </section>
           ) : done && table ? (
             <Results
@@ -179,11 +181,10 @@ export default function QuizPage() {
               onPlayAgain={playAgain}
             />
           ) : (
-            <div className="mt-6 h-72 rounded-card border border-surface-border bg-surface animate-pulse" />
+            <div className="mt-4 h-72 rounded-card border border-surface-border bg-surface animate-pulse" />
           )}
         </div>
-      </div>
-    </main>
+    </PageShell>
   );
 }
 
@@ -235,22 +236,24 @@ function Results({
   const query = finderQuery(state, null);
 
   return (
-    <section className="mt-6 animate-fade-up">
+    <section className="animate-fade-up">
       <p className="text-xs uppercase tracking-wide text-piltri-amber-dark">{intro}</p>
-      <h2 className="font-serif text-3xl text-ink-900 mt-1 leading-tight">You&apos;re {title}.</h2>
+      <h2 className="font-serif text-2xl sm:text-3xl text-ink-900 mt-1 leading-tight">You&apos;re {title}.</h2>
       <p className="text-sm text-ink-500 mt-1">
         {total === 1
           ? "Exactly one place in the world fits you. Here it is:"
           : `${total.toLocaleString("en-GB")} places fit you. ${page > 0 ? "A few more:" : total === 2 ? "Here are both:" : "Here are your top three:"}`}
       </p>
-      <ol className="mt-4 grid gap-3">
+      {/* Side by side from md: up, so the three and the buttons fit on a
+       *  laptop screen; a tight list on phones. */}
+      <ol className="mt-3 sm:mt-4 grid gap-2 sm:gap-3 md:grid-cols-3">
         {shown.map((i, k) => {
-          const facts = factsFor(col, i, state, prefs);
+          const facts = factsFor(col, i, state, prefs).slice(0, 3);
           return (
             <li key={i} className="animate-fade-up" style={{ animationDelay: `${k * 90}ms` }}>
               <Link
                 href={cityUrl(table.id(i))}
-                className="flex items-start gap-4 rounded-card border border-surface-border bg-surface p-4 shadow-card hover:border-piltri-amber-light transition-colors"
+                className="h-full flex items-start gap-3 rounded-card border border-surface-border bg-surface p-3 sm:p-4 shadow-card hover:border-piltri-amber-light transition-colors"
               >
                 <span
                   className={cn(
@@ -261,13 +264,13 @@ function Results({
                   {page * 3 + k + 1}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-serif text-xl text-ink-900 leading-tight">{table.name[i]}</span>
-                  <span className="block text-xs text-ink-500 mt-0.5">{[table.region[i], countryName(table.cc[i])].filter(Boolean).join(", ")}</span>
-                  <span className="block text-xs italic text-piltri-amber-dark mt-1">{lines[(page * 3 + k) % lines.length]}</span>
+                  <span className="block font-serif text-lg sm:text-xl text-ink-900 leading-tight truncate">{table.name[i]}</span>
+                  <span className="block text-xs text-ink-500 mt-0.5 truncate">{[table.region[i], countryName(table.cc[i])].filter(Boolean).join(", ")}</span>
+                  <span className="hidden sm:block text-xs italic text-piltri-amber-dark mt-1">{lines[(page * 3 + k) % lines.length]}</span>
                   {facts.length > 0 && (
-                    <span className="mt-2 flex flex-wrap gap-1">
-                      {facts.map((f) => (
-                        <span key={f} className="rounded-pill bg-surface-muted px-2 py-0.5 text-[11px] text-ink-700">
+                    <span className="mt-1.5 sm:mt-2 flex flex-wrap gap-1">
+                      {facts.map((f, n) => (
+                        <span key={f} className={cn("rounded-pill bg-surface-muted px-2 py-0.5 text-[11px] text-ink-700", n > 1 && "hidden sm:inline")}>
                           {f}
                         </span>
                       ))}
@@ -280,7 +283,7 @@ function Results({
           );
         })}
       </ol>
-      <div className="mt-5 flex flex-wrap items-center gap-3">
+      <div className="mt-4 sm:mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
         {more && (
           <button type="button" onClick={() => setPage((p) => p + 1)} className="rounded-pill bg-piltri-amber px-5 py-2 text-sm font-medium text-white hover:bg-piltri-amber-dark">
             Show me 3 others

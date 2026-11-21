@@ -24,7 +24,7 @@ export default function SettingsPage() {
   const customised = isCustomWeights(weights);
 
   return (
-    <SettingsLayout title="Settings">
+    <SettingsLayout title="Settings" subtitle="How Piltri weighs its scores, and the units it shows them in.">
       <SettingsSection
         title="Piltri score: weight of each section"
         footer={

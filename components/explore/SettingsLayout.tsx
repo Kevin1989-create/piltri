@@ -1,24 +1,16 @@
 import type { ReactNode } from "react";
-import { NavBar } from "@/components/ui/NavBar";
-import { BackLink } from "@/components/ui/BackLink";
+import { PageShell } from "@/components/ui/PageShell";
 import { cn } from "@/lib/cn";
 
 /** The shared frame of Settings and Score settings (2026-09-30, on
  *  request: "improve overall coherence"): the Back link and title at the
  *  top, then one white card per group of settings, all in one 576px
  *  column. */
-export function SettingsLayout({ title, children }: { title: string; children: ReactNode }) {
+export function SettingsLayout({ title, subtitle, children }: { title: string; subtitle?: ReactNode; children: ReactNode }) {
   return (
-    <main className="min-h-dvh flex flex-col">
-      <NavBar border={false} />
-      <div className="px-4 sm:px-6 pt-6 sm:pt-10 pb-16">
-        <div className="max-w-xl mx-auto">
-          <BackLink />
-          <h1 className="font-serif text-3xl text-ink-900 mt-2">{title}</h1>
-          <div className="mt-8 space-y-5">{children}</div>
-        </div>
-      </div>
-    </main>
+    <PageShell title={title} subtitle={subtitle} narrow>
+      <div className="space-y-5">{children}</div>
+    </PageShell>
   );
 }
 
