@@ -1,4 +1,5 @@
 import type { CityExploreData } from "@/lib/types";
+import type { PhotoTuple } from "@/lib/placePhoto";
 import { assembleCityExploreData } from "./assemble";
 import { loadFile, manifest, memo } from "./files";
 import {
@@ -11,6 +12,7 @@ import {
   type CityChunkFile,
   type CityRecord,
   type CountryRecord,
+  type GalleryChunkFile,
   type InsideChunkFile,
   type InsideKind,
   type NearbyChunkFile,
@@ -120,6 +122,19 @@ export async function getCityNearby(countryCode: string, cityId: string): Promis
     out[kind] = Array.isArray(item[0]) ? (item as NearbyPoint[]) : [item as NearbyPoint];
   });
   return out;
+}
+
+const galleryChunks = new Set(manifest.galleryChunks ?? []);
+
+/** A city's photos, its own photo first (datasets from 2026-11-21 on) -
+ *  null when it has only the one. */
+export async function getCityGallery(countryCode: string, cityId: string): Promise<PhotoTuple[] | null> {
+  const cc = countryCode.toUpperCase();
+  const count = manifest.chunks[cc];
+  if (!count) return null;
+  const key = `${cc}-${cityChunk(cityId, count)}`;
+  if (!galleryChunks.has(key)) return null;
+  return (await loadFile<GalleryChunkFile>(`photos/${key}.json`))[cityId] ?? null;
 }
 
 const insideChunks = new Set(manifest.insideChunks ?? []);

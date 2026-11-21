@@ -95,6 +95,24 @@ function exposure(
 /** Armed conflict within 50 km over 5 years (UCDP events): none scores
  *  100, falling on a log scale to 0 at CONFLICT_CAP events or more. */
 const CONFLICT_CAP = 200;
+/** Recorded crime against the country's own rate (2026-11-21): a kind at
+ *  40% of the national rate or less scores 100, at 190% or more 0 - so
+ *  under ~90% is good, over ~140% poor. */
+export const CRIME_VS_NATIONAL = { min: 40, max: 190 };
+
+/** A town's recorded crime as one Safety input: the average of its kinds
+ *  scored against the country - null without its own figures. */
+export function crimeScore(rates: (number | null)[] | null, national: (number | null)[] | null): number | null {
+  if (!rates || !national) return null;
+  const scores: number[] = [];
+  rates.forEach((rate, k) => {
+    const nat = national[k];
+    if (rate == null || rate < 0 || !nat) return;
+    scores.push(normalise((rate / nat) * 100, CRIME_VS_NATIONAL.min, CRIME_VS_NATIONAL.max, true));
+  });
+  return scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+}
+
 const conflictScore = (events: number) => 100 * (1 - Math.min(1, Math.log10(1 + events) / Math.log10(1 + CONFLICT_CAP)));
 
 /** Water stress for the river basin (WRI Aqueduct 4.0; 2026-11-07, owner):
@@ -227,6 +245,8 @@ function sectionInputs(data: CityExploreData, gniPerCapitaUsd: number | null): R
       s.ruleOfLawScore,
       orNull(s.homicideRatePer100k, (v) => normalise(v, RANGES.homicideRate.min, RANGES.homicideRate.max, true)),
       orNull(s.conflictEvents5yr ?? null, conflictScore),
+      // Only where the town has its own figures (as the economy's newer inputs).
+      ...[crimeScore(s.crimeRates ?? null, s.crimeNationalRates ?? null)].filter((v) => v != null),
     ],
     climate: [
       orNull(c.avgAnnualTemperatureC, (v) => normalise(Math.abs(v - 20), RANGES.temperatureDistanceFrom20C.min, RANGES.temperatureDistanceFrom20C.max, true)),
@@ -331,6 +351,10 @@ export function assembleCityExploreData(
       ...country.safetyStability,
       conflictEvents5yr: city.conflictEvents5yr ?? null,
       conflictDeaths5yr: city.conflictDeaths5yr ?? null,
+      crimeRates: city.crimeRates ?? null,
+      crimeNationalRates: city.crimeNationalRates ?? null,
+      crimeYears: city.crimeYears ?? null,
+      crimeSource: city.crimeSource ?? null,
     },
     climate: {
       avgAnnualTemperatureC: city.avgAnnualTemperatureC,

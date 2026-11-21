@@ -12,7 +12,11 @@ export type PhotoTuple = [string, string, number, number, string, string];
 
 export interface PlacePhoto {
   /** About `width` px wide - Wikimedia's standard thumbnail widths. */
-  src: (width: 330 | 500 | 960 | 1280) => string;
+  src: (width: 330 | 500 | 960 | 1280 | 1920) => string;
+  /** The sharp sizes, for the browser to pick by screen - 960, 1280 and
+   *  1920 px wide, as far as the file goes (2026-11-21, owner: better quality
+   *  where we can). */
+  srcSet: string;
   width: number;
   height: number;
   author: string;
@@ -27,9 +31,15 @@ export function placePhoto(t: PhotoTuple | null | undefined): PlacePhoto | null 
   if (!t) return null;
   const [folder, name, width, height, author, licence] = t;
   const file = encodeURIComponent(name);
+  // A file narrower than the size asked for is used as it is.
+  const thumb = (w: number) => (width > w ? `${UPLOAD}/thumb/${folder}/${file}/${w}px-${file}` : `${UPLOAD}/${folder}/${file}`);
   return {
-    // A file narrower than the size asked for is used as it is.
-    src: (w) => (width > w ? `${UPLOAD}/thumb/${folder}/${file}/${w}px-${file}` : `${UPLOAD}/${folder}/${file}`),
+    src: thumb,
+    // Wikimedia's standard widths only (others are slow or refused).
+    srcSet: [960, 1280, 1920]
+      .filter((w, k) => k === 0 || width > w)
+      .map((w) => `${thumb(w)} ${Math.min(w, width)}w`)
+      .join(", "),
     width,
     height,
     author,

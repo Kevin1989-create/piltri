@@ -190,7 +190,25 @@ export const CITY_FIELDS = [
   "regionGrowthNationalPctYr",
   // Businesses within 5 km (2026-11-21, Overture places).
   "businessesWithin5km",
+  // Recorded crime by town (2026-11-21, pipeline/crime.ts).
+  "crimeRates",
+  "crimeNationalRates",
+  "crimeYears",
+  "crimeSource",
 ] as const;
+
+/** The kinds of recorded crime by town, in this order in crimeRates
+ *  (pipeline/crime.ts; new kinds go at the end). */
+export const CRIME_KINDS = ["violent", "burglary", "theft", "vehicle", "vandalism"] as const;
+export type CrimeKind = (typeof CRIME_KINDS)[number];
+/** A town where too few were recorded for the figure to be published. */
+export const CRIME_TOO_FEW = -1;
+/** Countries with recorded crime by town, and whose figures (a town's
+ *  crimeSource). The French overseas departments are France's. */
+export const CRIME_SOURCES: Record<string, string> = {
+  FR: "SSMSI, the French Interior Ministry's statistics service - crimes recorded by the police and gendarmerie, by commune (Licence Ouverte 2.0)",
+};
+export const CRIME_COUNTRIES: Record<string, string> = { FR: "FR", GP: "FR", MQ: "FR", GF: "FR", RE: "FR", YT: "FR" };
 
 export interface CityRecord {
   id: string;
@@ -315,6 +333,14 @@ export interface CityRecord {
   regionGrowthNationalPctYr?: number | null;
   /** Businesses listed within 5 km of the centre (Overture) - absent before 2026-11-21. */
   businessesWithin5km?: number | null;
+  /** Recorded crime per CRIME_KINDS: yearly per 1,000 residents over
+   *  crimeYears (or CRIME_TOO_FEW), the country's same rates, and whose
+   *  figures (pipeline/crime.ts CRIME_SOURCES) - absent before 2026-11-21,
+   *  null where the town has no official figure. */
+  crimeRates?: (number | null)[] | null;
+  crimeNationalRates?: (number | null)[] | null;
+  crimeYears?: string | null;
+  crimeSource?: string | null;
 }
 
 /** What a city page's Yes and distance figures can show on its map, in
@@ -445,6 +471,9 @@ export interface DatasetManifest {
   nearbyChunks?: string[];
   /** Chunks with an inside/<CC>-<n>.json file (InsideChunkFile). */
   insideChunks?: string[];
+  /** City chunks with a photos file (photos/<CC>-<n>.json, GalleryChunkFile;
+   *  datasets from 2026-11-21 on). */
+  galleryChunks?: string[];
   /** leaderboards/<region>.json files, worked out at the default score
    *  settings (lib/leaderboards.ts) - absent before 2026-11-07. */
   leaderboards?: boolean;
@@ -559,3 +588,7 @@ export interface AdvCountries {
 
 /** A home page place of the day: name, id, country code (picks.json). */
 export type DailyPick = [name: string, id: string, countryCode: string];
+
+/** Cities' photos (photos/<CC>-<n>.json, keyed by city id): up to 12,
+ *  the first being the city's photo - only cities with more than one. */
+export type GalleryChunkFile = Record<string, PhotoTuple[]>;

@@ -121,6 +121,13 @@ export interface SafetyStabilityFields {
    *  last 5 years, and their deaths (UCDP GED) - absent before 2026-10-24. */
   conflictEvents5yr?: number | null;
   conflictDeaths5yr?: number | null;
+  /** Per city: recorded crime by kind (CRIME_KINDS), per 1,000 residents a
+   *  year, the country's rates, the years and whose figures - absent where
+   *  the town has no official figure (2026-11-21). */
+  crimeRates?: (number | null)[] | null;
+  crimeNationalRates?: (number | null)[] | null;
+  crimeYears?: string | null;
+  crimeSource?: string | null;
 }
 
 /** Climate normals are TerraClimate's 1991-2020 averages (WorldClim 2.1

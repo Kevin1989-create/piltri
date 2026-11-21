@@ -1,11 +1,11 @@
-import { AIRPORT_REACH_KM, AMENITY_RATIOS, driveMinutes, formatDriveTime, NEARNESS, RANGES, residentsWithin5km } from "@/lib/dataset/assemble";
+import { AIRPORT_REACH_KM, AMENITY_RATIOS, CRIME_VS_NATIONAL, driveMinutes, formatDriveTime, NEARNESS, RANGES, residentsWithin5km } from "@/lib/dataset/assemble";
 import { legendOf, TIER_CLASS, tierOf, type LegendLine, type NumericScale, type Tier } from "@/lib/colorScales";
 import { formatCurrency, formatDistanceKm, formatTemperature, type UnitPreferences } from "@/lib/unitPreferences";
 import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
 import { SECTION_LABELS, type CityExploreData, type SectionKey } from "@/lib/types";
 import { manifest } from "@/lib/dataset/files";
 import { CLIMATE_SOURCE } from "@/lib/climateSource";
-import { INSIDE_TRACK_ONLY, WATER_STRESS_ARID, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
+import { CRIME_COUNTRIES, CRIME_KINDS, CRIME_SOURCES, CRIME_TOO_FEW, INSIDE_TRACK_ONLY, WATER_STRESS_ARID, type CrimeKind, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
 
 /** Which tier a value describes: "country" (national statistics),
  *  "city" (a statistic for the place or the region it's in - regional
@@ -161,6 +161,7 @@ const SCALES = {
   score: { kind: "score" },
   regionGrowth: { kind: "higher", ...RANGES.regionGrowth },
   regionWealth: { kind: "higher", ...RANGES.regionWealth },
+  crimeVsNational: { kind: "lower", ...CRIME_VS_NATIONAL },
   corporateTax: { kind: "lower", ...RANGES.corporateTax },
   personalTax: { kind: "lower", ...RANGES.personalTax },
 } satisfies Record<string, NumericScale>;
@@ -187,6 +188,42 @@ const BASIN_NOTE = "For its river basin";
  *  "inside"). The local figures added on 2026-10-24 - "No data" rows
  *  included - show only then: an older dataset, or one built in a month
  *  the source failed, has none of them. */
+/** Recorded crime by town (2026-11-21, owner: "more criteria at city
+ *  level"): each kind per 1,000 residents a year, coloured by how it
+ *  compares with the country's own rate - recording differs between
+ *  countries, so a town is judged against its own. "Too few to publish"
+ *  where the source withholds small counts; "No data" for a town of a
+ *  country with figures but none of its own; nothing elsewhere. */
+const CRIME_ROWS: Record<CrimeKind, { label: string; definition: string }> = {
+  violent: { label: "Violent crime", definition: "Physical assaults outside the home recorded by the police, per 1,000 residents a year." },
+  burglary: { label: "Burglaries", definition: "Break-ins into homes recorded by the police, per 1,000 residents a year." },
+  theft: { label: "Theft from people", definition: "Thefts from people without violence (pickpocketing, bag snatching without force...) recorded by the police, per 1,000 residents a year." },
+  vehicle: { label: "Vehicle crime", definition: "Vehicles stolen or broken into, recorded by the police, per 1,000 residents a year." },
+  vandalism: { label: "Vandalism", definition: "Deliberate damage to property recorded by the police, per 1,000 residents a year." },
+};
+
+function crimeRows(countryCode: string, s: CityExploreData["safetyStability"]): KpiRow[] {
+  const sourceKey = s.crimeSource ?? CRIME_COUNTRIES[countryCode];
+  if (!sourceKey || !hasSource("crime")) return [];
+  return CRIME_KINDS.map((kind, k) => {
+    const { label, definition } = CRIME_ROWS[kind];
+    const rate = s.crimeRates?.[k] ?? null;
+    const nat = s.crimeNationalRates?.[k] ?? null;
+    const about = {
+      definition:
+        definition +
+        (s.crimeYears ? ` Average of ${s.crimeYears}.` : "") +
+        (nat != null ? ` The whole country: ${num(nat, 1)}.` : "") +
+        " Only crimes reported to and recorded by the police are counted, and a town centre with many visitors counts their thefts too.",
+      source: CRIME_SOURCES[sourceKey] ?? sourceKey,
+    };
+    if (rate == null || nat == null) return missing(label, "city", about);
+    if (rate === CRIME_TOO_FEW) return neutral(label, "Too few to publish", "city", { ...about, definition: about.definition + " Too few were recorded here for the figure to be published." });
+    const pct = Math.round((rate / nat) * 100);
+    return scored(label, pct, `${num(rate, 1)} per 1,000`, "city", SCALES.crimeVsNational, (n) => `${num(n)}% of the national rate`, about, `(${num(rate / nat, 1)}× national)`);
+  });
+}
+
 export function hasSource(key: string): boolean {
   return key in manifest.sources;
 }
@@ -433,6 +470,7 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
             );
       return [
         ...(conflictRow ? [conflictRow] : []),
+        ...crimeRows(data.countryCode, s),
         scoredOrMissing("Political stability score", s.politicalStabilityScore, String, "country", SCALES.score, String, {
           definition: "How unlikely political instability or politically motivated violence is, as a 0-100 rank among countries (higher is more stable).",
           source: WGI,

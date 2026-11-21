@@ -1,4 +1,5 @@
 import { createWriteStream, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
+import type { PhotoTuple } from "@/lib/placePhoto";
 import path from "path";
 import { once } from "events";
 import { createGzip } from "zlib";
@@ -28,6 +29,7 @@ import {
   type DatasetManifest,
   type DailyPick,
   type EncodedBoundary,
+  type GalleryChunkFile,
   type InsideChunkFile,
   type NearbyChunkFile,
   type NearbyPoint,
@@ -74,6 +76,8 @@ export interface DatasetToWrite {
   /** Each city's places of each INSIDE_KINDS kind in the city (none when
    *  absent: a dataset without them). */
   inside?: Map<string, (NearbyPoint[] | 0)[]>;
+  /** Each city's photos when it has several (the first is its photo). */
+  galleries?: Map<string, PhotoTuple[]>;
   poi: Parameters<typeof buildPoiTiles>[1];
   sources: Record<string, string>;
 }
@@ -104,6 +108,7 @@ export async function writeDataset(outDir: string, ds: DatasetToWrite): Promise<
   const builtUpChunks: string[] = [];
   const nearbyChunks: string[] = [];
   const insideChunks: string[] = [];
+  const galleryChunks: string[] = [];
   for (const cc of countryCodes) {
     const group = byCountry.get(cc)!;
     const count = Math.max(1, Math.ceil(group.length / CITY_CHUNK_SIZE));
@@ -150,6 +155,16 @@ export async function writeDataset(outDir: string, ds: DatasetToWrite): Promise<
       if (Object.keys(inside).length) {
         writeJson(outDir, `inside/${cc}-${n}.json`, inside);
         insideChunks.push(`${cc}-${n}`);
+      }
+      // Loaded only when a city's photo is opened.
+      const photos: GalleryChunkFile = {};
+      for (const { id } of records) {
+        const gallery = ds.galleries?.get(id);
+        if (gallery) photos[id] = gallery;
+      }
+      if (Object.keys(photos).length) {
+        writeJson(outDir, `photos/${cc}-${n}.json`, photos);
+        galleryChunks.push(`${cc}-${n}`);
       }
     });
   }
@@ -339,6 +354,7 @@ export async function writeDataset(outDir: string, ds: DatasetToWrite): Promise<
     builtUpChunks,
     nearbyChunks,
     ...(ds.inside ? { insideChunks } : {}),
+    ...(ds.galleries?.size ? { galleryChunks } : {}),
     leaderboards: true,
     picks: true,
     sources: ds.sources,

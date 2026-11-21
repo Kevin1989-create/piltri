@@ -1,6 +1,7 @@
 import path from "path";
 import KDBush from "kdbush";
 import { around } from "geokdbush";
+import type { PhotoTuple } from "@/lib/placePhoto";
 import { AIRPORT_REACH_KM, assembleCityExploreData } from "@/lib/dataset/assemble";
 import { INSIDE_KINDS, INSIDE_TRACK_ONLY, NEARBY_KINDS, type CityRecord, type EncodedBoundary, type InsideKind, type NearbyKind, type NearbyPoint } from "@/lib/dataset/schema";
 import { AGE_SOURCE, downloadAgeGroups, sampleMedianAge } from "./ageStructure";
@@ -8,10 +9,11 @@ import { PM25_SOURCE, samplePm25 } from "./airQuality";
 import { AIRPORTS_SOURCE, loadAirports } from "./airports";
 import { sampleBroadband } from "./broadband";
 import { CONFLICT_SOURCE, sampleConflict } from "./conflict";
+import { CRIME_SOURCE, sampleCrime } from "./crime";
 import { buildCountries, fetchWhoNationalPm25 } from "./countries";
 import { LANGUAGES_SOURCE } from "./sources/languages";
 import { MAIN_RELIGION_SOURCE } from "./sources/mainReligion";
-import { getPlacePhoto, hasPlacePhotos, PLACE_PHOTOS_SOURCE } from "./sources/placePhotos";
+import { getPlaceGallery, getPlacePhoto, hasPlacePhotos, PLACE_PHOTOS_SOURCE } from "./sources/placePhotos";
 import { BOUNDARY_SOURCE, sampleBoundaries } from "./boundaries";
 import { BUILTUP_SOURCE, sampleBuiltUp } from "./builtup";
 import { extractGeoNamesFeatures, MOUNTAIN_MIN_ELEVATION_M, MOUNTAIN_MIN_RISE_M, type PointSet } from "./geonames";
@@ -225,6 +227,7 @@ async function main() {
   // to the province's reported figure, as a share of the country's) after
   // a pause from 2026-10-30.
   const regionGdp = await optional("regional GDP", () => sampleRegionalGdp(points, shortlist.map((c) => countryInfo[c.countryCode]?.iso3 ?? null)));
+  const crime = await optional("crime by town", () => sampleCrime(shortlist));
   const regionGrowth = await optional("regional growth", () => sampleRegionalGrowth(shortlist, shortlist.map((c) => countryInfo[c.countryCode]?.iso3 ?? null)));
 
   const { glob: placesGlob, release } = await extractOverturePlaces();
@@ -488,6 +491,10 @@ async function main() {
         medianAge: medianAge?.[i] ?? null,
         conflictEvents5yr: conflict?.events[i] ?? null,
         conflictDeaths5yr: conflict?.deaths[i] ?? null,
+        crimeRates: crime?.[i]?.rates ?? null,
+        crimeNationalRates: crime?.[i]?.national ?? null,
+        crimeYears: crime?.[i]?.years ?? null,
+        crimeSource: crime?.[i]?.source ?? null,
         regionGdpPerHeadPpp: regionGdp?.[i].perHead ?? null,
         regionGdpYear: regionGdp?.[i].year ?? null,
         regionGdpVsNationalPct: regionGdp?.[i].vsNationalPct ?? null,
@@ -604,6 +611,12 @@ async function main() {
     const outline = builtUpList[k];
     if (outline) builtUp.set(shortlist[i].cityId, outline);
   });
+  // Each city's photos when it has several (scripts/build-place-galleries.mjs).
+  const galleries = new Map<string, PhotoTuple[]>();
+  for (const c of shortlist) {
+    const gallery = getPlaceGallery(c.geonameId);
+    if (gallery) galleries.set(c.cityId, gallery);
+  }
   await writeDataset(outDir, {
     version,
     generatedAt,
@@ -613,6 +626,7 @@ async function main() {
     builtUp,
     nearby: nearbyById,
     inside: insideById,
+    galleries,
     poi: {
       airport: gn.airport,
       // OpenStreetMap's train stations (pin mode shows the name).
@@ -657,6 +671,7 @@ async function main() {
       hospitals: `Overture Maps places ${release} - hospitals and emergency departments named as such (CDLA-Permissive-2.0), and OpenStreetMap hospitals (amenity=hospital grounds) via Overture Maps base theme (ODbL); one per site, listings placed far from their hospital left out`,
       inside: `In the city or within 1 km of its outline (5 km of the centre without one), airports within ${AIRPORT_REACH_KM} km: GeoNames, Overture Maps places ${release}, OurAirports, mapped beaches and peaks`,
       ...(conflict ? { conflict: CONFLICT_SOURCE } : {}),
+      ...(crime ? { crime: CRIME_SOURCE } : {}),
       ...(water ? { water: WATER_SOURCE } : {}),
       ...(regionGdp ? { regionGdp: REGIONAL_GDP_SOURCE } : {}),
       ...(regionGrowth ? { regionGrowth: REGIONAL_GROWTH_SOURCE } : {}),

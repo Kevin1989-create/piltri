@@ -25,7 +25,8 @@ import { cameraMotion, MOTION_CSS, MOTION_MS, motionEase, prefersReducedMotion }
 import { CityCorner, CountryLocator, type CountryBounds } from "@/components/explore/CountryLocator";
 import { englishName, labelsInEnglish } from "@/lib/mapLabels";
 import { PhotoCover, PlacePhotoCorner, type CornerSquare } from "@/components/explore/PlacePhotoCorner";
-import { placePhoto, type PhotoTuple } from "@/lib/placePhoto";
+import { placePhoto, type PhotoTuple, type PlacePhoto } from "@/lib/placePhoto";
+import { getCityGallery } from "@/lib/dataset/cities";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { escapeHtml } from "@/lib/escapeHtml";
 
@@ -2864,6 +2865,11 @@ export function MapView({
             to={photoSquare()}
             reserveRight={locatorRight + locatorSize + 12}
             closeSignal={photoCloseSignal}
+            loadGallery={
+              placeId && countryCode
+                ? () => getCityGallery(countryCode, placeId).then((list) => list?.map(placePhoto).filter((p): p is PlacePhoto => p != null) ?? null)
+                : undefined
+            }
             onClosed={() => toggleCorner("photo")}
           />
         )}
