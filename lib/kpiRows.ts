@@ -235,6 +235,16 @@ const CRIME_BY_SOURCE: Record<string, { area: string; definitions?: Partial<Reco
       vandalism: "Mischief - deliberate damage to property - reported by the town's police, per 1,000 residents a year.",
     },
   },
+  ES: {
+    area: "Spain",
+    definitions: {
+      violent: "Homicides and attempts, assaults, sexual offences and violent robberies known to the police, per 1,000 residents a year.",
+      burglary: "Break-ins into homes known to the police, per 1,000 residents a year.",
+      theft: "Thefts without force or violence (pickpocketing, bag snatching...) known to the police, per 1,000 residents a year.",
+      vehicle: "Vehicles stolen, known to the police, per 1,000 residents a year.",
+      vandalism: "Deliberate damage to property - not in Spain's municipal figures.",
+    },
+  },
   GB: {
     area: "England and Wales",
     definitions: {

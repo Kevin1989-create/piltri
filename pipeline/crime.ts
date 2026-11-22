@@ -669,6 +669,113 @@ async function loadCanada(): Promise<{ byTown: Record<string, (number | null)[]>
   });
 }
 
+// ---- Spain ----------------------------------------------------------------
+
+/**
+ * Spain's Interior Ministry, Balance de Criminalidad (reuse allowed with
+ * attribution): offences known by municipality - every one of 20,000+
+ * residents - from each year's fourth-quarter table (the whole year, and
+ * the year before); the last three years. Residents: INE's official
+ * municipal register (Padrón, table 29005). GeoNames' admin3 is INE's
+ * municipality code. No vandalism in the table: that row has no figure.
+ */
+const ES_PORTAL = "https://estadisticasdecriminalidad.ses.mir.es/sec";
+const ES_RESIDENTS = "https://www.ine.es/jaxiT3/files/t/csv_bdsc/29005.csv";
+/** Each kind from the table's numbered offences. */
+const ES_KINDS: Record<(typeof CRIME_KINDS)[number], string[]> = {
+  // Homicides and attempts, assaults, sexual offences, violent robberies.
+  violent: ["1", "2", "3", "5", "6"],
+  // Burglaries of homes.
+  burglary: ["7.1"],
+  // Thefts without force (hurtos).
+  theft: ["8"],
+  // Vehicles stolen.
+  vehicle: ["9"],
+  vandalism: [],
+};
+
+/** "1.234" -> 1234 (Spanish thousands); null for anything else. */
+const esNumber = (v: string | undefined) => {
+  if (!v || !/^-?[\d.]+$/.test(v.trim())) return null;
+  return Number(v.trim().replace(/\./g, ""));
+};
+
+/** The municipal table of a year's fourth quarter, as rows - null if not out yet. */
+async function spainYearTable(year: number): Promise<string[][] | null> {
+  const index = await (await fetchWithRetry(`${ES_PORTAL}/dynPx/inebase/index.htm?type=pcaxis&path=/DatosBalanceAnt/${year}4/&file=pcaxis`, { headers: { "User-Agent": "Mozilla/5.0" } }).catch(() => null))?.text();
+  const file = index?.match(/file=(\d+)\.px[^>]*>[^<]*Municipios/)?.[1];
+  if (!file) return null;
+  const csv = readFileSync(await downloadOnce(`${ES_PORTAL}/jaxiPx/files/_px/es/csv_bdsc/DatosBalanceAnt/l0/${file}.csv_bdsc?nocab=1`, `es-crime/${year}-q4-${file}.csv`), "utf8");
+  return csv.replace(/^﻿/, "").split(/\r?\n/).slice(1).filter(Boolean).map((l) => l.split(";"));
+}
+
+async function loadSpain(): Promise<{ byMunicipality: Record<string, (number | null)[]>; national: (number | null)[]; years: string }> {
+  // The latest fourth quarter out (this year's or last year's), and the one two years before.
+  const now = new Date().getUTCFullYear();
+  let latest: number | null = null;
+  let latestRows: string[][] | null = null;
+  for (const year of [now, now - 1, now - 2]) {
+    latestRows = await spainYearTable(year);
+    if (latestRows) {
+      latest = year;
+      break;
+    }
+  }
+  if (!latest || !latestRows) throw new Error("Spain: no fourth-quarter table found");
+  const earlierRows = (await spainYearTable(latest - 2)) ?? [];
+  const years = [latest - 2, latest - 1, latest];
+  return cached(`crime-es-v2-${latest}`, async () => {
+    // "28079 Madrid" / "NACIONAL" -> offence code -> year -> count
+    const counts = new Map<string, Map<string, Map<number, number>>>();
+    for (const [geo, offence, period, value] of [...earlierRows, ...latestRows!]) {
+      const year = Number(period?.match(/^enero-diciembre (\d{4})$/)?.[1]);
+      const code = offence?.match(/^(\d+(?:\.\d+)?)\.?[ -]/)?.[1];
+      const n = esNumber(value);
+      if (!years.includes(year) || !code || n == null) continue;
+      // Ceuta and Melilla are listed by name: their municipality codes.
+      const place = geo.match(/^(\d{5}) /)?.[1] ?? { NACIONAL: "NACIONAL", "CIUDAD AUTÓNOMA DE CEUTA": "51001", "CIUDAD AUTÓNOMA DE MELILLA": "52001" }[geo] ?? null;
+      if (!place) continue;
+      if (!counts.has(place)) counts.set(place, new Map());
+      const byCode = counts.get(place)!;
+      if (!byCode.has(code)) byCode.set(code, new Map());
+      byCode.get(code)!.set(year, n);
+    }
+    // Residents by municipality and year (Padrón).
+    const residents = new Map<string, Map<number, number>>();
+    const national = new Map<number, number>();
+    for (const line of readFileSync(await downloadOnce(ES_RESIDENTS, "ine-29005-padron.csv"), "utf8").split(/\r?\n/)) {
+      const [muni, sex, period, value] = line.split(";");
+      const code = muni?.match(/^(\d{5}) /)?.[1];
+      const year = Number(period);
+      const n = esNumber(value);
+      if (!code || sex !== "Total" || !years.includes(year) || n == null) continue;
+      if (!residents.has(code)) residents.set(code, new Map());
+      residents.get(code)!.set(year, n);
+      national.set(year, (national.get(year) ?? 0) + n);
+    }
+    // A kind's rate: its offences over the residents of the years it has (two at least).
+    const ratesOf = (byCode: Map<string, Map<number, number>>, people: Map<number, number>) =>
+      CRIME_KINDS.map((kind) => {
+        const codes = ES_KINDS[kind];
+        if (!codes.length) return null;
+        const have = years.filter((y) => people.get(y) && codes.every((c) => byCode.get(c)?.has(y)));
+        if (have.length < 2) return null;
+        const crimes = have.reduce((s, y) => s + codes.reduce((s2, c) => s2 + byCode.get(c)!.get(y)!, 0), 0);
+        const residentYears = have.reduce((s, y) => s + people.get(y)!, 0);
+        return Math.round((crimes / residentYears) * 1000 * 100) / 100;
+      });
+    const byMunicipality: Record<string, (number | null)[]> = {};
+    for (const [place, byCode] of counts) {
+      if (place === "NACIONAL" || !residents.has(place)) continue;
+      const rates = ratesOf(byCode, residents.get(place)!);
+      if (rates.some((r) => r != null)) byMunicipality[place] = rates;
+    }
+    const nationalRates = counts.has("NACIONAL") ? ratesOf(counts.get("NACIONAL")!, national) : CRIME_KINDS.map(() => null);
+    log("crime", `Spain ${years.join(", ")}: ${Object.keys(byMunicipality).length} municipalities; national per 1,000: ${CRIME_KINDS.map((k, i) => `${k} ${nationalRates[i]}`).join(", ")}`);
+    return { byMunicipality, national: nationalRates, years: `${years[0]}-${years[2]}` };
+  });
+}
+
 /** Ray casting over a GeoJSON-style multipolygon ([lng, lat] rings, holes after the outer one). */
 function inside(lng: number, lat: number, polygons: number[][][][]): boolean {
   let hit = false;
@@ -706,10 +813,11 @@ export async function sampleCrime(
   /** The place's outline (its border, or its built-up area), if any. */
   outlineOf: (i: number) => EncodedBoundary | null
 ): Promise<(PlaceCrime | null)[]> {
-  return cached(`crime-v15-${pointsKey(places)}`, async () => {
+  return cached(`crime-v17-${pointsKey(places)}`, async () => {
     // Each place's official local code (GeoNames admin4: the INSEE commune code in France).
     const admin4 = new Map<number, string>();
     const nlMunicipality = new Map<number, string>();
+    const esMunicipality = new Map<number, string>();
     const usNames = new Map<number, { state: string; names: string[] }>();
     const stateNames = new Map<string, string>();
     const provinceNames = new Map<string, string>();
@@ -724,6 +832,8 @@ export async function sampleCrime(
       if (FR_COUNTRIES.has(c[8]) && c[13]) admin4.set(Number(c[0]), c[13]);
       // The Netherlands: GeoNames' admin2 is CBS's municipality code.
       if (c[8] === "NL" && c[11]) nlMunicipality.set(Number(c[0]), `GM${c[11]}`);
+      // Spain: GeoNames' admin3 is INE's municipality code.
+      if (c[8] === "ES" && /^\d{5}$/.test(c[12] ?? "")) esMunicipality.set(Number(c[0]), c[12]);
       if (c[8] === "CA" && provinceNames.has(c[10])) caNames.set(Number(c[0]), { province: provinceNames.get(c[10])!, names: [...new Set([c[1], c[2]].map(usPlain))] });
       if (c[8] === "US" && stateNames.has(c[10])) usNames.set(Number(c[0]), { state: stateNames.get(c[10])!, names: [...new Set([c[1], c[2]].map(usPlain))] });
     }
@@ -731,6 +841,14 @@ export async function sampleCrime(
     const ew = places.some((p) => p.countryCode === "GB") ? await loadEnglandWales() : null;
     const us = places.some((p) => p.countryCode === "US") ? await loadUnitedStates() : null;
     const nl = places.some((p) => p.countryCode === "NL") ? await loadNetherlands() : null;
+    const es = places.some((p) => p.countryCode === "ES") ? await loadSpain() : null;
+    // Spain: the municipality's figure is its main town's (the largest place
+    // with its code); its other places get it marked as the municipality's.
+    const esMain = new Map<string, number>();
+    places.forEach((p, i) => {
+      const code = p.countryCode === "ES" ? esMunicipality.get(p.geonameId) : undefined;
+      if (code && (esMain.get(code) == null || p.population > places[esMain.get(code)!].population)) esMain.set(code, i);
+    });
     const ca = places.some((p) => p.countryCode === "CA") ? await loadCanada() : null;
     // A Canadian town's police service: same province, same name (hyphens
     // as spaces - "St. Hyacinthe" is "Saint-Hyacinthe"; "Halifax
@@ -822,6 +940,14 @@ export async function sampleCrime(
         if (!key) return null;
         found++;
         return { rates: ca.byTown[key], national: ca.national, years: ca.years, source: "CA", ...(own ? {} : { area: ca.names[key].replace(/ \(.*\)$/, "") }) };
+      }
+      if (es && p.countryCode === "ES") {
+        const code = esMunicipality.get(p.geonameId) ?? "";
+        const rates = es.byMunicipality[code];
+        if (!rates) return null;
+        found++;
+        const main = esMain.get(code) === i;
+        return { rates, national: es.national, years: es.years, source: "ES", ...(main ? {} : { area: `the municipality of ${places[esMain.get(code)!].cityName}` }) };
       }
       if (nl && p.countryCode === "NL") {
         const code = nlMunicipality.get(p.geonameId) ?? "";

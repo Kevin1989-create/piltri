@@ -213,8 +213,9 @@ export const CRIME_SOURCES: Record<string, string> = {
   US: "FBI, Crime in the United States, Table 8 - offences known to each city's police, with the population it serves (public domain)",
   NL: "Statistics Netherlands (CBS) - crimes registered by the police, by municipality, tables 83648NED and 83651NED (CC BY 4.0)",
   CA: "Statistics Canada - incidents reported by each municipal police service, tables 35-10-0177 to 35-10-0185 (Statistics Canada Open Licence)",
+  ES: "Spain's Interior Ministry, Balance de Criminalidad - offences known in each municipality of 20,000+ residents; residents from INE's municipal register",
 };
-export const CRIME_COUNTRIES: Record<string, string> = { FR: "FR", GP: "FR", MQ: "FR", GF: "FR", RE: "FR", YT: "FR", GB: "GB", US: "US", NL: "NL", CA: "CA" };
+export const CRIME_COUNTRIES: Record<string, string> = { FR: "FR", GP: "FR", MQ: "FR", GF: "FR", RE: "FR", YT: "FR", GB: "GB", US: "US", NL: "NL", CA: "CA", ES: "ES" };
 
 export interface CityRecord {
   id: string;
