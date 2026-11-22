@@ -10,6 +10,7 @@ import { AIRPORTS_SOURCE, loadAirports } from "./airports";
 import { sampleBroadband } from "./broadband";
 import { CONFLICT_SOURCE, sampleConflict } from "./conflict";
 import { CRIME_SOURCE, sampleCrime } from "./crime";
+import { LOCAL_ECONOMY_SOURCE, sampleLocalEconomy } from "./localEconomy";
 import { buildCountries, fetchWhoNationalPm25 } from "./countries";
 import { LANGUAGES_SOURCE } from "./sources/languages";
 import { MAIN_RELIGION_SOURCE } from "./sources/mainReligion";
@@ -25,8 +26,7 @@ import { onePerSite } from "./transit";
 import { POPULATION_GROWTH_SOURCE, POPULATION_SOURCE, sampleDensity, samplePopulationGrowth } from "./population";
 import { sampleWater, WATER_SOURCE } from "./water";
 import { keepHospitals, placedRightTest } from "./hospitals";
-import { REGIONAL_GDP_SOURCE, sampleRegionalGdp } from "./regionalGdp";
-import { REGIONAL_GROWTH_SOURCE, sampleRegionalGrowth } from "./regionalGrowth";
+import { REGIONAL_GROWTH_SOURCE, REGIONAL_WEALTH_SOURCE, sampleRegionalGrowth } from "./regionalGrowth";
 import { anyInside, circleArea, cityArea, countInside, placesInside, type PlaceIndex } from "./insidePlaces";
 import { KOPPEN_SOURCE, sampleKoppen } from "./koppenMap";
 import { loadShortlist } from "./shortlist";
@@ -223,13 +223,12 @@ async function main() {
   const conflict = await optional("armed conflict", () => sampleConflict(points));
   // Water for the river basin (2026-11-07, owner) - WRI Aqueduct 4.0.
   const water = await optional("water", () => sampleWater(points));
-  // Regional GDP per head (Kummu et al.), back on 2026-11-17 (owner: "okay"
-  // to the province's reported figure, as a share of the country's) after
-  // a pause from 2026-10-30.
-  const regionGdp = await optional("regional GDP", () => sampleRegionalGdp(points, shortlist.map((c) => countryInfo[c.countryCode]?.iso3 ?? null)));
+  const economy = await optional("local economy", () => sampleLocalEconomy(shortlist));
   const crime = await optional("crime by town", () =>
     sampleCrime(shortlist, (i) => outlines[i] ?? builtUpList[withoutOutline.indexOf(i)] ?? null)
   );
+  // Regional growth and wealth (OECD; 2026-11-22: the wealth moved from
+  // Kummu et al., whose Norway stopped in 2018 - now 2021 or later only).
   const regionGrowth = await optional("regional growth", () => sampleRegionalGrowth(shortlist, shortlist.map((c) => countryInfo[c.countryCode]?.iso3 ?? null)));
 
   const { glob: placesGlob, release } = await extractOverturePlaces();
@@ -498,9 +497,20 @@ async function main() {
         crimeYears: crime?.[i]?.years ?? null,
         crimeSource: crime?.[i]?.source ?? null,
         crimeArea: crime?.[i]?.area ?? null,
-        regionGdpPerHeadPpp: regionGdp?.[i].perHead ?? null,
-        regionGdpYear: regionGdp?.[i].year ?? null,
-        regionGdpVsNationalPct: regionGdp?.[i].vsNationalPct ?? null,
+        // Regional wealth: the OECD's, from the same region as the growth (2026-11-22).
+        regionGdpPerHeadPpp: regionGrowth?.wealth[i].perHeadPpp ?? null,
+        regionGdpYear: regionGrowth?.wealth[i].year ?? null,
+        regionGdpVsNationalPct: regionGrowth?.wealth[i].vsNationalPct ?? null,
+        regionGdpArea: regionGrowth?.wealth[i].region ?? null,
+        unemploymentPct: economy?.[i].unemploymentPct ?? null,
+        unemploymentNationalPct: economy?.[i].unemploymentNationalPct ?? null,
+        unemploymentYear: economy?.[i].unemploymentYear ?? null,
+        unemploymentArea: economy?.[i].unemploymentArea ?? null,
+        incomeMedian: economy?.[i].incomeMedian ?? null,
+        incomeVsNationalPct: economy?.[i].incomeVsNationalPct ?? null,
+        incomeYear: economy?.[i].incomeYear ?? null,
+        incomeArea: economy?.[i].incomeArea ?? null,
+        economySource: economy?.[i].source ?? null,
         regionGrowthPctYr: regionGrowth?.places[i].pctPerYear ?? null,
         regionGrowthFromYear: regionGrowth?.places[i].fromYear ?? null,
         regionGrowthToYear: regionGrowth?.places[i].toYear ?? null,
@@ -675,8 +685,9 @@ async function main() {
       inside: `In the city or within 1 km of its outline (5 km of the centre without one), airports within ${AIRPORT_REACH_KM} km: GeoNames, Overture Maps places ${release}, OurAirports, mapped beaches and peaks`,
       ...(conflict ? { conflict: CONFLICT_SOURCE } : {}),
       ...(crime ? { crime: CRIME_SOURCE } : {}),
+      ...(economy ? { economy: LOCAL_ECONOMY_SOURCE } : {}),
       ...(water ? { water: WATER_SOURCE } : {}),
-      ...(regionGdp ? { regionGdp: REGIONAL_GDP_SOURCE } : {}),
+      ...(regionGrowth ? { regionGdp: REGIONAL_WEALTH_SOURCE } : {}),
       ...(regionGrowth ? { regionGrowth: REGIONAL_GROWTH_SOURCE } : {}),
     },
   });

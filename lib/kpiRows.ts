@@ -5,7 +5,7 @@ import { KOPPEN_LABELS } from "@/lib/data-sources/koppen";
 import { SECTION_LABELS, type CityExploreData, type SectionKey } from "@/lib/types";
 import { manifest } from "@/lib/dataset/files";
 import { CLIMATE_SOURCE } from "@/lib/climateSource";
-import { CRIME_COUNTRIES, CRIME_KINDS, CRIME_SOURCES, CRIME_TOO_FEW, INSIDE_TRACK_ONLY, WATER_STRESS_ARID, type CrimeKind, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
+import { CRIME_COUNTRIES, CRIME_KINDS, CRIME_SOURCES, ECONOMY_SOURCES, CRIME_TOO_FEW, INSIDE_TRACK_ONLY, WATER_STRESS_ARID, type CrimeKind, type InsideKind, type NearbyKind } from "@/lib/dataset/schema";
 
 /** Which tier a value describes: "country" (national statistics),
  *  "city" (a statistic for the place or the region it's in - regional
@@ -174,7 +174,7 @@ const WB = (code: string) => `World Bank, World Development Indicators (${code})
 const WGI = "World Bank, Worldwide Governance Indicators";
 const WORLDCLIM = CLIMATE_SOURCE;
 const OVERTURE = "Overture Maps places (OpenStreetMap and other open sources)";
-const REGION_GDP_SOURCE = "Kummu et al. (2025), GDP per capita v4 (Zenodo, CC BY 4.0) - regional figures as each country reported them";
+const REGION_GDP_SOURCE = "OECD Regional Database, GDP per person by region (current prices) - US counties from the Bureau of Economic Analysis";
 const REGION_GROWTH_SOURCE = "OECD Regional Database - real GDP by region (constant prices) as national statistics offices report it (US counties: Bureau of Economic Analysis); regions linked through GeoNames, Wikidata and Eurostat's municipality table";
 // The years match pipeline/conflict.ts (GED 26.1: 2021-2025).
 const UCDP = "Uppsala Conflict Data Program, Georeferenced Event Dataset 26.1 (CC BY 4.0)";
@@ -283,6 +283,43 @@ function crimeRows(countryCode: string, s: CityExploreData["safetyStability"]): 
   });
 }
 
+/** Unemployment and median household income, each beside the country's -
+ *  "For <area>" when the town has no figure of its own; nothing for a
+ *  country without local figures. */
+function localEconomyRows(e: CityExploreData["economy"], countryCode: string): KpiRow[] {
+  const src = ECONOMY_SOURCES[e.economySource ?? ""] ?? (hasSource("economy") ? ECONOMY_SOURCES[countryCode] : undefined);
+  if (!src) return [];
+  const rows: KpiRow[] = [];
+  const uAbout = {
+    definition:
+      "The share of people in the labour force - working or looking for work - who are out of a job and looking for one." +
+      (e.unemploymentYear ? ` ${e.unemploymentYear}.` : "") +
+      (e.unemploymentNationalPct != null ? ` ${src.area}: ${e.unemploymentNationalPct}%.` : "") +
+      (e.unemploymentArea ? ` The town has no figure of its own: this is ${e.unemploymentArea}'s.` : ""),
+    source: src.text,
+  };
+  if (e.unemploymentPct == null || !e.unemploymentNationalPct) rows.push(missing("Unemployment", "city", uAbout));
+  else {
+    const ratio = (e.unemploymentPct / e.unemploymentNationalPct) * 100;
+    const row = scored("Unemployment", ratio, `${num(e.unemploymentPct, 1)}%`, "city", SCALES.crimeVsNational, (n) => `${num(n)}% of the national rate`, uAbout, `(${num(e.unemploymentPct / e.unemploymentNationalPct, 1)}× national)`);
+    rows.push(e.unemploymentArea ? { ...row, note: `For ${e.unemploymentArea}` } : row);
+  }
+  const money = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: src.currency, currencyDisplay: "narrowSymbol", maximumFractionDigits: 0 }).format(n);
+  const iAbout = {
+    definition:
+      "The household income in the middle: half of the households earn more, half less - before tax, all its members together." +
+      (e.incomeYear ? ` ${e.incomeYear}.` : "") +
+      (e.incomeArea ? ` The town has no figure of its own: this is ${e.incomeArea}'s.` : ""),
+    source: src.text,
+  };
+  if (e.incomeMedian == null || e.incomeVsNationalPct == null) rows.push(missing("Household income", "city", iAbout));
+  else {
+    const row = scored("Household income", e.incomeVsNationalPct, money(e.incomeMedian), "city", SCALES.regionWealth, (n) => `${num(n)}% of national`, iAbout, `(${e.incomeVsNationalPct}% of national)`);
+    rows.push(e.incomeArea ? { ...row, note: `For ${e.incomeArea}` } : row);
+  }
+  return rows;
+}
+
 export function hasSource(key: string): boolean {
   return key in manifest.sources;
 }
@@ -380,10 +417,10 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
       // The region's own wealth, first (2026-11-17, owner: local economy).
       const regionAbout = {
         definition:
-          "GDP per head of the region this place is in, as its country reports it (a province, state or département), compared with the country's." +
+          "GDP per person of the region this place is in (a small region - a county, département or province - where reported, else the larger region), compared with the country's figure for the same year." +
           (e.regionGdpPerHeadPpp != null
             ? ` In ${e.regionGdpYear}: ${e.regionGdpPerHeadPpp.toLocaleString("en-GB")} international dollars a person at purchasing-power parity${e.regionGdpVsNationalPct != null ? `, ${e.regionGdpVsNationalPct}% of ${data.country}'s figure` : ""}. Output is counted where people work, so a region that draws commuters reads high.`
-            : ` ${data.country} doesn't publish one recent enough (2018 or later), so none is shown - the country's figures are below.`),
+            : ` ${data.country} doesn't publish one recent enough (2021 or later), so none is shown - the country's figures are below.`),
         source: REGION_GDP_SOURCE,
       };
       // The region's real growth (2026-11-20, owner: total growth, recent, one method).
@@ -409,9 +446,11 @@ export function buildKpiRows(section: SectionKey, data: CityExploreData, prefs: 
           : e.regionGdpPerHeadPpp == null
             ? missing("Regional wealth", "city", regionAbout)
             : e.regionGdpVsNationalPct != null
-              ? scored("Regional wealth", e.regionGdpVsNationalPct, `${e.regionGdpVsNationalPct}% of national`, "city", SCALES.regionWealth, (n) => `${num(n)}% of national`, regionAbout, `(${e.regionGdpYear})`)
+              ? scored("Regional wealth", e.regionGdpVsNationalPct, `${e.regionGdpVsNationalPct}% of national`, "city", SCALES.regionWealth, (n) => `${num(n)}% of national`, regionAbout, e.regionGdpArea ? `(${e.regionGdpArea}, ${e.regionGdpYear})` : `(${e.regionGdpYear})`)
               : neutral("Regional wealth", `${e.regionGdpPerHeadPpp.toLocaleString("en-GB")} PPP`, "city", regionAbout, `(${e.regionGdpYear})`),
         // Businesses near the centre (2026-11-21, owner), like restaurants per 1,000.
+        // The local economy (2026-11-22, owner: "flagging whether the economy is thriving").
+        ...localEconomyRows(e, data.countryCode),
         e.businessesWithin5km == null
           ? null
           : (() => {

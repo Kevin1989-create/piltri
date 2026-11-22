@@ -102,6 +102,18 @@ export interface EconomyFields {
   regionGdpPerHeadPpp?: number | null;
   regionGdpYear?: number | null;
   regionGdpVsNationalPct?: number | null;
+  regionGdpArea?: string | null;
+  /** The local economy (2026-11-22): unemployment and median household
+   *  income beside the country's; *Area when the figure is for a wider area. */
+  unemploymentPct?: number | null;
+  unemploymentNationalPct?: number | null;
+  unemploymentYear?: string | null;
+  unemploymentArea?: string | null;
+  incomeMedian?: number | null;
+  incomeVsNationalPct?: number | null;
+  incomeYear?: string | null;
+  incomeArea?: string | null;
+  economySource?: string | null;
   /** Real GDP growth of the region, % a year (OECD) - absent before 2026-11-20. */
   regionGrowthPctYr?: number | null;
   regionGrowthFromYear?: number | null;

@@ -30,6 +30,16 @@ const OECD_GDP =
 const OECD_STRUCTURE = "https://sdmx.oecd.org/public/rest/dataflow/OECD.CFE.EDS/DSD_REG_ECO@DF_GDP/latest?references=all";
 /** Normal and provisional values; E (estimated), F (forecast) and the rest are left out. */
 const ACCEPTED_STATUS = new Set(["A", "P"]);
+/** Regional wealth (2026-11-22, owner: a 2018 figure "is useless"): GDP per
+ *  person of the same regions, current prices - in national currency for
+ *  the share of the country's figure, in US dollars at purchasing-power
+ *  parity for the amount - each region's latest year, 2021 or later only. */
+const OECD_GDP_PER_HEAD =
+  "https://sdmx.oecd.org/public/rest/data/OECD.CFE.EDS,DSD_REG_ECO@DF_GDP,/A....GDP._T.V.XDC_PS+USD_PPP_PS+XDC?startPeriod=2019&format=csv";
+const WEALTH_FROM = 2021;
+/** US counties: BEA's GDP (current dollars) over BEA's residents. */
+const BEA_COUNTY_GDP_CURRENT = "https://apps.bea.gov/regional/zip/CAGDP2.zip";
+const BEA_COUNTY_PEOPLE = "https://apps.bea.gov/regional/zip/CAINC1.zip";
 /** US Bureau of Economic Analysis, real GDP by county (chained dollars), public domain. */
 const BEA_COUNTY_GDP = "https://apps.bea.gov/regional/zip/CAGDP9.zip";
 
@@ -115,6 +125,7 @@ async function loadLau(file: string): Promise<Map<string, Set<string>>> {
 }
 
 export const REGIONAL_GROWTH_SOURCE = `OECD Regional Database, real GDP by region (constant prices, national statistics offices), average growth per year over the ${SPAN_YEARS} years to each region's latest reported year; regions linked through GeoNames, Wikidata and Eurostat's municipality table (OECD and Eurostat terms: commercial use allowed); US counties from the Bureau of Economic Analysis (real GDP by county, public domain)`;
+export const REGIONAL_WEALTH_SOURCE = `OECD Regional Database, GDP per person by region (current prices; the share of the national figure in national currency, the amount in US dollars at purchasing-power parity), each region's latest year, ${WEALTH_FROM} or later only; US counties from the Bureau of Economic Analysis (GDP and residents by county, public domain)`;
 
 export interface RegionalGrowth {
   /** Average real GDP growth per year, %. */
@@ -234,10 +245,92 @@ const CITY_ALIASES: Record<string, string> = {
   "GRC|piraeus": "EL307",
 };
 
+export interface RegionalWealth {
+  /** GDP per person, % of the country's (same year, same source). */
+  vsNationalPct: number | null;
+  /** GDP per person, US dollars at purchasing-power parity (current). */
+  perHeadPpp: number | null;
+  year: number | null;
+  region: string | null;
+}
+
+/** OECD region code -> latest year (2021+) with GDP per person in both units. */
+type PerHead = { year: number; local: number; ppp: number; localByYear: Map<number, number>; totalByYear: Map<number, number> };
+async function loadPerHead(): Promise<Map<string, PerHead>> {
+  const rows = parseCsv(readFileSync(await downloadOnce(OECD_GDP_PER_HEAD, "oecd-regional-gdp-per-head-v2.csv"), "utf8"));
+  const h = rows[0];
+  const [cArea, cYear, cValue, cStatus, cUnit] = ["REF_AREA", "TIME_PERIOD", "OBS_VALUE", "OBS_STATUS", "UNIT_MEASURE"].map((n) => h.indexOf(n));
+  const byArea = new Map<string, Map<number, { local?: number; ppp?: number; total?: number }>>();
+  for (const r of rows.slice(1)) {
+    if (!ACCEPTED_STATUS.has(r[cStatus])) continue;
+    const v = Number(r[cValue]);
+    if (!(v > 0)) continue;
+    const years = byArea.get(r[cArea]) ?? new Map();
+    const y = years.get(Number(r[cYear])) ?? {};
+    if (r[cUnit] === "XDC_PS") y.local = v;
+    else if (r[cUnit] === "USD_PPP_PS") y.ppp = v;
+    else if (r[cUnit] === "XDC") y.total = v;
+    years.set(Number(r[cYear]), y);
+    byArea.set(r[cArea], years);
+  }
+  const out = new Map<string, PerHead>();
+  for (const [area, years] of byArea) {
+    const latest = [...years].filter(([y, v]) => y >= WEALTH_FROM && v.local && v.ppp).sort((a, b) => b[0] - a[0])[0];
+    // Every year's national-currency figure too: a country is compared at its region's year.
+    const localByYear = new Map([...years].filter(([, v]) => v.local).map(([y, v]) => [y, v.local!] as const));
+    const totalByYear = new Map([...years].filter(([, v]) => v.total).map(([y, v]) => [y, v.total!] as const));
+    out.set(area, { year: latest?.[0] ?? 0, local: latest?.[1].local ?? 0, ppp: latest?.[1].ppp ?? 0, localByYear, totalByYear });
+  }
+  return out;
+}
+
+/** "TX.453" -> GDP per person (current dollars) and year; and the US's. */
+function loadUsCountyPerHead(gdpDir: string, peopleDir: string): { counties: Map<string, { perHead: number; year: number }>; national: { perHead: number; year: number } | null } {
+  const read = (dir: string, prefix: RegExp, line: string) => {
+    const file = readdirSync(dir).find((f) => prefix.test(f));
+    const out = new Map<string, Map<number, number>>();
+    if (!file) return out;
+    const rows = parseCsv(readFileSync(path.join(dir, file), "latin1"));
+    const h = rows[0].map((c) => c.trim());
+    for (const r of rows.slice(1)) {
+      if (r[h.indexOf("LineCode")]?.trim() !== line) continue;
+      const fips = r[0].replace(/\D/g, "");
+      const m = r[1].match(/^(.*), ([A-Z]{2})\*?$/);
+      const key = fips === "00000" ? "US" : fips.length === 5 && !fips.endsWith("000") && m ? `${m[2]}.${fips.slice(2)}` : null;
+      if (!key) continue;
+      out.set(key, new Map(h.map((c, i) => [Number(c), Number(r[i])] as const).filter(([y, v]) => y > 2000 && v > 0)));
+    }
+    return out;
+  };
+  // CAGDP2 line 1: all-industry GDP, thousands of dollars; CAINC1 line 2: residents.
+  const gdp = read(gdpDir, /^CAGDP2__ALL_AREAS_.*\.csv$/, "1");
+  const people = read(peopleDir, /^CAINC1__ALL_AREAS_.*\.csv$/, "2");
+  const perHead = (key: string) => {
+    const g = gdp.get(key);
+    const p = people.get(key);
+    if (!g || !p) return null;
+    const year = Math.max(...[...g.keys()].filter((y) => p.has(y)));
+    return year >= WEALTH_FROM ? { perHead: (g.get(year)! * 1000) / p.get(year)!, year } : null;
+  };
+  const counties = new Map<string, { perHead: number; year: number }>();
+  for (const key of gdp.keys()) {
+    if (key === "US") continue;
+    const v = perHead(key);
+    if (v) counties.set(key, v);
+  }
+  // New York City: its five counties together.
+  const boroughs = ["NY.005", "NY.047", "NY.061", "NY.081", "NY.085"];
+  const years = [...(gdp.get("NY.061")?.keys() ?? [])].filter((y) => boroughs.every((b) => gdp.get(b)?.has(y) && people.get(b)?.has(y)));
+  const y = Math.max(...years);
+  if (years.length && y >= WEALTH_FROM)
+    counties.set(NYC, { perHead: (boroughs.reduce((s, b) => s + gdp.get(b)!.get(y)!, 0) * 1000) / boroughs.reduce((s, b) => s + people.get(b)!.get(y)!, 0), year: y });
+  return { counties, national: perHead("US") };
+}
+
 export async function sampleRegionalGrowth(
   places: { geonameId: number; countryCode: string; lat: number; lng: number; cityName?: string; altNames?: string[] }[],
   iso3Of: (string | null)[],
-): Promise<{ places: RegionalGrowth[]; national: Map<string, { pctPerYear: number; fromYear: number; toYear: number }> }> {
+): Promise<{ places: RegionalGrowth[]; wealth: RegionalWealth[]; national: Map<string, { pctPerYear: number; fromYear: number; toYear: number }> }> {
   const admin1File = await downloadOnce("https://download.geonames.org/export/dump/admin1CodesASCII.txt", "admin1CodesASCII.txt");
   const admin2File = await downloadOnce("https://download.geonames.org/export/dump/admin2Codes.txt", "admin2Codes.txt");
   const admin3Dirs: string[] = [];
@@ -249,7 +342,11 @@ export async function sampleRegionalGrowth(
   const beaDir = path.join(WORK_DIR, "bea-cagdp9");
   unzipOnce(await downloadOnce(BEA_COUNTY_GDP, "bea-CAGDP9.zip"), beaDir, "CAGDP9__definition.xml");
   const lauFile = await downloadOnce(EUROSTAT_LAU, "eurostat-EU-27-LAU-2024-NUTS-2024.xlsx");
-  const result = await cached(`regional-growth-v12-${pointsKey(places)}`, async () => {
+  const beaGdpDir = path.join(WORK_DIR, "bea-cagdp2");
+  unzipOnce(await downloadOnce(BEA_COUNTY_GDP_CURRENT, "bea-CAGDP2.zip"), beaGdpDir, "CAGDP2__definition.xml");
+  const beaPeopleDir = path.join(WORK_DIR, "bea-cainc1");
+  unzipOnce(await downloadOnce(BEA_COUNTY_PEOPLE, "bea-CAINC1.zip"), beaPeopleDir, "CAINC1__definition.xml");
+  const result = await cached(`regional-growth-v15-${pointsKey(places)}`, async () => {
     const regions = await loadRegions();
     const nutsByGid = await loadNutsByGeonameId();
     const usCounties = loadUsCounties(beaDir);
@@ -299,6 +396,7 @@ export async function sampleRegionalGrowth(
     // Each place's region code, and - for places placed by municipality
     // name - what they had before (a large region, or nothing).
     const code: (string | undefined)[] = [];
+    const countyOf: (string | undefined)[] = [];
     const byName: Record<number, Region | undefined> = {};
     const out: RegionalGrowth[] = places.map((p, i) => {
       const empty: RegionalGrowth = { pctPerYear: null, fromYear: null, toYear: null, region: null, level: null };
@@ -309,7 +407,9 @@ export async function sampleRegionalGrowth(
       const keys = [a3 && `${cc}.${a1}.${a2}.${a3}`, a2 && `${cc}.${a1}.${a2}`, a1 && `${cc}.${a1}`].filter(Boolean) as string[];
       const divs = keys.map((k) => division.get(k)).filter((d): d is [string, number] => !!d);
       // US counties: BEA's own county figures, finer than the OECD's areas.
-      const county = cc === "US" ? usCounties.get(p.geonameId === NYC_GEONAME_ID ? NYC : `${a1}.${a2}`) : undefined;
+      const countyKey = p.geonameId === NYC_GEONAME_ID ? NYC : `${a1}.${a2}`;
+      if (cc === "US") countyOf[i] = countyKey;
+      const county = cc === "US" ? usCounties.get(countyKey) : undefined;
       if (county) return { pctPerYear: Math.round(county.growth * 10) / 10, fromYear: county.from, toYear: county.to, region: division.get(`US.${a1}.${a2}`)?.[0] ?? county.name, level: "county" };
       // A few big cities Eurostat lists only by parish, district or a "greater city" across two regions.
       const cityAlias = byCode.get(CITY_ALIASES[`${iso3}|${plain(p.cityName ?? "")}`] ?? "");
@@ -347,6 +447,7 @@ export async function sampleRegionalGrowth(
       const w = where.get(code[i]!)!;
       if (w.lat.length < 3 || haversineKm(p.lat, p.lng, median(w.lat), median(w.lng)) <= NAME_MATCH_MAX_KM) return;
       const back = byName[i];
+      code[i] = back?.code;
       out[i] = back
         ? { pctPerYear: Math.round(back.growth * 10) / 10, fromYear: back.from, toYear: back.to, region: back.name, level: back.level }
         : { pctPerYear: null, fromYear: null, toYear: null, region: null, level: null };
@@ -355,6 +456,42 @@ export async function sampleRegionalGrowth(
     log("regionGrowth", `${Object.keys(byName).length} places placed by municipality name, ${reverted} of them undone as too far from their region`);
     const national: Record<string, { pctPerYear: number; fromYear: number; toYear: number }> = {};
     for (const r of regions) if (r.level === "CTRY") national[r.iso3] = { pctPerYear: Math.round(r.growth * 10) / 10, fromYear: r.from, toYear: r.to };
+
+    // Regional wealth: the same region's GDP per person, against the country's.
+    const perHead = await loadPerHead();
+    const us = loadUsCountyPerHead(beaGdpDir, beaPeopleDir);
+    // The country's figure: its large regions together, the same year -
+    // GDP over residents - so output belonging to no region (Norway's
+    // offshore oil and gas, "extra-regio") doesn't make every region look
+    // poor. Never two years mixed.
+    const regionsPerHead = (iso3: string, year: number): number | null => {
+      let gdp = 0;
+      let people = 0;
+      for (const r of byCountry.get(iso3) ?? []) {
+        if (r.level !== "TL2") continue;
+        const v = perHead.get(r.code);
+        const total = v?.totalByYear.get(year);
+        const each = v?.localByYear.get(year);
+        if (!total || !each) continue;
+        gdp += total;
+        people += total / each;
+      }
+      return people ? gdp / people : null;
+    };
+    const noWealth: RegionalWealth = { vsNationalPct: null, perHeadPpp: null, year: null, region: null };
+    const wealth: RegionalWealth[] = places.map((p, i) => {
+      const county = countyOf[i] ? us.counties.get(countyOf[i]!) : undefined;
+      if (county && us.national) {
+        const nat = us.national;
+        return { vsNationalPct: Math.round((county.perHead / nat.perHead) * 100), perHeadPpp: Math.round(county.perHead), year: county.year, region: out[i].region ?? null };
+      }
+      const r = code[i] ? byCode.get(code[i]!) : undefined;
+      const v = r ? perHead.get(r.code) : undefined;
+      if (!r || !v || v.year < WEALTH_FROM) return noWealth;
+      const nat = regionsPerHead(r.iso3, v.year);
+      return { vsNationalPct: nat ? Math.round((v.local / nat) * 100) : null, perHeadPpp: Math.round(v.ppp), year: v.year, region: r.name };
+    });
+    log("regionGrowth", `regional wealth (2021+): ${wealth.filter((w) => w.vsNationalPct != null).length} places, years ${[...new Set(wealth.map((w) => w.year).filter(Boolean))].sort().join(", ")}`);
 
     // Coverage per country, for the log.
     const per = new Map<string, [number, number, number]>();
@@ -368,7 +505,7 @@ export async function sampleRegionalGrowth(
       per.set(iso3, c);
     });
     log("regionGrowth", [...per].map(([k, [n, t3, t2]]) => `${k} ${n}: ${t3}/${t2}`).join(", "));
-    return { places: out, national };
+    return { places: out, wealth, national };
   });
-  return { places: result.places, national: new Map(Object.entries(result.national)) };
+  return { places: result.places, wealth: result.wealth, national: new Map(Object.entries(result.national)) };
 }

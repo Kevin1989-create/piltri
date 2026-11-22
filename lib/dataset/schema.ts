@@ -197,7 +197,29 @@ export const CITY_FIELDS = [
   "crimeSource",
   // The area the crime figures are for, when not the place itself (2026-11-22).
   "crimeArea",
+  // The region of the regional wealth figure (2026-11-22, OECD).
+  "regionGdpArea",
+  // The local economy (2026-11-22, pipeline/localEconomy.ts): unemployment
+  // and median household income beside the country's, and whose figures.
+  "unemploymentPct",
+  "unemploymentNationalPct",
+  "unemploymentYear",
+  "unemploymentArea",
+  "incomeMedian",
+  "incomeVsNationalPct",
+  "incomeYear",
+  "incomeArea",
+  "economySource",
 ] as const;
+
+/** Whose local economy figures (a town's economySource), and the currency of its income. */
+export const ECONOMY_SOURCES: Record<string, { text: string; currency: string; area: string }> = {
+  US: {
+    text: "Bureau of Labor Statistics, Local Area Unemployment Statistics (annual average); Census Bureau, American Community Survey 5-year estimates, median household income (public domain)",
+    currency: "USD",
+    area: "The US",
+  },
+};
 
 /** The kinds of recorded crime by town, in this order in crimeRates
  *  (pipeline/crime.ts; new kinds go at the end). */
@@ -351,6 +373,17 @@ export interface CityRecord {
   /** The area the crime figures are for when it isn't the town itself (its
    *  municipality, regional police force, or the city it's part of). */
   crimeArea?: string | null;
+  regionGdpArea?: string | null;
+  /** The local economy (pipeline/localEconomy.ts) - absent before 2026-11-22. */
+  unemploymentPct?: number | null;
+  unemploymentNationalPct?: number | null;
+  unemploymentYear?: string | null;
+  unemploymentArea?: string | null;
+  incomeMedian?: number | null;
+  incomeVsNationalPct?: number | null;
+  incomeYear?: string | null;
+  incomeArea?: string | null;
+  economySource?: string | null;
 }
 
 /** What a city page's Yes and distance figures can show on its map, in
