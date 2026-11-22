@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
  *  column. */
 export function SettingsLayout({ title, subtitle, children }: { title: string; subtitle?: ReactNode; children: ReactNode }) {
   return (
-    <PageShell title={title} subtitle={subtitle} narrow>
+    <PageShell title={title} subtitle={subtitle} centered="max-w-2xl">
       <div className="space-y-5">{children}</div>
     </PageShell>
   );

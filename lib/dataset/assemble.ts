@@ -355,6 +355,7 @@ export function assembleCityExploreData(
       crimeNationalRates: city.crimeNationalRates ?? null,
       crimeYears: city.crimeYears ?? null,
       crimeSource: city.crimeSource ?? null,
+      crimeArea: city.crimeArea ?? null,
     },
     climate: {
       avgAnnualTemperatureC: city.avgAnnualTemperatureC,

@@ -6,39 +6,56 @@ import { DATA_BASE, manifest } from "@/lib/dataset/files";
 import type { DailyPick } from "@/lib/dataset/schema";
 import { cityUrl } from "@/lib/urls";
 
-/** "Today, let's try" (2026-11-21, owner: a daily thing, different cities
- *  every morning; only places with the most data, a photo, and a score of
- *  70 or more). The pool is the dataset's picks.json (pipeline/output.ts:
- *  cities of 100,000+, photo, among the tenth best covered, 70+ at the
- *  default settings, no suburbs); until a dataset has one, the same rule
- *  applied to the 2026-11-16 dataset (FALLBACK). Five a day from five
- *  countries, the next five at the visitor's midnight, in a fixed shuffle
- *  so everyone sees the same ones. */
+/** "Today, let's try" - hidden gems (2026-11-22, owner: "cities 75 and +,
+ *  which also are a bit special", with their proper borders on the map).
+ *  The pool is the dataset's picks.json (pipeline/output.ts: towns of
+ *  15,000-200,000 scoring 75+, with a photo, their own border, among the
+ *  fifth best covered, not a capital, district or suburb); until a dataset
+ *  has one, the same rule applied to the 2026-11-16 dataset (FALLBACK).
+ *  Five a day from five countries, the next five at the visitor's
+ *  midnight, in a fixed shuffle so everyone sees the same ones. */
 const FALLBACK: DailyPick[] = [
-  ["Klagenfurt am Wörthersee","klagenfurt-am-wörthersee-at","AT"], ["Linz","linz-at","AT"],
-  ["Hobart","hobart-au","AU"], ["Mostar","mostar-ba","BA"], ["Chilliwack","chilliwack-ca","CA"],
-  ["Kelowna","kelowna-ca","CA"], ["Abbotsford","abbotsford-ca","CA"], ["Kingston","kingston-ca","CA"],
-  ["Guelph","guelph-ca","CA"], ["Brantford","brantford-ca","CA"], ["Winterthur","winterthur-ch","CH"],
-  ["Pilsen","pilsen-cz","CZ"], ["Ostrava","ostrava-cz","CZ"], ["Freiburg","freiburg-de","DE"], ["Ulm","ulm-de","DE"],
-  ["Potsdam","potsdam-de","DE"], ["Reutlingen","reutlingen-de","DE"], ["Tallinn","tallinn-ee","EE"],
-  ["Barakaldo","barakaldo-es","ES"], ["Salamanca","salamanca-castille-and-león-es","ES"],
-  ["Montpellier","montpellier-fr","FR"], ["Nice","nice-fr","FR"], ["Nîmes","nîmes-fr","FR"],
-  ["Bordeaux","bordeaux-fr","FR"], ["Grenoble","grenoble-fr","FR"], ["Mulhouse","mulhouse-fr","FR"],
-  ["Dundee","dundee-gb","GB"], ["Belfast","belfast-gb","GB"], ["Pátra","pátra-gr","GR"],
-  ["Székesfehérvár","székesfehérvár-hu","HU"], ["Győr","győr-hu","HU"], ["Nyíregyháza","nyíregyháza-hu","HU"],
-  ["Debrecen","debrecen-hu","HU"], ["Cork","cork-ie","IE"], ["Limerick","limerick-ie","IE"], ["Padua","padua-it","IT"],
-  ["Tsu","tsu-jp","JP"], ["Yokkaichi","yokkaichi-jp","JP"], ["Suzuka","suzuka-jp","JP"], ["Ise","ise-jp","JP"],
-  ["Gifu","gifu-jp","JP"], ["Ōgaki","ōgaki-jp","JP"], ["Kaunas","kaunas-lt","LT"], ["Podgorica","podgorica-me","ME"],
-  ["Groningen","groningen-nl","NL"], ["Leeuwarden","leeuwarden-nl","NL"], ["Apeldoorn","apeldoorn-nl","NL"],
-  ["Stavanger","stavanger-no","NO"], ["Trondheim","trondheim-no","NO"], ["Drammen","drammen-no","NO"],
-  ["Kristiansand","kristiansand-no","NO"], ["Hamilton","hamilton-nz","NZ"], ["Tauranga","tauranga-nz","NZ"],
-  ["Szczecin","szczecin-pl","PL"], ["Gdańsk","gdańsk-pl","PL"], ["Gdynia","gdynia-pl","PL"], ["Płock","płock-pl","PL"],
-  ["Toruń","toruń-pl","PL"], ["Bydgoszcz","bydgoszcz-pl","PL"], ["Malmö","malmö-se","SE"],
-  ["Helsingborg","helsingborg-se","SE"], ["Uppsala","uppsala-se","SE"], ["Västerås","västerås-se","SE"],
-  ["Linköping","linköping-se","SE"], ["Örebro","örebro-se","SE"], ["Ljubljana","ljubljana-si","SI"],
-  ["Bratislava","bratislava-sk","SK"], ["Tacoma","tacoma-us","US"], ["Knoxville","knoxville-us","US"],
-  ["Kansas City","kansas-city-us","US"], ["Chattanooga","chattanooga-us","US"], ["Everett","everett-us","US"],
-  ["Cincinnati","cincinnati-us","US"],
+  ["Klagenfurt am Wörthersee","klagenfurt-am-wörthersee-at","AT"], ["Wiener Neustadt","wiener-neustadt-at","AT"],
+  ["Gympie","gympie-au","AU"], ["Grafton","grafton-au","AU"], ["Cairns","cairns-au","AU"],
+  ["Mandurah","mandurah-au","AU"], ["Launceston","launceston-au","AU"], ["Taree","taree-au","AU"],
+  ["Koksijde","koksijde-be","BE"], ["Brugge","brugge-be","BE"], ["Nanaimo","nanaimo-ca","CA"],
+  ["Campbell River","campbell-river-ca","CA"], ["Niagara Falls","niagara-falls-ca","CA"],
+  ["Squamish","squamish-ca","CA"], ["Courtenay","courtenay-ca","CA"], ["Sooke","sooke-ca","CA"],
+  ["Nyon","nyon-ch","CH"], ["Winterthur","winterthur-ch","CH"], ["Chur","chur-ch","CH"],
+  ["Montreux","montreux-ch","CH"], ["Lugano","lugano-ch","CH"], ["Luzern","luzern-ch","CH"],
+  ["Paphos","paphos-cy","CY"], ["Kyrenia","kyrenia-cy","CY"], ["Mórfou","mórfou-cy","CY"], ["Tábor","tábor-cz","CZ"],
+  ["Strakonice","strakonice-cz","CZ"], ["Jindřichův Hradec","jindřichův-hradec-cz","CZ"],
+  ["Pilsen","pilsen-cz","CZ"], ["Benešov","benešov-cz","CZ"], ["Karlovy Vary","karlovy-vary-cz","CZ"],
+  ["Füssen","füssen-de","DE"], ["Garmisch-Partenkirchen","garmisch-partenkirchen-de","DE"],
+  ["Baden-Baden","baden-baden-de","DE"], ["Burghausen","burghausen-de","DE"],
+  ["Neustadt in Holstein","neustadt-in-holstein-de","DE"], ["Cuxhaven","cuxhaven-de","DE"],
+  ["Frederikshavn","frederikshavn-dk","DK"], ["Hjørring","hjørring-dk","DK"], ["Esbjerg","esbjerg-dk","DK"],
+  ["Roskilde","roskilde-dk","DK"], ["Herning","herning-dk","DK"], ["Viborg","viborg-dk","DK"],
+  ["Ayamonte","ayamonte-es","ES"], ["La Orotava","la-orotava-es","ES"], ["Arona","arona-es","ES"],
+  ["Ferrol","ferrol-es","ES"], ["Vilagarcía de Arousa","vilagarcía-de-arousa-es","ES"],
+  ["Figueres","figueres-es","ES"], ["Antibes","antibes-fr","FR"], ["La Teste-de-Buch","la-teste-de-buch-fr","FR"],
+  ["Ajaccio","ajaccio-fr","FR"], ["Fréjus","fréjus-fr","FR"], ["Agde","agde-fr","FR"], ["Sète","sète-fr","FR"],
+  ["Chester","chester-gb","GB"], ["Colwyn Bay","colwyn-bay-gb","GB"], ["Newquay","newquay-gb","GB"],
+  ["Blackpool","blackpool-gb","GB"], ["Weston-super-Mare","weston-super-mare-gb","GB"],
+  ["Bangor","bangor-wales-gb","GB"], ["Dubrovnik","dubrovnik-hr","HR"], ["Pula","pula-hr","HR"],
+  ["Zadar","zadar-hr","HR"], ["Bjelovar","bjelovar-hr","HR"], ["Galway","galway-ie","IE"],
+  ["Kilkenny","kilkenny-ie","IE"], ["Limerick","limerick-ie","IE"], ["Sligo","sligo-ie","IE"],
+  ["Ennis","ennis-ie","IE"], ["Drogheda","drogheda-ie","IE"], ["Verbania","verbania-it","IT"],
+  ["Albenga","albenga-it","IT"], ["Mantua","mantua-it","IT"], ["Alghero","alghero-it","IT"],
+  ["Acqui Terme","acqui-terme-it","IT"], ["Ōarai","ōarai-jp","JP"], ["Fujikawaguchiko","fujikawaguchiko-jp","JP"],
+  ["Noboribetsu","noboribetsu-jp","JP"], ["Kariya","kariya-hyōgo-jp","JP"], ["Marugame","marugame-jp","JP"],
+  ["Ishinomaki","ishinomaki-jp","JP"], ["Yangp'yŏng","yangp'yŏng-kr","KR"],
+  ["Esch-sur-Alzette","esch-sur-alzette-lu","LU"], ["Middelburg","middelburg-nl","NL"], ["Sneek","sneek-nl","NL"],
+  ["Hilversum","hilversum-nl","NL"], ["Breda","breda-nl","NL"], ["Leiden","leiden-nl","NL"],
+  ["Hoogezand","hoogezand-nl","NL"], ["Skien","skien-no","NO"], ["Stavanger","stavanger-no","NO"],
+  ["Tønsberg","tønsberg-no","NO"], ["Sandefjord","sandefjord-no","NO"], ["Bodø","bodø-no","NO"],
+  ["Ålesund","ålesund-no","NO"], ["Masterton","masterton-nz","NZ"], ["Napier","napier-nz","NZ"],
+  ["Dunedin","dunedin-nz","NZ"], ["Nelson","nelson-nz","NZ"], ["Taupo","taupo-nz","NZ"],
+  ["Rotorua","rotorua-nz","NZ"], ["Santarém","santarém-pt","PT"], ["Aveiro","aveiro-pt","PT"],
+  ["Figueira da Foz","figueira-da-foz-pt","PT"], ["Coimbra","coimbra-pt","PT"], ["Guimarães","guimarães-pt","PT"],
+  ["Lagos","lagos-pt","PT"], ["Lund","lund-se","SE"], ["Maribor","maribor-si","SI"], ["Celje","celje-si","SI"],
+  ["Santa Cruz","santa-cruz-us","US"], ["Sevierville","sevierville-us","US"], ["Key West","key-west-us","US"],
+  ["San Rafael","san-rafael-us","US"], ["Knoxville","knoxville-us","US"], ["Bellingham","bellingham-us","US"],
 ];
 const PER_DAY = 5;
 

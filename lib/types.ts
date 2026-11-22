@@ -128,6 +128,7 @@ export interface SafetyStabilityFields {
   crimeNationalRates?: (number | null)[] | null;
   crimeYears?: string | null;
   crimeSource?: string | null;
+  crimeArea?: string | null;
 }
 
 /** Climate normals are TerraClimate's 1991-2020 averages (WorldClim 2.1

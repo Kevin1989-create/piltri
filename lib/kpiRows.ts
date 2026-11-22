@@ -225,6 +225,16 @@ const CRIME_BY_SOURCE: Record<string, { area: string; definitions?: Partial<Reco
       vandalism: "Destruction and damage to property registered by the police, per 1,000 residents a year.",
     },
   },
+  CA: {
+    area: "Canada",
+    definitions: {
+      violent: "Violent Criminal Code offences (assaults, sexual assaults, robberies, threats, homicides...) reported by the town's police, per 1,000 residents a year.",
+      burglary: "Break-ins into homes and businesses reported by the town's police, per 1,000 residents a year.",
+      theft: "Thefts other than of motor vehicles (from people, shops, cars, bicycles...) reported by the town's police, per 1,000 residents a year.",
+      vehicle: "Motor vehicles stolen, reported by the town's police, per 1,000 residents a year.",
+      vandalism: "Mischief - deliberate damage to property - reported by the town's police, per 1,000 residents a year.",
+    },
+  },
   GB: {
     area: "England and Wales",
     definitions: {
@@ -254,10 +264,12 @@ function crimeRows(countryCode: string, s: CityExploreData["safetyStability"]): 
         " Only crimes reported to and recorded by the police are counted, and a town centre with many visitors counts their thefts too.",
       source: CRIME_SOURCES[sourceKey] ?? sourceKey,
     };
+    if (s.crimeArea) about.definition += ` The town has no figure of its own: these are for ${s.crimeArea}.`;
     if (rate == null || nat == null) return missing(label, "city", about);
     if (rate === CRIME_TOO_FEW) return neutral(label, "Too few to publish", "city", { ...about, definition: about.definition + " Too few were recorded here for the figure to be published." });
     const pct = Math.round((rate / nat) * 100);
-    return scored(label, pct, `${num(rate, 1)} per 1,000`, "city", SCALES.crimeVsNational, (n) => `${num(n)}% of the national rate`, about, `(${num(rate / nat, 1)}× national)`);
+    const row = scored(label, pct, `${num(rate, 1)} per 1,000`, "city", SCALES.crimeVsNational, (n) => `${num(n)}% of the national rate`, about, `(${num(rate / nat, 1)}× national)`);
+    return s.crimeArea ? { ...row, note: `For ${s.crimeArea}` } : row;
   });
 }
 

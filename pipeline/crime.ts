@@ -29,6 +29,9 @@ export interface PlaceCrime {
   years: string;
   /** The country whose figures these are (its CRIME_SOURCES entry). */
   source: string;
+  /** The area the figures are for when it isn't the place itself: its
+   *  municipality, its regional police force, the city it's part of. */
+  area?: string;
 }
 
 // ---- France -------------------------------------------------------------
@@ -433,10 +436,10 @@ async function cbsRows(table: string, filter: string): Promise<CbsRow[]> {
   return out;
 }
 
-async function loadNetherlands(): Promise<{ byMunicipality: Record<string, (number | null)[]>; residents: Record<string, number>; national: (number | null)[]; years: string }> {
+async function loadNetherlands(): Promise<{ byMunicipality: Record<string, (number | null)[]>; residents: Record<string, number>; names: Record<string, string>; national: (number | null)[]; years: string }> {
   const periods = (await fetchJson<{ value: { Key: string }[] }>(`${CBS}/83648NED/Perioden`)).value.map((p) => p.Key).filter((k) => /JJ00$/.test(k));
   const years = periods.slice(-3);
-  return cached(`crime-nl-v2-${years.join("-")}`, async () => {
+  return cached(`crime-nl-v4-${years.join("-")}`, async () => {
     const inYears = `(${years.map((y) => `Perioden eq '${y}'`).join(" or ")})`;
     const places = "(startswith(RegioS,'GM') or startswith(RegioS,'NL01'))";
     const any = (dim: string, codes: string[]) => `(${codes.map((c) => `${dim} eq '${c}'`).join(" or ")})`;
@@ -489,7 +492,180 @@ async function loadNetherlands(): Promise<{ byMunicipality: Record<string, (numb
     const national = ratesOf("NL01") ?? CRIME_KINDS.map(() => null);
     const label = `${years[0].slice(0, 4)}-${years[years.length - 1].slice(0, 4)}`;
     log("crime", `CBS ${label}: ${Object.keys(byMunicipality).length} municipalities; national per 1,000: ${CRIME_KINDS.map((k, i) => `${k} ${national[i]}`).join(", ")}`);
-    return { byMunicipality, residents, national, years: label };
+    const names: Record<string, string> = {};
+    for (const r of (await fetchJson<{ value: { Key: string; Title: string }[] }>(`${CBS}/83648NED/RegioS`)).value) {
+      const key = r.Key.trim();
+      // "Utrecht (gemeente)" -> "Utrecht".
+      if (byMunicipality[key]) names[key] = r.Title.trim().replace(/ \((gemeente|gem\.)\)$/i, "");
+    }
+    return { byMunicipality, residents, names, national, years: label };
+  });
+}
+
+// ---- Canada ---------------------------------------------------------------
+
+/**
+ * Statistics Canada (Open Licence): incidents reported by each police
+ * service, tables 35-10-0178 to 35-10-0185 (one per province or group),
+ * the last three years, through its data service (only the series needed,
+ * not the multi-gigabyte files). A town's figure is its municipal police
+ * service's (its own force, or the RCMP or OPP policing it under contract);
+ * a town policed by a regional service ("Peel Region (Mississauga/Brampton)")
+ * gets the region's, marked as such.
+ * Residents: Statistics Canada's own, from the service's rate of all
+ * incidents. National: table 35-10-0177's Canada.
+ */
+const STATCAN = "https://www150.statcan.gc.ca/t1/wds/rest";
+const CA_TABLES = [35100178, 35100179, 35100180, 35100181, 35100182, 35100183, 35100184, 35100185];
+const CA_NATIONAL_TABLE = 35100177;
+const CA_TOTAL = "Total, all violations";
+const CA_KINDS: Record<(typeof CRIME_KINDS)[number], string[]> = {
+  violent: ["Total violent Criminal Code violations"],
+  burglary: ["Total breaking and entering"],
+  theft: ["Total theft under $5,000 (non-motor vehicle)", "Total theft over $5,000 (non-motor vehicle)"],
+  vehicle: ["Total theft of motor vehicle"],
+  vandalism: ["Total mischief"],
+};
+
+/** The towns a regional police service covers that its name doesn't list. */
+const CA_REGIONAL_TOWNS: Record<string, string[]> = {
+  "ontario|york region": ["Markham", "Vaughan", "Richmond Hill", "Newmarket", "Aurora", "Whitchurch-Stouffville", "Stouffville", "East Gwillimbury", "Georgina", "King City", "Thornhill", "Woodbridge", "Maple", "Keswick"],
+  "ontario|waterloo region (kitchener)": ["Waterloo", "Cambridge", "Woolwich", "Wilmot", "Wellesley", "North Dumfries", "Elmira", "New Hamburg"],
+  "ontario|halton region (oakville/burlington)": ["Milton", "Halton Hills", "Georgetown", "Acton"],
+  "ontario|durham region (oshawa/whitby/ajax)": ["Pickering", "Clarington", "Bowmanville", "Courtice", "Uxbridge", "Scugog", "Port Perry", "Brock"],
+  "ontario|niagara region (saint catharines)": ["Niagara Falls", "Welland", "Fort Erie", "Grimsby", "Thorold", "Port Colborne", "Lincoln", "Niagara-on-the-Lake", "Pelham"],
+  "nova scotia|cape breton region": ["Sydney", "Glace Bay", "Sydney Mines", "North Sydney", "New Waterford"],
+  "new brunswick|codiac regional": ["Moncton", "Dieppe", "Riverview"],
+  "new brunswick|kennebecasis region": ["Rothesay", "Quispamsis"],
+  // Montréal's police serves the whole island.
+  "quebec|montreal": ["Dollard-Des Ormeaux", "Côte-Saint-Luc", "Pointe-Claire", "Dorval", "Kirkland", "Beaconsfield", "Westmount", "Mount Royal", "Mont-Royal", "Montréal-Est", "Montréal-Ouest", "Hampstead", "Baie-D'Urfé", "Sainte-Anne-de-Bellevue", "Senneville", "Saint-Laurent"],
+};
+
+interface CubeMember {
+  memberId: number;
+  memberNameEn: string;
+}
+
+async function statcanPost<T>(method: string, body: unknown): Promise<T> {
+  const res = await fetchWithRetry(`${STATCAN}/${method}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return (await res.json()) as T;
+}
+
+/** year -> value, for each requested coordinate (missing or suppressed values left out). */
+async function statcanSeries(productId: number, coordinates: string[], latestN: number): Promise<Map<string, Map<number, number>>> {
+  const out = new Map<string, Map<number, number>>();
+  for (let k = 0; k < coordinates.length; k += 100) {
+    // All ten positions of a coordinate, unused ones 0.
+    const batch = coordinates.slice(k, k + 100).map((c) => ({ productId, coordinate: [...c.split("."), ...Array(10).fill("0")].slice(0, 10).join("."), latestN }));
+    const res = await statcanPost<{ status: string; object?: { coordinate: string; vectorDataPoint?: { refPer: string; value: number | null }[] } }[]>("getDataFromCubePidCoordAndLatestNPeriods", batch);
+    for (const r of res) {
+      if (r.status !== "SUCCESS" || !r.object) continue;
+      const byYear = new Map<number, number>();
+      for (const p of r.object.vectorDataPoint ?? []) if (p.value != null) byYear.set(Number(p.refPer.slice(0, 4)), p.value);
+      out.set(r.object.coordinate.replace(/(\.0)+$/, ""), byYear);
+    }
+  }
+  return out;
+}
+
+async function cubeDimensions(productId: number): Promise<CubeMember[][]> {
+  const [meta] = await statcanPost<{ object: { dimension: { member: CubeMember[] }[] } }[]>("getCubeMetadata", [{ productId }]);
+  return meta.object.dimension.map((d) => d.member);
+}
+
+/** Per kind and the total, per year: incidents and residents. */
+type CaService = { years: Map<number, { counts: Map<string, number>; people: number }> };
+
+async function loadCanada(): Promise<{ byTown: Record<string, (number | null)[]>; names: Record<string, string>; national: (number | null)[]; years: string }> {
+  const kindNames = [CA_TOTAL, ...new Set(Object.values(CA_KINDS).flat())];
+  const latest = await statcanPost<{ object: { cubeEndDate: string } }[]>("getCubeMetadata", [{ productId: CA_NATIONAL_TABLE }]);
+  const tag = latest[0].object.cubeEndDate.slice(0, 4);
+  return cached(`crime-ca-v2-${tag}`, async () => {
+    // Each table's services and the members of the violations and statistics.
+    const services = new Map<string, CaService>();
+    const servicesSeen: string[] = [];
+    const displayNames: Record<string, string> = {};
+    for (const productId of CA_TABLES) {
+      const [geos, violations, statistics] = await cubeDimensions(productId);
+      const violationId = new Map(violations.map((m) => [m.memberNameEn, m.memberId]));
+      const actual = statistics.find((m) => m.memberNameEn === "Actual incidents")!.memberId;
+      const rate = statistics.find((m) => m.memberNameEn === "Rate per 100,000 population")!.memberId;
+      const municipal = geos.filter((g) => /, municipal \[\d+\]$/.test(g.memberNameEn));
+      const coords: string[] = [];
+      for (const g of municipal) {
+        for (const name of kindNames) if (violationId.has(name)) coords.push(`${g.memberId}.${violationId.get(name)}.${actual}`);
+        coords.push(`${g.memberId}.${violationId.get(CA_TOTAL)}.${rate}`);
+      }
+      const series = await statcanSeries(productId, coords, 3);
+      for (const g of municipal) {
+        // "Coaldale, Alberta, Royal Canadian Mounted Police, municipal [48005]" -> "alberta|coaldale"
+        const parts = g.memberNameEn.replace(/ \[\d+\]$/, "").split(", ");
+        const key = `${usPlain(parts[1])}|${usPlain(parts[0])}`;
+        displayNames[key] ??= parts[0];
+        const service = services.get(key) ?? { years: new Map() };
+        const total = series.get(`${g.memberId}.${violationId.get(CA_TOTAL)}.${actual}`);
+        const totalRate = series.get(`${g.memberId}.${violationId.get(CA_TOTAL)}.${rate}`);
+        for (const [year, n] of total ?? []) {
+          const r = totalRate?.get(year);
+          if (!r) continue;
+          const y = service.years.get(year) ?? { counts: new Map(), people: 0 };
+          // Two services for one town (a switch to the RCMP...): added up.
+          y.people += (n / r) * 100000;
+          for (const name of kindNames) {
+            const v = series.get(`${g.memberId}.${violationId.get(name)}.${actual}`)?.get(year);
+            if (v != null) y.counts.set(name, (y.counts.get(name) ?? 0) + v);
+          }
+          service.years.set(year, y);
+        }
+        services.set(key, service);
+        servicesSeen.push(key);
+      }
+    }
+    const ratesOf = (s: CaService) => {
+      const years = [...s.years.values()];
+      if (years.length < 2) return null;
+      const people = years.reduce((sum, y) => sum + y.people, 0);
+      if (people < 1000 * years.length) return null;
+      return CRIME_KINDS.map((kind) => {
+        const names = CA_KINDS[kind];
+        if (years.some((y) => names.some((n) => !y.counts.has(n)))) return null;
+        return Math.round((years.reduce((sum, y) => sum + names.reduce((s2, n) => s2 + y.counts.get(n)!, 0), 0) / people) * 1000 * 100) / 100;
+      });
+    };
+    const byTown: Record<string, (number | null)[]> = {};
+    const names: Record<string, string> = {};
+    for (const [key, s] of services) {
+      const rates = ratesOf(s);
+      if (rates) {
+        byTown[key] = rates;
+        names[key] = displayNames[key];
+      }
+    }
+
+    // The whole country: table 35-10-0177's "Canada".
+    const [geos, violations, statistics] = await cubeDimensions(CA_NATIONAL_TABLE);
+    const canada = geos.find((g) => g.memberNameEn === "Canada")!.memberId;
+    const violationId = new Map(violations.map((m) => [m.memberNameEn, m.memberId]));
+    const actual = statistics.find((m) => m.memberNameEn === "Actual incidents")!.memberId;
+    const rate = statistics.find((m) => m.memberNameEn === "Rate per 100,000 population")!.memberId;
+    const coords = [...kindNames.map((n) => `${canada}.${violationId.get(n)}.${actual}`), `${canada}.${violationId.get(CA_TOTAL)}.${rate}`];
+    const series = await statcanSeries(CA_NATIONAL_TABLE, coords, 3);
+    const nation: CaService = { years: new Map() };
+    const totals = series.get(`${canada}.${violationId.get(CA_TOTAL)}.${actual}`);
+    for (const [year, n] of totals ?? []) {
+      const r = series.get(`${canada}.${violationId.get(CA_TOTAL)}.${rate}`)?.get(year);
+      if (!r) continue;
+      const counts = new Map<string, number>();
+      for (const name of kindNames) {
+        const v = series.get(`${canada}.${violationId.get(name)}.${actual}`)?.get(year);
+        if (v != null) counts.set(name, v);
+      }
+      nation.years.set(year, { counts, people: (n / r) * 100000 });
+    }
+    const national = ratesOf(nation) ?? CRIME_KINDS.map(() => null);
+    const years = [...nation.years.keys()].sort();
+    log("crime", `Statistics Canada ${years.join(", ")}: ${servicesSeen.length} municipal police services, ${Object.keys(byTown).length} towns; national per 1,000: ${CRIME_KINDS.map((k, i) => `${k} ${national[i]}`).join(", ")}`);
+    return { byTown, names, national, years: `${years[0]}-${years[years.length - 1]}` };
   });
 }
 
@@ -526,31 +702,72 @@ function englandWalesRates(ew: Awaited<ReturnType<typeof loadEnglandWales>>, gri
 // ---- All countries --------------------------------------------------------
 
 export async function sampleCrime(
-  places: { geonameId: number; countryCode: string; lat: number; lng: number; population: number }[],
+  places: { geonameId: number; cityName: string; countryCode: string; lat: number; lng: number; population: number }[],
   /** The place's outline (its border, or its built-up area), if any. */
   outlineOf: (i: number) => EncodedBoundary | null
 ): Promise<(PlaceCrime | null)[]> {
-  return cached(`crime-v10-${pointsKey(places)}`, async () => {
+  return cached(`crime-v15-${pointsKey(places)}`, async () => {
     // Each place's official local code (GeoNames admin4: the INSEE commune code in France).
     const admin4 = new Map<number, string>();
     const nlMunicipality = new Map<number, string>();
     const usNames = new Map<number, { state: string; names: string[] }>();
     const stateNames = new Map<string, string>();
+    const provinceNames = new Map<string, string>();
+    const caNames = new Map<number, { province: string; names: string[] }>();
     for (const line of readFileSync(path.join(RAW_DIR, "admin1CodesASCII.txt"), "utf8").split("\n")) {
       const [code, name] = line.split("\t");
       if (code?.startsWith("US.")) stateNames.set(code.slice(3), usPlain(name));
+      if (code?.startsWith("CA.")) provinceNames.set(code.slice(3), usPlain(name));
     }
     for (const line of readFileSync(path.join(WORK_DIR, "geonames", "cities1000.txt"), "utf8").split("\n")) {
       const c = line.split("\t");
       if (FR_COUNTRIES.has(c[8]) && c[13]) admin4.set(Number(c[0]), c[13]);
       // The Netherlands: GeoNames' admin2 is CBS's municipality code.
       if (c[8] === "NL" && c[11]) nlMunicipality.set(Number(c[0]), `GM${c[11]}`);
+      if (c[8] === "CA" && provinceNames.has(c[10])) caNames.set(Number(c[0]), { province: provinceNames.get(c[10])!, names: [...new Set([c[1], c[2]].map(usPlain))] });
       if (c[8] === "US" && stateNames.has(c[10])) usNames.set(Number(c[0]), { state: stateNames.get(c[10])!, names: [...new Set([c[1], c[2]].map(usPlain))] });
     }
     const fr = places.some((p) => FR_COUNTRIES.has(p.countryCode)) ? await loadFrance() : null;
     const ew = places.some((p) => p.countryCode === "GB") ? await loadEnglandWales() : null;
     const us = places.some((p) => p.countryCode === "US") ? await loadUnitedStates() : null;
     const nl = places.some((p) => p.countryCode === "NL") ? await loadNetherlands() : null;
+    const ca = places.some((p) => p.countryCode === "CA") ? await loadCanada() : null;
+    // A Canadian town's police service: same province, same name (hyphens
+    // as spaces - "St. Hyacinthe" is "Saint-Hyacinthe"; "Halifax
+    // Metropolitan Area" is Halifax); the largest place of that name.
+    const caKeyOf = new Map<number, string>();
+    const caRegionalOf = new Map<number, string>();
+    if (ca) {
+      const caLoose = (k: string) => k.replace(/-/g, " ").replace(/ metropolitan area$/, "");
+      const byLoose = new Map(Object.keys(ca.byTown).map((k) => [caLoose(k), k]));
+      const owner = new Map<string, { i: number; pop: number }>();
+      places.forEach((p, i) => {
+        if (p.countryCode !== "CA") return;
+        const names = caNames.get(p.geonameId);
+        const key = names?.names.map((n) => byLoose.get(caLoose(`${names.province}|${n}`))).find((k) => k != null);
+        if (!key) return;
+        const prev = owner.get(key);
+        if (!prev || p.population > prev.pop) owner.set(key, { i, pop: p.population });
+      });
+      for (const [key, { i }] of owner) caKeyOf.set(i, key);
+      // A regional service lists its towns: "Peel Region (Mississauga/Brampton)".
+      const regional = new Map<string, string>();
+      for (const key of Object.keys(ca.byTown)) {
+        const [province, name] = key.split("|");
+        const listed = name.match(/\(([^)]+)\)$/)?.[1];
+        if (!listed) continue;
+        for (const town of listed.split(/[/,]/)) regional.set(caLoose(`${province}|${town.trim()}`), key);
+      }
+      // The other towns of the regional services (their police boards' own lists).
+      for (const [key, towns] of Object.entries(CA_REGIONAL_TOWNS))
+        if (ca.byTown[key]) for (const town of towns) regional.set(caLoose(`${key.split("|")[0]}|${usPlain(town)}`), key);
+      places.forEach((p, i) => {
+        if (p.countryCode !== "CA" || caKeyOf.has(i)) return;
+        const names = caNames.get(p.geonameId);
+        const key = names?.names.map((n) => regional.get(caLoose(`${names.province}|${n}`))).find((k) => k != null);
+        if (key) caRegionalOf.set(i, key);
+      });
+    }
     // A US place's FBI city: same state, same name - or the FBI's name less
     // "township", "village", "borough", "town", "city" ("New York City" is
     // the FBI's "New York"). One FBI city for the largest place of that name.
@@ -599,14 +816,22 @@ export async function sampleCrime(
     }
     let found = 0;
     const out = places.map((p, i) => {
+      if (ca && p.countryCode === "CA") {
+        const own = caKeyOf.get(i);
+        const key = own ?? caRegionalOf.get(i);
+        if (!key) return null;
+        found++;
+        return { rates: ca.byTown[key], national: ca.national, years: ca.years, source: "CA", ...(own ? {} : { area: ca.names[key].replace(/ \(.*\)$/, "") }) };
+      }
       if (nl && p.countryCode === "NL") {
         const code = nlMunicipality.get(p.geonameId) ?? "";
         const rates = nl.byMunicipality[code];
-        // A municipality's figure is its main town's, not each of its
-        // villages': only a place with 30%+ of its residents gets it.
-        if (!rates || p.population < 0.3 * nl.residents[code]) return null;
+        if (!rates) return null;
         found++;
-        return { rates, national: nl.national, years: nl.years, source: "NL" };
+        // A municipality's figure is its main town's (30%+ of its residents);
+        // its villages get it marked as the municipality's.
+        const main = p.population >= 0.3 * nl.residents[code];
+        return { rates, national: nl.national, years: nl.years, source: "NL", ...(main ? {} : { area: `the municipality of ${nl.names[code] ?? code}` }) };
       }
       if (us && p.countryCode === "US") {
         const key = usKeyOf.get(i);
@@ -629,7 +854,38 @@ export async function sampleCrime(
       }
       return null;
     });
-    log("crime", `${found} places with local crime figures`);
+    // A place inside another's outline with figures of its own (a city's
+    // district or neighbourhood - Brooklyn, Etobicoke, Amsterdam-Zuid) gets
+    // that city's, marked as such: the smallest such city around it.
+    const figured: number[] = [];
+    out.forEach((r, i) => {
+      if (r && !r.area && outlineOf(i)) figured.push(i);
+    });
+    const cityGrid = new Map<string, number[]>();
+    for (const i of figured) {
+      const key = `${Math.floor(places[i].lng * 2)},${Math.floor(places[i].lat * 2)}`;
+      if (!cityGrid.has(key)) cityGrid.set(key, []);
+      cityGrid.get(key)!.push(i);
+    }
+    const decoded = new Map<number, number[][][][]>();
+    let contained = 0;
+    places.forEach((p, i) => {
+      if (out[i] || !CRIME_COUNTRIES[p.countryCode]) return;
+      let best: number | null = null;
+      for (let dx = -1; dx <= 1; dx++)
+        for (let dy = -1; dy <= 1; dy++)
+          for (const j of cityGrid.get(`${Math.floor(p.lng * 2) + dx},${Math.floor(p.lat * 2) + dy}`) ?? []) {
+            const c = places[j];
+            if (c.countryCode !== p.countryCode || c.population <= p.population) continue;
+            if (best != null && places[best].population <= c.population) continue;
+            if (!decoded.has(j)) decoded.set(j, decodeBoundary(outlineOf(j)!));
+            if (inside(p.lng, p.lat, decoded.get(j)!)) best = j;
+          }
+      if (best == null) return;
+      out[i] = { ...out[best]!, area: places[best].cityName };
+      contained++;
+    });
+    log("crime", `${found} places with local crime figures, ${contained} more with those of the city they're part of`);
     return out;
   });
 }

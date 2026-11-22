@@ -497,6 +497,7 @@ async function main() {
         crimeNationalRates: crime?.[i]?.national ?? null,
         crimeYears: crime?.[i]?.years ?? null,
         crimeSource: crime?.[i]?.source ?? null,
+        crimeArea: crime?.[i]?.area ?? null,
         regionGdpPerHeadPpp: regionGdp?.[i].perHead ?? null,
         regionGdpYear: regionGdp?.[i].year ?? null,
         regionGdpVsNationalPct: regionGdp?.[i].vsNationalPct ?? null,

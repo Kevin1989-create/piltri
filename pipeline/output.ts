@@ -298,32 +298,51 @@ export async function writeDataset(outDir: string, ds: DatasetToWrite): Promise<
   for (const [region, file] of Object.entries(leaderboards)) writeJson(outDir, `leaderboards/${region}.json`, file);
 
   // ---- Places of the day (home page) ------------------------------------------
-  // "Today, let's try" (2026-11-21, owner: only places with the most data,
-  // a photo, and scoring 70 or more): cities of 100,000+ (a name people may
-  // know) with a photo, among the tenth best covered, at 70+ by the default
-  // score settings. Not a district or suburb: nothing within 25 km of a
-  // larger city, nor within 15 km of a bigger pick (Bratislava's Petržalka).
-  // The best few per country, so the days stay varied.
-  const DAILY_MIN_POPULATION = 100_000;
-  const DAILY_MIN_SCORE = 70;
+  // "Today, let's try" - hidden gems (2026-11-22, owner: "cities 75 and +,
+  // which also are a bit special ... where we have the proper borders on the
+  // map"): towns of 15,000 to 200,000 - real places, not the famous capitals
+  // and metropolises - scoring 75+ by the default settings, with a photo,
+  // their own border on the map (not a built-up area), and among the fifth
+  // best covered. Not a district or suburb: nothing within 20 km of a larger
+  // city, nor within 15 km of a bigger pick; not the capital. The best few
+  // per country, so the days stay varied.
+  const DAILY_POPULATION = { min: 15_000, max: 200_000 };
+  const DAILY_MIN_SCORE = 75;
   const DAILY_PER_COUNTRY = 6;
   const defaultWeights = normaliseWeights(weightPercentagesToScores(DEFAULT_WEIGHT_PERCENTAGES));
   const filled = ordered.map((c) => CITY_FIELDS.filter((k) => c.record[k] != null).length);
-  const wellCovered = [...filled].sort((a, b) => a - b)[Math.floor(filled.length * 0.9)];
+  const wellCovered = [...filled].sort((a, b) => a - b)[Math.floor(filled.length * 0.8)];
+  const km = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) =>
+    6371 * Math.hypot(((b.lng - a.lng) * Math.PI) / 180 * Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180), ((b.lat - a.lat) * Math.PI) / 180);
+  // Any larger place within 8 km: a district (Graz's Eggenberg), not a town.
+  const cellOf = (r: { lat: number; lng: number }) => `${Math.floor(r.lat * 10)},${Math.floor(r.lng * 10)}`;
+  const cells = new Map<string, CityRecord[]>();
+  for (const c of ordered) cells.set(cellOf(c.record), [...(cells.get(cellOf(c.record)) ?? []), c.record]);
+  const hasLargerNear = (r: CityRecord) => {
+    const [y, x] = [Math.floor(r.lat * 10), Math.floor(r.lng * 10)];
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -2; dx <= 2; dx++)
+        for (const o of cells.get(`${y + dy},${x + dx}`) ?? []) if ((o.population ?? 0) > (r.population ?? 0) && km(o, r) < 8) return true;
+    return false;
+  };
   const candidates = ordered.flatMap((c, i) => {
     const score = table.piltri(i, defaultWeights);
     const nearLarge = c.record.nearestLargeCityKm;
+    const population = c.record.population ?? 0;
+    const capital = ds.countries[c.cc]?.capital;
     return c.record.photo &&
-      (c.record.population ?? 0) >= DAILY_MIN_POPULATION &&
+      population >= DAILY_POPULATION.min &&
+      population <= DAILY_POPULATION.max &&
+      ds.bounds.has(c.record.id) &&
+      !(capital && km(capital, c.record) < 5) &&
       !/\d/.test(c.record.name) &&
-      (nearLarge == null || nearLarge >= 25) &&
+      (nearLarge == null || nearLarge >= 20) &&
       filled[i] >= wellCovered &&
-      score >= DAILY_MIN_SCORE
+      score >= DAILY_MIN_SCORE &&
+      !hasLargerNear(c.record)
       ? [{ c, i, score }]
       : [];
   });
-  const km = (a: CityRecord, b: CityRecord) =>
-    6371 * Math.hypot(((b.lng - a.lng) * Math.PI) / 180 * Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180), ((b.lat - a.lat) * Math.PI) / 180);
   const pickByCountry = new Map<string, { pick: DailyPick; score: number }[]>();
   for (const { c, i, score } of candidates) {
     const bigger = candidates.some((o) => o.c !== c && o.c.cc === c.cc && (o.c.record.population ?? 0) > (c.record.population ?? 0) && km(o.c.record, c.record) < 15);

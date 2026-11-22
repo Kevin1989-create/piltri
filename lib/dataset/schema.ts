@@ -195,6 +195,8 @@ export const CITY_FIELDS = [
   "crimeNationalRates",
   "crimeYears",
   "crimeSource",
+  // The area the crime figures are for, when not the place itself (2026-11-22).
+  "crimeArea",
 ] as const;
 
 /** The kinds of recorded crime by town, in this order in crimeRates
@@ -210,8 +212,9 @@ export const CRIME_SOURCES: Record<string, string> = {
   GB: "data.police.uk - crimes recorded by the police forces of England and Wales, by neighbourhood, counted inside the town's outline (Open Government Licence v3.0); residents from the 2021 census (ONS)",
   US: "FBI, Crime in the United States, Table 8 - offences known to each city's police, with the population it serves (public domain)",
   NL: "Statistics Netherlands (CBS) - crimes registered by the police, by municipality, tables 83648NED and 83651NED (CC BY 4.0)",
+  CA: "Statistics Canada - incidents reported by each municipal police service, tables 35-10-0177 to 35-10-0185 (Statistics Canada Open Licence)",
 };
-export const CRIME_COUNTRIES: Record<string, string> = { FR: "FR", GP: "FR", MQ: "FR", GF: "FR", RE: "FR", YT: "FR", GB: "GB", US: "US", NL: "NL" };
+export const CRIME_COUNTRIES: Record<string, string> = { FR: "FR", GP: "FR", MQ: "FR", GF: "FR", RE: "FR", YT: "FR", GB: "GB", US: "US", NL: "NL", CA: "CA" };
 
 export interface CityRecord {
   id: string;
@@ -344,6 +347,9 @@ export interface CityRecord {
   crimeNationalRates?: (number | null)[] | null;
   crimeYears?: string | null;
   crimeSource?: string | null;
+  /** The area the crime figures are for when it isn't the town itself (its
+   *  municipality, regional police force, or the city it's part of). */
+  crimeArea?: string | null;
 }
 
 /** What a city page's Yes and distance figures can show on its map, in
